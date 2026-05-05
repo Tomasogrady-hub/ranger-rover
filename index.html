@@ -783,7 +783,7 @@ const DEMO_SITES = [
     Ranger1: 'bjcox@berkeley.edu', Ranger1Name: 'Bailey Cox',
     Principal: 'rdasylve@lausd.net',
     MainContact1: 'daisy.parada@lausd.net', MainContact2: 'jkbuscher@gmail.com',
-    Siteslatlong: '33.972699,-118.4057218', Comments: 'Bailey taking over both days in January 2026.' },
+    Siteslatlong: '33.972699,-118.4057218' },
   { Name: 'Washington Elementary', FullAddress: '9725 East Jefferson Street, Bellflower, CA, 90706 USA',
     District: 'Bellflower Unified', Type: 'Active Ranger Program',
     Ranger1: 'lamlynne10@gmail.com', Ranger1Name: 'Lynne Tien',
@@ -824,16 +824,16 @@ const DEMO_SITES = [
 ];
 
 const DEMO_HUMANS = [
-  { Name: 'Alexandria Aleshire', FirstName: 'Alexandria', LastName: 'Aleshire', Email: 'alexaleshire@enrichla.org', Mobile: '310-968-0546', Role: 'Ranger', Comments: 'Master Ranger. Perfect Mack, Denker', Rating1: 1 },
-  { Name: 'Hillary Williams', FirstName: 'Hillary', LastName: 'Williams', Email: 'hillarywilliams@enrichla.org', Mobile: '818-395-8611', Role: 'Ranger', Comments: 'Master Ranger. Perfect Nestle', Rating1: 1 },
-  { Name: 'Johanna Recalde', FirstName: 'Johanna', LastName: 'Recalde', Email: 'johannarecalde@enrichla.org', Mobile: '2138648082', Role: 'Ranger', Comments: 'Master Ranger', Rating1: 1 },
-  { Name: 'Bailey Cox', FirstName: 'Bailey', LastName: 'Cox', Email: 'bjcox@berkeley.edu', Mobile: '310-498-4866', Role: 'Ranger', Comments: 'Great control of the classes.', Rating1: null },
-  { Name: 'Andreas George', FirstName: 'Andreas', LastName: 'George', Email: 'andreasgeorge94@gmail.com', Mobile: '818-491-6091', Role: 'Ranger', Rating1: 5 },
-  { Name: 'Jesse Hull', FirstName: 'Jesse', LastName: 'Hull', Email: 'jesseghull@gmail.com', Mobile: '', Role: 'Ranger', Rating1: 3 },
-  { Name: 'Kazuha Kurosu', FirstName: 'Kazuha', LastName: 'Kurosu', Email: 'kazuha.kurosu@gmail.com', Mobile: '', Role: 'Ranger', Rating1: 2 },
-  { Name: 'Lynne Tien', FirstName: 'Lynne', LastName: 'Tien', Email: 'lamlynne10@gmail.com', Mobile: '', Role: 'Ranger', Rating1: 3 },
-  { Name: 'Amanda Howell', FirstName: 'Amanda', LastName: 'Howell', Email: 'ahowell.126@gmail.com', Mobile: '', Role: 'Ranger', Rating1: 4 },
-  { Name: 'Karina Recinos', FirstName: 'Karina', LastName: 'Recinos', Email: 'lizetterecinos25@gmail.com', Mobile: '', Role: 'Ranger', Rating1: 2 },
+  { Name: 'Alexandria Aleshire', FirstName: 'Alexandria', LastName: 'Aleshire', Email: 'alexaleshire@enrichla.org', Mobile: '310-968-0546', Role: 'Ranger' },
+  { Name: 'Hillary Williams', FirstName: 'Hillary', LastName: 'Williams', Email: 'hillarywilliams@enrichla.org', Mobile: '818-395-8611', Role: 'Ranger' },
+  { Name: 'Johanna Recalde', FirstName: 'Johanna', LastName: 'Recalde', Email: 'johannarecalde@enrichla.org', Mobile: '2138648082', Role: 'Ranger' },
+  { Name: 'Bailey Cox', FirstName: 'Bailey', LastName: 'Cox', Email: 'bjcox@berkeley.edu', Mobile: '310-498-4866', Role: 'Ranger' },
+  { Name: 'Andreas George', FirstName: 'Andreas', LastName: 'George', Email: 'andreasgeorge94@gmail.com', Mobile: '818-491-6091', Role: 'Ranger' },
+  { Name: 'Jesse Hull', FirstName: 'Jesse', LastName: 'Hull', Email: 'jesseghull@gmail.com', Mobile: '', Role: 'Ranger' },
+  { Name: 'Kazuha Kurosu', FirstName: 'Kazuha', LastName: 'Kurosu', Email: 'kazuha.kurosu@gmail.com', Mobile: '', Role: 'Ranger' },
+  { Name: 'Lynne Tien', FirstName: 'Lynne', LastName: 'Tien', Email: 'lamlynne10@gmail.com', Mobile: '', Role: 'Ranger' },
+  { Name: 'Amanda Howell', FirstName: 'Amanda', LastName: 'Howell', Email: 'ahowell.126@gmail.com', Mobile: '', Role: 'Ranger' },
+  { Name: 'Karina Recinos', FirstName: 'Karina', LastName: 'Recinos', Email: 'lizetterecinos25@gmail.com', Mobile: '', Role: 'Ranger' },
   { Name: 'Richard Da Sylveira', FirstName: 'Richard', LastName: 'Da Sylveira', Email: 'rdasylve@lausd.net', Mobile: '(310) 927-7175', Role: 'Principal' },
   { Name: 'Patricia Arroyo', FirstName: 'Patricia', LastName: 'Arroyo', Email: 'patriciadiazarroyo@busd.k12.ca.us', Mobile: '+13238416451', Role: 'Principal' },
   { Name: 'Monica Hilario', FirstName: 'Monica', LastName: 'Hilario', Email: 'mhilario@gusd.net', Mobile: '', Role: 'Principal' },
@@ -1018,7 +1018,7 @@ function renderRangers() {
   const rangers = DATA.humans.filter(h => {
     const role = (h.Role||h.role||'').toLowerCase();
     if (!role.includes('ranger')) return false;
-    if (f==='master' && !(h.Comments||h.comments||'').toLowerCase().includes('master')) return false;
+    if (f==='master' && !role.includes('master')) return false;
     const name  = h.Name||h.name||'';
     const email = h.Email||h.email||'';
     if (q && !(name+email).toLowerCase().includes(q)) return false;
@@ -1034,10 +1034,7 @@ function renderRangers() {
   document.getElementById('rangerList').innerHTML = rangers.map(h => {
     const name    = h.Name||h.name||h.Email||h.email;
     const email   = h.Email||h.email||'';
-    const comments= h.Comments||h.comments||'';
-    const r1      = parseFloat(h.Rating1||h.rating1||0);
-    const isMaster= comments.toLowerCase().includes('master');
-    const stars   = r1 ? '⭐'.repeat(Math.min(Math.round(r1),5)) : '';
+    const isMaster= (h.Role||h.role||'').toLowerCase().includes('master');
     // Resolve assigned schools via FK
     const schools = DATA.sites
       .filter(s => sf(s,'Ranger1','Ranger 1','ranger1')===email || sf(s,'Ranger2','Ranger 2','ranger2')===email)
@@ -1047,7 +1044,7 @@ function renderRangers() {
         <div class="avatar">${getInitials(name)}</div>
         <div class="people-info">
           <div class="people-name">${name}</div>
-          <div class="people-sub">${schools||email}${stars?' · '+stars:''}</div>
+          <div class="people-sub">${schools||email}</div>
         </div>
         <span class="role-badge role-ranger">${isMaster?'Master':'Active'}</span>
       </div>`;
@@ -1104,7 +1101,6 @@ function showSchoolDetail(idx) {
   const addr     = sf(site,'FullAddress','Full Address','fullAddress','address');
   const district = sf(site,'District','district');
   const type     = sf(site,'Type','type');
-  const comments = sf(site,'Comments','comments');
   const details  = sf(site,'SiteDetails','Site Details','siteDetails');
 
   const r1email  = sf(site,'Ranger1','Ranger 1','ranger1');
@@ -1153,7 +1149,7 @@ function showSchoolDetail(idx) {
     ${princEmail?`<div class="detail-section"><div class="detail-label">Principal</div><div class="detail-value">${princName}${princMobile?' · <a class="detail-link" href="tel:'+princMobile+'">'+princMobile+'</a>':''}<br><a class="detail-link" style="font-size:12px" href="mailto:${princEmail}">${princEmail}</a></div></div>`:''}
     ${contactRows?`<div class="detail-section"><div class="detail-label">Other Contacts</div><div class="detail-value">${contactRows}</div></div>`:''}
     ${details?`<div class="detail-section"><div class="detail-label">Site Details</div><div class="detail-value" style="font-size:13px;color:var(--text-secondary);line-height:1.55">${details}</div></div>`:''}
-    ${comments?`<div class="detail-section"><div class="detail-label">Notes</div><div class="detail-value" style="font-size:13px;color:var(--text-secondary);line-height:1.55">${comments}</div></div>`:''}
+
     <div class="detail-actions">
       <a class="action-btn action-primary" href="${mapsUrl}" target="_blank">🗺 Directions</a>
       ${r1mobile?`<a class="action-btn action-secondary" href="tel:${r1mobile}">📞 Ranger</a>`:r1email?`<a class="action-btn action-secondary" href="mailto:${r1email}">✉️ Ranger</a>`:''}
@@ -1173,8 +1169,6 @@ function showPersonDetail(emailOrName) {
   const email   = h.Email||h.email||'';
   const mobile  = h.Mobile||h.mobile||'';
   const role    = h.Role||h.role||'';
-  const comments= h.Comments||h.comments||'';
-  const r1 = h.Rating1||h.rating1, r2 = h.Rating2||h.rating2;
   // Schools assigned to as ranger (FK reverse lookup)
   const schools = DATA.sites
     .filter(s => sf(s,'Ranger1','Ranger 1','ranger1')===email || sf(s,'Ranger2','Ranger 2','ranger2')===email)
@@ -1197,8 +1191,8 @@ function showPersonDetail(emailOrName) {
     ${princAt?`<div class="detail-section"><div class="detail-label">Principal At</div><div class="detail-value">${princAt}</div></div>`:''}
     ${email?`<div class="detail-section"><div class="detail-label">Email</div><div class="detail-value"><a class="detail-link" href="mailto:${email}">${email}</a></div></div>`:''}
     ${mobile?`<div class="detail-section"><div class="detail-label">Mobile</div><div class="detail-value"><a class="detail-link" href="tel:${mobile}">${mobile}</a></div></div>`:''}
-    ${comments?`<div class="detail-section"><div class="detail-label">Notes</div><div class="detail-value" style="font-size:13px;color:var(--text-secondary);line-height:1.55">${comments}</div></div>`:''}
-    ${(r1||r2)?`<div class="detail-section"><div class="detail-label">Rating</div><div class="detail-value">${r1?'⭐ Teaching: '+r1:''}${r2?' · 🌱 Garden: '+r2:''}</div></div>`:''}
+
+
     <div class="detail-actions">
       ${mobile?`<a class="action-btn action-primary" href="tel:${mobile}">📞 Call</a>`:''}
       ${email?`<a class="action-btn action-secondary" href="mailto:${email}">✉️ Email</a>`:''}
