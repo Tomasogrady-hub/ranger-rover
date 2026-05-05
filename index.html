@@ -4,1305 +4,1002 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Ranger Rover">
-<title>Ranger Rover – Enrich LA</title>
+<title>Ranger Rover — Enrich LA</title>
 <link rel="manifest" href="manifest.json">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* ═══════════════════════════════════════════
-     TOKENS & RESET
-  ═══════════════════════════════════════════ */
-  :root {
-    --forest:    #1c3a1a;
-    --canopy:    #2d5a27;
-    --leaf:      #4a8a42;
-    --sprout:    #7ec67a;
-    --moss:      #a8c5a0;
-    --soil:      #5c3d1e;
-    --bark:      #8b6545;
-    --cream:     #f5f0e8;
-    --parchment: #ede5d4;
-    --amber:     #d4891a;
-    --rust:      #b85c1a;
-    --mist:      #e8f0e6;
+:root {
+  --black:   #0a0a0a;
+  --ink:     #1a1a1a;
+  --charcoal:#3a3a3a;
+  --stone:   #6b6b6b;
+  --silver:  #9e9e9e;
+  --mist:    #e8e8e4;
+  --fog:     #f2f2ef;
+  --white:   #fafaf8;
+  --paper:   #ffffff;
+  --grove:   #1e3a1e;
+  --leaf:    #2d5a27;
+  --sage:    #5a7a52;
+  --mint:    #d4e8d0;
+  --amber:   #b87333;
+  --clay:    #8b5e3c;
+  --danger:  #8b2020;
+  --danger-bg:#f9eded;
 
-    --text-primary:   #1c2a1a;
-    --text-secondary: #4a5e47;
-    --text-muted:     #7a8f77;
-    --divider:        #dde8db;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Outfit', system-ui, sans-serif;
 
-    --radius-sm: 8px;
-    --radius-md: 14px;
-    --radius-lg: 22px;
-    --radius-xl: 32px;
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
 
-    --shadow-card: 0 2px 12px rgba(28,58,26,0.10), 0 1px 3px rgba(28,58,26,0.06);
-    --shadow-float: 0 8px 32px rgba(28,58,26,0.18);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --header-h: 56px;
+  --nav-h: 58px;
+}
 
-    --tab-bar-height: 64px;
-    --header-height: 60px;
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-  }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--white); color: var(--ink); font-family: var(--font-body); -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── SHELL ── */
+#app { display: flex; flex-direction: column; height: 100dvh; max-width: 430px; margin: 0 auto; background: var(--white); overflow: hidden; position: relative; }
 
-  html, body {
-    height: 100%;
-    font-family: 'DM Sans', sans-serif;
-    background: var(--cream);
-    color: var(--text-primary);
-    overscroll-behavior: none;
-    -webkit-font-smoothing: antialiased;
-  }
+/* ── HEADER ── */
+#header {
+  flex-shrink: 0;
+  height: calc(var(--header-h) + var(--safe-top));
+  padding-top: var(--safe-top);
+  background: var(--paper);
+  border-bottom: 1px solid var(--mist);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 20px;
+  padding-right: 20px;
+  z-index: 10;
+}
+.logo {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--grove);
+  text-transform: uppercase;
+}
+.logo-sub {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--silver);
+  display: block;
+  margin-top: -2px;
+}
+.sync-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--silver);
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+.sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sage); }
+.sync-dot.offline { background: var(--silver); }
 
-  /* ═══════════════════════════════════════════
-     LAYOUT SHELL
-  ═══════════════════════════════════════════ */
-  #app {
-    display: flex;
-    flex-direction: column;
-    height: 100dvh;
-    max-width: 480px;
-    margin: 0 auto;
-    position: relative;
-    background: var(--cream);
-    overflow: hidden;
-  }
+/* ── SEARCH ── */
+#searchbar {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--mist);
+}
+.search-wrap { position: relative; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--silver); font-size: 13px; pointer-events: none; }
+#searchInput {
+  width: 100%;
+  padding: 9px 12px 9px 34px;
+  background: var(--fog);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink);
+  outline: none;
+  letter-spacing: 0.01em;
+  transition: border-color .2s, background .2s;
+}
+#searchInput::placeholder { color: var(--silver); }
+#searchInput:focus { background: var(--paper); border-color: var(--mist); }
 
-  /* ═══════════════════════════════════════════
-     HEADER
-  ═══════════════════════════════════════════ */
-  #header {
-    flex-shrink: 0;
-    height: var(--header-height);
-    background: var(--forest);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 18px;
-    padding-top: env(safe-area-inset-top, 0px);
-    z-index: 100;
-  }
+/* ── BOTTOM NAV ── */
+#nav {
+  flex-shrink: 0;
+  height: calc(var(--nav-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--paper);
+  border-top: 1px solid var(--mist);
+  display: flex;
+  z-index: 10;
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--silver);
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: color .15s;
+  position: relative;
+}
+.nav-icon { font-size: 18px; line-height: 1; }
+.nav-btn.active { color: var(--grove); }
+.nav-btn.active::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 30%; right: 30%;
+  height: 1.5px;
+  background: var(--grove);
+  border-radius: 0 0 2px 2px;
+}
 
-  .header-logo {
-    font-family: 'Fraunces', serif;
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--sprout);
-    letter-spacing: -0.3px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .header-logo span { font-size: 20px; }
+/* ── CONTENT ── */
+#content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
 
-  .header-status {
-    font-size: 11px;
-    color: var(--moss);
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .status-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--sprout);
-    animation: pulse 2s infinite;
-  }
-  .status-dot.offline { background: var(--bark); animation: none; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+/* ── FILTER ROW ── */
+.filter-row {
+  display: flex;
+  gap: 0;
+  padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--mist);
+}
+.filter-row::-webkit-scrollbar { display: none; }
+.chip {
+  flex-shrink: 0;
+  padding: 11px 14px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--silver);
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 1.5px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+}
+.chip.active { color: var(--grove); border-bottom-color: var(--grove); }
 
-  /* ═══════════════════════════════════════════
-     SEARCH BAR
-  ═══════════════════════════════════════════ */
-  #searchbar {
-    flex-shrink: 0;
-    padding: 12px 16px 8px;
-    background: var(--forest);
-  }
-  .search-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-  .search-icon {
-    position: absolute; left: 12px;
-    color: var(--moss); font-size: 16px; pointer-events: none;
-  }
-  #searchInput {
-    width: 100%;
-    padding: 10px 12px 10px 38px;
-    border-radius: var(--radius-lg);
-    border: none;
-    background: rgba(255,255,255,0.12);
-    color: var(--cream);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    outline: none;
-    transition: background .2s;
-  }
-  #searchInput::placeholder { color: var(--moss); }
-  #searchInput:focus { background: rgba(255,255,255,0.18); }
+/* ── PAGE TITLE ── */
+.page-header {
+  padding: 20px 20px 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  font-style: italic;
+}
+.page-count {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
 
-  /* ═══════════════════════════════════════════
-     TAB BAR
-  ═══════════════════════════════════════════ */
-  #tabbar {
-    flex-shrink: 0;
-    background: var(--canopy);
-    display: flex;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
+/* ── CARD LIST ── */
+.card-list { padding: 0 16px 24px; display: flex; flex-direction: column; }
 
-  .tab-btn {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    padding: 10px 4px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    color: var(--moss);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.3px;
-    transition: color .15s;
-    position: relative;
-  }
-  .tab-btn .tab-icon { font-size: 20px; line-height: 1; }
-  .tab-btn.active { color: var(--sprout); }
-  .tab-btn.active::after {
-    content: '';
-    position: absolute; bottom: 0; left: 25%; right: 25%;
-    height: 2px; border-radius: 2px;
-    background: var(--sprout);
-  }
+/* ── SCHOOL CARD ── */
+.school-card {
+  border-bottom: 1px solid var(--mist);
+  padding: 16px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  transition: background .1s;
+  position: relative;
+}
+.school-card:first-child { border-top: 1px solid var(--mist); }
+.school-card:active { background: var(--fog); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+.school-district-mark {
+  width: 2px;
+  height: 100%;
+  min-height: 44px;
+  flex-shrink: 0;
+  border-radius: 1px;
+  margin-top: 2px;
+}
+.dm-lausd { background: var(--grove); }
+.dm-busd  { background: var(--amber); }
+.dm-gusd  { background: var(--clay); }
+.dm-other { background: var(--silver); }
+.school-info { flex: 1; min-width: 0; }
+.school-name-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+.school-name {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.dist-label {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--stone);
+  flex-shrink: 0;
+}
+.school-address {
+  font-size: 11px;
+  color: var(--silver);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 7px;
+  letter-spacing: 0.01em;
+}
+.ranger-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--sage);
+  letter-spacing: 0.01em;
+}
+.ranger-line.no-ranger { color: var(--danger); }
+.ranger-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--sage); flex-shrink: 0; }
+.ranger-dot.empty { background: var(--danger); }
+.school-chevron { color: var(--mist); font-size: 14px; flex-shrink: 0; align-self: center; }
 
-  /* ═══════════════════════════════════════════
-     CONTENT AREA
-  ═══════════════════════════════════════════ */
-  #content {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(12px + var(--safe-bottom));
-  }
+/* ── PEOPLE CARD ── */
+.people-card {
+  border-bottom: 1px solid var(--mist);
+  padding: 14px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  transition: background .1s;
+}
+.people-card:first-child { border-top: 1px solid var(--mist); }
+.people-card:active { background: var(--fog); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+.avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--mist);
+  background: var(--fog);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--stone);
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+.people-info { flex: 1; min-width: 0; }
+.people-name {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.people-role {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--silver);
+  margin-bottom: 7px;
+}
+.card-contacts { display: flex; gap: 6px; flex-wrap: wrap; }
+.cta {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 1px solid var(--mist);
+  background: var(--paper);
+  color: var(--charcoal);
+  transition: background .1s, border-color .1s;
+  white-space: nowrap;
+}
+.cta:active { background: var(--fog); }
+.cta.primary { background: var(--grove); border-color: var(--grove); color: var(--paper); }
+.cta.sms { background: var(--fog); border-color: var(--mist); }
 
-  .tab-pane { display: none; }
-  .tab-pane.active { display: block; }
+/* ── DETAIL OVERLAY ── */
+#detail-overlay {
+  position: absolute; inset: 0;
+  background: rgba(10,10,10,.35);
+  z-index: 200;
+  display: none;
+  align-items: flex-end;
+}
+#detail-overlay.open { display: flex; }
+#detail-sheet {
+  background: var(--paper);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  width: 100%;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding-bottom: calc(32px + var(--safe-bottom));
+  transform: translateY(100%);
+  transition: transform .32s cubic-bezier(.32,.72,0,1);
+}
+#detail-overlay.open #detail-sheet { transform: translateY(0); }
+.sheet-pull { display: flex; justify-content: center; padding: 12px 0 6px; }
+.sheet-pull-bar { width: 36px; height: 3px; border-radius: 2px; background: var(--mist); }
+.sheet-head {
+  padding: 4px 20px 16px;
+  border-bottom: 1px solid var(--mist);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.sheet-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+  line-height: 1.2;
+  flex: 1;
+}
+.sheet-x {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--mist);
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--stone);
+  flex-shrink: 0;
+  transition: background .1s;
+}
+.sheet-x:active { background: var(--fog); }
+.ds { padding: 14px 20px 0; }
+.dl {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--silver);
+  margin-bottom: 4px;
+}
+.dv { font-size: 13px; color: var(--ink); line-height: 1.55; font-weight: 400; }
+.dlink { color: var(--sage); text-decoration: none; font-weight: 500; }
+.dlink:active { opacity: .7; }
+.detail-ctas { padding: 16px 20px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.dcta {
+  flex: 1; min-width: 70px;
+  padding: 11px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--mist);
+  background: var(--paper);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: background .1s;
+}
+.dcta:active { background: var(--fog); }
+.dcta.filled { background: var(--grove); border-color: var(--grove); color: white; }
+.dcta.blue   { background: #1a5f8a; border-color: #1a5f8a; color: white; }
 
-  /* ═══════════════════════════════════════════
-     FILTER CHIPS
-  ═══════════════════════════════════════════ */
-  .filter-row {
-    display: flex;
-    gap: 8px;
-    padding: 12px 16px 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .filter-row::-webkit-scrollbar { display: none; }
+/* EDIT FIELDS */
+.edit-wrap { padding: 14px 20px 0; }
+.edit-label { font-size: 9px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--silver); margin-bottom: 4px; }
+.edit-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--mist);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--fog);
+  outline: none;
+  transition: border-color .15s, background .15s;
+}
+.edit-input:focus { border-color: var(--sage); background: var(--paper); }
+.edit-actions { padding: 16px 20px 0; display: flex; gap: 8px; }
+.btn-save {
+  flex: 1; padding: 11px; background: var(--grove); color: white; border: none; border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+}
+.btn-cancel {
+  padding: 11px 18px; background: transparent; color: var(--stone); border: 1px solid var(--mist); border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+}
+.btn-edit {
+  padding: 9px 16px; background: transparent; color: var(--sage); border: 1px solid var(--mist); border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+  margin: 14px 20px 0; display: inline-block;
+}
+.save-msg { padding: 10px 20px 0; font-size: 12px; color: var(--sage); font-weight: 400; min-height: 26px; }
+.save-msg.err { color: var(--danger); }
 
-  .chip {
-    flex-shrink: 0;
-    padding: 6px 14px;
-    border-radius: var(--radius-lg);
-    border: 1.5px solid var(--divider);
-    background: white;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all .15s;
-    white-space: nowrap;
-    font-family: 'DM Sans', sans-serif;
-  }
-  .chip:active { transform: scale(0.96); }
-  .chip.active {
-    background: var(--canopy);
-    border-color: var(--canopy);
-    color: white;
-  }
+/* STATES */
+.empty { text-align: center; padding: 52px 24px; }
+.empty-glyph { font-family: var(--font-display); font-size: 48px; font-weight: 300; font-style: italic; color: var(--mist); margin-bottom: 10px; }
+.empty h3 { font-family: var(--font-display); font-size: 20px; font-weight: 400; font-style: italic; color: var(--stone); margin-bottom: 5px; }
+.empty p { font-size: 12px; color: var(--silver); letter-spacing: 0.02em; }
+.spinner { width: 24px; height: 24px; border: 1.5px solid var(--mist); border-top-color: var(--sage); border-radius: 50%; animation: spin .8s linear infinite; margin: 52px auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ═══════════════════════════════════════════
-     SECTION HEADER
-  ═══════════════════════════════════════════ */
-  .section-header {
-    padding: 14px 16px 6px;
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-  }
-  .section-title {
-    font-family: 'Fraunces', serif;
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-  .section-count {
-    font-size: 13px;
-    color: var(--text-muted);
-    font-weight: 400;
-  }
+/* SETTINGS */
+.settings-section { padding: 20px 20px 0; }
+.settings-group { border: 1px solid var(--mist); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 16px; background: var(--paper); }
+.settings-row { padding: 14px 16px; border-bottom: 1px solid var(--mist); }
+.settings-row:last-child { border-bottom: none; }
+.settings-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--mist);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--fog);
+  outline: none;
+  margin: 6px 0 8px;
+}
+.settings-input:focus { border-color: var(--sage); background: var(--paper); }
+.settings-btn {
+  width: 100%; padding: 10px; background: var(--grove); color: white; border: none; border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+}
+.settings-note { font-size: 11px; color: var(--silver); line-height: 1.55; }
+pre.gas-code {
+  background: var(--fog);
+  border: 1px solid var(--mist);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 10px;
+  line-height: 1.65;
+  overflow-x: auto;
+  color: var(--charcoal);
+  margin-top: 8px;
+  white-space: pre;
+}
+.divider { height: 1px; background: var(--mist); margin: 0 20px; }
 
-  /* ═══════════════════════════════════════════
-     CARDS — SCHOOLS
-  ═══════════════════════════════════════════ */
-  .card-list { padding: 0 14px; display: flex; flex-direction: column; gap: 10px; }
-
-  .school-card {
-    background: white;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform .15s, box-shadow .15s;
-    border: 1px solid var(--divider);
-  }
-  .school-card:active { transform: scale(0.985); box-shadow: var(--shadow-card); }
-
-  .school-card-inner {
-    display: flex;
-    align-items: stretch;
-  }
-
-  .school-accent {
-    width: 5px;
-    background: var(--canopy);
-    flex-shrink: 0;
-    border-radius: var(--radius-md) 0 0 var(--radius-md);
-  }
-  .school-accent.lausd  { background: var(--canopy); }
-  .school-accent.busd   { background: var(--amber); }
-  .school-accent.gusd   { background: var(--rust); }
-  .school-accent.other  { background: var(--bark); }
-
-  .school-body {
-    flex: 1;
-    padding: 13px 14px 11px;
-    min-width: 0;
-  }
-
-  .school-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-    line-height: 1.3;
-    margin-bottom: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .school-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 6px;
-  }
-
-  .meta-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 99px;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  .meta-tag.ranger { background: var(--mist); color: var(--canopy); }
-  .meta-tag.district { background: var(--parchment); color: var(--soil); }
-  .meta-tag.principal { background: #fdf3e7; color: var(--rust); }
-  .meta-tag.no-ranger { background: #fef0f0; color: #c0392b; }
-
-  .school-address {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .school-arrow {
-    display: flex;
-    align-items: center;
-    padding: 0 14px 0 6px;
-    color: var(--moss);
-    font-size: 16px;
-    flex-shrink: 0;
-  }
-
-  /* ═══════════════════════════════════════════
-     CARDS — PEOPLE
-  ═══════════════════════════════════════════ */
-  .people-card {
-    background: white;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-card);
-    border: 1px solid var(--divider);
-    padding: 13px 14px;
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    cursor: pointer;
-    transition: transform .15s;
-  }
-  .people-card:active { transform: scale(0.985); }
-
-  .avatar {
-    width: 44px; height: 44px;
-    border-radius: 50%;
-    background: var(--canopy);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 17px;
-    font-weight: 600;
-    color: var(--sprout);
-    flex-shrink: 0;
-    font-family: 'Fraunces', serif;
-    overflow: hidden;
-  }
-  .avatar img { width: 100%; height: 100%; object-fit: cover; }
-
-  .people-info { flex: 1; min-width: 0; }
-  .people-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .people-sub {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .role-badge {
-    padding: 4px 10px;
-    border-radius: 99px;
-    font-size: 11px;
-    font-weight: 600;
-    flex-shrink: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-  .role-ranger      { background: var(--mist); color: var(--canopy); }
-  .role-principal   { background: #fdf3e7; color: var(--rust); }
-  .role-contact     { background: var(--parchment); color: var(--soil); }
-  .role-plant       { background: #f0f4f8; color: #4a6080; }
-  .role-other       { background: #f5f5f5; color: #666; }
-
-  /* ═══════════════════════════════════════════
-     DETAIL SHEET (SLIDE-UP)
-  ═══════════════════════════════════════════ */
-  #detail-overlay {
-    position: absolute; inset: 0;
-    background: rgba(10,24,10,0.55);
-    backdrop-filter: blur(2px);
-    z-index: 200;
-    display: none;
-    align-items: flex-end;
-  }
-  #detail-overlay.open { display: flex; }
-
-  #detail-sheet {
-    background: var(--cream);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    width: 100%;
-    max-height: 80dvh;
-    overflow-y: auto;
-    padding: 0 0 calc(24px + var(--safe-bottom));
-    transform: translateY(100%);
-    transition: transform .3s cubic-bezier(.32,.72,0,1);
-  }
-  #detail-overlay.open #detail-sheet { transform: translateY(0); }
-
-  .sheet-handle {
-    display: flex;
-    justify-content: center;
-    padding: 14px 0 10px;
-  }
-  .sheet-handle-bar {
-    width: 40px; height: 4px;
-    border-radius: 2px;
-    background: var(--divider);
-  }
-
-  .sheet-header {
-    padding: 4px 20px 16px;
-    border-bottom: 1px solid var(--divider);
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .sheet-title {
-    font-family: 'Fraunces', serif;
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--forest);
-    line-height: 1.25;
-    flex: 1;
-  }
-  .sheet-close {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: var(--parchment);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    flex-shrink: 0;
-    color: var(--text-secondary);
-  }
-
-  .detail-section {
-    padding: 16px 20px 0;
-  }
-  .detail-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--text-muted);
-    margin-bottom: 6px;
-  }
-  .detail-value {
-    font-size: 15px;
-    color: var(--text-primary);
-    line-height: 1.5;
-  }
-  .detail-link {
-    color: var(--canopy);
-    text-decoration: none;
-    font-weight: 500;
-  }
-  .detail-link:active { opacity: 0.7; }
-
-  .detail-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-  }
-
-  .detail-actions {
-    padding: 20px 20px 0;
-    display: flex;
-    gap: 10px;
-  }
-  .action-btn {
-    flex: 1;
-    padding: 13px 10px;
-    border-radius: var(--radius-md);
-    border: none;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    transition: opacity .15s, transform .1s;
-    text-decoration: none;
-  }
-  .action-btn:active { transform: scale(0.97); opacity: 0.85; }
-  .action-primary { background: var(--canopy); color: white; }
-  .action-secondary { background: var(--parchment); color: var(--text-primary); }
-
-  /* ═══════════════════════════════════════════
-     LOADING / EMPTY / ERROR
-  ═══════════════════════════════════════════ */
-  .state-msg {
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--text-muted);
-  }
-  .state-msg .state-icon { font-size: 40px; margin-bottom: 12px; }
-  .state-msg h3 { font-family: 'Fraunces', serif; font-size: 18px; margin-bottom: 6px; color: var(--text-secondary); }
-  .state-msg p { font-size: 14px; line-height: 1.5; }
-
-  .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--divider);
-    border-top-color: var(--canopy);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 48px auto 12px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ═══════════════════════════════════════════
-     CONFIG BANNER (setup mode)
-  ═══════════════════════════════════════════ */
-  .config-banner {
-    margin: 12px 14px 0;
-    padding: 12px 14px;
-    background: #fff9ec;
-    border: 1.5px solid #f0c060;
-    border-radius: var(--radius-md);
-    font-size: 13px;
-    color: #7a5a00;
-    line-height: 1.5;
-  }
-  .config-banner strong { display: block; margin-bottom: 3px; }
-  .config-banner code {
-    background: rgba(0,0,0,0.06);
-    padding: 1px 5px;
-    border-radius: 4px;
-    font-size: 12px;
-  }
-
-  /* ═══════════════════════════════════════════
-     RESPONSIVE (desktop preview)
-  ═══════════════════════════════════════════ */
-  @media (min-width: 500px) {
-    #app { box-shadow: 0 0 60px rgba(0,0,0,0.2); }
-  }
+@media (min-width: 450px) {
+  #app { box-shadow: 0 0 0 1px var(--mist), 0 20px 60px rgba(0,0,0,.08); }
+}
 </style>
 </head>
-
 <body>
 <div id="app">
 
-  <!-- HEADER -->
-  <div id="header">
-    <div class="header-logo"><span>🌱</span> Ranger Rover</div>
-    <div class="header-status">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">Live</span>
+<!-- HEADER -->
+<div id="header">
+  <div>
+    <span class="logo">Ranger Rover</span>
+    <span class="logo-sub">Enrich LA Garden Rangers</span>
+  </div>
+  <div class="sync-pill">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncText">Live</span>
+  </div>
+</div>
+
+<!-- SEARCH -->
+<div id="searchbar">
+  <div class="search-wrap">
+    <span class="search-icon">↳</span>
+    <input id="searchInput" type="search" placeholder="Search schools or people…" autocomplete="off" autocorrect="off">
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div id="content">
+
+  <!-- SCHOOLS -->
+  <div class="tab-pane active" id="tab-schools">
+    <div class="filter-row" id="schoolFilters">
+      <button class="chip active" data-filter="all"       onclick="filterSchools('all')">All</button>
+      <button class="chip"        data-filter="lausd"     onclick="filterSchools('lausd')">LAUSD</button>
+      <button class="chip"        data-filter="busd"      onclick="filterSchools('busd')">BUSD</button>
+      <button class="chip"        data-filter="gusd"      onclick="filterSchools('gusd')">GUSD</button>
+      <button class="chip"        data-filter="no-ranger" onclick="filterSchools('no-ranger')">Unassigned</button>
     </div>
+    <div class="page-header">
+      <span class="page-title">Schools</span>
+      <span class="page-count" id="schoolCount"></span>
+    </div>
+    <div class="card-list" id="schoolList"><div class="spinner"></div></div>
   </div>
 
-  <!-- SEARCH -->
-  <div id="searchbar">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input id="searchInput" type="search" placeholder="Search schools or people…" autocomplete="off" autocorrect="off">
+  <!-- RANGERS -->
+  <div class="tab-pane" id="tab-rangers">
+    <div class="filter-row" id="rangerFilters">
+      <button class="chip active" data-filter="all"    onclick="filterRangers('all')">Active</button>
+      <button class="chip"        data-filter="master" onclick="filterRangers('master')">Master Rangers</button>
     </div>
+    <div class="page-header">
+      <span class="page-title">Rangers</span>
+      <span class="page-count" id="rangerCount"></span>
+    </div>
+    <div class="card-list" id="rangerList"><div class="spinner"></div></div>
   </div>
 
-  <!-- TAB BAR -->
-  <div id="tabbar">
-    <button class="tab-btn active" data-tab="schools" onclick="switchTab('schools')">
-      <span class="tab-icon">🏫</span>Schools
-    </button>
-    <button class="tab-btn" data-tab="rangers" onclick="switchTab('rangers')">
-      <span class="tab-icon">🧑‍🌾</span>Rangers
-    </button>
-    <button class="tab-btn" data-tab="people" onclick="switchTab('people')">
-      <span class="tab-icon">👥</span>People
-    </button>
-    <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">
-      <span class="tab-icon">⚙️</span>Settings
-    </button>
+  <!-- PEOPLE -->
+  <div class="tab-pane" id="tab-people">
+    <div class="filter-row" id="peopleFilters">
+      <button class="chip active" data-filter="all"                             onclick="filterPeople('all')">All</button>
+      <button class="chip"        data-filter="Principal"                       onclick="filterPeople('Principal')">Principals</button>
+      <button class="chip"        data-filter="Main Contact 1"                  onclick="filterPeople('Main Contact 1')">Contacts</button>
+      <button class="chip"        data-filter="Plant Manager"                   onclick="filterPeople('Plant Manager')">Plant Mgrs</button>
+      <button class="chip"        data-filter="School Administrative Assistant" onclick="filterPeople('School Administrative Assistant')">SAAs</button>
+    </div>
+    <div class="page-header">
+      <span class="page-title">People</span>
+      <span class="page-count" id="peopleCount"></span>
+    </div>
+    <div class="card-list" id="peopleList"><div class="spinner"></div></div>
   </div>
 
-  <!-- CONTENT -->
-  <div id="content">
+  <!-- SETTINGS -->
+  <div class="tab-pane" id="tab-settings">
+    <div class="page-header"><span class="page-title">Settings</span></div>
+    <div class="settings-section">
 
-    <!-- SCHOOLS TAB -->
-    <div class="tab-pane active" id="tab-schools">
-      <div class="filter-row" id="schoolFilters">
-        <button class="chip active" data-filter="all" onclick="filterSchools('all')">All</button>
-        <button class="chip" data-filter="lausd" onclick="filterSchools('lausd')">LAUSD</button>
-        <button class="chip" data-filter="busd" onclick="filterSchools('busd')">BUSD</button>
-        <button class="chip" data-filter="gusd" onclick="filterSchools('gusd')">GUSD</button>
-        <button class="chip" data-filter="no-ranger" onclick="filterSchools('no-ranger')">⚠️ No Ranger</button>
-      </div>
-      <div class="section-header">
-        <span class="section-title">Schools</span>
-        <span class="section-count" id="schoolCount"></span>
-      </div>
-      <div class="card-list" id="schoolList">
-        <div class="spinner"></div>
-      </div>
-    </div>
-
-    <!-- RANGERS TAB -->
-    <div class="tab-pane" id="tab-rangers">
-      <div class="filter-row" id="rangerFilters">
-        <button class="chip active" data-filter="all" onclick="filterRangers('all')">All Active</button>
-        <button class="chip" data-filter="past" onclick="filterRangers('past')">Past</button>
-        <button class="chip" data-filter="2025" onclick="filterRangers('2025')">2025 Cohort</button>
-        <button class="chip" data-filter="master" onclick="filterRangers('master')">Master Rangers</button>
-      </div>
-      <div class="section-header">
-        <span class="section-title">Rangers</span>
-        <span class="section-count" id="rangerCount"></span>
-      </div>
-      <div class="card-list" id="rangerList">
-        <div class="spinner"></div>
-      </div>
-    </div>
-
-    <!-- PEOPLE TAB -->
-    <div class="tab-pane" id="tab-people">
-      <div class="filter-row" id="peopleFilters">
-        <button class="chip active" data-filter="all" onclick="filterPeople('all')">All</button>
-        <button class="chip" data-filter="Principal" onclick="filterPeople('Principal')">Principals</button>
-        <button class="chip" data-filter="Main Contact 1" onclick="filterPeople('Main Contact 1')">Contacts</button>
-        <button class="chip" data-filter="Plant Manager" onclick="filterPeople('Plant Manager')">Plant Mgrs</button>
-        <button class="chip" data-filter="School Administrative Assistant" onclick="filterPeople('School Administrative Assistant')">SAAs</button>
-      </div>
-      <div class="section-header">
-        <span class="section-title">People</span>
-        <span class="section-count" id="peopleCount"></span>
-      </div>
-      <div class="card-list" id="peopleList">
-        <div class="spinner"></div>
-      </div>
-    </div>
-
-    <!-- SETTINGS TAB -->
-    <div class="tab-pane" id="tab-settings">
-      <div class="section-header"><span class="section-title">Settings</span></div>
-      <div style="padding: 0 16px 16px;">
-
-        <div style="background:white;border-radius:var(--radius-md);padding:18px;margin-bottom:14px;box-shadow:var(--shadow-card);border:1px solid var(--divider);">
-          <div class="detail-label">Apps Script API URL</div>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">
-            Deploy your GAS as a web app and paste the URL here. It should return JSON with <code style="background:#f0f0f0;padding:1px 5px;border-radius:4px">sites</code> and <code style="background:#f0f0f0;padding:1px 5px;border-radius:4px">humans</code> arrays.
-          </p>
-          <input id="gasUrlInput" type="url" placeholder="https://script.google.com/macros/s/…/exec"
-            style="width:100%;padding:10px 12px;border:1.5px solid var(--divider);border-radius:var(--radius-sm);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:var(--text-primary);">
-          <button onclick="saveGasUrl()" style="margin-top:10px;width:100%;padding:11px;background:var(--canopy);color:white;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">
-            Save &amp; Reload Data
-          </button>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="dl">Apps Script API URL</div>
+          <p class="settings-note" style="margin-bottom:0">Paste your deployed GAS <code style="background:var(--fog);padding:1px 4px;border-radius:3px;font-size:10px">/exec</code> URL — used for both reading data and saving edits back to Sheets.</p>
+          <input id="gasUrlInput" class="settings-input" type="url" placeholder="https://script.google.com/macros/s/…/exec">
+          <button class="settings-btn" onclick="saveGasUrl()">Save &amp; Reload</button>
         </div>
+        <div class="settings-row">
+          <div class="dl">Cache</div>
+          <p class="settings-note">Last synced: <span id="lastSync">–</span></p>
+          <button onclick="clearCache()" style="margin-top:8px;padding:8px 14px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">Clear &amp; Re-fetch</button>
+        </div>
+      </div>
 
-        <div style="background:white;border-radius:var(--radius-md);padding:18px;margin-bottom:14px;box-shadow:var(--shadow-card);border:1px solid var(--divider);">
-          <div class="detail-label">GAS Script Template</div>
-          <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin-bottom:8px;">
-            Add this <code style="background:#f0f0f0;padding:1px 5px;border-radius:4px">doGet()</code> to your Apps Script, deploy as web app (Anyone):
-          </p>
-          <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.6;color:#333;">const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc'; // Ranger Rover
-const HUMANS_ID = '19s6gQeFJWeVcAezkE1Lg6MJcZ3C8-h-IdWmZUDT5cHk'; // Humans
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="dl">GAS Script — doGet + doPost</div>
+          <p class="settings-note">Replace your existing script, then create a <strong>new deployment</strong>.</p>
+          <pre class="gas-code">const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
+const HUMANS_ID = '19s6gQeFJWeVcAezkE1Lg6MJcZ3C8-h-IdWmZUDT5cHk';
+const BLOCKED_H = ['Comments','Rating 1','Rating 2','Rating 3'];
+const BLOCKED_S = ['Comments'];
 
 function doGet() {
-  var sites  = sheetToObjects(SITES_ID,  'Sites');   // tab: Sites
-  var humans = sheetToObjects(HUMANS_ID, 'Humans'); // tab: Humans
-  var out = ContentService.createTextOutput(
-    JSON.stringify({sites:sites, humans:humans})
-  );
-  out.setMimeType(ContentService.MimeType.JSON);
-  return out;
+  var sites  = readSheet(SITES_ID,  'Sites',  BLOCKED_S);
+  var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H);
+  return respond({sites:sites, humans:humans});
 }
 
-function sheetToObjects(id, sheetName) {
-  var sheet = SpreadsheetApp
-    .openById(id).getSheetByName(sheetName);
-  var data  = sheet.getDataRange().getValues();
-  var headers = data[0];
+function doPost(e) {
+  try {
+    var p = JSON.parse(e.postData.contents);
+    var id  = p.sheet==='Humans' ? HUMANS_ID : SITES_ID;
+    var tab = p.sheet==='Humans' ? 'Humans'  : 'Sites';
+    var keyCol = p.sheet==='Humans' ? 'Email' : 'Name';
+    var sheet = SpreadsheetApp.openById(id).getSheetByName(tab);
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var ki = headers.indexOf(keyCol);
+    for (var r = 1; r &lt; data.length; r++) {
+      if (String(data[r][ki]) === String(p.key)) {
+        Object.keys(p.updates).forEach(function(col) {
+          var ci = headers.indexOf(col);
+          if (ci &gt; -1) sheet.getRange(r+1,ci+1).setValue(p.updates[col]);
+        });
+        return respond({ok:true});
+      }
+    }
+    return respond({ok:false, error:'Row not found'});
+  } catch(err) {
+    return respond({ok:false, error:err.message});
+  }
+}
+
+function readSheet(id, tab, blocked) {
+  var data = SpreadsheetApp.openById(id)
+    .getSheetByName(tab).getDataRange().getValues();
+  var h = data[0];
   return data.slice(1).map(function(row) {
     var obj = {};
-    headers.forEach(function(h,i){obj[h]=row[i];});
+    h.forEach(function(k,i){ if(blocked.indexOf(k)===-1) obj[k]=row[i]; });
     return obj;
   });
 }
-// Deploy: Web App > Anyone > Execute as Me</pre>
-        </div>
 
-        <div style="background:white;border-radius:var(--radius-md);padding:18px;box-shadow:var(--shadow-card);border:1px solid var(--divider);">
-          <div class="detail-label">Data Cache</div>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">
-            Last synced: <span id="lastSync">–</span>
-          </p>
-          <button onclick="clearCache()" style="padding:10px 18px;background:var(--parchment);color:var(--text-primary);border:1.5px solid var(--divider);border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">
-            Clear Cache &amp; Re-fetch
-          </button>
+function respond(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>
         </div>
-
       </div>
-    </div>
 
-  </div><!-- /content -->
-
-  <!-- DETAIL OVERLAY -->
-  <div id="detail-overlay" onclick="closeDetail(event)">
-    <div id="detail-sheet">
-      <div class="sheet-handle"><div class="sheet-handle-bar"></div></div>
-      <div id="detail-content"></div>
     </div>
   </div>
+
+</div><!-- /content -->
+
+<!-- BOTTOM NAV -->
+<div id="nav">
+  <button class="nav-btn active" data-tab="schools" onclick="switchTab('schools')"><span class="nav-icon">◻</span>Schools</button>
+  <button class="nav-btn"        data-tab="rangers" onclick="switchTab('rangers')"><span class="nav-icon">◈</span>Rangers</button>
+  <button class="nav-btn"        data-tab="people"  onclick="switchTab('people')"><span class="nav-icon">◯</span>People</button>
+  <button class="nav-btn"        data-tab="settings"onclick="switchTab('settings')"><span class="nav-icon">◧</span>Settings</button>
+</div>
+
+<!-- DETAIL SHEET -->
+<div id="detail-overlay" onclick="closeDetail(event)">
+  <div id="detail-sheet">
+    <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
+    <div id="detail-content"></div>
+  </div>
+</div>
 
 </div><!-- /app -->
 
 <script>
-/* ═══════════════════════════════════════════
-   CONFIG & STATE
-═══════════════════════════════════════════ */
-const CONFIG = {
-  GAS_URL: localStorage.getItem('rr_gas_url') || '',
-  CACHE_KEY: 'rr_data_cache',
-  CACHE_TS_KEY: 'rr_cache_ts',
-  CACHE_TTL: 15 * 60 * 1000  // 15 min
-};
+/* CONFIG */
+const CFG={URL:localStorage.getItem('rr_gas_url')||'',CK:'rr_data_cache',TK:'rr_cache_ts',TTL:15*60*1000};
+let DATA={sites:[],humans:[]};
+let csf='all',crf='all',cpf='all',sq='';
 
-let DATA = { sites: [], humans: [] };
-let currentSchoolFilter = 'all';
-let currentRangerFilter = 'all';
-let currentPeopleFilter  = 'all';
-let searchQuery = '';
-
-/* ═══════════════════════════════════════════
-   REAL SCHEMA (matches your AppSheet/Sheets structure)
-   Sites  → Ranger 1 / Principal / SAA / Main Contact 1..3 / Plant Manager
-             are all email addresses referencing Humans.Email (AppSheet FK)
-   Humans → Email is the key column
-═══════════════════════════════════════════ */
-
-// Sites columns: Name, Full Address, District, Type,
-//   Ranger1 (email), Ranger1Name, Ranger2 (email), Ranger2Name,
-//   Principal (email), SchoolAdminAssistant (email),
-//   MainContact1 (email), MainContact2 (email), MainContact3 (email),
-//   PlantManager (email), Siteslatlong, Comments, SiteDetails,
-//   ProgramStarted, Schedule, LastUpdate
-// Humans columns: Name, FirstName, LastName, Email, Mobile, Role,
-//   Comments, Rating1, Rating2, Rating3
-
-const DEMO_SITES = [
-  { Name: 'Cowan Avenue Elementary', FullAddress: '7615 Cowan Ave, Los Angeles, California, 90045 USA',
-    District: 'Los Angeles Unified School District', Type: 'Active Ranger Program',
-    Ranger1: 'bjcox@berkeley.edu', Ranger1Name: 'Bailey Cox',
-    Principal: 'rdasylve@lausd.net',
-    MainContact1: 'daisy.parada@lausd.net', MainContact2: 'jkbuscher@gmail.com',
-    Siteslatlong: '33.972699,-118.4057218' },
-  { Name: 'Washington Elementary', FullAddress: '9725 East Jefferson Street, Bellflower, CA, 90706 USA',
-    District: 'Bellflower Unified', Type: 'Active Ranger Program',
-    Ranger1: 'lamlynne10@gmail.com', Ranger1Name: 'Lynne Tien',
-    Principal: 'patriciadiazarroyo@busd.k12.ca.us',
-    MainContact1: 'rkamstra@busd.k12.ca.us', PlantManager: 'luke@washington.com',
-    Siteslatlong: '33.8932664,-118.126699' },
-  { Name: 'Benjamin Franklin Elementary', FullAddress: '1610 Lake St, Glendale, California, 91201 USA',
-    District: 'Glendale Unified', Type: 'Active Ranger Program',
-    Ranger1: 'ahowell.126@gmail.com', Ranger1Name: 'Amanda Howell',
-    Principal: 'mhilario@gusd.net',
-    MainContact1: 'president@thebfef.org', MainContact2: 'abbykw@gmail.com',
-    Siteslatlong: '34.1618482,-118.2968774' },
-  { Name: 'John Muir Elementary', FullAddress: '912 S Chevy Chase Dr, Glendale, California, 91205 USA',
-    District: 'Glendale Unified', Type: 'Active Ranger Program',
-    Ranger1: 'kazuha.kurosu@gmail.com', Ranger1Name: 'Kazuha Kurosu',
-    Principal: 'vnazarian@gusd.net',
-    Siteslatlong: '34.1356283,-118.2385914' },
-  { Name: 'Beckford Elementary', FullAddress: '19130 Tulsa Street, Northridge, California, 91326 USA',
-    District: 'Los Angeles Unified School District', Type: 'Active Ranger Program',
-    Ranger1: 'andreasgeorge94@gmail.com', Ranger1Name: 'Andreas George',
-    Principal: 'eidy.hemmati@lausd.net',
-    Siteslatlong: '34.2670511,-118.5487917' },
-  { Name: 'Beethoven Elementary', FullAddress: '3711 Beethoven St, Los Angeles, California, 90066 USA',
-    District: 'Los Angeles Unified School District', Type: 'Active Ranger Program',
-    Ranger1: 'jesseghull@gmail.com', Ranger1Name: 'Jesse Hull',
-    Principal: 'caf9202@lausd.net',
-    Siteslatlong: '34.0022314,-118.4434668' },
-  { Name: 'Garvanza Elementary', FullAddress: '317 N Ave 62, Los Angeles, California, 90042 USA',
-    District: 'Los Angeles Unified School District', Type: 'Active Ranger Program',
-    Ranger1: 'lizetterecinos25@gmail.com', Ranger1Name: 'Karina Recinos',
-    Principal: 'ismael.berver@lausd.net',
-    Siteslatlong: '34.1019468,-118.2042318' },
-  { Name: 'Esther Lindstrom Elementary', FullAddress: '5900 North Canehill St., Lakewood, California, 90713 USA',
-    District: 'Bellflower Unified', Type: 'Possible Ranger Program',
-    Ranger1: '', Ranger1Name: '',
-    Principal: 'scurtiss@busd.k12.ca.us',
-    Siteslatlong: '33.8616866,-118.1097075' },
+/* DEMO DATA */
+const DS=[
+  {Name:'Cowan Avenue Elementary',FullAddress:'7615 Cowan Ave, Los Angeles, CA 90045',District:'Los Angeles Unified School District',Type:'Active Ranger Program','Ranger 1':'bjcox@berkeley.edu','Ranger 1 Name':'Bailey Cox',Principal:'rdasylve@lausd.net','Main Contact 1':'daisy.parada@lausd.net'},
+  {Name:'Washington Elementary',FullAddress:'9725 East Jefferson Street, Bellflower, CA 90706',District:'Bellflower Unified',Type:'Active Ranger Program','Ranger 1':'lamlynne10@gmail.com','Ranger 1 Name':'Lynne Tien',Principal:'patriciadiazarroyo@busd.k12.ca.us'},
+  {Name:'Benjamin Franklin Elementary',FullAddress:'1610 Lake St, Glendale, CA 91201',District:'Glendale Unified',Type:'Active Ranger Program','Ranger 1':'ahowell.126@gmail.com','Ranger 1 Name':'Amanda Howell',Principal:'mhilario@gusd.net'},
+  {Name:'Beckford Elementary',FullAddress:'19130 Tulsa Street, Northridge, CA 91326',District:'Los Angeles Unified School District',Type:'Active Ranger Program','Ranger 1':'andreasgeorge94@gmail.com','Ranger 1 Name':'Andreas George',Principal:'eidy.hemmati@lausd.net'},
+  {Name:'Garvanza Elementary',FullAddress:'317 N Ave 62, Los Angeles, CA 90042',District:'Los Angeles Unified School District',Type:'Active Ranger Program','Ranger 1':'lizetterecinos25@gmail.com','Ranger 1 Name':'Karina Recinos',Principal:'ismael.berver@lausd.net'},
+  {Name:'Esther Lindstrom Elementary',FullAddress:'5900 N Canehill St, Lakewood, CA 90713',District:'Bellflower Unified',Type:'Possible Ranger Program','Ranger 1':'','Ranger 1 Name':'',Principal:'scurtiss@busd.k12.ca.us'},
+];
+const DH=[
+  {Name:'Bailey Cox',Email:'bjcox@berkeley.edu',Mobile:'310-498-4866',Role:'Ranger'},
+  {Name:'Andreas George',Email:'andreasgeorge94@gmail.com',Mobile:'818-491-6091',Role:'Ranger'},
+  {Name:'Amanda Howell',Email:'ahowell.126@gmail.com',Mobile:'',Role:'Ranger'},
+  {Name:'Lynne Tien',Email:'lamlynne10@gmail.com',Mobile:'',Role:'Ranger'},
+  {Name:'Alexandria Aleshire',Email:'alexaleshire@enrichla.org',Mobile:'310-968-0546',Role:'Master Ranger'},
+  {Name:'Hillary Williams',Email:'hillarywilliams@enrichla.org',Mobile:'818-395-8611',Role:'Master Ranger'},
+  {Name:'Richard Da Sylveira',Email:'rdasylve@lausd.net',Mobile:'(310) 927-7175',Role:'Principal'},
+  {Name:'Patricia Arroyo',Email:'patriciadiazarroyo@busd.k12.ca.us',Mobile:'+13238416451',Role:'Principal'},
+  {Name:'Monica Hilario',Email:'mhilario@gusd.net',Mobile:'',Role:'Principal'},
+  {Name:'Harpreet Hans',Email:'hhans@lausd.net',Mobile:'+1 747-369-3583',Role:'Main Contact 1'},
 ];
 
-const DEMO_HUMANS = [
-  { Name: 'Alexandria Aleshire', FirstName: 'Alexandria', LastName: 'Aleshire', Email: 'alexaleshire@enrichla.org', Mobile: '310-968-0546', Role: 'Ranger' },
-  { Name: 'Hillary Williams', FirstName: 'Hillary', LastName: 'Williams', Email: 'hillarywilliams@enrichla.org', Mobile: '818-395-8611', Role: 'Ranger' },
-  { Name: 'Johanna Recalde', FirstName: 'Johanna', LastName: 'Recalde', Email: 'johannarecalde@enrichla.org', Mobile: '2138648082', Role: 'Ranger' },
-  { Name: 'Bailey Cox', FirstName: 'Bailey', LastName: 'Cox', Email: 'bjcox@berkeley.edu', Mobile: '310-498-4866', Role: 'Ranger' },
-  { Name: 'Andreas George', FirstName: 'Andreas', LastName: 'George', Email: 'andreasgeorge94@gmail.com', Mobile: '818-491-6091', Role: 'Ranger' },
-  { Name: 'Jesse Hull', FirstName: 'Jesse', LastName: 'Hull', Email: 'jesseghull@gmail.com', Mobile: '', Role: 'Ranger' },
-  { Name: 'Kazuha Kurosu', FirstName: 'Kazuha', LastName: 'Kurosu', Email: 'kazuha.kurosu@gmail.com', Mobile: '', Role: 'Ranger' },
-  { Name: 'Lynne Tien', FirstName: 'Lynne', LastName: 'Tien', Email: 'lamlynne10@gmail.com', Mobile: '', Role: 'Ranger' },
-  { Name: 'Amanda Howell', FirstName: 'Amanda', LastName: 'Howell', Email: 'ahowell.126@gmail.com', Mobile: '', Role: 'Ranger' },
-  { Name: 'Karina Recinos', FirstName: 'Karina', LastName: 'Recinos', Email: 'lizetterecinos25@gmail.com', Mobile: '', Role: 'Ranger' },
-  { Name: 'Richard Da Sylveira', FirstName: 'Richard', LastName: 'Da Sylveira', Email: 'rdasylve@lausd.net', Mobile: '(310) 927-7175', Role: 'Principal' },
-  { Name: 'Patricia Arroyo', FirstName: 'Patricia', LastName: 'Arroyo', Email: 'patriciadiazarroyo@busd.k12.ca.us', Mobile: '+13238416451', Role: 'Principal' },
-  { Name: 'Monica Hilario', FirstName: 'Monica', LastName: 'Hilario', Email: 'mhilario@gusd.net', Mobile: '', Role: 'Principal' },
-  { Name: 'Viehanoosh Nazarian', FirstName: 'Viehanoosh', LastName: 'Nazarian', Email: 'vnazarian@gusd.net', Mobile: '', Role: 'Principal' },
-  { Name: 'Sarah Gilman', FirstName: 'Sarah', LastName: 'Gilman', Email: 'sgilman@lausd.net', Mobile: '+1 626-422-4791', Role: 'Principal' },
-  { Name: 'Eidy Hemmati', FirstName: 'Eidy', LastName: 'Hemmati', Email: 'eidy.hemmati@lausd.net', Mobile: '', Role: 'Principal' },
-  { Name: 'Cara Fields', FirstName: 'Cara', LastName: 'Fields', Email: 'caf9202@lausd.net', Mobile: '', Role: 'Principal' },
-  { Name: 'Harpreet Hans', FirstName: 'Harpreet', LastName: 'Hans', Email: 'hhans@lausd.net', Mobile: '+1 747-369-3583', Role: 'Main Contact 1' },
-  { Name: 'Jeffrey McBurney', FirstName: 'Jeffrey', LastName: 'McBurney', Email: 'jeffrey.mcburney@lausd.net', Mobile: '(661) 886-2457', Role: 'Main Contact 1' },
-];
-
-/* ═══════════════════════════════════════════
-   DATA FETCHING
-═══════════════════════════════════════════ */
-async function loadData(forceRefresh = false) {
-  // Try cache first
-  if (!forceRefresh) {
-    const cached = localStorage.getItem(CONFIG.CACHE_KEY);
-    const ts = parseInt(localStorage.getItem(CONFIG.CACHE_TS_KEY) || '0');
-    if (cached && Date.now() - ts < CONFIG.CACHE_TTL) {
-      try {
-        DATA = JSON.parse(cached);
-        updateLastSync(ts);
-        renderAll();
-        return;
-      } catch(e) {}
-    }
+/* FETCH */
+async function loadData(force=false){
+  if(!force){
+    const c=localStorage.getItem(CFG.CK),ts=parseInt(localStorage.getItem(CFG.TK)||'0');
+    if(c&&Date.now()-ts<CFG.TTL){try{DATA=JSON.parse(c);syncTS(ts);renderAll();return;}catch(e){}}
   }
-
-  // Try GAS endpoint
-  if (CONFIG.GAS_URL) {
-    try {
-      setOnlineStatus(true);
-      const res = await fetch(CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'action=getAll&t=' + Date.now());
-      const json = await res.json();
-      if (json.sites || json.humans) {
-        DATA = json;
-        localStorage.setItem(CONFIG.CACHE_KEY, JSON.stringify(DATA));
-        const now = Date.now();
-        localStorage.setItem(CONFIG.CACHE_TS_KEY, now);
-        updateLastSync(now);
-        renderAll();
-        return;
+  if(CFG.URL){
+    try{
+      setSync(true);
+      const r=await fetch(CFG.URL+'?t='+Date.now());
+      const j=await r.json();
+      if(j.sites||j.humans){
+        DATA=j;localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+        const n=Date.now();localStorage.setItem(CFG.TK,n);syncTS(n);renderAll();return;
       }
-    } catch(e) {
-      setOnlineStatus(false);
-      console.warn('GAS fetch failed, using demo data', e);
-    }
+    }catch(e){setSync(false);}
   }
-
-  // Fall back to demo data
-  DATA = { sites: DEMO_SITES, humans: DEMO_HUMANS };
-  renderAll();
-  showDemoBanner();
+  DATA={sites:DS,humans:DH};renderAll();
+  if(!CFG.URL)demoBanner();
 }
 
-function setOnlineStatus(online) {
-  document.getElementById('statusDot').className = 'status-dot' + (online ? '' : ' offline');
-  document.getElementById('statusText').textContent = online ? 'Live' : 'Offline';
+async function saveToSheet(sheet,key,updates){
+  if(!CFG.URL)throw new Error('No API URL — add it in Settings first');
+  const r=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sheet,key,updates})});
+  const j=await r.json();
+  if(!j.ok)throw new Error(j.error||'Save failed');
+  const arr=sheet==='Humans'?DATA.humans:DATA.sites;
+  const kf=sheet==='Humans'?'Email':'Name';
+  const row=arr.find(x=>(x[kf]||'')===key);
+  if(row)Object.assign(row,updates);
+  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
 }
 
-function updateLastSync(ts) {
-  const d = new Date(ts);
-  document.getElementById('lastSync').textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + ' ' + d.toLocaleDateString([], {month:'short', day:'numeric'});
+function setSync(ok){
+  document.getElementById('syncDot').className='sync-dot'+(ok?'':' offline');
+  document.getElementById('syncText').textContent=ok?'Live':'Offline';
+}
+function syncTS(ts){const el=document.getElementById('lastSync');if(!el)return;const d=new Date(ts);el.textContent=d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' '+d.toLocaleDateString([],{month:'short',day:'numeric'});}
+function demoBanner(){
+  const b=document.createElement('div');
+  b.style='margin:0 16px 0;padding:12px 14px;border:1px solid #e0d8c8;border-radius:6px;background:#fdfaf4;font-size:11px;color:#7a6a40;line-height:1.5;letter-spacing:.01em';
+  b.innerHTML='<strong style="display:block;margin-bottom:2px;letter-spacing:.08em;text-transform:uppercase;font-size:9px">Demo Mode</strong>Connect your Apps Script endpoint in Settings to load live data.';
+  document.getElementById('schoolList').before(b);
 }
 
-function showDemoBanner() {
-  if (CONFIG.GAS_URL) return; // Don't show if URL is set but failed
-  const banner = document.createElement('div');
-  banner.className = 'config-banner';
-  banner.innerHTML = `<strong>⚙️ Demo Mode</strong>Showing sample data. Go to <b>Settings</b> to connect your Google Apps Script endpoint and load live data from your Sheets.`;
-  document.getElementById('schoolList').before(banner);
+/* HELPERS */
+function sf(o,...keys){for(const k of keys)if(o[k]!==undefined&&o[k]!==null&&o[k]!=='')return o[k];return '';}
+function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase())||null;}
+function hn(e){const h=gh(e);return h?(h.Name||h.name||e):e;}
+function hm(e){const h=gh(e);return h?(h.Mobile||h.mobile||''):'';}
+function dc(d=''){d=d.toLowerCase();if(d.includes('glendale'))return 'gusd';if(d.includes('bellflower')||d.includes('burbank'))return 'busd';if(d.includes('los angeles')||d.includes('lausd'))return 'lausd';return 'other';}
+function sd(d=''){const l=d.toLowerCase();if(l.includes('los angeles unified'))return 'LAUSD';if(l.includes('glendale unified'))return 'GUSD';if(l.includes('bellflower')||l.includes('burbank'))return 'BUSD';return d.replace(/ Unified School District/,'').replace(/ Unified/,'').trim()||'—';}
+function inits(n){if(!n)return '?';const p=n.trim().split(/\s+/);return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():n.slice(0,2).toUpperCase();}
+function esc(s){return(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+function ea(s){return(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function empty(glyph,h,p){return `<div class="empty"><div class="empty-glyph">${glyph}</div><h3>${h}</h3><p>${p}</p></div>`;}
+function roleCls(r=''){const l=r.toLowerCase();if(l.includes('ranger'))return 'role-ranger';if(l.includes('principal'))return 'role-principal';if(l.includes('plant'))return 'role-plant';if(l.includes('contact'))return 'role-contact';return 'role-other';}
+
+/* CONTACT CHIPS */
+function ctaRow(mobile,email,size){
+  let b='';
+  if(mobile){
+    b+=`<a class="cta primary" href="tel:${mobile}" onclick="event.stopPropagation()">📞 ${size==='card'?mobile:'Call'}</a>`;
+    b+=`<a class="cta sms" href="sms:${mobile}" onclick="event.stopPropagation()">💬 Text</a>`;
+  }
+  if(email) b+=`<a class="cta" href="mailto:${email}" onclick="event.stopPropagation()">✉ Email</a>`;
+  return b;
 }
 
-
-/* ═══════════════════════════════════════════
-   LOOKUP HELPERS — email → Human record
-   Sites reference Humans by email (AppSheet FK)
-═══════════════════════════════════════════ */
-function getHuman(email) {
-  if (!email) return null;
-  return DATA.humans.find(h => (h.Email||h.email||'').toLowerCase() === email.toLowerCase()) || null;
-}
-function humanName(email) {
-  const h = getHuman(email);
-  return h ? (h.Name||h.name||email) : email;
-}
-function humanMobile(email) {
-  const h = getHuman(email);
-  return h ? (h.Mobile||h.mobile||'') : '';
-}
-
-/* Field accessor — handles TitleCase or camelCase from GAS */
-function sf(obj, ...keys) {
-  for (const k of keys) if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
-  return '';
-}
-
-/* ═══════════════════════════════════════════
-   DISTRICT HELPERS
-═══════════════════════════════════════════ */
-function getDistrictClass(district) {
-  const d = (district||'').toLowerCase();
-  if (d.includes('glendale')) return 'gusd';
-  if (d.includes('bellflower')||d.includes('burbank')) return 'busd';
-  if (d.includes('los angeles')||d.includes('lausd')) return 'lausd';
-  return 'other';
-}
-function shortDistrict(district) {
-  const d = (district||'').toLowerCase();
-  if (d.includes('los angeles unified')) return 'LAUSD';
-  if (d.includes('glendale unified'))   return 'GUSD';
-  if (d.includes('bellflower'))         return 'BUSD';
-  if (d.includes('burbank'))            return 'BUSD';
-  if (d.includes('charter'))            return 'Charter';
-  return (district||'').replace(' Unified School District','').replace(' Unified','').trim()||'Other';
-}
-
-/* ═══════════════════════════════════════════
-   RENDER — SCHOOLS
-═══════════════════════════════════════════ */
-function renderSchools() {
-  const q = searchQuery.toLowerCase();
-  const f = currentSchoolFilter;
-
-  const sites = DATA.sites.filter(site => {
-    const name    = sf(site,'Name','name','school');
-    const district= sf(site,'District','district');
-    const type    = sf(site,'Type','type');
-    const r1name  = sf(site,'Ranger1Name','Ranger 1 Name','ranger1Name');
-    const r1email = sf(site,'Ranger1','Ranger 1','ranger1','rangerEmail');
-    const text = (name + district + r1name + r1email).toLowerCase();
-    if (q && !text.includes(q)) return false;
-    const dc = getDistrictClass(district);
-    if (f==='lausd'     && dc!=='lausd')  return false;
-    if (f==='busd'      && dc!=='busd')   return false;
-    if (f==='gusd'      && dc!=='gusd')   return false;
-    if (f==='no-ranger' && (r1name||r1email)) return false;
+/* SCHOOLS */
+function renderSchools(){
+  const q=sq.toLowerCase(),f=csf;
+  const sites=DATA.sites.filter(s=>{
+    const name=sf(s,'Name','name'),dist=sf(s,'District','district'),r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1','ranger1');
+    if(q&&!(name+dist+r1n+r1e).toLowerCase().includes(q))return false;
+    const d=dc(dist);
+    if(f==='lausd'&&d!=='lausd')return false;
+    if(f==='busd'&&d!=='busd')return false;
+    if(f==='gusd'&&d!=='gusd')return false;
+    if(f==='no-ranger'&&(r1n||r1e))return false;
     return true;
   });
-
-  document.getElementById('schoolCount').textContent = sites.length + ' sites';
-  if (!sites.length) {
-    document.getElementById('schoolList').innerHTML = `<div class="state-msg"><div class="state-icon">🌱</div><h3>No results</h3><p>Try a different search or filter.</p></div>`;
-    return;
-  }
-
-  window._filteredSites = sites;
-  document.getElementById('schoolList').innerHTML = sites.map((site, i) => {
-    const name    = sf(site,'Name','name','school');
-    const addr    = sf(site,'FullAddress','Full Address','fullAddress','address');
-    const district= sf(site,'District','district');
-    const type    = sf(site,'Type','type');
-    const r1name  = sf(site,'Ranger1Name','Ranger 1 Name','ranger1Name') || humanName(sf(site,'Ranger1','Ranger 1','ranger1'));
-    const dc = getDistrictClass(district);
-    const inactive = !type.toLowerCase().includes('active');
-    const rangerTag = r1name
-      ? `<span class="meta-tag ranger">🧑‍🌾 ${r1name}</span>`
-      : `<span class="meta-tag no-ranger">⚠️ No Ranger</span>`;
-    const distTag = district ? `<span class="meta-tag district">${shortDistrict(district)}</span>` : '';
-    return `
-      <div class="school-card" onclick="showSchoolDetail(${i})" ${inactive?'style="opacity:0.65"':''}>
-        <div class="school-card-inner">
-          <div class="school-accent ${dc}"></div>
-          <div class="school-body">
-            <div class="school-name">${name}</div>
-            ${addr?`<div class="school-address">📍 ${addr.replace(/, USA$/,'')}</div>`:''}
-            <div class="school-meta">${distTag}${rangerTag}</div>
-          </div>
-          <div class="school-arrow">›</div>
+  window._fs=sites;
+  document.getElementById('schoolCount').textContent=sites.length+' sites';
+  if(!sites.length){document.getElementById('schoolList').innerHTML=empty('—','No results','Try a different search or filter.');return;}
+  document.getElementById('schoolList').innerHTML=sites.map((s,i)=>{
+    const name=sf(s,'Name','name'),addr=sf(s,'FullAddress','Full Address','address'),dist=sf(s,'District','district'),type=sf(s,'Type','type');
+    const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||hn(sf(s,'Ranger 1','Ranger1','ranger1'));
+    const inactive=!type.toLowerCase().includes('active');
+    const hasR=!!r1n;
+    return `<div class="school-card" onclick="showSchoolDetail(${i})"${inactive?' style="opacity:.5"':''}>
+      <div class="school-district-mark dm-${dc(dist)}"></div>
+      <div class="school-info">
+        <div class="school-name-row">
+          <span class="school-name">${name}</span>
+          <span class="dist-label">${sd(dist)}</span>
         </div>
-      </div>`;
-  }).join('');
-}
-
-/* ═══════════════════════════════════════════
-   RENDER — RANGERS
-═══════════════════════════════════════════ */
-function renderRangers() {
-  const q = searchQuery.toLowerCase();
-  const f = currentRangerFilter;
-  const rangers = DATA.humans.filter(h => {
-    const role = (h.Role||h.role||'').toLowerCase();
-    if (!role.includes('ranger')) return false;
-    if (f==='master' && !role.includes('master')) return false;
-    const name  = h.Name||h.name||'';
-    const email = h.Email||h.email||'';
-    if (q && !(name+email).toLowerCase().includes(q)) return false;
-    return true;
-  });
-
-  document.getElementById('rangerCount').textContent = rangers.length + ' rangers';
-  if (!rangers.length) {
-    document.getElementById('rangerList').innerHTML = `<div class="state-msg"><div class="state-icon">🧑‍🌾</div><h3>No results</h3><p>Try a different filter.</p></div>`;
-    return;
-  }
-
-  document.getElementById('rangerList').innerHTML = rangers.map(h => {
-    const name    = h.Name||h.name||h.Email||h.email;
-    const email   = h.Email||h.email||'';
-    const isMaster= (h.Role||h.role||'').toLowerCase().includes('master');
-    // Resolve assigned schools via FK
-    const schools = DATA.sites
-      .filter(s => sf(s,'Ranger1','Ranger 1','ranger1')===email || sf(s,'Ranger2','Ranger 2','ranger2')===email)
-      .map(s => sf(s,'Name','name','school')).join(', ');
-    return `
-      <div class="people-card" onclick="showPersonDetail('${escHtml(email||name)}')">
-        <div class="avatar">${getInitials(name)}</div>
-        <div class="people-info">
-          <div class="people-name">${name}</div>
-          <div class="people-sub">${schools||email}</div>
+        ${addr?`<div class="school-address">${addr.replace(/, USA$/,'')}</div>`:''}
+        <div class="ranger-line ${hasR?'':'no-ranger'}">
+          <div class="ranger-dot ${hasR?'':'empty'}"></div>
+          ${hasR?r1n:'No ranger assigned'}
         </div>
-        <span class="role-badge role-ranger">${isMaster?'Master':'Active'}</span>
-      </div>`;
-  }).join('');
-}
-
-/* ═══════════════════════════════════════════
-   RENDER — PEOPLE
-═══════════════════════════════════════════ */
-function renderPeople() {
-  const q = searchQuery.toLowerCase();
-  const f = currentPeopleFilter;
-  const people = DATA.humans.filter(h => {
-    const role = h.Role||h.role||'';
-    if (f!=='all' && role!==f) return false;
-    const text = ((h.Name||h.name||'')+(h.Email||h.email||'')+role).toLowerCase();
-    if (q && !text.includes(q)) return false;
-    return true;
-  });
-
-  document.getElementById('peopleCount').textContent = people.length + ' people';
-  if (!people.length) {
-    document.getElementById('peopleList').innerHTML = `<div class="state-msg"><div class="state-icon">👥</div><h3>No results</h3><p>Try a different filter.</p></div>`;
-    return;
-  }
-  document.getElementById('peopleList').innerHTML = people.map(h => {
-    const name  = h.Name||h.name||h.Email||h.email;
-    const email = h.Email||h.email||'';
-    const role  = h.Role||h.role||'';
-    return `
-      <div class="people-card" onclick="showPersonDetail('${escHtml(email||name)}')">
-        <div class="avatar">${getInitials(name)}</div>
-        <div class="people-info">
-          <div class="people-name">${name}</div>
-          <div class="people-sub">${email}</div>
-        </div>
-        <span class="role-badge ${getRoleBadgeClass(role)}">${getRoleLabel(role)}</span>
-      </div>`;
-  }).join('');
-}
-
-function renderAll() { renderSchools(); renderRangers(); renderPeople(); }
-
-/* ═══════════════════════════════════════════
-   DETAIL — SCHOOL
-   Sites.Ranger1, .Principal, .SchoolAdministrativeAssistant,
-   .MainContact1, .PlantManager are all email FKs → Humans
-═══════════════════════════════════════════ */
-function showSchoolDetail(idx) {
-  const site = (window._filteredSites||DATA.sites)[idx];
-  if (!site) return;
-
-  const name     = sf(site,'Name','name','school');
-  const addr     = sf(site,'FullAddress','Full Address','fullAddress','address');
-  const district = sf(site,'District','district');
-  const type     = sf(site,'Type','type');
-  const details  = sf(site,'SiteDetails','Site Details','siteDetails');
-
-  const r1email  = sf(site,'Ranger1','Ranger 1','ranger1');
-  const r1name   = sf(site,'Ranger1Name','Ranger 1 Name','ranger1Name') || humanName(r1email);
-  const r1mobile = humanMobile(r1email);
-  const r2email  = sf(site,'Ranger2','Ranger 2','ranger2');
-  const r2name   = sf(site,'Ranger2Name','Ranger 2 Name','ranger2Name') || humanName(r2email);
-
-  const princEmail  = sf(site,'Principal','principal');
-  const princName   = humanName(princEmail);
-  const princMobile = humanMobile(princEmail);
-
-  const saaEmail = sf(site,'SchoolAdministrativeAssistant','School Administrative Assistant','saa');
-  const mc1Email = sf(site,'MainContact1','Main Contact 1','mainContact1');
-  const pmEmail  = sf(site,'PlantManager','Plant Manager','plantManager');
-
-  const mapsUrl = addr
-    ? `https://maps.google.com/?q=${encodeURIComponent(addr)}`
-    : `https://maps.google.com/?q=${encodeURIComponent(name+' Los Angeles')}`;
-
-  const contactRows = [
-    saaEmail && `<div style="font-size:13px;margin-bottom:4px">SAA: <a class="detail-link" href="mailto:${saaEmail}">${humanName(saaEmail)}</a>${humanMobile(saaEmail)?' · <a class="detail-link" href="tel:'+humanMobile(saaEmail)+'">'+humanMobile(saaEmail)+'</a>':''}</div>`,
-    mc1Email && `<div style="font-size:13px;margin-bottom:4px">Contact: <a class="detail-link" href="mailto:${mc1Email}">${humanName(mc1Email)}</a></div>`,
-    pmEmail  && `<div style="font-size:13px;margin-bottom:4px">Plant Mgr: <a class="detail-link" href="mailto:${pmEmail}">${humanName(pmEmail)}</a>${humanMobile(pmEmail)?' · <a class="detail-link" href="tel:'+humanMobile(pmEmail)+'">'+humanMobile(pmEmail)+'</a>':''}</div>`,
-  ].filter(Boolean).join('');
-
-  document.getElementById('detail-content').innerHTML = `
-    <div class="sheet-header">
-      <div class="sheet-title">${name}</div>
-      <button class="sheet-close" onclick="closeDetail()">✕</button>
-    </div>
-    ${addr?`<div class="detail-section"><div class="detail-label">Address</div><div class="detail-value"><a class="detail-link" href="${mapsUrl}" target="_blank">📍 ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
-    <div class="detail-section">
-      <div class="detail-label">District · Status</div>
-      <div class="detail-value">${shortDistrict(district)}${type?' · '+type.replace(' Ranger Program',''):''}</div>
-    </div>
-    <div class="detail-section">
-      <div class="detail-label">Ranger${r2name?' (2)':''}</div>
-      <div class="detail-value">
-        ${r1name
-          ? `<span style="color:var(--canopy);font-weight:600">${r1name}</span>${r1mobile?' · <a class="detail-link" href="tel:'+r1mobile+'">'+r1mobile+'</a>':''}<br><a class="detail-link" style="font-size:12px" href="mailto:${r1email}">${r1email}</a>`
-          : '<span style="color:#c0392b;font-weight:600">⚠️ Unassigned</span>'}
-        ${r2name?`<br><span style="color:var(--canopy)">${r2name}</span>`:''}
       </div>
-    </div>
-    ${princEmail?`<div class="detail-section"><div class="detail-label">Principal</div><div class="detail-value">${princName}${princMobile?' · <a class="detail-link" href="tel:'+princMobile+'">'+princMobile+'</a>':''}<br><a class="detail-link" style="font-size:12px" href="mailto:${princEmail}">${princEmail}</a></div></div>`:''}
-    ${contactRows?`<div class="detail-section"><div class="detail-label">Other Contacts</div><div class="detail-value">${contactRows}</div></div>`:''}
-    ${details?`<div class="detail-section"><div class="detail-label">Site Details</div><div class="detail-value" style="font-size:13px;color:var(--text-secondary);line-height:1.55">${details}</div></div>`:''}
-
-    <div class="detail-actions">
-      <a class="action-btn action-primary" href="${mapsUrl}" target="_blank">🗺 Directions</a>
-      ${r1mobile?`<a class="action-btn action-secondary" href="tel:${r1mobile}">📞 Ranger</a>`:r1email?`<a class="action-btn action-secondary" href="mailto:${r1email}">✉️ Ranger</a>`:''}
+      <span class="school-chevron">›</span>
     </div>`;
+  }).join('');
+}
+
+/* RANGERS */
+function renderRangers(){
+  const q=sq.toLowerCase(),f=crf;
+  const rangers=DATA.humans.filter(h=>{
+    const role=(h.Role||h.role||'').toLowerCase();
+    if(!role.includes('ranger'))return false;
+    if(f==='master'&&!role.includes('master'))return false;
+    if(q&&!((h.Name||h.name||'')+(h.Email||h.email||'')).toLowerCase().includes(q))return false;
+    return true;
+  });
+  document.getElementById('rangerCount').textContent=rangers.length+' rangers';
+  if(!rangers.length){document.getElementById('rangerList').innerHTML=empty('—','No results','Try a different filter.');return;}
+  document.getElementById('rangerList').innerHTML=rangers.map(h=>{
+    const name=h.Name||h.name||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
+    const isMaster=role.toLowerCase().includes('master');
+    const schools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1','ranger1')===email||sf(s,'Ranger 2','Ranger2','ranger2')===email).map(s=>sf(s,'Name','name')).join(', ');
+    return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
+      <div class="avatar">${inits(name)}</div>
+      <div class="people-info">
+        <div class="people-name">${name}</div>
+        <div class="people-role">${isMaster?'Master Ranger':'Ranger'}${schools?' · '+schools:''}</div>
+        <div class="card-contacts">${ctaRow(mobile,email,'card')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* PEOPLE */
+function renderPeople(){
+  const q=sq.toLowerCase(),f=cpf;
+  const people=DATA.humans.filter(h=>{
+    const role=h.Role||h.role||'';
+    if(f!=='all'&&role!==f)return false;
+    if(q&&!((h.Name||h.name||'')+(h.Email||h.email||'')+role).toLowerCase().includes(q))return false;
+    return true;
+  });
+  document.getElementById('peopleCount').textContent=people.length+' people';
+  if(!people.length){document.getElementById('peopleList').innerHTML=empty('—','No results','Try a different filter.');return;}
+  document.getElementById('peopleList').innerHTML=people.map(h=>{
+    const name=h.Name||h.name||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
+    return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
+      <div class="avatar">${inits(name)}</div>
+      <div class="people-info">
+        <div class="people-name">${name}</div>
+        <div class="people-role">${role}</div>
+        <div class="card-contacts">${ctaRow(mobile,email,'card')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAll(){renderSchools();renderRangers();renderPeople();}
+
+/* SCHOOL DETAIL */
+function showSchoolDetail(idx){
+  const site=(window._fs||DATA.sites)[idx];if(!site)return;
+  const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type'),details=sf(site,'SiteDetails','Site Details','siteDetails'),sched=sf(site,'Schedule','schedule');
+  const r1e=sf(site,'Ranger 1','Ranger1','ranger1'),r1n=sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e),r1m=hm(r1e);
+  const r2e=sf(site,'Ranger 2','Ranger2','ranger2'),r2n=sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e),r2m=hm(r2e);
+  const pe=sf(site,'Principal','principal'),pn=hn(pe),pm=hm(pe);
+  const saa=sf(site,'School Administrative Assistant','SchoolAdministrativeAssistant');
+  const mc1=sf(site,'Main Contact 1','MainContact1'),mc2=sf(site,'Main Contact 2','MainContact2'),mc3=sf(site,'Main Contact 3','MainContact3');
+  const pme=sf(site,'Plant Manager','PlantManager');
+  const maps=addr?`https://maps.google.com/?q=${encodeURIComponent(addr)}`:`https://maps.google.com/?q=${encodeURIComponent(name+' Los Angeles')}`;
+
+  function crow(label,email){
+    if(!email)return '';
+    const n=hn(email),m=hm(email);
+    return `<div class="ds"><div class="dl">${label}</div><div class="dv" style="margin-bottom:6px">${n}<br><span style="font-size:11px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">${ctaRow(m,email,'card')}</div></div>`;
+  }
+
+  document.getElementById('detail-content').innerHTML=`
+    <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
+    ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
+    <div class="ds"><div class="dl">District</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
+    ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
+    <div class="ds">
+      <div class="dl">Ranger${r2n?' 1':''}</div>
+      <div class="dv" style="margin-bottom:6px">${r1n?`<strong style="font-weight:500">${r1n}</strong><br><span style="font-size:11px;color:var(--silver)">${r1e}</span>`:'<span style="color:var(--danger)">Unassigned</span>'}</div>
+      ${r1e||r1m?`<div style="display:flex;gap:6px;flex-wrap:wrap">${ctaRow(r1m,r1e,'card')}</div>`:''}
+    </div>
+    ${r2n?`<div class="ds"><div class="dl">Ranger 2</div><div class="dv" style="margin-bottom:6px"><strong style="font-weight:500">${r2n}</strong><br><span style="font-size:11px;color:var(--silver)">${r2e}</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">${ctaRow(r2m,r2e,'card')}</div></div>`:''}
+    ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
+    ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:12px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
+    <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>`;
   openDetail();
 }
 
-/* ═══════════════════════════════════════════
-   DETAIL — PERSON
-═══════════════════════════════════════════ */
-function showPersonDetail(emailOrName) {
-  const h = DATA.humans.find(p =>
-    (p.Email||p.email||'')===emailOrName || (p.Name||p.name||'')===emailOrName
-  );
-  if (!h) return;
-  const name    = h.Name||h.name||h.Email||h.email;
-  const email   = h.Email||h.email||'';
-  const mobile  = h.Mobile||h.mobile||'';
-  const role    = h.Role||h.role||'';
-  // Schools assigned to as ranger (FK reverse lookup)
-  const schools = DATA.sites
-    .filter(s => sf(s,'Ranger1','Ranger 1','ranger1')===email || sf(s,'Ranger2','Ranger 2','ranger2')===email)
-    .map(s => sf(s,'Name','name','school')).join(', ');
-  // Schools where they are principal
-  const princAt = DATA.sites
-    .filter(s => sf(s,'Principal','principal')===email)
-    .map(s => sf(s,'Name','name','school')).join(', ');
-
-  document.getElementById('detail-content').innerHTML = `
-    <div class="sheet-header">
-      <div style="display:flex;align-items:center;gap:13px;flex:1;min-width:0;">
-        <div class="avatar" style="width:52px;height:52px;font-size:20px;flex-shrink:0">${getInitials(name)}</div>
-        <div class="sheet-title" style="font-size:19px">${name}</div>
+/* PERSON DETAIL */
+function showPersonDetail(k){
+  const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||(p.Name||p.name||'')===k);
+  if(!h)return;renderPD(h,false);openDetail();
+}
+function renderPD(h,edit){
+  const name=h.Name||h.name||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
+  const schools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1','ranger1')===email||sf(s,'Ranger 2','Ranger2','ranger2')===email).map(s=>sf(s,'Name','name')).join(', ');
+  const princAt=DATA.sites.filter(s=>sf(s,'Principal','principal')===email).map(s=>sf(s,'Name','name')).join(', ');
+  if(edit){
+    document.getElementById('detail-content').innerHTML=`
+      <div class="sheet-head">
+        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+          <div class="avatar" style="width:44px;height:44px;font-size:16px;flex-shrink:0">${inits(name)}</div>
+          <div class="sheet-title" style="font-size:22px">${name}</div>
+        </div>
+        <button class="sheet-x" onclick="closeDetail()">✕</button>
       </div>
-      <button class="sheet-close" onclick="closeDetail()">✕</button>
-    </div>
-    <div class="detail-section"><div class="detail-label">Role</div><div class="detail-value">${role||'–'}</div></div>
-    ${schools?`<div class="detail-section"><div class="detail-label">Assigned School(s)</div><div class="detail-value">${schools}</div></div>`:''}
-    ${princAt?`<div class="detail-section"><div class="detail-label">Principal At</div><div class="detail-value">${princAt}</div></div>`:''}
-    ${email?`<div class="detail-section"><div class="detail-label">Email</div><div class="detail-value"><a class="detail-link" href="mailto:${email}">${email}</a></div></div>`:''}
-    ${mobile?`<div class="detail-section"><div class="detail-label">Mobile</div><div class="detail-value"><a class="detail-link" href="tel:${mobile}">${mobile}</a></div></div>`:''}
-
-
-    <div class="detail-actions">
-      ${mobile?`<a class="action-btn action-primary" href="tel:${mobile}">📞 Call</a>`:''}
-      ${email?`<a class="action-btn action-secondary" href="mailto:${email}">✉️ Email</a>`:''}
-    </div>`;
-  openDetail();
+      <div class="edit-wrap"><div class="edit-label">Name</div><input class="edit-input" id="ef-Name" value="${ea(name)}"></div>
+      <div class="edit-wrap"><div class="edit-label">Mobile</div><input class="edit-input" id="ef-Mobile" type="tel" value="${ea(mobile)}" placeholder="e.g. 310-555-1234"></div>
+      <div class="edit-wrap"><div class="edit-label">Email (key — edit carefully)</div><input class="edit-input" id="ef-Email" type="email" value="${ea(email)}"></div>
+      <div class="edit-wrap"><div class="edit-label">Role</div><input class="edit-input" id="ef-Role" value="${ea(role)}"></div>
+      <div class="edit-actions">
+        <button class="btn-save" onclick="savePerson('${ea(email)}')">Save to Sheet</button>
+        <button class="btn-cancel" onclick="showPersonDetail('${ea(email||name)}')">Cancel</button>
+      </div>
+      <div class="save-msg" id="saveMsg"></div>`;
+  }else{
+    document.getElementById('detail-content').innerHTML=`
+      <div class="sheet-head">
+        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+          <div class="avatar" style="width:44px;height:44px;font-size:16px;flex-shrink:0">${inits(name)}</div>
+          <div class="sheet-title" style="font-size:22px">${name}</div>
+        </div>
+        <button class="sheet-x" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="ds"><div class="dl">Role</div><div class="dv">${role||'—'}</div></div>
+      ${schools?`<div class="ds"><div class="dl">Assigned School(s)</div><div class="dv">${schools}</div></div>`:''}
+      ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
+      ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="mailto:${email}">${email}</a></div></div>`:''}
+      ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${mobile}">${mobile}</a></div></div>`:''}
+      <div class="detail-ctas">
+        ${mobile?`<a class="dcta filled" href="tel:${mobile}">📞 Call</a>`:''}
+        ${mobile?`<a class="dcta blue"   href="sms:${mobile}">💬 Text</a>`:''}
+        ${email ?`<a class="dcta"        href="mailto:${email}">✉ Email</a>`:''}
+      </div>
+      <button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`;
+  }
 }
-
-
-/* ═══════════════════════════════════════════
-   TAB SWITCHING & FILTERS
-═══════════════════════════════════════════ */
-function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
-}
-
-function filterSchools(f) {
-  currentSchoolFilter = f;
-  document.querySelectorAll('#schoolFilters .chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
-  renderSchools();
-}
-
-function filterRangers(f) {
-  currentRangerFilter = f;
-  document.querySelectorAll('#rangerFilters .chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
-  renderRangers();
-}
-
-function filterPeople(f) {
-  currentPeopleFilter = f;
-  document.querySelectorAll('#peopleFilters .chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
-  renderPeople();
-}
-
-/* ═══════════════════════════════════════════
-   SEARCH
-═══════════════════════════════════════════ */
-let searchTimer;
-document.getElementById('searchInput').addEventListener('input', e => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    searchQuery = e.target.value.trim();
+function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
+async function savePerson(orig){
+  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
+  const u={Name:document.getElementById('ef-Name').value.trim(),Mobile:document.getElementById('ef-Mobile').value.trim(),Email:document.getElementById('ef-Email').value.trim(),Role:document.getElementById('ef-Role').value.trim()};
+  try{
+    await saveToSheet('Humans',orig,u);
+    m.textContent='✓ Saved to Google Sheet';
+    setTimeout(()=>showPersonDetail(u.Email||orig),900);
     renderAll();
-  }, 200);
-});
-
-/* ═══════════════════════════════════════════
-   SETTINGS
-═══════════════════════════════════════════ */
-function saveGasUrl() {
-  const url = document.getElementById('gasUrlInput').value.trim();
-  CONFIG.GAS_URL = url;
-  localStorage.setItem('rr_gas_url', url);
-  localStorage.removeItem(CONFIG.CACHE_KEY);
-  localStorage.removeItem(CONFIG.CACHE_TS_KEY);
-  loadData(true);
-  // Switch to schools tab
-  switchTab('schools');
+  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
 
-function clearCache() {
-  localStorage.removeItem(CONFIG.CACHE_KEY);
-  localStorage.removeItem(CONFIG.CACHE_TS_KEY);
-  loadData(true);
+/* OVERLAY */
+function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>o.classList.add('open'));}
+function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
+
+/* TABS & FILTERS */
+function switchTab(tab){
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
 }
+function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
+function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();}
+function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();}
 
-// Populate settings field on load
-window.addEventListener('DOMContentLoaded', () => {
-  if (CONFIG.GAS_URL) document.getElementById('gasUrlInput').value = CONFIG.GAS_URL;
-});
+let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();},200);});
 
-/* ═══════════════════════════════════════════
-   HELPERS
-═══════════════════════════════════════════ */
-function getInitials(name) {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
-  return name.slice(0,2).toUpperCase();
-}
+/* SETTINGS */
+function saveGasUrl(){const u=document.getElementById('gasUrlInput').value.trim();CFG.URL=u;localStorage.setItem('rr_gas_url',u);localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);switchTab('schools');loadData(true);}
+function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);loadData(true);}
+window.addEventListener('DOMContentLoaded',()=>{if(CFG.URL)document.getElementById('gasUrlInput').value=CFG.URL;});
 
-function getRoleBadgeClass(role) {
-  const r = (role || '').toLowerCase();
-  if (r.includes('ranger'))    return 'role-ranger';
-  if (r.includes('principal')) return 'role-principal';
-  if (r.includes('plant'))     return 'role-plant';
-  if (r.includes('contact'))   return 'role-contact';
-  return 'role-other';
-}
-
-function getRoleLabel(role) {
-  const r = (role || '');
-  if (r.length > 16) return r.slice(0, 14) + '…';
-  return r || '–';
-}
-
-function escHtml(str) {
-  return (str||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
-
-/* ═══════════════════════════════════════════
-   SERVICE WORKER REGISTRATION
-═══════════════════════════════════════════ */
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(console.warn);
-}
-
-/* ═══════════════════════════════════════════
-   BOOT
-═══════════════════════════════════════════ */
+if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);
 loadData();
 </script>
 </body>
