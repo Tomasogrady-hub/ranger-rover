@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ranger-rover-v2';
+const CACHE_NAME = 'ranger-rover-v3';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
@@ -7,26 +7,46 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-  ));
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    )
+  );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
-  // Network-first for API calls, cache-first for assets
   const url = new URL(e.request.url);
-  if (url.pathname.includes('script.google.com') || url.searchParams.has('action')) {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
-    );
-  } else {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-        return res;
-      }))
-    );
+
+  // Always network for GAS API calls
+  if (url.hostname.includes('script.google.com')) {
+    e.respondWith(fetch(e.request));
+    return;
   }
+
+  // HTML — network first, update cache, fall back offline
+  if (e.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Everything else — cache first, refresh in background
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      const network = fetch(e.request).then(res => {
+        caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
+        return res;
+      });
+      return cached || network;
+    })
+  );
+});
+
+self.addEventListener('message', e => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
 });
