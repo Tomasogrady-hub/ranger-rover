@@ -186,7 +186,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 #mapContainer{position:absolute;inset:0;top:0}
 #tab-map{position:relative;height:100%}
 #map{position:absolute;inset:0}
-.leaflet-tooltip.map-label{background:white;border:none;box-shadow:0 1px 5px rgba(0,0,0,.2);border-radius:4px;padding:3px 7px;font-size:12px;font-family:'Outfit',sans-serif;font-weight:500;white-space:nowrap;color:#1a1a1a;pointer-events:auto;cursor:pointer}
+.leaflet-tooltip.map-label{background:white;border:none;box-shadow:0 1px 5px rgba(0,0,0,.2);border-radius:4px;padding:3px 7px;font-size:12px;font-family:'Outfit',sans-serif;font-weight:500;white-space:nowrap;color:#1a1a1a;pointer-events:auto!important;cursor:pointer}
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
 .leaflet-tooltip.map-label::before{display:none}
 
@@ -227,7 +227,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
       <div class="auth-err" id="emailErr"></div>
     </div>
     <div class="auth-step" id="stepSetPw">
-      <div class="auth-title">Choose a password</div>
+      <!-- FIX 2: id added to title so JS can personalize it with first name -->
+      <div class="auth-title" id="setPwTitle">Choose a password</div>
       <div class="auth-hint" id="setPwHint">First time signing in. Choose a password you'll use going forward.</div>
       <label class="auth-label">New password</label>
       <div class="pw-wrap"><input class="auth-input" id="authPw1" type="password" placeholder="At least 8 characters" autocomplete="new-password"><button class="pw-toggle" type="button" onclick="togglePw('authPw1',this)">👁</button></div>
@@ -329,6 +330,20 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
     <div id="mapContainer"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div><div id="map"></div></div>
   </div>
 
+  <!-- FIX 3: CHORES TAB — fully separate tab with filter chips -->
+  <div class="tab-pane" id="tab-chores">
+    <div class="filter-row" id="choresFilters">
+      <button class="chip active" data-filter="all"       onclick="filterChores('all')">All</button>
+      <button class="chip"        data-filter="asap"      onclick="filterChores('asap')">ASAP</button>
+      <button class="chip"        data-filter="urgent"    onclick="filterChores('urgent')">Urgent</button>
+      <button class="chip"        data-filter="mine"      onclick="filterChores('mine')">Mine</button>
+      <button class="chip"        data-filter="fieldwork" onclick="filterChores('fieldwork')">Fieldwork</button>
+      <button class="chip"        data-filter="admin"     onclick="filterChores('admin')">Admin</button>
+    </div>
+    <div class="page-header"><span class="page-title">Chores</span><span class="page-count" id="choresCount"></span></div>
+    <div class="card-list" id="choresList"><div class="spinner"></div></div>
+  </div>
+
   <!-- SETTINGS -->
   <div class="tab-pane" id="tab-settings">
     <div class="page-header"><span class="page-title">Settings</span></div>
@@ -349,11 +364,13 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
 </div><!-- /content -->
 
+<!-- FIX 3: Chores nav button added between Map and Settings -->
 <div id="nav" style="display:none">
   <button class="nav-btn active" data-tab="schools"  onclick="switchTab('schools')"><span class="nav-icon">🏫</span>Schools</button>
   <button class="nav-btn"        data-tab="rangers"  onclick="switchTab('rangers')"  id="navRangers"><span class="nav-icon">🧑‍🌾</span>Rangers</button>
   <button class="nav-btn"        data-tab="people"   onclick="switchTab('people')"   id="navPeople"><span class="nav-icon">👥</span>People</button>
   <button class="nav-btn"        data-tab="map"      onclick="switchTab('map',true)"><span class="nav-icon">🗺</span>Map</button>
+  <button class="nav-btn"        data-tab="chores"   onclick="switchTab('chores')"   id="navChores"><span class="nav-icon">✅</span>Chores</button>
   <button class="nav-btn"        data-tab="settings" onclick="switchTab('settings')" id="navSettings"><span class="nav-icon">⚙️</span>Settings</button>
 </div>
 
@@ -373,7 +390,8 @@ const CFG={
 };
 let DATA={sites:[],humans:[],roles:[],chores:[]};
 let SESSION=null;
-let csf='all',crf='all',cpf='all',sq='';
+// FIX 3: added ccf state for chores filter
+let csf='all',crf='all',cpf='all',ccf='all',sq='';
 let mapInited=false;
 
 /* ═══ UTILS ═══ */
@@ -387,13 +405,10 @@ function hm(e){const h=gh(e);return h?(h.Mobile||h.mobile||''):''; }
 function getImgSrc(url){
   if(!url||typeof url!=='string'||url.trim()==='')return '';
   url=url.trim();
-  // drive.google.com/open?id=... or drive.google.com?id=...
   const openM=url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if(openM)return `https://drive.google.com/uc?export=view&id=${openM[1]}`;
-  // drive.google.com/file/d/FILE_ID/
   const fileM=url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   if(fileM)return `https://drive.google.com/uc?export=view&id=${fileM[1]}`;
-  // AppSheet relative path - can't render these directly
   if(url.startsWith('Chores_Images/')||url.startsWith('Chores_Files_/'))return '';
   return url;
 }
@@ -473,10 +488,22 @@ async function handleEmailSubmit(){
     if(!res.found){goToStep('stepEmail');err.textContent='Your email was not found. Please contact Tomas at tomasogrady@enrichla.org.';return;}
     if(res.noAccess){goToStep('stepEmail');err.textContent="We're sorry, you don't have authorization to access Ranger Rover.";return;}
     document.getElementById('forgotHint').textContent=`We'll reset your password and send an email to ${email}.`;
-    if(res.hasPassword){document.getElementById('enterPwHint').textContent=`Signing in as ${email}`;document.getElementById('authPw').value='';goToStep('stepEnterPw');}
-    else{document.getElementById('setPwHint').textContent=`Welcome! Set a password for ${email}.`;document.getElementById('authPw1').value='';document.getElementById('authPw2').value='';goToStep('stepSetPw');}
+    if(res.hasPassword){
+      document.getElementById('enterPwHint').textContent=`Signing in as ${email}`;
+      document.getElementById('authPw').value='';
+      goToStep('stepEnterPw');
+    } else {
+      // FIX 2: Personalized welcome using first name from GAS response
+      const firstName=(res.name||'').split(' ')[0]||'there';
+      document.getElementById('setPwTitle').textContent=`Welcome, ${firstName}!`;
+      document.getElementById('setPwHint').textContent=`First time signing in — please choose a password.`;
+      document.getElementById('authPw1').value='';
+      document.getElementById('authPw2').value='';
+      goToStep('stepSetPw');
+    }
   }catch(e){goToStep('stepEmail');err.textContent='Connection error. Check your internet and try again.';}
 }
+
 async function handleSetPassword(){
   const email=document.getElementById('authEmail').value.trim().toLowerCase();
   const pw1=document.getElementById('authPw1').value,pw2=document.getElementById('authPw2').value;
@@ -513,6 +540,8 @@ function showApp(){
   document.getElementById('navRangers').style.display=lvl<=2?'flex':'none';
   document.getElementById('navPeople').style.display=lvl<=2?'flex':'none';
   document.getElementById('navSettings').style.display=lvl===1?'flex':'none';
+  // Chores tab visible to all access levels
+  document.getElementById('navChores').style.display='flex';
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
@@ -572,7 +601,18 @@ const DEMO_HUMANS=[
 ];
 
 /* ═══ RENDER SCHOOLS ═══ */
-function getMySchools(){if(!SESSION||SESSION.accessLevel<=2)return null;const e=SESSION.email;return DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1').toLowerCase()===e.toLowerCase()||sf(s,'Ranger 2','Ranger2').toLowerCase()===e.toLowerCase()||sf(s,'Garden Keeper','GardenKeeper').toLowerCase()===e.toLowerCase());}
+// FIX 1: Level-3 filtering now correctly matches Ranger 1 (col N), Ranger 2 (col O),
+//         and Garden Keeper (col AU) with trim() on both sides to handle whitespace.
+function getMySchools(){
+  if(!SESSION||SESSION.accessLevel<=2)return null;
+  const e=SESSION.email.toLowerCase().trim();
+  return DATA.sites.filter(s=>{
+    const r1=(sf(s,'Ranger 1','Ranger1')||'').toLowerCase().trim();
+    const r2=(sf(s,'Ranger 2','Ranger2')||'').toLowerCase().trim();
+    const gk=(sf(s,'Garden Keeper','GardenKeeper')||'').toLowerCase().trim();
+    return r1===e||r2===e||gk===e;
+  });
+}
 
 function renderSchools(){
   const q=sq.toLowerCase(),f=csf;
@@ -652,7 +692,54 @@ function renderPeople(){
   }).join('');
 }
 
-function renderAll(){renderSchools();if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();}if(mapInited)refreshMapChores();}
+/* ═══ FIX 3: RENDER CHORES ═══ */
+function renderChores(){
+  const q=sq.toLowerCase(),f=ccf;
+  // Level 3 users only see chores for their assigned schools
+  const mySchools=getMySchools();
+  const mySchoolNames=mySchools?mySchools.map(s=>sf(s,'Name','name').toLowerCase()):null;
+
+  let chores=DATA.chores.filter(c=>{
+    // Level 3 school restriction
+    if(mySchoolNames!==null&&!mySchoolNames.includes((c.Site||'').toLowerCase()))return false;
+    const urg=(c.Urgency||'').toLowerCase();
+    const type=(c.Type||'').toLowerCase();
+    // Filter chips
+    if(f==='asap'&&urg!=='asap')return false;
+    if(f==='urgent'&&urg!=='urgent')return false;
+    if(f==='mine'&&(c['Assigned to']||'').toLowerCase()!==(SESSION?.email||'').toLowerCase())return false;
+    if(f==='fieldwork'&&!type.includes('field'))return false;
+    if(f==='admin'&&!type.includes('admin'))return false;
+    // Search
+    if(q&&!(c.Task||'').toLowerCase().includes(q)&&!(c.Site||'').toLowerCase().includes(q))return false;
+    return true;
+  });
+
+  // Sort: ASAP → Urgent → Normal
+  const urgOrder={'asap':0,'urgent':1};
+  chores.sort((a,b)=>(urgOrder[(a.Urgency||'').toLowerCase()]??2)-(urgOrder[(b.Urgency||'').toLowerCase()]??2));
+
+  document.getElementById('choresCount').textContent=chores.length+' open';
+  if(!chores.length){
+    document.getElementById('choresList').innerHTML=empty('✓','All clear','No open chores match this filter.');
+    return;
+  }
+  document.getElementById('choresList').innerHTML=chores.map(c=>choreCardHtml(c,true)).join('');
+}
+
+function filterChores(f){
+  ccf=f;
+  document.querySelectorAll('#choresFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));
+  renderChores();
+}
+
+// FIX 3: renderAll now includes renderChores
+function renderAll(){
+  renderSchools();
+  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();}
+  renderChores();
+  if(mapInited)refreshMapChores();
+}
 
 /* ═══ MAP ═══ */
 let _leafletMap=null;
@@ -671,6 +758,8 @@ function initMap(){
   document.head.appendChild(script);
 }
 
+// FIX 4: Map labels are now clickable — both the dot marker AND the tooltip label
+//         open the school detail sheet. Uses interactive:true + tooltipopen event.
 function buildMapMarkers(){
   if(!_leafletMap)return;
   DATA.sites.forEach(s=>{
@@ -680,19 +769,45 @@ function buildMapMarkers(){
     const name=sf(s,'Name','name');
     const openC=openChoresForSite(name).length;
     const label=shortLabel(name)+(openC>0?` (${openC}⚠)`:'');
-    const icon=L.divIcon({className:'',html:`<div style="width:10px;height:10px;background:${openC>0?'#c07000':'#1e3a1e'};border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,iconSize:[10,10],iconAnchor:[5,5]});
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:14px;height:14px;background:${openC>0?'#c07000':'#1e3a1e'};border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer"></div>`,
+      iconSize:[14,14],
+      iconAnchor:[7,7]
+    });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
-    marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-8]});
-    marker.on('click',()=>{
+
+    // Handler shared by both dot and tooltip label
+    const openHandler=()=>{
       const idx=DATA.sites.indexOf(s);
       window._fs=DATA.sites;
       showSchoolDetail(idx);
+    };
+
+    // Dot click
+    marker.on('click',openHandler);
+
+    // Tooltip — interactive:true so pointer-events reach it
+    marker.bindTooltip(label,{
+      permanent:true,
+      direction:'top',
+      className:`map-label${openC>0?' has-chores':''}`,
+      offset:[0,-10],
+      interactive:true
+    });
+
+    // Attach click to tooltip element once it's in the DOM
+    marker.on('tooltipopen',function(){
+      const el=this.getTooltip().getElement();
+      if(el){
+        el.style.cursor='pointer';
+        el.addEventListener('click',openHandler);
+      }
     });
   });
 }
 
 function refreshMapChores(){
-  // Rebuild markers to update chore counts
   if(!_leafletMap)return;
   _leafletMap.eachLayer(l=>{if(l instanceof L.Marker)_leafletMap.removeLayer(l);});
   buildMapMarkers();
