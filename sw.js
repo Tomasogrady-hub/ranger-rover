@@ -1,11 +1,9 @@
-const CACHE_NAME = 'ranger-rover-v7';
+const CACHE_NAME = 'ranger-rover-v8';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
-
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
-
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -14,16 +12,13 @@ self.addEventListener('activate', e => {
   );
   self.clients.claim();
 });
-
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-
   // Always network for GAS API calls
   if (url.hostname.includes('script.google.com')) {
     e.respondWith(fetch(e.request));
     return;
   }
-
   // HTML — network first, update cache, fall back offline
   if (e.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
     e.respondWith(
@@ -34,7 +29,6 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
-
   // Everything else — cache first, refresh in background
   e.respondWith(
     caches.match(e.request).then(cached => {
@@ -46,7 +40,6 @@ self.addEventListener('fetch', e => {
     })
   );
 });
-
 self.addEventListener('message', e => {
   if (e.data === 'skipWaiting') self.skipWaiting();
 });
