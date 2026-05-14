@@ -207,6 +207,26 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .settings-btn{width:100%;padding:12px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:12px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 .settings-note{font-size:13px;color:var(--silver);line-height:1.55}
 
+/* PLANT CARDS */
+.plant-card{border-bottom:1px solid var(--mist);padding:15px 0;cursor:pointer;display:flex;align-items:flex-start;gap:13px}
+.plant-card:first-child{border-top:1px solid var(--mist)}
+.plant-card:active{background:var(--fog);margin:0 -16px;padding-left:16px;padding-right:16px}
+.plant-thumb{width:56px;height:56px;border-radius:var(--r-sm);object-fit:cover;flex-shrink:0;background:var(--fog);border:1px solid var(--mist)}
+.plant-thumb-placeholder{width:56px;height:56px;border-radius:var(--r-sm);flex-shrink:0;background:var(--mint);border:1px solid var(--mist);display:flex;align-items:center;justify-content:center;font-size:22px}
+.plant-info{flex:1;min-width:0}
+.plant-name{font-size:16px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.plant-alt{font-size:12px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px}
+.plant-badges{display:flex;gap:5px;flex-wrap:wrap}
+.plant-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;font-size:11px;font-weight:500;background:var(--fog);color:var(--stone);border:1px solid var(--mist);white-space:nowrap}
+.plant-detail-img{width:100%;height:220px;object-fit:cover;background:var(--fog)}
+.plant-detail-grid{padding:14px 20px 0;display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.plant-grid-item{}
+.plant-grid-label{font-size:10px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--silver);margin-bottom:3px}
+.plant-grid-value{font-size:14px;color:var(--ink);line-height:1.45}
+.plant-link-row{padding:14px 20px 0;display:flex;flex-direction:column;gap:8px}
+.plant-ext-link{display:flex;align-items:center;gap:8px;padding:12px 14px;border:1px solid var(--mist);border-radius:var(--r-sm);text-decoration:none;color:var(--ink);background:var(--fog);font-size:14px;font-weight:500}
+.plant-ext-link:active{background:var(--mist)}
+
 @media(min-width:450px){#app{box-shadow:0 0 0 1px var(--mist),0 20px 60px rgba(0,0,0,.08)}}
 </style>
 </head>
@@ -344,6 +364,12 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
   </div>
 
+  <!-- PLANTS TAB -->
+  <div class="tab-pane" id="tab-plants">
+    <div class="page-header"><span class="page-title">Plants</span><span class="page-count" id="plantsCount"></span></div>
+    <div class="card-list" id="plantsList"><div class="spinner"></div></div>
+  </div>
+
   <!-- SETTINGS -->
   <div class="tab-pane" id="tab-settings">
     <div class="page-header"><span class="page-title">Settings</span></div>
@@ -371,6 +397,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
   <button class="nav-btn"        data-tab="people"   onclick="switchTab('people')"   id="navPeople"><span class="nav-icon">👥</span>People</button>
   <button class="nav-btn"        data-tab="map"      onclick="switchTab('map',true)"><span class="nav-icon">🗺</span>Map</button>
   <button class="nav-btn"        data-tab="chores"   onclick="switchTab('chores')"   id="navChores"><span class="nav-icon">✅</span>Chores</button>
+  <button class="nav-btn"        data-tab="plants"   onclick="switchTab('plants')"   id="navPlants"><span class="nav-icon">🌿</span>Plants</button>
   <button class="nav-btn"        data-tab="settings" onclick="switchTab('settings')" id="navSettings"><span class="nav-icon">⚙️</span>Settings</button>
 </div>
 
@@ -388,11 +415,11 @@ const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:15*60*1000
 };
-let DATA={sites:[],humans:[],roles:[],chores:[]};
+let DATA={sites:[],humans:[],roles:[],chores:[],plants:[]};
 let SESSION=null;
 // FIX 3: added ccf state for chores filter
 let csf='all',crf='all',cpf='all',ccf='all',sq='';
-let mapInited=false;
+let mapInited=false,plantsLoaded=false;
 
 /* ═══ UTILS ═══ */
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
@@ -1107,11 +1134,153 @@ function switchTab(tab,initMapFlag=false){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
   if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();},50);
+  if(tab==='plants'&&!plantsLoaded)loadPlants();
+  if(tab==='plants'&&plantsLoaded)renderPlants();
 }
 function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
 function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();}
 function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();}
-let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();},200);});
+let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();if(plantsLoaded)renderPlants();},200);});
+
+/* ═══ PLANTS ═══ */
+const PLANTS_CK='rr_plants_cache', PLANTS_TK='rr_plants_ts', PLANTS_TTL=60*60*1000; // 1-hour cache
+
+function plantName(p){
+  return p['Common Name']||p['Name']||p['common name']||
+    Object.values(p).find(v=>v&&typeof v==='string'&&v.length>1)||'Unknown Plant';
+}
+
+function plantImgSrc(p){
+  const url=p['Main Image URL']||p['Main Image']||'';
+  return getImgSrc(url.toString().trim());
+}
+
+async function loadPlants(force=false){
+  if(!force){
+    const c=localStorage.getItem(PLANTS_CK),ts=parseInt(localStorage.getItem(PLANTS_TK)||'0');
+    if(c&&Date.now()-ts<PLANTS_TTL){
+      try{DATA.plants=JSON.parse(c);plantsLoaded=true;renderPlants();return;}catch(e){}
+    }
+  }
+  document.getElementById('plantsList').innerHTML='<div class="spinner"></div>';
+  try{
+    const res=await gasPost({action:'getPlants'});
+    if(res.plants){
+      DATA.plants=res.plants;
+      plantsLoaded=true;
+      localStorage.setItem(PLANTS_CK,JSON.stringify(DATA.plants));
+      localStorage.setItem(PLANTS_TK,Date.now());
+      renderPlants();
+    } else {
+      document.getElementById('plantsList').innerHTML=empty('🌿','Could not load plants','Check your connection and try again.');
+    }
+  }catch(e){
+    document.getElementById('plantsList').innerHTML=empty('🌿','Could not load plants','Check your connection and try again.');
+  }
+}
+
+function renderPlants(){
+  const q=sq.toLowerCase();
+  const plants=DATA.plants.filter(p=>{
+    if(!q)return true;
+    const name=(p['Common Name']||'').toLowerCase();
+    const bot=(p['Botanical Name']||'').toLowerCase();
+    const alt=(p['Alternative names']||'').toLowerCase();
+    const color=(p['Color']||'').toLowerCase();
+    const uses=(p['Special uses']||'').toLowerCase();
+    const type=(p['Plant type']||'').toLowerCase();
+    return name.includes(q)||bot.includes(q)||alt.includes(q)||color.includes(q)||uses.includes(q)||type.includes(q);
+  });
+  document.getElementById('plantsCount').textContent=plants.length+' plants';
+  if(!plants.length){document.getElementById('plantsList').innerHTML=empty('🌿','No results','Try a different search term.');return;}
+  document.getElementById('plantsList').innerHTML=plants.map((p,i)=>{
+    const name=plantName(p);
+    const bot=p['Botanical Name']||'';
+    const img=plantImgSrc(p);
+    const color=p['Color']||'';
+    const sun=p['Sun']||'';
+    const water=p['Water']||'';
+    const season=p['Flowering season']||'';
+    const thumb=img
+      ?`<img class="plant-thumb" src="${img}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`+`<div class="plant-thumb-placeholder" style="display:none">🌱</div>`
+      :`<div class="plant-thumb-placeholder">🌱</div>`;
+    const badges=[
+      color?`<span class="plant-badge">🎨 ${color}</span>`:'',
+      sun?`<span class="plant-badge">☀️ ${sun}</span>`:'',
+      water?`<span class="plant-badge">💧 ${water}</span>`:'',
+      season?`<span class="plant-badge">🌸 ${season}</span>`:'',
+    ].filter(Boolean).join('');
+    return `<div class="plant-card" onclick="showPlantDetail(${i})">
+      ${thumb}
+      <div class="plant-info">
+        <div class="plant-name">${name}</div>
+        ${bot?`<div class="plant-alt" style="font-style:italic">${bot}</div>`:''}
+        <div class="plant-badges">${badges}</div>
+      </div>
+      <span class="school-chevron">›</span>
+    </div>`;
+  }).join('');
+}
+
+function showPlantDetail(idx){
+  const p=DATA.plants[idx];if(!p)return;
+  const name=plantName(p);
+  const bot=p['Botanical Name']||'';
+  const img=plantImgSrc(p);
+  const imgUrl=(p['Main Image URL']||'').toString().trim();
+  const pageUrl=(p['Plant Page URL']||'').toString().trim();
+  const desc=p['Plant description']||'';
+  const overview=p['Plant overview']||'';
+
+  // Full field list matching exact headers
+  const detailFields=[
+    ['Plant type',    p['Plant type']||''],
+    ['Size',          p['Size']||''],
+    ['Form',          p['Form']||''],
+    ['Growth rate',   p['Growth rate']||''],
+    ['Dormancy',      p['Dormancy']||''],
+    ['Color',         p['Color']||''],
+    ['Flowering season', p['Flowering season']||''],
+    ['Fragrance',     p['Fragrance']||''],
+    ['Maintenance',   p['Maintenance']||''],
+    ['Sun',           p['Sun']||''],
+    ['Water',         p['Water']||''],
+    ['Cold tolerance',p['Cold tolerance']||''],
+    ['Soil drainage', p['Soil drainage']||''],
+    ['Soil description', p['Soil description']||''],
+    ['Special uses',  p['Special uses']||''],
+    ['Wildlife supported', p['Wildlife supported']||''],
+    ['Alternative names', p['Alternative names']||''],
+  ].filter(([,v])=>v&&v.toString().trim()!=='');
+
+  const gridHtml=detailFields.map(([label,val])=>`
+    <div class="plant-grid-item">
+      <div class="plant-grid-label">${label}</div>
+      <div class="plant-grid-value">${val}</div>
+    </div>`).join('');
+
+  const linksHtml=[
+    imgUrl?`<a class="plant-ext-link" href="${imgUrl}" target="_blank" onclick="event.stopPropagation()">🖼 View Full Image</a>`:'',
+    pageUrl?`<a class="plant-ext-link" href="${pageUrl}" target="_blank" onclick="event.stopPropagation()">🔗 Plant Reference Page</a>`:'',
+  ].filter(Boolean).join('');
+
+  document.getElementById('detail-content').innerHTML=`
+    <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
+    ${img?`<img class="plant-detail-img" src="${img}" onerror="this.style.display='none'">`:''}
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-title">${name}</div>
+        ${bot?`<div style="font-size:14px;font-style:italic;color:var(--silver);margin-top:2px">${bot}</div>`:''}
+      </div>
+      <button class="sheet-x" onclick="closeDetail()">✕</button>
+    </div>
+    ${desc?`<div class="ds"><div class="dl">Description</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${desc}</div></div>`:''}
+    ${overview?`<div class="ds"><div class="dl">Overview</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${overview}</div></div>`:''}
+    ${gridHtml?`<div class="plant-detail-grid">${gridHtml}</div>`:''}
+    ${linksHtml?`<div class="plant-link-row">${linksHtml}</div>`:''}
+    <div style="height:20px"></div>`;
+  openDetail();
+}
 
 /* ═══ SETTINGS ═══ */
 function saveGasUrl(){const u=document.getElementById('gasUrlInput').value.trim();CFG.URL=u;localStorage.setItem('rr_gas_url',u);localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);switchTab('schools');loadData(true);}
