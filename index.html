@@ -1189,7 +1189,7 @@ function plantCardHtml(p){
   const sun=p['Sun']||'';
   const water=p['Water']||'';
   const bloom=p['Flowering season']||'';
-  const imgRaw=(p['Main Image URL']||'').trim();
+  const imgRaw=(p['Main Image']||'').trim();
   const img=imgRaw?getImgSrc(imgRaw):'';
   const thumb=img
     ?`<img class="plant-thumb" src="${img}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="plant-thumb-placeholder" style="display:none">🌱</div>`
@@ -1224,8 +1224,8 @@ async function showPlantDetail(rowIndex){
 
     const name=p['Common Name']||'Unknown Plant';
     const bot=p['Botanical Name']||'';
-    const img=getImgSrc((p['Main Image URL']||'').trim());
-    const imgUrl=(p['Main Image URL']||'').trim();
+const img=getImgSrc((p['Main Image']||'').trim());
+const imgUrl=(p['Main Image']||'').trim();
     const pageUrl=(p['Plant Page URL']||'').trim();
     const desc=p['Plant description']||'';
     const overview=p['Plant overview']||'';
