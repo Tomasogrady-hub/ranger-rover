@@ -429,7 +429,7 @@ let DATA={sites:[],humans:[],roles:[],chores:[],plants:[]};
 let SESSION=null;
 // FIX 3: added ccf state for chores filter
 let csf='all',crf='all',cpf='all',ccf='all',sq='';
-let mapInited=false,plantsLoaded=false; let plantsStart=0,plantsTotal=0,plantsPageSize=150,plantsSearch='',plantsLoading=false;
+let mapInited=false,plantsLoaded=false; let plantsStart=0,plantsTotal=0,plantsPageSize=150,plantsSearch='',plantsLoading=false; let plantsStart=0,plantsTotal=0,plantsPageSize=150,plantsSearch='',plantsLoading=false;
 
 /* ═══ UTILS ═══ */
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
