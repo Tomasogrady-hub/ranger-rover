@@ -1,9 +1,11 @@
-const CACHE_NAME = 'ranger-rover-v8';
+const CACHE_NAME = 'ranger-rover-v9';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
+
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -12,34 +14,48 @@ self.addEventListener('activate', e => {
   );
   self.clients.claim();
 });
+
 self.addEventListener('fetch', e => {
+  // Never intercept POST or non-GET requests
+  if (e.request.method !== 'GET') return;
+
   const url = new URL(e.request.url);
-  // Always network for GAS API calls
+
+  // Always go straight to network for GAS API calls
   if (url.hostname.includes('script.google.com')) {
     e.respondWith(fetch(e.request));
     return;
   }
-  // HTML — network first, update cache, fall back offline
-  if (e.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
+
+  // HTML — network first, fall back to cache for offline
+  if (e.request.destination === 'document' ||
+      url.pathname.endsWith('.html') ||
+      url.pathname.endsWith('/')) {
     e.respondWith(
-      fetch(e.request).then(res => {
-        caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
-        return res;
-      }).catch(() => caches.match(e.request))
+      fetch(e.request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          return res;
+        })
+        .catch(() => caches.match(e.request))
     );
     return;
   }
-  // Everything else — cache first, refresh in background
+
+  // Static assets — cache first, refresh in background
   e.respondWith(
     caches.match(e.request).then(cached => {
       const network = fetch(e.request).then(res => {
-        caches.open(CACHE_NAME).then(c => c.put(e.request, res.clone()));
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
         return res;
       });
       return cached || network;
     })
   );
 });
+
 self.addEventListener('message', e => {
   if (e.data === 'skipWaiting') self.skipWaiting();
 });
