@@ -227,6 +227,11 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .plant-ext-link{display:flex;align-items:center;gap:8px;padding:12px 14px;border:1px solid var(--mist);border-radius:var(--r-sm);text-decoration:none;color:var(--ink);background:var(--fog);font-size:14px;font-weight:500}
 .plant-ext-link:active{background:var(--mist)}
 
+/* PLANT SEARCH EMPTY STATE */
+.plant-search-empty{text-align:center;padding:52px 24px 40px}
+.plant-search-empty .glyph{font-size:3em;margin-bottom:10px}
+.plant-search-empty p{font-size:14px;color:var(--silver);line-height:1.55}
+
 @media(min-width:450px){#app{box-shadow:0 0 0 1px var(--mist),0 20px 60px rgba(0,0,0,.08)}}
 </style>
 </head>
@@ -247,7 +252,6 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
       <div class="auth-err" id="emailErr"></div>
     </div>
     <div class="auth-step" id="stepSetPw">
-      <!-- FIX 2: id added to title so JS can personalize it with first name -->
       <div class="auth-title" id="setPwTitle">Choose a password</div>
       <div class="auth-hint" id="setPwHint">First time signing in. Choose a password you'll use going forward.</div>
       <label class="auth-label">New password</label>
@@ -305,11 +309,11 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
   <!-- SCHOOLS -->
   <div class="tab-pane active" id="tab-schools">
     <div class="filter-row" id="schoolFilters">
-      <button class="chip active" data-filter="all"       onclick="filterSchools('all')">All</button>
-      <button class="chip"        data-filter="lausd"     onclick="filterSchools('lausd')">LAUSD</button>
-      <button class="chip"        data-filter="busd"      onclick="filterSchools('busd')">BUSD</button>
-      <button class="chip"        data-filter="gusd"      onclick="filterSchools('gusd')">GUSD</button>
-      <button class="chip"        data-filter="no-ranger" onclick="filterSchools('no-ranger')">Unassigned</button>
+      <button class="chip active" data-filter="all"        onclick="filterSchools('all')">All</button>
+      <button class="chip"        data-filter="lausd"      onclick="filterSchools('lausd')">LAUSD</button>
+      <button class="chip"        data-filter="busd"       onclick="filterSchools('busd')">BUSD</button>
+      <button class="chip"        data-filter="gusd"       onclick="filterSchools('gusd')">GUSD</button>
+      <button class="chip"        data-filter="no-ranger"  onclick="filterSchools('no-ranger')">Unassigned</button>
       <button class="chip"        data-filter="has-chores" onclick="filterSchools('has-chores')">⚠ Open Chores</button>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
@@ -350,7 +354,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
     <div id="mapContainer"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div><div id="map"></div></div>
   </div>
 
-  <!-- FIX 3: CHORES TAB — fully separate tab with filter chips -->
+  <!-- CHORES -->
   <div class="tab-pane" id="tab-chores">
     <div class="filter-row" id="choresFilters">
       <button class="chip active" data-filter="all"       onclick="filterChores('all')">All</button>
@@ -364,22 +368,29 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
   </div>
 
-<!-- PLANTS TAB -->
+  <!-- PLANTS — search-first, no data loads until user types -->
   <div class="tab-pane" id="tab-plants">
-    <div style="padding:10px 16px 0">
-      <input id="plantSearchInput" type="search" placeholder="Search plants…"
-        style="width:100%;padding:11px 12px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;color:var(--ink);outline:none"
-        oninput="onPlantsSearch(this.value)">
+    <div style="padding:12px 16px 0">
+      <input id="plantSearchInput" type="search" placeholder="🌿  Search by plant name…"
+        autocomplete="off" autocorrect="off" autocapitalize="none"
+        oninput="onPlantSearchInput(this.value)"
+        style="width:100%;padding:11px 14px;background:var(--fog);border:1px solid transparent;
+               border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;
+               color:var(--ink);outline:none">
     </div>
-    <div class="page-header"><span class="page-title">Plants</span><span class="page-count" id="plantsCount"></span></div>
-    <div class="card-list" id="plantsList"><div class="spinner"></div></div>
-    <div style="padding:0 16px 28px">
-      <button id="plantsLoadMore" onclick="loadMorePlants()"
-        style="display:none;width:100%;padding:13px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;color:var(--stone)">
-        Load more
-      </button>
+    <div class="page-header">
+      <span class="page-title">Plants</span>
+      <span class="page-count" id="plantsCount"></span>
+    </div>
+    <div id="plantResults" style="padding:0 16px 28px">
+      <!-- empty state shown on init -->
+      <div class="plant-search-empty" id="plantEmptyState">
+        <div class="glyph">🌱</div>
+        <p>Type a plant name to search<br>the full library of 8,000+ plants.</p>
+      </div>
     </div>
   </div>
+
   <!-- SETTINGS -->
   <div class="tab-pane" id="tab-settings">
     <div class="page-header"><span class="page-title">Settings</span></div>
@@ -400,7 +411,6 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
 </div><!-- /content -->
 
-<!-- FIX 3: Chores nav button added between Map and Settings -->
 <div id="nav" style="display:none">
   <button class="nav-btn active" data-tab="schools"  onclick="switchTab('schools')"><span class="nav-icon">🏫</span>Schools</button>
   <button class="nav-btn"        data-tab="rangers"  onclick="switchTab('rangers')"  id="navRangers"><span class="nav-icon">🧑‍🌾</span>Rangers</button>
@@ -425,11 +435,13 @@ const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:15*60*1000
 };
-let DATA={sites:[],humans:[],roles:[],chores:[],plants:[]};
+let DATA={sites:[],humans:[],roles:[],chores:[]};
 let SESSION=null;
-// FIX 3: added ccf state for chores filter
 let csf='all',crf='all',cpf='all',ccf='all',sq='';
-let mapInited=false,plantsLoaded=false; let plantsStart=0,plantsTotal=0,plantsPageSize=150,plantsSearch='',plantsLoading=false;
+let mapInited=false;
+
+// Plants state — minimal: just a debounce timer
+let _plantSearchTimer=null;
 
 /* ═══ UTILS ═══ */
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
@@ -530,7 +542,6 @@ async function handleEmailSubmit(){
       document.getElementById('authPw').value='';
       goToStep('stepEnterPw');
     } else {
-      // FIX 2: Personalized welcome using first name from GAS response
       const firstName=(res.name||'').split(' ')[0]||'there';
       document.getElementById('setPwTitle').textContent=`Welcome, ${firstName}!`;
       document.getElementById('setPwHint').textContent=`First time signing in — please choose a password.`;
@@ -577,7 +588,6 @@ function showApp(){
   document.getElementById('navRangers').style.display=lvl<=2?'flex':'none';
   document.getElementById('navPeople').style.display=lvl<=2?'flex':'none';
   document.getElementById('navSettings').style.display=lvl===1?'flex':'none';
-  // Chores tab visible to all access levels
   document.getElementById('navChores').style.display='flex';
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
@@ -638,8 +648,6 @@ const DEMO_HUMANS=[
 ];
 
 /* ═══ RENDER SCHOOLS ═══ */
-// FIX 1: Level-3 filtering now correctly matches Ranger 1 (col N), Ranger 2 (col O),
-//         and Garden Keeper (col AU) with trim() on both sides to handle whitespace.
 function getMySchools(){
   if(!SESSION||SESSION.accessLevel<=2)return null;
   const e=SESSION.email.toLowerCase().trim();
@@ -729,38 +737,27 @@ function renderPeople(){
   }).join('');
 }
 
-/* ═══ FIX 3: RENDER CHORES ═══ */
+/* ═══ RENDER CHORES ═══ */
 function renderChores(){
   const q=sq.toLowerCase(),f=ccf;
-  // Level 3 users only see chores for their assigned schools
   const mySchools=getMySchools();
   const mySchoolNames=mySchools?mySchools.map(s=>sf(s,'Name','name').toLowerCase()):null;
-
   let chores=DATA.chores.filter(c=>{
-    // Level 3 school restriction
     if(mySchoolNames!==null&&!mySchoolNames.includes((c.Site||'').toLowerCase()))return false;
     const urg=(c.Urgency||'').toLowerCase();
     const type=(c.Type||'').toLowerCase();
-    // Filter chips
     if(f==='asap'&&urg!=='asap')return false;
     if(f==='urgent'&&urg!=='urgent')return false;
     if(f==='mine'&&(c['Assigned to']||'').toLowerCase()!==(SESSION?.email||'').toLowerCase())return false;
     if(f==='fieldwork'&&!type.includes('field'))return false;
     if(f==='admin'&&!type.includes('admin'))return false;
-    // Search
     if(q&&!(c.Task||'').toLowerCase().includes(q)&&!(c.Site||'').toLowerCase().includes(q))return false;
     return true;
   });
-
-  // Sort: ASAP → Urgent → Normal
   const urgOrder={'asap':0,'urgent':1};
   chores.sort((a,b)=>(urgOrder[(a.Urgency||'').toLowerCase()]??2)-(urgOrder[(b.Urgency||'').toLowerCase()]??2));
-
   document.getElementById('choresCount').textContent=chores.length+' open';
-  if(!chores.length){
-    document.getElementById('choresList').innerHTML=empty('✓','All clear','No open chores match this filter.');
-    return;
-  }
+  if(!chores.length){document.getElementById('choresList').innerHTML=empty('✓','All clear','No open chores match this filter.');return;}
   document.getElementById('choresList').innerHTML=chores.map(c=>choreCardHtml(c,true)).join('');
 }
 
@@ -770,7 +767,6 @@ function filterChores(f){
   renderChores();
 }
 
-// FIX 3: renderAll now includes renderChores
 function renderAll(){
   renderSchools();
   if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();}
@@ -795,8 +791,6 @@ function initMap(){
   document.head.appendChild(script);
 }
 
-// FIX 4: Map labels are now clickable — both the dot marker AND the tooltip label
-//         open the school detail sheet. Uses interactive:true + tooltipopen event.
 function buildMapMarkers(){
   if(!_leafletMap)return;
   DATA.sites.forEach(s=>{
@@ -809,38 +803,13 @@ function buildMapMarkers(){
     const icon=L.divIcon({
       className:'',
       html:`<div style="width:14px;height:14px;background:${openC>0?'#c07000':'#1e3a1e'};border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer"></div>`,
-      iconSize:[14,14],
-      iconAnchor:[7,7]
+      iconSize:[14,14],iconAnchor:[7,7]
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
-
-    // Handler shared by both dot and tooltip label
-    const openHandler=()=>{
-      const idx=DATA.sites.indexOf(s);
-      window._fs=DATA.sites;
-      showSchoolDetail(idx);
-    };
-
-    // Dot click
+    const openHandler=()=>{const idx=DATA.sites.indexOf(s);window._fs=DATA.sites;showSchoolDetail(idx);};
     marker.on('click',openHandler);
-
-    // Tooltip — interactive:true so pointer-events reach it
-    marker.bindTooltip(label,{
-      permanent:true,
-      direction:'top',
-      className:`map-label${openC>0?' has-chores':''}`,
-      offset:[0,-10],
-      interactive:true
-    });
-
-    // Attach click to tooltip element once it's in the DOM
-    marker.on('tooltipopen',function(){
-      const el=this.getTooltip().getElement();
-      if(el){
-        el.style.cursor='pointer';
-        el.addEventListener('click',openHandler);
-      }
-    });
+    marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-10],interactive:true});
+    marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
   });
 }
 
@@ -851,14 +820,8 @@ function refreshMapChores(){
 }
 
 /* ═══ SCHOOL DETAIL ═══ */
-function showSchoolDetail(idx){
-  const site=(window._fs||DATA.sites)[idx];if(!site)return;
-  renderSchoolDetail(site,false);openDetail();
-}
-function showSchoolDetailByName(name){
-  const site=DATA.sites.find(s=>sf(s,'Name','name')===name);if(!site)return;
-  window._fs=DATA.sites;renderSchoolDetail(site,false);openDetail();
-}
+function showSchoolDetail(idx){const site=(window._fs||DATA.sites)[idx];if(!site)return;renderSchoolDetail(site,false);openDetail();}
+function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name','name')===name);if(!site)return;window._fs=DATA.sites;renderSchoolDetail(site,false);openDetail();}
 
 function renderSchoolDetail(site,editMode){
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
@@ -882,7 +845,6 @@ function renderSchoolDetail(site,editMode){
     const rangers=DATA.humans.filter(h=>(h.Role||h.role||'').toLowerCase().includes('ranger'));
     const principals=DATA.humans.filter(h=>(h.Role||h.role||'').toLowerCase().includes('principal'));
     const allH=DATA.humans;
-
     function personOpt(h){const n=fullName(h)||h.Email;const e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${e}" data-name="${n}" onclick="selectDropdown(this)">${n}<span style="font-size:12px;color:var(--silver);margin-left:6px">${e}</span></div>`;}
     function bdd(id,people,curEmail,lbl){
       const curName=curEmail?hn(curEmail):'— None —';
@@ -897,7 +859,6 @@ function renderSchoolDetail(site,editMode){
         </div>
       </div>`;
     }
-
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       ${canAssign?`
@@ -940,7 +901,6 @@ function renderSchoolDetail(site,editMode){
           ${pe?`<button onclick="showPersonDetail('${ea(pe)}')" class="cta">✏ ${pn||'Principal'}</button>`:''}
         </div>
       </div>`:'';
-
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       ${mainImg?`<div style="padding:14px 20px 0"><img src="${mainImg}" class="site-img-full" onerror="this.parentElement.style.display='none'"></div>`:''}
@@ -966,7 +926,7 @@ function renderSchoolDetail(site,editMode){
 }
 
 function toggleDropdown(id){const el=document.getElementById(id);document.querySelectorAll('.dropdown-panel.open').forEach(d=>{if(d.id!==id)d.classList.remove('open');});el.classList.toggle('open');}
-function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .dropdown-item`).forEach(i=>{i.style.display=i.textContent.toLowerCase().includes(q.toLowerCase())?'':' none';});}
+function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .dropdown-item`).forEach(i=>{i.style.display=i.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});}
 function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel');const cs=panel.closest('.custom-select');const btn=cs.querySelector('.custom-select-btn');const email=isNone?'':el.dataset.email;btn.textContent=isNone?'— None —':el.dataset.name;btn.dataset.value=email;panel.classList.remove('open');}
 
 async function saveSiteEdit(siteName){
@@ -1006,7 +966,6 @@ function renderPD(h,edit){
   const schools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email||sf(s,'Garden Keeper','GardenKeeper')===email).map(s=>sf(s,'Name','name')).join(', ');
   const princAt=DATA.sites.filter(s=>sf(s,'Principal','principal')===email).map(s=>sf(s,'Name','name')).join(', ');
   const openChores=openChoresForHuman(email);
-
   if(edit){
     const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r===role?' selected':''}" data-name="${r}" onclick="selectRoleItem(this,'role-select-btn','role-dd')">${r}</div>`).join('');
     document.getElementById('detail-content').innerHTML=`
@@ -1149,90 +1108,120 @@ function switchTab(tab,initMapFlag=false){
 function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
 function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();}
 function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();}
-let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();if(plantsLoaded)renderPlants();},200);});
+let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();},200);});
 
 /* ═══ PLANTS ═══ */
-function onPlantsSearch(val){
-  plantsSearch=val.trim();
-  plantsStart=0;
-  loadPlants(true);
-}
 
-function loadMorePlants(){
-  loadPlants(false);
-}
-
+/**
+ * Called when the Plants tab is opened.
+ * Resets to empty state — nothing loads until the user types.
+ */
 function initPlants(){
-  if(plantsLoaded)return;
-  plantsLoaded=true;
-  loadPlants(true);
+  clearTimeout(_plantSearchTimer);
+  const input=document.getElementById('plantSearchInput');
+  if(input)input.value='';
+  document.getElementById('plantsCount').textContent='';
+  _showPlantEmptyState();
 }
 
-async function loadPlants(reset=true){
-  if(plantsLoading)return;
-  plantsLoading=true;
-  if(reset){
-    plantsStart=0;
-    document.getElementById('plantsList').innerHTML='<div class="spinner"></div>';
-    document.getElementById('plantsLoadMore').style.display='none';
+function _showPlantEmptyState(){
+  document.getElementById('plantResults').innerHTML=`
+    <div class="plant-search-empty" id="plantEmptyState">
+      <div class="glyph">🌱</div>
+      <p>Type a plant name to search<br>the full library of 8,000+ plants.</p>
+    </div>`;
+}
+
+/** Debounced handler for the search input. */
+function onPlantSearchInput(val){
+  clearTimeout(_plantSearchTimer);
+  const q=val.trim();
+
+  if(q.length<2){
+    document.getElementById('plantsCount').textContent='';
+    _showPlantEmptyState();
+    return;
   }
+
+  // Show subtle "searching" state after short delay so fast typers don't flash
+  _plantSearchTimer=setTimeout(()=>searchPlants(q),380);
+}
+
+/** Fires the GAS searchPlants action and renders results. */
+async function searchPlants(query){
+  const results=document.getElementById('plantResults');
+  results.innerHTML=`<div style="text-align:center;padding:40px 0;color:var(--silver);font-size:14px">Searching…</div>`;
+  document.getElementById('plantsCount').textContent='';
+
   try{
-    const res=await gasPost({action:'getPlants',start:plantsStart,count:plantsPageSize,search:plantsSearch});
-    plantsLoading=false;
-    if(!res.rows){
-      if(reset)document.getElementById('plantsList').innerHTML=empty('🌿','Could not load plants','Check your connection and try again.');
+    const data=await gasPost({action:'searchPlants',query});
+
+    if(!data.plants||data.plants.length===0){
+      document.getElementById('plantsCount').textContent='0 results';
+      results.innerHTML=`
+        <div class="plant-search-empty">
+          <div class="glyph">🔍</div>
+          <p>No plants found for <strong>${escHtml(query)}</strong>.<br>Try a different name or spelling.</p>
+        </div>`;
       return;
     }
-    plantsTotal=res.total;
-    plantsStart+=res.rows.length;
-    if(reset)document.getElementById('plantsList').innerHTML='';
-    if(res.rows.length===0&&reset){
-      document.getElementById('plantsList').innerHTML=empty('🌿','No results','Try a different search term.');
-      return;
-    }
-    document.getElementById('plantsList').insertAdjacentHTML('beforeend',
-      res.rows.map(p=>plantCardHtml(p)).join('')
-    );
-    document.getElementById('plantsCount').textContent=plantsTotal+' plants';
-    const btn=document.getElementById('plantsLoadMore');
-    if(!plantsSearch&&plantsStart<plantsTotal){
-      btn.style.display='block';
-      btn.textContent='Load more ('+(plantsTotal-plantsStart)+' remaining)';
-    } else {
-      btn.style.display='none';
-    }
+
+    document.getElementById('plantsCount').textContent=data.plants.length+(data.plants.length===40?'+ results':' results');
+    results.innerHTML=`<div class="card-list" style="padding:0">${data.plants.map(p=>plantCardHtml(p)).join('')}</div>`;
+
   }catch(e){
-    plantsLoading=false;
-    if(reset)document.getElementById('plantsList').innerHTML=empty('🌿','Could not load plants','Check your connection and try again.');
+    document.getElementById('plantsCount').textContent='';
+    results.innerHTML=`
+      <div class="plant-search-empty">
+        <div class="glyph">⚠️</div>
+        <p>Search failed — check your connection<br>and try again.</p>
+      </div>`;
+    console.error('searchPlants error:',e);
   }
 }
 
+/** Renders a compact card from the searchPlants response (full field names). */
 function plantCardHtml(p){
-  const img=p.img
-    ?`<img class="plant-thumb" src="${p.img}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="plant-thumb-placeholder" style="display:none">🌱</div>`
+  const name=p['Common Name']||'Unknown';
+  const bot=p['Botanical Name']||'';
+  const type=p['Plant type']||'';
+  const color=p['Color']||'';
+  const sun=p['Sun']||'';
+  const water=p['Water']||'';
+  const bloom=p['Flowering season']||'';
+  const imgRaw=(p['Main Image URL']||'').trim();
+  const img=imgRaw?getImgSrc(imgRaw):'';
+  const thumb=img
+    ?`<img class="plant-thumb" src="${img}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="plant-thumb-placeholder" style="display:none">🌱</div>`
     :`<div class="plant-thumb-placeholder">🌱</div>`;
   const badges=[
-    p.col?`<span class="plant-badge">🎨 ${p.col}</span>`:'',
-    p.sun?`<span class="plant-badge">☀️ ${p.sun}</span>`:'',
-    p.wtr?`<span class="plant-badge">💧 ${p.wtr}</span>`:'',
-    p.fs ?`<span class="plant-badge">🌸 ${p.fs}</span>`:'',
+    type ?`<span class="plant-badge">${type}</span>`:'',
+    color?`<span class="plant-badge">🎨 ${color}</span>`:'',
+    sun  ?`<span class="plant-badge">☀️ ${sun}</span>`:'',
+    water?`<span class="plant-badge">💧 ${water}</span>`:'',
+    bloom?`<span class="plant-badge">🌸 ${bloom}</span>`:'',
   ].filter(Boolean).join('');
-  return `<div class="plant-card" onclick="showPlantDetail(${p.i})">
-    ${img}
+  return `<div class="plant-card" onclick="showPlantDetail(${p._rowIndex})">
+    ${thumb}
     <div class="plant-info">
-      <div class="plant-name">${p.cn||'Unknown'}</div>
-      ${p.bn?`<div class="plant-alt" style="font-style:italic">${p.bn}</div>`:''}
+      <div class="plant-name">${escHtml(name)}</div>
+      ${bot?`<div class="plant-alt">${escHtml(bot)}</div>`:''}
       <div class="plant-badges">${badges}</div>
     </div>
     <span class="school-chevron">›</span>
   </div>`;
 }
 
+/** Fetches the full plant row by rowIndex and renders the detail sheet. */
 async function showPlantDetail(rowIndex){
   document.getElementById('detail-content').innerHTML='<div class="spinner" style="margin-top:80px"></div>';
   openDetail();
   try{
-    const p=await gasPost({action:'getPlant',index:rowIndex});
+    // GAS expects { action:'getPlant', rowIndex:N }
+    // Response shape: { plant: { 'Common Name':…, … } }
+    const data=await gasPost({action:'getPlant',rowIndex});
+    const p=data.plant||{};
+
     const name=p['Common Name']||'Unknown Plant';
     const bot=p['Botanical Name']||'';
     const img=getImgSrc((p['Main Image URL']||'').trim());
@@ -1240,6 +1229,7 @@ async function showPlantDetail(rowIndex){
     const pageUrl=(p['Plant Page URL']||'').trim();
     const desc=p['Plant description']||'';
     const overview=p['Plant overview']||'';
+
     const detailFields=[
       ['Plant type',p['Plant type']],['Size',p['Size']],['Form',p['Form']],
       ['Growth rate',p['Growth rate']],['Dormancy',p['Dormancy']],['Color',p['Color']],
@@ -1248,37 +1238,49 @@ async function showPlantDetail(rowIndex){
       ['Cold tolerance',p['Cold tolerance']],['Soil drainage',p['Soil drainage']],
       ['Soil description',p['Soil description']],['Special uses',p['Special uses']],
       ['Wildlife supported',p['Wildlife supported']],['Alternative names',p['Alternative names']],
-    ].filter(([,v])=>v&&v.toString().trim()!=='');
+    ].filter(([,v])=>v&&String(v).trim()!=='');
+
     const gridHtml=detailFields.map(([label,val])=>`
       <div class="plant-grid-item">
         <div class="plant-grid-label">${label}</div>
-        <div class="plant-grid-value">${val}</div>
+        <div class="plant-grid-value">${escHtml(String(val))}</div>
       </div>`).join('');
+
     const linksHtml=[
       imgUrl?`<a class="plant-ext-link" href="${imgUrl}" target="_blank" onclick="event.stopPropagation()">🖼 View Full Image</a>`:'',
       pageUrl?`<a class="plant-ext-link" href="${pageUrl}" target="_blank" onclick="event.stopPropagation()">🔗 Plant Reference Page</a>`:'',
     ].filter(Boolean).join('');
+
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
       ${img?`<img class="plant-detail-img" src="${img}" onerror="this.style.display='none'">`:''}
       <div class="sheet-head">
         <div>
-          <div class="sheet-title">${name}</div>
-          ${bot?`<div style="font-size:14px;font-style:italic;color:var(--silver);margin-top:2px">${bot}</div>`:''}
+          <div class="sheet-title">${escHtml(name)}</div>
+          ${bot?`<div style="font-size:14px;font-style:italic;color:var(--silver);margin-top:2px">${escHtml(bot)}</div>`:''}
         </div>
         <button class="sheet-x" onclick="closeDetail()">✕</button>
       </div>
-      ${desc?`<div class="ds"><div class="dl">Description</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${desc}</div></div>`:''}
-      ${overview?`<div class="ds"><div class="dl">Overview</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${overview}</div></div>`:''}
+      ${desc?`<div class="ds"><div class="dl">Description</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${escHtml(desc)}</div></div>`:''}
+      ${overview?`<div class="ds"><div class="dl">Overview</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${escHtml(overview)}</div></div>`:''}
       ${gridHtml?`<div class="plant-detail-grid">${gridHtml}</div>`:''}
       ${linksHtml?`<div class="plant-link-row">${linksHtml}</div>`:''}
       <div style="height:20px"></div>`;
+
   }catch(e){
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">Error</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       <div class="ds"><div class="dv" style="color:var(--danger)">Could not load plant details. Check your connection.</div></div>`;
   }
 }
+
+/** Safe HTML escaping for user-facing plant text. */
+function escHtml(s){
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 /* ═══ SETTINGS ═══ */
 function saveGasUrl(){const u=document.getElementById('gasUrlInput').value.trim();CFG.URL=u;localStorage.setItem('rr_gas_url',u);localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);switchTab('schools');loadData(true);}
 function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);loadData(true);}
