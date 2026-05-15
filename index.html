@@ -364,148 +364,22 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
   </div>
 
-  <!-- PLANTS TAB -->
-
-function onPlantsSearch(val){
-  plantsSearch=val.trim();
-  plantsStart=0;
-  loadPlants(true);
-}
-
-function loadMorePlants(){
-  loadPlants(false);
-}
-
-function initPlants(){
-  if(plantsLoaded)return;
-  plantsLoaded=true;
-  loadPlants(true);
-}
-
-async function loadPlants(reset=true){
-  if(plantsLoading)return;
-  plantsLoading=true;
-
-  if(reset){
-    plantsStart=0;
-    document.getElementById('plantsList').innerHTML='<div class="spinner"></div>';
-    document.getElementById('plantsLoadMore').style.display='none';
-  }
-
-  try{
-    const res=await gasPost({action:'getPlants',start:plantsStart,count:plantsPageSize,search:plantsSearch});
-    plantsLoading=false;
-
-    if(!res.rows){
-      if(reset)document.getElementById('plantsList').innerHTML=empty('🌿','Could not load plants','Check your connection and try again.');
-      return;
-    }
-
-    plantsTotal=res.total;
-    plantsStart+=res.rows.length;
-
-    if(reset)document.getElementById('plantsList').innerHTML='';
-
-    if(res.rows.length===0&&reset){
-      document.getElementById('plantsList').innerHTML=empty('🌿','No results','Try a different search term.');
-      return;
-    }
-
-    document.getElementById('plantsList').insertAdjacentHTML('beforeend',
-      res.rows.map(p=>plantCardHtml(p)).join('')
-    );
-    document.getElementById('plantsCount').textContent=plantsTotal+' plants';
-
-    const btn=document.getElementById('plantsLoadMore');
-    if(!plantsSearch&&plantsStart<plantsTotal){
-      btn.style.display='block';
-      btn.textContent='Load more ('+(plantsTotal-plantsStart)+' remaining)';
-    } else {
-      btn.style.display='none';
-    }
-  }catch(e){
-    plantsLoading=false;
-    if(reset)document.getElementById('plantsList').innerHTML=empty('🌿','Could not load plants','Check your connection and try again.');
-  }
-}
-
-function plantCardHtml(p){
-  const img=p.img
-    ?`<img class="plant-thumb" src="${p.img}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="plant-thumb-placeholder" style="display:none">🌱</div>`
-    :`<div class="plant-thumb-placeholder">🌱</div>`;
-  const badges=[
-    p.col?`<span class="plant-badge">🎨 ${p.col}</span>`:'',
-    p.sun?`<span class="plant-badge">☀️ ${p.sun}</span>`:'',
-    p.wtr?`<span class="plant-badge">💧 ${p.wtr}</span>`:'',
-    p.fs ?`<span class="plant-badge">🌸 ${p.fs}</span>`:'',
-  ].filter(Boolean).join('');
-  return `<div class="plant-card" onclick="showPlantDetail(${p.i})">
-    ${img}
-    <div class="plant-info">
-      <div class="plant-name">${p.cn||'Unknown'}</div>
-      ${p.bn?`<div class="plant-alt" style="font-style:italic">${p.bn}</div>`:''}
-      <div class="plant-badges">${badges}</div>
+<!-- PLANTS TAB -->
+  <div class="tab-pane" id="tab-plants">
+    <div style="padding:10px 16px 0">
+      <input id="plantSearchInput" type="search" placeholder="Search plants…"
+        style="width:100%;padding:11px 12px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;color:var(--ink);outline:none"
+        oninput="onPlantsSearch(this.value)">
     </div>
-    <span class="school-chevron">›</span>
-  </div>`;
-}
-
-async function showPlantDetail(rowIndex){
-  document.getElementById('detail-content').innerHTML='<div class="spinner" style="margin-top:80px"></div>';
-  openDetail();
-  try{
-    const p=await gasPost({action:'getPlant',index:rowIndex});
-    const name=p['Common Name']||'Unknown Plant';
-    const bot=p['Botanical Name']||'';
-    const img=getImgSrc((p['Main Image URL']||'').trim());
-    const imgUrl=(p['Main Image URL']||'').trim();
-    const pageUrl=(p['Plant Page URL']||'').trim();
-    const desc=p['Plant description']||'';
-    const overview=p['Plant overview']||'';
-
-    const detailFields=[
-      ['Plant type',p['Plant type']],['Size',p['Size']],['Form',p['Form']],
-      ['Growth rate',p['Growth rate']],['Dormancy',p['Dormancy']],['Color',p['Color']],
-      ['Flowering season',p['Flowering season']],['Fragrance',p['Fragrance']],
-      ['Maintenance',p['Maintenance']],['Sun',p['Sun']],['Water',p['Water']],
-      ['Cold tolerance',p['Cold tolerance']],['Soil drainage',p['Soil drainage']],
-      ['Soil description',p['Soil description']],['Special uses',p['Special uses']],
-      ['Wildlife supported',p['Wildlife supported']],['Alternative names',p['Alternative names']],
-    ].filter(([,v])=>v&&v.toString().trim()!=='');
-
-    const gridHtml=detailFields.map(([label,val])=>`
-      <div class="plant-grid-item">
-        <div class="plant-grid-label">${label}</div>
-        <div class="plant-grid-value">${val}</div>
-      </div>`).join('');
-
-    const linksHtml=[
-      imgUrl?`<a class="plant-ext-link" href="${imgUrl}" target="_blank" onclick="event.stopPropagation()">🖼 View Full Image</a>`:'',
-      pageUrl?`<a class="plant-ext-link" href="${pageUrl}" target="_blank" onclick="event.stopPropagation()">🔗 Plant Reference Page</a>`:'',
-    ].filter(Boolean).join('');
-
-    document.getElementById('detail-content').innerHTML=`
-      <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
-      ${img?`<img class="plant-detail-img" src="${img}" onerror="this.style.display='none'">`:''}
-      <div class="sheet-head">
-        <div>
-          <div class="sheet-title">${name}</div>
-          ${bot?`<div style="font-size:14px;font-style:italic;color:var(--silver);margin-top:2px">${bot}</div>`:''}
-        </div>
-        <button class="sheet-x" onclick="closeDetail()">✕</button>
-      </div>
-      ${desc?`<div class="ds"><div class="dl">Description</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${desc}</div></div>`:''}
-      ${overview?`<div class="ds"><div class="dl">Overview</div><div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${overview}</div></div>`:''}
-      ${gridHtml?`<div class="plant-detail-grid">${gridHtml}</div>`:''}
-      ${linksHtml?`<div class="plant-link-row">${linksHtml}</div>`:''}
-      <div style="height:20px"></div>`;
-  }catch(e){
-    document.getElementById('detail-content').innerHTML=`
-      <div class="sheet-head"><div class="sheet-title">Error</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
-      <div class="ds"><div class="dv" style="color:var(--danger)">Could not load plant details. Check your connection.</div></div>`;
-  }
-}
-
+    <div class="page-header"><span class="page-title">Plants</span><span class="page-count" id="plantsCount"></span></div>
+    <div class="card-list" id="plantsList"><div class="spinner"></div></div>
+    <div style="padding:0 16px 28px">
+      <button id="plantsLoadMore" onclick="loadMorePlants()"
+        style="display:none;width:100%;padding:13px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;color:var(--stone)">
+        Load more
+      </button>
+    </div>
+  </div>
   <!-- SETTINGS -->
   <div class="tab-pane" id="tab-settings">
     <div class="page-header"><span class="page-title">Settings</span></div>
