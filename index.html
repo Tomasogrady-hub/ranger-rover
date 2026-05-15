@@ -1217,15 +1217,14 @@ async function showPlantDetail(rowIndex){
   document.getElementById('detail-content').innerHTML='<div class="spinner" style="margin-top:80px"></div>';
   openDetail();
   try{
-    // GAS expects { action:'getPlant', rowIndex:N }
-    // Response shape: { plant: { 'Common Name':…, … } }
     const data=await gasPost({action:'getPlant',rowIndex});
+    console.log('getPlant response:', data);
     const p=data.plant||{};
 
     const name=p['Common Name']||'Unknown Plant';
     const bot=p['Botanical Name']||'';
-const img=getImgSrc((p['Main Image']||'').trim());
-const imgUrl=(p['Main Image']||'').trim();
+    const img=getImgSrc((p['Main Image']||'').trim());
+    const imgUrl=(p['Main Image']||'').trim();
     const pageUrl=(p['Plant Page URL']||'').trim();
     const desc=p['Plant description']||'';
     const overview=p['Plant overview']||'';
@@ -1266,14 +1265,9 @@ const imgUrl=(p['Main Image']||'').trim();
       ${gridHtml?`<div class="plant-detail-grid">${gridHtml}</div>`:''}
       ${linksHtml?`<div class="plant-link-row">${linksHtml}</div>`:''}
       <div style="height:20px"></div>`;
-    }catch(e){
-    console.error('showPlantDetail error:', e);
-    document.getElementById('detail-content').innerHTML=`
-      <div class="sheet-head"><div class="sheet-title">Error</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
-      <div class="ds"><div class="dv" style="color:var(--danger)">Could not load plant details. Check your connection.</div></div>`;
-  }
 
   }catch(e){
+    console.error('showPlantDetail error:', e);
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">Error</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       <div class="ds"><div class="dv" style="color:var(--danger)">Could not load plant details. Check your connection.</div></div>`;
