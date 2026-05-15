@@ -1266,6 +1266,12 @@ const imgUrl=(p['Main Image']||'').trim();
       ${gridHtml?`<div class="plant-detail-grid">${gridHtml}</div>`:''}
       ${linksHtml?`<div class="plant-link-row">${linksHtml}</div>`:''}
       <div style="height:20px"></div>`;
+    }catch(e){
+    console.error('showPlantDetail error:', e);
+    document.getElementById('detail-content').innerHTML=`
+      <div class="sheet-head"><div class="sheet-title">Error</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
+      <div class="ds"><div class="dv" style="color:var(--danger)">Could not load plant details. Check your connection.</div></div>`;
+  }
 
   }catch(e){
     document.getElementById('detail-content').innerHTML=`
