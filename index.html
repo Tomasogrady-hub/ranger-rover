@@ -506,28 +506,26 @@ function openChoresForHuman(email){
   });
 }
 
-function choreCardHtml(c,showSite=false){
-  const task=c.Task||c.task||'(no description)';
-  const urgency=c.Urgency||c.urgency||'';
-  const assignedTo=c['Assigned to']||c.AssignedTo||'';
-  const askedBy=c['Asked by']||c.AskedBy||'';
-  const id=c.ID||c.id||'';
-  const isUrgent=urgency.toLowerCase().includes('asap')||urgency.toLowerCase()==='urgent';
-  const urgCls=urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
-  const imgSrc=getImgSrc(c['Helpful Image 1']||c.HelpfulImage1||'');
-  return `<div class="chore-card ${isUrgent?'urgent':''}">
-    <div class="chore-title">${showSite?`<strong>${c.Site||''}</strong> — `:''}${task}</div>
-    ${c['Additional Comments']?`<div style="font-size:13px;color:var(--stone);margin-top:3px;line-height:1.4">${c['Additional Comments']}</div>`:''}
-    ${imgSrc?`<img src="${imgSrc}" style="width:100%;max-height:140px;object-fit:cover;border-radius:6px;margin-top:8px" onerror="this.style.display='none'">`:''}
-    <div class="chore-meta">
+/* ═══ CHORE CARDS (list — no images for speed; photo loads in detail) ═══ */
+function choreCardHtml(c, showSite=false) {
+  const task     = c.Task||c.task||'(no description)';
+  const urgency  = c.Urgency||c.urgency||'';
+  const assigned = c['Assigned to']||c.AssignedTo||'';
+  const askedBy  = c['Asked by']||c.AskedBy||'';
+  const id       = c.ID||c.id||'';
+  const isUrgent = urgency.toLowerCase().includes('asap')||urgency.toLowerCase()==='urgent';
+  const urgCls   = urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
+  return `<div class="chore-card ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')" style="cursor:pointer">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div class="chore-title" style="flex:1">${showSite?`<strong>${c.Site||''}</strong> — `:''}${task}</div>
+      <span style="color:var(--mist);font-size:18px;flex-shrink:0">›</span>
+    </div>
+    ${c['Additional Comments']?`<div style="font-size:13px;color:var(--stone);margin-top:3px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c['Additional Comments']}</div>`:''}
+    <div class="chore-meta" style="margin-top:6px">
       <span class="chore-badge-pill ${urgCls}">${urgency||'Normal'}</span>
       ${askedBy?`<span>By: ${hn(askedBy)||askedBy}</span>`:''}
-      ${assignedTo?`<span>→ ${hn(assignedTo)||assignedTo}</span>`:''}
+      ${assigned?`<span>→ ${hn(assigned)||assigned}</span>`:''}
     </div>
-    ${canEdit()&&id?`<div style="display:flex;gap:6px;margin-top:8px">
-      <button class="chore-reassign" onclick="showReassignChore('${ea(id)}','${ea(c.Site||'')}')">↩ Reassign</button>
-      <button class="chore-close-btn" onclick="closeChore('${ea(id)}','${ea(c.Site||c.task||'')}')">✓ Close</button>
-    </div>`:''}
   </div>`;
 }
 
