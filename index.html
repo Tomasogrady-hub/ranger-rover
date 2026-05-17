@@ -454,11 +454,15 @@ function hm(e){const h=gh(e);return h?(h.Mobile||h.mobile||''):''; }
 function getImgSrc(url){
   if(!url||typeof url!=='string'||url.trim()==='')return '';
   url=url.trim();
+  // Already a direct lh3 CDN link — use as-is
+  if(url.startsWith('https://lh3.googleusercontent.com/'))return url;
+  // Google Drive share links — extract ID and build lh3 URL
   const openM=url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if(openM)return `https://drive.google.com/uc?export=view&id=${openM[1]}`;
+  if(openM)return `https://lh3.googleusercontent.com/d/${openM[1]}`;
   const fileM=url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if(fileM)return `https://drive.google.com/uc?export=view&id=${fileM[1]}`;
-  if(url.startsWith('Chores_Images/')||url.startsWith('Chores_Files_/'))return '';
+  if(fileM)return `https://lh3.googleusercontent.com/d/${fileM[1]}`;
+  // Unresolved relative paths — return empty
+  if(url.startsWith('Sites_Images/')||url.startsWith('Humans_Images/')||url.startsWith('Chores_Images/')||url.startsWith('Chores_Files_/'))return '';
   return url;
 }
 
