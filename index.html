@@ -652,6 +652,343 @@ const DEMO_HUMANS=[
   {'First Name':'Richard','Last Name':'Da Sylveira',Email:'rdasylve@lausd.net',Mobile:'(310) 927-7175',Role:'Principal'},
 ];
 
+/* ═══ CHORE DETAIL + EDIT ═══ */
+
+function showChoreDetail(choreId) {
+  const c = DATA.chores.find(x => (x.ID||x.id) === choreId);
+  if (!c) return;
+  window._currentChore = c;
+  renderChoreDetail(c, false);
+  openDetail();
+}
+
+function renderChoreDetail(c, editMode) {
+  const id       = c.ID||c.id||'';
+  const task     = c.Task||c.task||'';
+  const site     = c.Site||c.site||'';
+  const comments = c['Additional Comments']||'';
+  const urgency  = c.Urgency||c.urgency||'';
+  const type     = c.Type||c.type||'';
+  const assigned = c['Assigned to']||c.AssignedTo||'';
+  const askedBy  = c['Asked by']||c.AskedBy||'';
+  const status   = c.Status||c.status||'Open';
+  const imgSrc   = getImgSrc(c['Helpful Image 1']||c.HelpfulImage1||'');
+  const isOpen   = status.toLowerCase()==='open';
+  const urgCls   = urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
+
+  if (editMode) {
+    const urgOpts = ['ASAP','Urgent','Normal','Low'].map(u=>
+      `<option value="${u}"${urgency===u?' selected':''}>${u}</option>`).join('');
+    const typeOpts = ['Fieldwork','Admin','Other'].map(t=>
+      `<option value="${t}"${type===t?' selected':''}>${t}</option>`).join('');
+    const statOpts = ['Open','Closed'].map(s=>
+      `<option value="${s}"${status===s?' selected':''}>${s}</option>`).join('');
+    const personOpt = h => {
+      const n=fullName(h)||h.Email, e=h.Email||h.email||'';
+      return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:12px;color:var(--silver);margin-left:6px">${e}</span></div>`;
+    };
+    document.getElementById('detail-content').innerHTML = `
+      <div class="sheet-head">
+        <div><div class="sheet-title" style="font-size:20px">${site}</div>
+          <div style="font-size:13px;color:var(--silver);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px">${task}</div></div>
+        <button class="sheet-x" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="edit-wrap"><div class="edit-label">Task</div>
+        <textarea class="edit-textarea" id="ce-Task">${ea(task)}</textarea></div>
+      <div class="edit-wrap"><div class="edit-label">Additional Comments</div>
+        <textarea class="edit-textarea" id="ce-Comments" style="min-height:70px">${ea(comments)}</textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+        <div class="edit-wrap"><div class="edit-label">Urgency</div>
+          <select class="edit-input" id="ce-Urgency">${urgOpts}</select></div>
+        <div class="edit-wrap"><div class="edit-label">Type</div>
+          <select class="edit-input" id="ce-Type">${typeOpts}</select></div>
+      </div>
+      <div class="edit-wrap" style="position:relative;z-index:50">
+        <div class="edit-label">Assigned To</div>
+        <div class="custom-select">
+          <button type="button" class="custom-select-btn" onclick="toggleDropdown('dd-cassign')" id="dsb-cassign" data-value="${ea(assigned)}">${assigned?(hn(assigned)||assigned):'— None —'}</button>
+          <div class="dropdown-panel" id="dd-cassign">
+            <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('dd-cassign',this.value)"></div>
+            <div class="dropdown-list">
+              <div class="dropdown-item" data-email="" data-name="— None —" onclick="selectDropdown(this,true)">— None —</div>
+              ${DATA.humans.map(personOpt).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="edit-wrap"><div class="edit-label">Status</div>
+        <select class="edit-input" id="ce-Status">${statOpts}</select></div>
+      <hr class="section-divider">
+      <div class="edit-wrap">
+        <div class="edit-label">Photo</div>
+        ${imgSrc?`<img src="${imgSrc}" id="chore-edit-img" loading="lazy"
+          style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:10px"
+          onerror="this.style.display='none'">`:
+          `<div id="chore-edit-img" style="display:none"></div>`}
+        <label style="display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;background:var(--fog)">
+          📷 ${imgSrc?'Replace Photo':'Add Photo'}
+          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="previewChorePhoto(this,'chore-edit-img')">
+        </label>
+        <div style="font-size:12px;color:var(--silver);margin-top:5px" id="chore-photo-status"></div>
+      </div>
+      <div class="edit-actions">
+        <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">Save Changes</button>
+        <button class="btn-cancel" onclick="renderChoreDetail(window._currentChore,false)">Cancel</button>
+      </div>
+      <div class="save-msg" id="saveMsg"></div>`;
+    window._pendingChorePhoto = null;
+    _attachDropdownDismiss();
+  } else {
+    document.getElementById('detail-content').innerHTML = `
+      <div class="sheet-head">
+        <div style="flex:1;min-width:0">
+          <div class="sheet-title" style="font-size:20px">${site}</div>
+          <div style="margin-top:5px"><span class="chore-badge-pill ${urgCls}">${urgency||'Normal'}</span>
+            ${type?`<span style="font-size:12px;color:var(--silver);margin-left:6px">${type}</span>`:''}
+            <span style="font-size:12px;color:${isOpen?'var(--sage)':'var(--silver)'};margin-left:8px;font-weight:500">${status}</span>
+          </div>
+        </div>
+        <button class="sheet-x" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="ds"><div class="dl">Task</div><div class="dv" style="line-height:1.6">${task||'—'}</div></div>
+      ${comments?`<div class="ds"><div class="dl">Additional Comments</div>
+        <div class="dv" style="font-size:14px;color:var(--stone);line-height:1.65">${comments}</div></div>`:''}
+      ${askedBy?`<div class="ds"><div class="dl">Asked By</div><div class="dv">${hn(askedBy)||askedBy}</div></div>`:''}
+      ${assigned?`<div class="ds"><div class="dl">Assigned To</div><div class="dv">${hn(assigned)||assigned}</div></div>`:''}
+      ${imgSrc?`<div class="ds"><div class="dl">Photo</div>
+        <img src="${imgSrc}" loading="lazy"
+          style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);margin-top:8px"
+          onerror="this.parentElement.style.display='none'"></div>`:''}
+      <div class="detail-ctas">
+        ${canEdit()&&id?`<button class="dcta filled" onclick="renderChoreDetail(window._currentChore,true)">✏ Edit</button>`:''}
+        ${canEdit()&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')"
+          style="border-color:var(--sage);color:var(--sage)">✓ Close</button>`:''}
+      </div>`;
+  }
+}
+
+function _attachDropdownDismiss() {
+  setTimeout(() => {
+    const sheet = document.getElementById('detail-sheet');
+    sheet.addEventListener('click', function onDismiss(e) {
+      if (!e.target.closest('.custom-select'))
+        document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));
+    },{once:false});
+  }, 80);
+}
+
+function previewChorePhoto(input, imgId) {
+  const file = input.files[0]; if (!file) return;
+  window._pendingChorePhoto = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById(imgId);
+    if (img) { img.src=e.target.result; img.style.display='block';
+      img.style.cssText='width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:10px'; }
+    const st = document.getElementById('chore-photo-status');
+    if (st) st.textContent = `📎 ${file.name} — ready`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveChoreEdit(choreId) {
+  const m = document.getElementById('saveMsg');
+  m.className='save-msg'; m.textContent='Saving…';
+  const assignBtn = document.getElementById('dsb-cassign');
+  const updates = {
+    'Task':                 document.getElementById('ce-Task').value.trim(),
+    'Additional Comments':  document.getElementById('ce-Comments').value.trim(),
+    'Urgency':              document.getElementById('ce-Urgency').value,
+    'Type':                 document.getElementById('ce-Type').value,
+    'Status':               document.getElementById('ce-Status').value,
+    'Assigned to':          assignBtn?(assignBtn.dataset.value||''):'',
+  };
+  try {
+    if (window._pendingChorePhoto) {
+      const st = document.getElementById('chore-photo-status');
+      if (st) st.textContent='Uploading photo…';
+      const url = await _uploadChorePhotoBase64(choreId, window._pendingChorePhoto);
+      if (url) updates['Helpful Image 1'] = url;
+      window._pendingChorePhoto = null;
+    }
+    await updateChoreApi(choreId, updates);
+    const c = DATA.chores.find(x=>(x.ID||x.id)===choreId);
+    if (c) { Object.assign(c, updates); if(updates['Helpful Image 1'])c['Helpful Image 1']=updates['Helpful Image 1']; }
+    localStorage.setItem(CFG.CK, JSON.stringify(DATA));
+    m.textContent='✓ Saved';
+    if (c) setTimeout(()=>renderChoreDetail(c,false),700);
+    renderAll();
+  } catch(e) { m.className='save-msg err'; m.textContent='✗ '+e.message; }
+}
+
+async function closeChoreFromDetail(choreId, description) {
+  if (!confirm(`Mark "${description.slice(0,60)}" as Closed?`)) return;
+  try {
+    await closeChoreApi(choreId);
+    const c = DATA.chores.find(x=>(x.ID||x.id)===choreId);
+    if (c) { c.Status='Closed'; window._currentChore=c; renderChoreDetail(c,false); }
+    renderAll();
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function updateChoreApi(choreId, updates) {
+  if (!CFG.URL) throw new Error('No API URL');
+  const j = await gasPost({action:'updateChore', choreId, updates});
+  if (!j.ok) throw new Error(j.error||'Update failed');
+}
+
+async function _uploadChorePhotoBase64(choreId, file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const base64 = e.target.result.split(',')[1];
+        const j = await gasPost({action:'uploadChoreImage', choreId,
+          base64, mimeType:file.type, filename:file.name});
+        j.ok ? resolve(j.url) : reject(new Error(j.error||'Upload failed'));
+      } catch(err){ reject(err); }
+    };
+    reader.onerror = ()=>reject(new Error('File read error'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ═══ ADD NEW CHORE ═══ */
+
+function showAddChore() {
+  const myEmail = SESSION?SESSION.email:'';
+  const siteItems = DATA.sites.map(s=>{
+    const n=sf(s,'Name','name');
+    return `<div class="dropdown-item" data-email="${ea(n)}" data-name="${ea(n)}"
+      onclick="selectDropdown(this)">${n}</div>`;
+  }).join('');
+  const personOpt = h => {
+    const n=fullName(h)||h.Email, e=h.Email||h.email||'';
+    return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}"
+      onclick="selectDropdown(this)">${n}<span style="font-size:12px;color:var(--silver);margin-left:6px">${e}</span></div>`;
+  };
+  const urgOpts  = ['ASAP','Urgent','Normal','Low'].map(u=>`<option value="${u}"${u==='Normal'?' selected':''}>${u}</option>`).join('');
+  const typeOpts = ['Fieldwork','Admin','Other'].map(t=>`<option value="${t}">${t}</option>`).join('');
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="sheet-head"><div class="sheet-title">New Chore</div>
+      <button class="sheet-x" onclick="closeDetail()">✕</button></div>
+    <div class="edit-wrap" style="position:relative;z-index:60">
+      <div class="edit-label">Site *</div>
+      <div class="custom-select">
+        <button type="button" class="custom-select-btn" onclick="toggleDropdown('dd-ns-site')"
+          id="dsb-ns-site" data-value="">— Select site —</button>
+        <div class="dropdown-panel" id="dd-ns-site">
+          <div class="dropdown-search"><input placeholder="Search sites…"
+            oninput="filterDropdownItems('dd-ns-site',this.value)"></div>
+          <div class="dropdown-list">${siteItems}</div>
+        </div>
+      </div>
+    </div>
+    <div class="edit-wrap"><div class="edit-label">Task *</div>
+      <textarea class="edit-textarea" id="nc-Task" placeholder="Describe the task…"></textarea></div>
+    <div class="edit-wrap"><div class="edit-label">Additional Comments</div>
+      <textarea class="edit-textarea" id="nc-Comments" style="min-height:70px"
+        placeholder="Any extra notes…"></textarea></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+      <div class="edit-wrap"><div class="edit-label">Urgency</div>
+        <select class="edit-input" id="nc-Urgency">${urgOpts}</select></div>
+      <div class="edit-wrap"><div class="edit-label">Type</div>
+        <select class="edit-input" id="nc-Type">${typeOpts}</select></div>
+    </div>
+    <div class="edit-wrap" style="position:relative;z-index:50">
+      <div class="edit-label">Assign To</div>
+      <div class="custom-select">
+        <button type="button" class="custom-select-btn" onclick="toggleDropdown('dd-ns-assign')"
+          id="dsb-ns-assign" data-value="${ea(myEmail)}">${myEmail?(hn(myEmail)||myEmail):'— Select person —'}</button>
+        <div class="dropdown-panel" id="dd-ns-assign">
+          <div class="dropdown-search"><input placeholder="Search…"
+            oninput="filterDropdownItems('dd-ns-assign',this.value)"></div>
+          <div class="dropdown-list">
+            <div class="dropdown-item" data-email="" data-name="— None —"
+              onclick="selectDropdown(this,true)">— None —</div>
+            ${DATA.humans.map(personOpt).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="edit-wrap">
+      <div class="edit-label">Photo (optional)</div>
+      <label style="display:inline-flex;align-items:center;gap:6px;padding:9px 14px;
+        border:1px solid var(--mist);border-radius:var(--r-sm);
+        font-family:var(--font-b);font-size:13px;cursor:pointer;background:var(--fog)">
+        📷 Add Photo
+        <input type="file" accept="image/*" capture="environment" style="display:none"
+          onchange="previewNewChorePhoto(this)">
+      </label>
+      <div id="nc-photo-preview" style="margin-top:8px"></div>
+      <div style="font-size:12px;color:var(--silver);margin-top:4px" id="nc-photo-status"></div>
+    </div>
+    <div class="edit-actions">
+      <button class="btn-save" onclick="saveNewChore()">Add Chore</button>
+      <button class="btn-cancel" onclick="closeDetail()">Cancel</button>
+    </div>
+    <div class="save-msg" id="saveMsg"></div>`;
+
+  window._pendingNewChorePhoto = null;
+  openDetail();
+  _attachDropdownDismiss();
+}
+
+function previewNewChorePhoto(input) {
+  const file = input.files[0]; if (!file) return;
+  window._pendingNewChorePhoto = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const p = document.getElementById('nc-photo-preview');
+    if (p) p.innerHTML = `<img src="${e.target.result}"
+      style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm)">`;
+    const st = document.getElementById('nc-photo-status');
+    if (st) st.textContent = `📎 ${file.name}`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveNewChore() {
+  const m = document.getElementById('saveMsg');
+  m.className='save-msg'; m.textContent='Saving…';
+  const siteBtn   = document.getElementById('dsb-ns-site');
+  const assignBtn = document.getElementById('dsb-ns-assign');
+  const site = siteBtn?siteBtn.dataset.value:'';
+  const task = document.getElementById('nc-Task').value.trim();
+  if (!site) { m.className='save-msg err'; m.textContent='Please select a site.'; return; }
+  if (!task) { m.className='save-msg err'; m.textContent='Task description is required.'; return; }
+  const data = {
+    'Site':                site,
+    'Task':                task,
+    'Additional Comments': document.getElementById('nc-Comments').value.trim(),
+    'Urgency':             document.getElementById('nc-Urgency').value,
+    'Type':                document.getElementById('nc-Type').value,
+    'Assigned to':         assignBtn?(assignBtn.dataset.value||''):'',
+    'Asked by':            SESSION?SESSION.email:'',
+    'Status':              'Open',
+  };
+  try {
+    const res = await gasPost({action:'addChore', data});
+    if (!res.ok) throw new Error(res.error||'Add failed');
+    const newChore = {...data, ID:res.id};
+    if (window._pendingNewChorePhoto && res.id) {
+      const st = document.getElementById('nc-photo-status');
+      if (st) st.textContent='Uploading photo…';
+      try {
+        const url = await _uploadChorePhotoBase64(res.id, window._pendingNewChorePhoto);
+        if (url) newChore['Helpful Image 1'] = url;
+      } catch(pe) { /* non-fatal */ }
+      window._pendingNewChorePhoto = null;
+    }
+    DATA.chores.unshift(newChore);
+    localStorage.setItem(CFG.CK, JSON.stringify(DATA));
+    m.textContent='✓ Chore added!';
+    renderAll();
+    setTimeout(()=>closeDetail(), 700);
+  } catch(e) { m.className='save-msg err'; m.textContent='✗ '+e.message; }
+}
+  
 /* ═══ RENDER SCHOOLS ═══ */
 function getMySchools(){
   if(!SESSION||SESSION.accessLevel<=2)return null;
