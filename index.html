@@ -233,6 +233,10 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .plant-search-empty p{font-size:14px;color:var(--silver);line-height:1.55}
 
 @media(min-width:450px){#app{box-shadow:0 0 0 1px var(--mist),0 20px 60px rgba(0,0,0,.08)}}
+/* ASAP flashing badge */
+@keyframes blink-asap{0%,100%{opacity:1}50%{opacity:0.15}}
+.flash-asap{animation:blink-asap 1s linear infinite}
+
 </style>
 </head>
 <body>
@@ -356,14 +360,15 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
   <!-- CHORES -->
   <div class="tab-pane" id="tab-chores">
-    <div class="filter-row" id="choresFilters">
-      <button class="chip active" data-filter="all"       onclick="filterChores('all')">All</button>
-      <button class="chip"        data-filter="asap"      onclick="filterChores('asap')">ASAP</button>
-      <button class="chip"        data-filter="urgent"    onclick="filterChores('urgent')">Urgent</button>
-      <button class="chip"        data-filter="mine"      onclick="filterChores('mine')">Mine</button>
-      <button class="chip"        data-filter="fieldwork" onclick="filterChores('fieldwork')">Fieldwork</button>
-      <button class="chip"        data-filter="admin"     onclick="filterChores('admin')">Admin</button>
-    </div>
+<div class="filter-row" id="choresFilters">
+  <button class="chip active" data-filter="all"       onclick="filterChores('all')">All</button>
+  <button class="chip"        data-filter="asap"      onclick="filterChores('asap')">ASAP</button>
+  <button class="chip"        data-filter="urgent"    onclick="filterChores('urgent')">Urgent</button>
+  <button class="chip"        data-filter="mine"      onclick="filterChores('mine')">Mine</button>
+  <button class="chip"        data-filter="asked"     onclick="filterChores('asked')">Asked by Me</button>
+  <button class="chip"        data-filter="fieldwork" onclick="filterChores('fieldwork')">Fieldwork</button>
+  <button class="chip"        data-filter="admin"     onclick="filterChores('admin')">Admin</button>
+</div>
     <div class="page-header"><span class="page-title">Chores</span><span class="page-count" id="choresCount"></span></div>
 <div style="padding:4px 16px 8px;display:flex;justify-content:flex-end">
   <button onclick="showAddChore()" style="padding:9px 15px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:12px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">+ New Chore</button>
@@ -507,25 +512,39 @@ function openChoresForHuman(email){
 }
 
 /* ═══ CHORE CARDS (list — no images for speed; photo loads in detail) ═══ */
-function choreCardHtml(c, showSite=false) {
-  const task     = c.Task||c.task||'(no description)';
-  const urgency  = c.Urgency||c.urgency||'';
-  const assigned = c['Assigned to']||c.AssignedTo||'';
-  const askedBy  = c['Asked by']||c.AskedBy||'';
-  const id       = c.ID||c.id||'';
-  const isUrgent = urgency.toLowerCase().includes('asap')||urgency.toLowerCase()==='urgent';
-  const urgCls   = urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
-  return `<div class="chore-card ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')" style="cursor:pointer">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-      <div class="chore-title" style="flex:1">${showSite?`<strong>${c.Site||''}</strong> — `:''}${task}</div>
-      <span style="color:var(--mist);font-size:18px;flex-shrink:0">›</span>
-    </div>
-    ${c['Additional Comments']?`<div style="font-size:13px;color:var(--stone);margin-top:3px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c['Additional Comments']}</div>`:''}
-    <div class="chore-meta" style="margin-top:6px">
-      <span class="chore-badge-pill ${urgCls}">${urgency||'Normal'}</span>
+function choreCardHtml(c,showSite=false){
+  const task=c.Task||c.task||'(no description)';
+  const urgency=c.Urgency||c.urgency||'';
+  const assignedTo=c['Assigned to']||c.AssignedTo||'';
+  const askedBy=c['Asked by']||c.AskedBy||'';
+  const id=c.ID||c.id||'';
+  const isUrgent=urgency.toLowerCase().includes('asap')||urgency.toLowerCase()==='urgent';
+  const isAsap=urgency.toLowerCase()==='asap';
+  const urgCls=isAsap?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
+  const imgSrc=getImgSrc(c['Helpful Image 1']||c.HelpfulImage1||'');
+
+  // Format date entered
+  let dateStr='';
+  if(c.Timestamp){
+    try{
+      dateStr=new Date(c.Timestamp).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'});
+    }catch(e){}
+  }
+
+  return `<div class="chore-card ${isUrgent?'urgent':''}">
+    <div class="chore-title">${showSite?`<strong>${c.Site||''}</strong> — `:''}${task}</div>
+    ${c['Additional Comments']?`<div style="font-size:13px;color:var(--stone);margin-top:3px;line-height:1.4">${c['Additional Comments']}</div>`:''}
+    ${imgSrc?`<img src="${imgSrc}" style="width:100%;max-height:140px;object-fit:cover;border-radius:6px;margin-top:8px" loading="lazy" onerror="this.style.display='none'">`:''}
+    <div class="chore-meta">
+      <span class="chore-badge-pill ${urgCls} ${isAsap?'flash-asap':''}">${urgency||'Normal'}</span>
+      ${dateStr?`<span style="color:var(--silver)">${dateStr}</span>`:''}
       ${askedBy?`<span>By: ${hn(askedBy)||askedBy}</span>`:''}
-      ${assigned?`<span>→ ${hn(assigned)||assigned}</span>`:''}
+      ${assignedTo?`<span>→ ${hn(assignedTo)||assignedTo}</span>`:''}
     </div>
+    ${canEdit()&&id?`<div style="display:flex;gap:6px;margin-top:8px">
+      <button class="chore-reassign" onclick="showReassignChore('${ea(id)}','${ea(c.Site||'')}')">↩ Reassign</button>
+      <button class="chore-close-btn" onclick="closeChore('${ea(id)}','${ea(c.Task||'')}')">✓ Close</button>
+    </div>`:''}
   </div>`;
 }
 
@@ -1088,16 +1107,20 @@ function renderChores(){
     if(mySchoolNames!==null&&!mySchoolNames.includes((c.Site||'').toLowerCase()))return false;
     const urg=(c.Urgency||'').toLowerCase();
     const type=(c.Type||'').toLowerCase();
+    const me=(SESSION?.email||'').toLowerCase();
     if(f==='asap'&&urg!=='asap')return false;
     if(f==='urgent'&&urg!=='urgent')return false;
-    if(f==='mine'&&(c['Assigned to']||'').toLowerCase()!==(SESSION?.email||'').toLowerCase())return false;
+    if(f==='mine'&&(c['Assigned to']||'').toLowerCase()!==me)return false;
+    if(f==='asked'&&(c['Asked by']||'').toLowerCase()!==me)return false;
     if(f==='fieldwork'&&!type.includes('field'))return false;
     if(f==='admin'&&!type.includes('admin'))return false;
     if(q&&!(c.Task||'').toLowerCase().includes(q)&&!(c.Site||'').toLowerCase().includes(q))return false;
     return true;
   });
-  const urgOrder={'asap':0,'urgent':1};
-  chores.sort((a,b)=>(urgOrder[(a.Urgency||'').toLowerCase()]??2)-(urgOrder[(b.Urgency||'').toLowerCase()]??2));
+
+  // Default sort: oldest first by Timestamp
+  chores.sort((a,b)=>new Date(a.Timestamp||0)-new Date(b.Timestamp||0));
+
   document.getElementById('choresCount').textContent=chores.length+' open';
   if(!chores.length){document.getElementById('choresList').innerHTML=empty('✓','All clear','No open chores match this filter.');return;}
   document.getElementById('choresList').innerHTML=chores.map(c=>choreCardHtml(c,true)).join('');
