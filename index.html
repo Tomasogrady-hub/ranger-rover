@@ -690,6 +690,7 @@ function renderChoreDetail(c,editMode){
     const typeOpts=['Fieldwork','Admin','Other'].map(t=>`<option value="${t}"${type===t?' selected':''}>${t}</option>`).join('');
     const statOpts=['Open','Closed'].map(s=>`<option value="${s}"${status===s?' selected':''}>${s}</option>`).join('');
     const personOpt=h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;};
+    const assignableHumans=DATA.humans.filter(_isAssignable);
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
         <div style="flex:1;min-width:0">
@@ -716,7 +717,7 @@ function renderChoreDetail(c,editMode){
             <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('dd-cassign',this.value)"></div>
             <div class="dropdown-list">
               <div class="dropdown-item" data-email="" data-name="— None —" onclick="selectDropdown(this,true)">— None —</div>
-              ${DATA.humans.map(personOpt).join('')}
+              ${assignableHumans.map(personOpt).join('')}
             </div>
           </div>
         </div>
@@ -768,8 +769,8 @@ function renderChoreDetail(c,editMode){
           style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);margin-top:8px"
           onerror="this.parentElement.style.display='none'"></div>`:''}
       <div class="detail-ctas">
-        ${canEdit()&&id?`<button class="dcta filled" onclick="renderChoreDetail(window._currentChore,true)">✏ Edit</button>`:''}
-        ${canEdit()&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Close</button>`:''}
+        ${SESSION&&id?`<button class="dcta filled" onclick="renderChoreDetail(window._currentChore,true)">✏ Edit</button>`:''}
+        ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Close</button>`:''}
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
       </div>`;
     window._currentChore=c;
@@ -850,15 +851,29 @@ async function _uploadChorePhotoBase64(choreId,file){
 }
 
 /* ═══ ADD NEW CHORE ═══ */
+function _isAssignable(h){
+  const role=(h.Role||h.role||'').toLowerCase();
+  const roleAlt=(h['Role Additional']||h.RoleAdditional||'').toLowerCase();
+  return role.includes('ranger')||role.includes('garden keeper')||
+         roleAlt.includes('ranger')||roleAlt.includes('garden keeper');
+}
+
 function showAddChore(){
   const myEmail=SESSION?SESSION.email:'';
+  const myName=myEmail?(hn(myEmail)||myEmail):'';
   const siteItems=DATA.sites.map(s=>{const n=sf(s,'Name','name');return `<div class="dropdown-item" data-email="${ea(n)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}</div>`;}).join('');
+  /* Only rangers, garden keepers, master rangers in the Assign To list */
+  const assignableHumans=DATA.humans.filter(_isAssignable);
   const personOpt=h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;};
   const urgOpts=['ASAP','Urgent','Normal','Low'].map(u=>`<option value="${u}"${u==='Normal'?' selected':''}>${u}</option>`).join('');
   const typeOpts=['Fieldwork','Admin','Other'].map(t=>`<option value="${t}">${t}</option>`).join('');
 
   document.getElementById('detail-content').innerHTML=`
     <div class="sheet-head"><div class="sheet-title">New Chore</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
+    <div class="ds" style="padding-bottom:4px">
+      <div class="dl">Asked By</div>
+      <div class="dv" style="font-size:17px;font-weight:500">${myName}</div>
+    </div>
     <div class="edit-wrap" style="position:relative;z-index:60">
       <div class="edit-label">Site *</div>
       <div class="custom-select">
@@ -887,7 +902,7 @@ function showAddChore(){
           <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('dd-ns-assign',this.value)"></div>
           <div class="dropdown-list">
             <div class="dropdown-item" data-email="" data-name="— None —" onclick="selectDropdown(this,true)">— None —</div>
-            ${DATA.humans.map(personOpt).join('')}
+            ${assignableHumans.map(personOpt).join('')}
           </div>
         </div>
       </div>
