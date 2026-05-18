@@ -531,7 +531,7 @@ function choreCardHtml(c,showSite=false){
     </div>
     ${canEdit()&&id?`<div style="display:flex;gap:6px;margin-top:9px" onclick="event.stopPropagation()">
       <button class="chore-reassign" onclick="showReassignChore('${ea(id)}','${ea(c.Site||'')}')">↩ Reassign</button>
-      <button class="chore-close-btn" onclick="closeChore('${ea(id)}','${ea(c.Task||'')}')">✓ Close</button>
+    <button class="chore-close-btn" onclick="closeChore('${ea(id)}','${ea(c.Site||c.task||'')}')">✓ Mark as Closed</button>
     </div>`:''}
   </div>`;
 }
@@ -1250,7 +1250,7 @@ function renderSchoolDetail(site,editMode){
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>
       ${editPeopleHtml}
-      ${canEdit()?`<button class="btn-edit" onclick="window._currentSite=window._currentSite||${JSON.stringify(site).replace(/"/g,'&quot;')};renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>`:''}`;
+    <button class="btn-edit" onclick="window._currentSite=window._currentSite||${JSON.stringify(site).replace(/"/g,'&quot;')};renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
     window._currentSite=site;
   }
 }
