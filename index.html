@@ -1251,6 +1251,7 @@ function renderSchoolDetail(site,editMode){
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>
       ${editPeopleHtml}
     <button class="btn-edit" onclick="window._currentSite=window._currentSite||${JSON.stringify(site).replace(/"/g,'&quot;')};renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
+    `;
     window._currentSite=site;
   }
 }
