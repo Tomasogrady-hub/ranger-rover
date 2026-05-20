@@ -1208,18 +1208,48 @@ function renderSchoolDetail(site,editMode){
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
       <div class="edit-wrap"><div class="edit-label">Schedule</div><input class="edit-input" id="ef-Schedule" value="${ea(sched)}"></div>
       ${canAssign?`<hr class="section-divider">
-      <div class="edit-wrap"><div class="edit-label">Main Image URL</div>
-        ${mainImg?`<img src="${mainImg}" class="site-img-full" style="margin-bottom:8px" onerror="this.style.display='none'">`:''}
+      <div class="edit-wrap"><div class="edit-label">Main Image</div>
+        <img id="ef-preview-MainImage" src="${mainImg}" loading="lazy"
+          style="${mainImg?'':'display:none;'}width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
+          onerror="this.style.display='none'">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <label style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+            📷 ${mainImg?'Replace':'Add'} Photo
+            <input type="file" accept="image/*" capture="environment" style="display:none" onchange="previewSitePhoto(this,'ef-preview-MainImage','MainImage')">
+          </label>
+          <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
+        </div>
         <input class="edit-input" id="ef-MainImg" value="${ea(sf(site,'Main Image','MainImage'))}" placeholder="Paste Google Drive or image URL…"></div>
-      <div class="edit-wrap"><div class="edit-label">Helpful Image 1 URL</div>
+      <div class="edit-wrap"><div class="edit-label">Helpful Image 1</div>
+        <img id="ef-preview-HelpImg1" src="${helpImg1}" loading="lazy"
+          style="${helpImg1?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
+          onerror="this.style.display='none'">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <label style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+            📷 ${helpImg1?'Replace':'Add'} Photo
+            <input type="file" accept="image/*" capture="environment" style="display:none" onchange="previewSitePhoto(this,'ef-preview-HelpImg1','HelpImg1')">
+          </label>
+          <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
+        </div>
         <input class="edit-input" id="ef-HelpImg1" value="${ea(sf(site,'Helpful Image 1','HelpfulImage1'))}" placeholder="Paste image URL…"></div>
-      <div class="edit-wrap"><div class="edit-label">Helpful Image 2 URL</div>
+      <div class="edit-wrap"><div class="edit-label">Helpful Image 2</div>
+        <img id="ef-preview-HelpImg2" src="${helpImg2}" loading="lazy"
+          style="${helpImg2?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
+          onerror="this.style.display='none'">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <label style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+            📷 ${helpImg2?'Replace':'Add'} Photo
+            <input type="file" accept="image/*" capture="environment" style="display:none" onchange="previewSitePhoto(this,'ef-preview-HelpImg2','HelpImg2')">
+          </label>
+          <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
+        </div>
         <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" placeholder="Paste image URL…"></div>`:''}
       <div class="edit-actions">
         <button class="btn-save" onclick="saveSiteEdit('${ea(name)}')">Save to Sheet</button>
         <button class="btn-cancel" onclick="renderSchoolDetail(window._currentSite,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
+    window._pendingSitePhotos={};
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
@@ -1265,6 +1295,19 @@ function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel
 
 async function saveSiteEdit(siteName){
   const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
+  // Upload any pending site photos first — updates the URL input fields
+  if(window._pendingSitePhotos&&Object.keys(window._pendingSitePhotos).length>0){
+    m.textContent='Uploading photos…';
+    const inputMap={'MainImage':'ef-MainImg','HelpImg1':'ef-HelpImg1','HelpImg2':'ef-HelpImg2'};
+    for(const[key,file]of Object.entries(window._pendingSitePhotos)){
+      try{
+        const url=await _uploadSitePhoto(siteName,key,file);
+        const inp=document.getElementById(inputMap[key]);if(inp)inp.value=url;
+      }catch(pe){console.warn('Site photo upload failed:',pe);}
+    }
+    window._pendingSitePhotos={};
+    m.textContent='Saving…';
+  }
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
   const updates={};
@@ -1571,19 +1614,30 @@ async function showPlantDetail(rowIndex){
 async function showSelfEdit(){
   document.getElementById('detail-content').innerHTML='<div class="spinner" style="margin-top:80px"></div>';
   openDetail();
+  window._pendingSelfPhoto=null;
   try{
     const data=await gasPost({action:'getSelfProfile',email:SESSION.email});
     if(!data.ok)throw new Error(data.error||'Could not load profile');
     const p=data.profile;const lvl=SESSION.accessLevel;
-    const imgUrl=getImgSrc((p['Main Image']||'').trim());
+    // Use resolved URL from DATA.humans (already processed by GAS folder index)
+    const existingH=DATA.humans.find(h=>(h.Email||'').toLowerCase()===SESSION.email.toLowerCase());
+    const resolvedImg=existingH?getImgSrc(existingH['Main Image']||''):'';
     const initials=inits(((p['First Name']||'')+' '+(p['Last Name']||'')).trim()||SESSION.name||'?');
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
-          <div class="avatar" style="width:52px;height:52px;font-size:20px;flex-shrink:0">
-            ${imgUrl?`<img src="${imgUrl}" loading="lazy" onerror="this.style.display='none'">`:initials}
+          <div id="self-avatar-wrap" style="width:64px;height:64px;border-radius:50%;overflow:hidden;border:1px solid var(--mist);background:var(--fog);flex-shrink:0;display:flex;align-items:center;justify-content:center">
+            ${resolvedImg
+              ?`<img id="self-img-preview" src="${resolvedImg}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-family:var(--font-d);font-size:22px;color:var(--silver)\\'>${initials}</span>'">`
+              :`<span id="self-img-preview" style="font-family:var(--font-d);font-size:22px;color:var(--silver)">${initials}</span>`}
           </div>
-          <div class="sheet-title" style="font-size:28px">My Profile</div>
+          <div>
+            <div class="sheet-title" style="font-size:28px">My Profile</div>
+            <label style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:13px;color:var(--sage);cursor:pointer;font-family:var(--font-b)">
+              📷 ${resolvedImg?'Replace':'Add'} photo
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="previewSelfPhoto(this)">
+            </label>
+          </div>
         </div>
         <button class="sheet-x" onclick="closeDetail()">✕</button>
       </div>
@@ -1596,8 +1650,7 @@ async function showSelfEdit(){
       ${lvl<=2?`<div class="edit-wrap"><div class="edit-label">Comments</div>
         <textarea class="edit-textarea" id="self-Comments">${ea(p['Comments']||'')}</textarea></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Profile Image URL</div>
-        ${imgUrl?`<div class="img-preview" style="margin-bottom:8px"><img src="${imgUrl}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`:`<div class="img-preview" style="margin-bottom:8px"><div class="img-placeholder-text">${initials}</div></div>`}
-        <input class="edit-input" id="self-MainImage" value="${ea(p['Main Image']||'')}" placeholder="Paste Google Drive or image URL…"></div>
+        <input class="edit-input" id="self-MainImage" value="${ea(p['Main Image']||'')}" placeholder="or paste Google Drive or image URL…"></div>
       <div class="edit-actions">
         <button class="btn-save" onclick="saveSelfEdit('${ea(SESSION.email)}')">Save Changes</button>
         <button class="btn-cancel" onclick="closeDetail()">Cancel</button>
@@ -1613,6 +1666,16 @@ async function showSelfEdit(){
 async function saveSelfEdit(email){
   const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
   const lvl=SESSION.accessLevel;
+  // Upload pending profile photo first
+  if(window._pendingSelfPhoto){
+    m.textContent='Uploading photo…';
+    try{
+      const url=await _uploadHumanPhoto(email,window._pendingSelfPhoto);
+      const inp=document.getElementById('self-MainImage');if(inp)inp.value=url;
+      window._pendingSelfPhoto=null;
+    }catch(pe){console.warn('Profile photo upload failed:',pe);}
+    m.textContent='Saving…';
+  }
   const updates={
     'First Name':(document.getElementById('self-FirstName')||{value:''}).value.trim(),
     'Last Name':(document.getElementById('self-LastName')||{value:''}).value.trim(),
@@ -1639,6 +1702,60 @@ async function deleteChoreFromDetail(choreId,description){
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     closeDetail();renderAll();
   }catch(e){alert('Error: '+e.message);}
+}
+
+/* ═══ PHOTO UPLOAD HELPERS ═══ */
+function previewSitePhoto(input,previewId,fieldKey){
+  const file=input.files[0];if(!file)return;
+  if(!window._pendingSitePhotos)window._pendingSitePhotos={};
+  window._pendingSitePhotos[fieldKey]=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=document.getElementById(previewId);
+    if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px';}
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewSelfPhoto(input){
+  const file=input.files[0];if(!file)return;
+  window._pendingSelfPhoto=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wrap=document.getElementById('self-avatar-wrap');
+    if(wrap)wrap.innerHTML=`<img id="self-img-preview" src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function _uploadSitePhoto(siteName,fieldKey,file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      try{
+        const base64=e.target.result.split(',')[1];
+        const j=await gasPost({action:'uploadSiteImage',siteName,fieldKey,base64,mimeType:file.type,filename:file.name});
+        j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
+      }catch(err){reject(err);}
+    };
+    reader.onerror=()=>reject(new Error('File read error'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function _uploadHumanPhoto(email,file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      try{
+        const base64=e.target.result.split(',')[1];
+        const j=await gasPost({action:'uploadHumanImage',email,base64,mimeType:file.type,filename:file.name});
+        j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
+      }catch(err){reject(err);}
+    };
+    reader.onerror=()=>reject(new Error('File read error'));
+    reader.readAsDataURL(file);
+  });
 }
 
 /* ═══ SETTINGS ═══ */
