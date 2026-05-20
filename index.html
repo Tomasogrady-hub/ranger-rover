@@ -299,7 +299,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 <!-- APP -->
 <div id="header" style="display:none">
   <div><span class="logo">Ranger Rover</span><span class="logo-sub">Enrich LA</span></div>
-  <div style="display:flex;align-items:center;gap:10px">
+  <div style="display:flex;align-items:center;gap:8px">
+    <button id="headerNameBtn" onclick="showSelfEdit()" style="font-size:13px;color:var(--grove);background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 10px;cursor:pointer;font-family:var(--font-b);font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"></button>
     <div class="sync-pill"><div class="sync-dot" id="syncDot"></div><span id="syncText">Live</span></div>
     <button class="logout-btn" onclick="logout()">Sign out</button>
   </div>
@@ -603,6 +604,7 @@ function showApp(){
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
+  const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   loadData();
 }
 
@@ -770,7 +772,8 @@ function renderChoreDetail(c,editMode){
           onerror="this.parentElement.style.display='none'"></div>`:''}
       <div class="detail-ctas">
         ${SESSION&&id?`<button class="dcta filled" onclick="renderChoreDetail(window._currentChore,true)">✏ Edit</button>`:''}
-        ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Close</button>`:''}
+        ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Mark as Closed</button>`:''}
+        ${SESSION&&id?`<button class="dcta" onclick="deleteChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--danger);color:var(--danger)">🗑 Delete</button>`:''}
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
       </div>`;
     window._currentChore=c;
@@ -1171,7 +1174,7 @@ function renderSchoolDetail(site,editMode){
 
   if(editMode){
     const lvl=SESSION?SESSION.accessLevel:3;
-    const canAssign=lvl<=2;
+    const canAssign=true; // all access levels can edit site fields
     const rangers=DATA.humans.filter(h=>(h.Role||h.role||'').toLowerCase().includes('ranger'));
     const principals=DATA.humans.filter(h=>(h.Role||h.role||'').toLowerCase().includes('principal'));
     const allH=DATA.humans;
@@ -1562,6 +1565,80 @@ async function showPlantDetail(rowIndex){
       <div class="sheet-head"><div class="sheet-title">Error</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       <div class="ds"><div class="dv" style="color:var(--danger)">Could not load plant details. Check your connection.</div></div>`;
   }
+}
+
+/* ═══ SELF EDIT (own profile from header) ═══ */
+async function showSelfEdit(){
+  document.getElementById('detail-content').innerHTML='<div class="spinner" style="margin-top:80px"></div>';
+  openDetail();
+  try{
+    const data=await gasPost({action:'getSelfProfile',email:SESSION.email});
+    if(!data.ok)throw new Error(data.error||'Could not load profile');
+    const p=data.profile;const lvl=SESSION.accessLevel;
+    const imgUrl=getImgSrc((p['Main Image']||'').trim());
+    const initials=inits(((p['First Name']||'')+' '+(p['Last Name']||'')).trim()||SESSION.name||'?');
+    document.getElementById('detail-content').innerHTML=`
+      <div class="sheet-head">
+        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+          <div class="avatar" style="width:52px;height:52px;font-size:20px;flex-shrink:0">
+            ${imgUrl?`<img src="${imgUrl}" loading="lazy" onerror="this.style.display='none'">`:initials}
+          </div>
+          <div class="sheet-title" style="font-size:28px">My Profile</div>
+        </div>
+        <button class="sheet-x" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="edit-wrap"><div class="edit-label">First Name</div>
+        <input class="edit-input" id="self-FirstName" value="${ea(p['First Name']||'')}"></div>
+      <div class="edit-wrap"><div class="edit-label">Last Name</div>
+        <input class="edit-input" id="self-LastName" value="${ea(p['Last Name']||'')}"></div>
+      <div class="edit-wrap"><div class="edit-label">Mobile</div>
+        <input class="edit-input" id="self-Mobile" type="tel" value="${ea(p['Mobile']||'')}"></div>
+      ${lvl<=2?`<div class="edit-wrap"><div class="edit-label">Comments</div>
+        <textarea class="edit-textarea" id="self-Comments">${ea(p['Comments']||'')}</textarea></div>`:''}
+      <div class="edit-wrap"><div class="edit-label">Profile Image URL</div>
+        ${imgUrl?`<div class="img-preview" style="margin-bottom:8px"><img src="${imgUrl}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`:`<div class="img-preview" style="margin-bottom:8px"><div class="img-placeholder-text">${initials}</div></div>`}
+        <input class="edit-input" id="self-MainImage" value="${ea(p['Main Image']||'')}" placeholder="Paste Google Drive or image URL…"></div>
+      <div class="edit-actions">
+        <button class="btn-save" onclick="saveSelfEdit('${ea(SESSION.email)}')">Save Changes</button>
+        <button class="btn-cancel" onclick="closeDetail()">Cancel</button>
+      </div>
+      <div class="save-msg" id="saveMsg"></div>`;
+  }catch(e){
+    document.getElementById('detail-content').innerHTML=`
+      <div class="sheet-head"><div class="sheet-title">My Profile</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
+      <div class="ds"><div class="dv" style="color:var(--danger)">${escHtml(e.message)}</div></div>`;
+  }
+}
+
+async function saveSelfEdit(email){
+  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
+  const lvl=SESSION.accessLevel;
+  const updates={
+    'First Name':(document.getElementById('self-FirstName')||{value:''}).value.trim(),
+    'Last Name':(document.getElementById('self-LastName')||{value:''}).value.trim(),
+    'Mobile':(document.getElementById('self-Mobile')||{value:''}).value.trim(),
+    'Main Image':(document.getElementById('self-MainImage')||{value:''}).value.trim(),
+  };
+  if(lvl<=2){const cel=document.getElementById('self-Comments');if(cel)updates['Comments']=cel.value.trim();}
+  try{
+    await saveToSheet('Humans',email,updates);
+    const h=DATA.humans.find(x=>(x.Email||'').toLowerCase()===email.toLowerCase());
+    if(h)Object.assign(h,updates);
+    const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
+    if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=newName;}
+    m.textContent='✓ Saved';renderAll();setTimeout(()=>closeDetail(),800);
+  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
+}
+
+async function deleteChoreFromDetail(choreId,description){
+  if(!confirm(`Delete "${(description||'this chore').slice(0,60)}"?\n\nThis cannot be undone.`))return;
+  try{
+    const j=await gasPost({action:'deleteChore',choreId});
+    if(!j.ok)throw new Error(j.error||'Delete failed');
+    DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    closeDetail();renderAll();
+  }catch(e){alert('Error: '+e.message);}
 }
 
 /* ═══ SETTINGS ═══ */
