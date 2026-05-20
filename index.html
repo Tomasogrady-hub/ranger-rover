@@ -97,7 +97,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .school-address{font-size:16px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
 .ranger-line{display:flex;align-items:center;gap:6px;font-size:16px;color:var(--sage)}
 .ranger-line.no-ranger{color:var(--danger)}
-.rdot{width:7px;height:7px;border-radius:50%;background:var(--sage);flex-shrink:0}
+.rdot{width:7px;height:7px;min-width:7px;min-height:7px;max-width:7px;max-height:7px;border-radius:50%;background:var(--sage);flex-shrink:0;align-self:center}
 .rdot.empty{background:var(--danger)}
 .school-chevron{color:var(--mist);font-size:22px;flex-shrink:0;align-self:center}
 .chore-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:var(--warn-bg);color:var(--warn);font-size:13px;font-weight:600;margin-top:6px;white-space:nowrap}
@@ -474,7 +474,7 @@ function dc(d=''){d=d.toLowerCase();if(d.includes('glendale'))return 'gusd';if(d
 function sd(d=''){const l=d.toLowerCase();if(l.includes('los angeles unified'))return 'LAUSD';if(l.includes('glendale unified'))return 'GUSD';if(l.includes('bellflower')||l.includes('burbank'))return 'BUSD';return d.replace(/ Unified School District/,'').replace(/ Unified/,'').trim()||'—';}
 function inits(n){if(!n)return '?';const p=n.trim().split(/\s+/);return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():n.slice(0,2).toUpperCase();}
 function esc(s){return(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
-function ea(s){return(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function ea(s){s=s==null||s===''?'':String(s);return s.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function empty(g,h,p){return `<div class="empty"><div class="empty-glyph">${g}</div><h3>${h}</h3><p>${p}</p></div>`;}
 function canEdit(){return SESSION&&SESSION.accessLevel<=2;}
