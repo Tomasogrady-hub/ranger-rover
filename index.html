@@ -247,6 +247,12 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .plant-search-empty .glyph{font-size:3em;margin-bottom:10px}
 .plant-search-empty p{font-size:17px;color:var(--silver);line-height:1.55}
 
+
+/* ── NOTES TAB ── */
+#notesArea{width:100%;padding:16px;background:var(--paper);border:1px solid var(--mist);border-radius:var(--r-md);font-family:var(--font-b);font-size:18px;color:var(--ink);line-height:1.75;resize:none;outline:none;min-height:calc(100dvh - 215px);transition:border-color .15s}
+#notesArea:focus{border-color:var(--sage);background:var(--paper)}
+#notesArea::placeholder{color:var(--silver)}
+.notes-status{font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--silver);transition:opacity .3s}
 @media(min-width:450px){#app{box-shadow:0 0 0 1px var(--mist),0 20px 60px rgba(0,0,0,.08)}}
 </style>
 </head>
@@ -322,8 +328,19 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
 <div id="content" style="display:none">
 
+  <!-- NOTES -->
+  <div class="tab-pane active" id="tab-notes">
+    <div class="page-header">
+      <span class="page-title">My Notes</span>
+      <span class="notes-status" id="notesSaveStatus"></span>
+    </div>
+    <div style="padding:0 16px 28px">
+      <textarea id="notesArea" placeholder="Jot down reminders, to-dos, ideas…" oninput="onNotesInput()"></textarea>
+    </div>
+  </div>
+
   <!-- SCHOOLS -->
-  <div class="tab-pane active" id="tab-schools">
+  <div class="tab-pane" id="tab-schools">
     <div class="filter-row" id="schoolFilters">
       <button class="chip"        data-filter="all"        data-label="All"           onclick="filterSchools('all')">All</button>
       <button class="chip active" data-filter="active"     data-label="🟢 Active"     onclick="filterSchools('active')">🟢 Active</button>
@@ -440,7 +457,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /content -->
 
 <div id="nav" style="display:none">
-  <button class="nav-btn active" data-tab="schools"  onclick="switchTab('schools')"><span class="nav-icon">🏫</span>Schools</button>
+  <button class="nav-btn active" id="navNotes" data-tab="notes" onclick="switchTab('notes')"><span class="nav-icon">📝</span>Notes</button>
+  <button class="nav-btn" data-tab="schools"  onclick="switchTab('schools')"><span class="nav-icon">🏫</span>Schools</button>
   <button class="nav-btn"        data-tab="rangers"  onclick="switchTab('rangers')"  id="navRangers"><span class="nav-icon">🧑‍🌾</span>Rangers</button>
   <button class="nav-btn"        data-tab="people"   onclick="switchTab('people')"   id="navPeople"><span class="nav-icon">👥</span>People</button>
   <button class="nav-btn"        data-tab="map"      onclick="switchTab('map',true)"><span class="nav-icon">🗺</span>Map</button>
@@ -625,7 +643,9 @@ function showApp(){
   const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
   const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
-  loadData();
+  switchTab('notes');          // show notes immediately
+  loadNotes();                 // fast single-cell fetch — renders in ~300ms
+  loadData();                  // full data loads in background
 }
 
 /* ═══ API ═══ */
@@ -1686,8 +1706,10 @@ function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay
 function switchTab(tab,initMapFlag=false){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
+  document.getElementById('searchbar').style.display=tab==='notes'?'none':'block';
   if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();},50);
   if(tab==='plants')initPlants();
+  if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
 }
 function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
 function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();}
@@ -2042,6 +2064,47 @@ async function _uploadHumanPhoto(email,file){
 }
 
 /* ═══ SETTINGS ═══ */
+
+/* ═══ NOTES ═══ */
+let _noteSaveTimer=null;
+
+async function loadNotes(){
+  if(!SESSION||!CFG.URL)return;
+  // Show cached version instantly while fresh data fetches
+  const cached=localStorage.getItem('rr_notes_'+SESSION.email);
+  const ta=document.getElementById('notesArea');
+  if(cached!==null&&ta)ta.value=cached;
+  try{
+    const res=await gasPost({action:'getNotes',email:SESSION.email});
+    if(res.ok){
+      if(ta)ta.value=res.notes||'';
+      localStorage.setItem('rr_notes_'+SESSION.email,res.notes||'');
+    }
+  }catch(e){}
+}
+
+function onNotesInput(){
+  const st=document.getElementById('notesSaveStatus');
+  if(st)st.textContent='';
+  clearTimeout(_noteSaveTimer);
+  _noteSaveTimer=setTimeout(saveNotes,1500);
+}
+
+async function saveNotes(){
+  const ta=document.getElementById('notesArea');
+  if(!ta||!SESSION||!CFG.URL)return;
+  const text=ta.value;
+  const st=document.getElementById('notesSaveStatus');
+  localStorage.setItem('rr_notes_'+SESSION.email,text);
+  if(st)st.textContent='Saving…';
+  try{
+    await gasPost({action:'saveNotes',email:SESSION.email,notes:text});
+    if(st){st.textContent='✓ Saved';setTimeout(()=>{if(st)st.textContent='';},2000);}
+  }catch(e){
+    if(st)st.textContent='⚠ Offline';
+  }
+}
+
 function saveGasUrl(){const u=document.getElementById('gasUrlInput').value.trim();CFG.URL=u;localStorage.setItem('rr_gas_url',u);localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);switchTab('schools');loadData(true);}
 function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);loadData(true);}
 window.addEventListener('DOMContentLoaded',()=>{if(CFG.URL&&document.getElementById('gasUrlInput'))document.getElementById('gasUrlInput').value=CFG.URL;});
