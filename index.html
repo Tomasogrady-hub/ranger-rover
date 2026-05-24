@@ -75,10 +75,9 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 /* ── CONTENT ── */
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .tab-pane{display:none}.tab-pane.active{display:block}
-.filter-row{display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--mist);padding:0 16px}
-.filter-row::-webkit-scrollbar{display:none}
-.chip{flex-shrink:0;padding:14px 16px;border:none;background:transparent;font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--silver);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
-.chip.active{color:var(--grove);border-bottom-color:var(--grove)}
+.filter-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--mist)}
+.chip{flex-shrink:0;padding:6px 11px;border:1px solid var(--mist);border-radius:99px;background:var(--fog);font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--stone);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+.chip.active{background:var(--grove);border-color:var(--grove);color:#fff}
 .page-header{padding:20px 20px 12px;display:flex;align-items:baseline;justify-content:space-between}
 .page-title{font-family:var(--font-d);font-size:45px;font-weight:300;font-style:italic;color:var(--ink)}
 .page-count{font-size:15px;font-weight:400;letter-spacing:0.12em;text-transform:uppercase;color:var(--silver)}
@@ -92,7 +91,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .dm-lausd{background:var(--grove)}.dm-busd{background:var(--amber)}.dm-gusd{background:var(--clay)}.dm-other{background:var(--silver)}
 .school-info{flex:1;min-width:0}
 .school-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}
-.school-name{font-size:23px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.school-name{font-size:20px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .dist-label{font-size:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--stone);flex-shrink:0}
 .school-address{font-size:16px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
 .ranger-line{display:flex;align-items:center;gap:6px;font-size:16px;color:var(--sage)}
@@ -193,6 +192,15 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 #mapContainer{position:absolute;inset:0;top:0}
 #tab-map{position:relative;height:100%}
 #map{position:absolute;inset:0}
+#mapTypeFilters{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;gap:5px;flex-wrap:wrap;justify-content:center;padding:0 8px;pointer-events:none;display:none}
+#mapTypeFilters button{pointer-events:all}
+.map-chip{padding:7px 13px;border:none;border-radius:99px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;white-space:nowrap;background:rgba(255,255,255,.93);color:var(--stone);box-shadow:0 2px 8px rgba(0,0,0,.2);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:background .15s,color .15s}
+.map-chip.active{color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.28)}
+.map-chip[data-filter="all"].active{background:var(--grove)}
+.map-chip[data-filter="active"].active{background:var(--grove)}
+.map-chip[data-filter="future"].active{background:var(--blue)}
+.map-chip[data-filter="inactive"].active{background:var(--stone)}
+.map-chip[data-filter="possible"].active{background:var(--amber)}
 .leaflet-tooltip.map-label{background:white;border:none;box-shadow:0 1px 5px rgba(0,0,0,.2);border-radius:4px;padding:3px 7px;font-size:13px;font-family:'Outfit',sans-serif;font-weight:500;white-space:nowrap;color:#1a1a1a;pointer-events:auto!important;cursor:pointer}
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
 .leaflet-tooltip.map-label::before{display:none}
@@ -317,12 +325,16 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
   <!-- SCHOOLS -->
   <div class="tab-pane active" id="tab-schools">
     <div class="filter-row" id="schoolFilters">
-      <button class="chip active" data-filter="all"        onclick="filterSchools('all')">All</button>
-      <button class="chip"        data-filter="lausd"      onclick="filterSchools('lausd')">LAUSD</button>
-      <button class="chip"        data-filter="busd"       onclick="filterSchools('busd')">BUSD</button>
-      <button class="chip"        data-filter="gusd"       onclick="filterSchools('gusd')">GUSD</button>
-      <button class="chip"        data-filter="no-ranger"  onclick="filterSchools('no-ranger')">Unassigned</button>
-      <button class="chip"        data-filter="has-chores" onclick="filterSchools('has-chores')">⚠ Open Chores</button>
+      <button class="chip"        data-filter="all"        data-label="All"           onclick="filterSchools('all')">All</button>
+      <button class="chip active" data-filter="active"     data-label="🟢 Active"     onclick="filterSchools('active')">🟢 Active</button>
+      <button class="chip"        data-filter="future"     data-label="🔵 Future"     onclick="filterSchools('future')">🔵 Future</button>
+      <button class="chip"        data-filter="inactive"   data-label="⚫ Inactive"   onclick="filterSchools('inactive')">⚫ Inactive</button>
+      <button class="chip"        data-filter="possible"   data-label="🟡 Possible"   onclick="filterSchools('possible')">🟡 Possible</button>
+      <button class="chip"        data-filter="lausd"      data-label="LAUSD"         onclick="filterSchools('lausd')">LAUSD</button>
+      <button class="chip"        data-filter="busd"       data-label="BUSD"          onclick="filterSchools('busd')">BUSD</button>
+      <button class="chip"        data-filter="gusd"       data-label="GUSD"          onclick="filterSchools('gusd')">GUSD</button>
+      <button class="chip"        data-filter="no-ranger"  data-label="Unassigned"    onclick="filterSchools('no-ranger')">Unassigned</button>
+      <button class="chip"        data-filter="has-chores" data-label="⚠ Open Chores" onclick="filterSchools('has-chores')">⚠ Open Chores</button>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
@@ -359,6 +371,13 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
   <!-- MAP -->
   <div class="tab-pane" id="tab-map" style="height:100%;position:relative">
+    <div id="mapTypeFilters">
+      <button class="map-chip active" data-filter="all"      onclick="filterMap('all')">All</button>
+      <button class="map-chip"        data-filter="active"   onclick="filterMap('active')">🟢 Active</button>
+      <button class="map-chip"        data-filter="future"   onclick="filterMap('future')">🔵 Future</button>
+      <button class="map-chip"        data-filter="inactive" onclick="filterMap('inactive')">⚫ Inactive</button>
+      <button class="map-chip"        data-filter="possible" onclick="filterMap('possible')">🟡 Possible</button>
+    </div>
     <div id="mapContainer"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div><div id="map"></div></div>
   </div>
 
@@ -446,7 +465,7 @@ const CFG={
 };
 let DATA={sites:[],humans:[],roles:[],chores:[]};
 let SESSION=null;
-let csf='all',crf='all',cpf='all',ccf='all',sq='';
+let csf='active',crf='all',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
 let _plantSearchTimer=null;
 
@@ -603,6 +622,7 @@ function showApp(){
   document.getElementById('navChores').style.display='flex';
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
+  const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
   const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   loadData();
@@ -1002,34 +1022,68 @@ function getMySchools(){
   });
 }
 
+function updateSchoolFilterCounts(){
+  const pool=getMySchools()||DATA.sites;
+  const counts={all:pool.length,lausd:0,busd:0,gusd:0,'no-ranger':0,'has-chores':0,active:0,future:0,inactive:0,possible:0};
+  pool.forEach(s=>{
+    const dist=dc(sf(s,'District','district'));
+    if(dist==='lausd')counts.lausd++;
+    else if(dist==='busd')counts.busd++;
+    else if(dist==='gusd')counts.gusd++;
+    const r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
+    if(!r1n&&!r1e&&!gkn&&!gke)counts['no-ranger']++;
+    if(openChoresForSite(sf(s,'Name','name')).length>0)counts['has-chores']++;
+    const t=(sf(s,'Type','type')||'').toLowerCase();
+    if(t.includes('active'))counts.active++;
+    if(t.includes('future'))counts.future++;
+    if(t.includes('inactive'))counts.inactive++;
+    if(t.includes('possible'))counts.possible++;
+  });
+  document.querySelectorAll('#schoolFilters .chip').forEach(c=>{
+    const f=c.dataset.filter,lbl=c.dataset.label||f;
+    const n=counts[f]!==undefined?counts[f]:0;
+    c.textContent=`${lbl} (${n})`;
+  });
+}
+
 function renderSchools(){
   const q=sq.toLowerCase(),f=csf;
   const pool=getMySchools()||DATA.sites;
   const sites=pool.filter(s=>{
-    const name=sf(s,'Name','name'),dist=sf(s,'District','district'),r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
+    const name=sf(s,'Name','name'),dist=sf(s,'District','district'),type=(sf(s,'Type','type')||'').toLowerCase(),r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
     if(q&&!(name+dist+r1n+r1e+gkn).toLowerCase().includes(q))return false;
     if(SESSION&&SESSION.accessLevel<=2){
       const d=dc(dist);
-      if(f==='lausd'&&d!=='lausd')return false;if(f==='busd'&&d!=='busd')return false;if(f==='gusd'&&d!=='gusd')return false;
+      if(f==='lausd'&&d!=='lausd')return false;
+      if(f==='busd'&&d!=='busd')return false;
+      if(f==='gusd'&&d!=='gusd')return false;
       if(f==='no-ranger'&&(r1n||r1e||gkn||gke))return false;
       if(f==='has-chores'&&openChoresForSite(name).length===0)return false;
+      if(f==='active'&&!type.includes('active'))return false;
+      if(f==='future'&&!type.includes('future'))return false;
+      if(f==='inactive'&&!type.includes('inactive'))return false;
+      if(f==='possible'&&!type.includes('possible'))return false;
     }
     return true;
   });
   window._fs=sites;
   document.getElementById('schoolCount').textContent=sites.length+' sites';
   document.getElementById('schoolFilters').style.display=SESSION&&SESSION.accessLevel>=3?'none':'flex';
+  if(SESSION&&SESSION.accessLevel<=2)updateSchoolFilterCounts();
   if(!sites.length){document.getElementById('schoolList').innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):empty('—','No results','Try a different search or filter.');return;}
   document.getElementById('schoolList').innerHTML=sites.map((s,i)=>{
-    const name=sf(s,'Name','name'),addr=sf(s,'FullAddress','Full Address','address'),dist=sf(s,'District','district'),type=sf(s,'Type','type');
+    const name=sf(s,'Name','name'),addr=sf(s,'FullAddress','Full Address','address'),dist=sf(s,'District','district'),type=sf(s,'Type','type')||'';
     const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||hn(sf(s,'Ranger 1','Ranger1'));
     const gkn=sf(s,'Garden Keeper Name','GardenKeeperName')||hn(sf(s,'Garden Keeper','GardenKeeper'));
-    const inactive=!type.toLowerCase().includes('active'),hasR=!!(r1n||gkn);
+    const tl=type.toLowerCase();
+    const dimmed=f==='all'&&!tl.includes('active');
+    const hasR=!!(r1n||gkn);
     const openChores=openChoresForSite(name);
-    return `<div class="school-card" onclick="showSchoolDetail(${i})"${inactive?' style="opacity:.5"':''}>
+    return `<div class="school-card" onclick="showSchoolDetail(${i})"${dimmed?' style="opacity:.5"':''}>
       <div class="sdm dm-${dc(dist)}"></div>
       <div class="school-info">
-        <div class="school-name-row"><span class="school-name">${name}</span></div>
+        <div class="school-name-row"><span class="school-name">${name}</span><span class="dist-label">${sd(dist)}</span></div>
+        ${addr?`<div class="school-address">${addr.replace(/, USA$/,'')}</div>`:''}
         <div class="ranger-line ${hasR?'':'no-ranger'}"><div class="rdot ${hasR?'':'empty'}"></div>${r1n||gkn||'No ranger assigned'}</div>
         ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
       </div>
@@ -1113,9 +1167,27 @@ function filterChores(f){
   renderChores();
 }
 
+function updateMapFilterCounts(){
+  if(SESSION&&SESSION.accessLevel>=3)return;
+  const pool=DATA.sites;
+  const counts={all:pool.length,active:0,future:0,inactive:0,possible:0};
+  pool.forEach(s=>{
+    const t=(sf(s,'Type','type')||'').toLowerCase();
+    if(t.includes('active'))counts.active++;
+    if(t.includes('future'))counts.future++;
+    if(t.includes('inactive'))counts.inactive++;
+    if(t.includes('possible'))counts.possible++;
+  });
+  const labels={all:'All',active:'🟢 Active',future:'🔵 Future',inactive:'⚫ Inactive',possible:'🟡 Possible'};
+  document.querySelectorAll('#mapTypeFilters .map-chip').forEach(c=>{
+    const f=c.dataset.filter,n=counts[f]!==undefined?counts[f]:0;
+    c.textContent=`${labels[f]||f} (${n})`;
+  });
+}
+
 function renderAll(){
   renderSchools();
-  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();}
+  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();updateMapFilterCounts();}
   renderChores();
   if(mapInited)refreshMapChores();
 }
@@ -1139,18 +1211,31 @@ function initMap(){
 
 function buildMapMarkers(){
   if(!_leafletMap)return;
-  /* ── ACCESS LEVEL 3: only show their own schools ── */
-  const sites=getMySchools()||DATA.sites;
+  /* level 3 sees only their schools; levels 1+2 can also filter by type */
+  let sites=getMySchools()||DATA.sites;
+  if(cmf!=='all'&&SESSION&&SESSION.accessLevel<=2){
+    sites=sites.filter(s=>{
+      const t=(sf(s,'Type','type')||'').toLowerCase();
+      if(cmf==='active')return t.includes('active');
+      if(cmf==='future')return t.includes('future');
+      if(cmf==='inactive')return t.includes('inactive');
+      if(cmf==='possible')return t.includes('possible');
+      return true;
+    });
+  }
   sites.forEach(s=>{
     const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
     const parts=ll.toString().split(',');if(parts.length<2)return;
     const lat=parseFloat(parts[0]),lng=parseFloat(parts[1]);if(isNaN(lat)||isNaN(lng))return;
     const name=sf(s,'Name','name');
+    const t=(sf(s,'Type','type')||'').toLowerCase();
     const openC=openChoresForSite(name).length;
     const label=shortLabel(name)+(openC>0?` (${openC}⚠)`:'');
+    /* color: open chores = amber/warn; else by type */
+    const dotColor=openC>0?'#c07000':t.includes('future')?'#1a5f8a':t.includes('inactive')?'#9e9e9e':t.includes('possible')?'#b87333':'#1e3a1e';
     const icon=L.divIcon({
       className:'',
-      html:`<div style="width:14px;height:14px;background:${openC>0?'#c07000':'#1e3a1e'};border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer"></div>`,
+      html:`<div style="width:14px;height:14px;background:${dotColor};border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer"></div>`,
       iconSize:[14,14],iconAnchor:[7,7]
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
@@ -1159,6 +1244,12 @@ function buildMapMarkers(){
     marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-10],interactive:true});
     marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
   });
+}
+
+function filterMap(f){
+  cmf=f;
+  document.querySelectorAll('#mapTypeFilters .map-chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));
+  refreshMapChores();
 }
 
 function refreshMapChores(){
@@ -1213,6 +1304,15 @@ function renderSchoolDetail(site,editMode){
     }
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
+      <div class="edit-wrap"><div class="edit-label">Program Status (Type)</div>
+        <select class="edit-input" id="ef-Type" style="font-size:17px">
+          <option value="Active Ranger Program"${type==='Active Ranger Program'?' selected':''}>🟢 Active Ranger Program</option>
+          <option value="Future Ranger Program"${type==='Future Ranger Program'?' selected':''}>🔵 Future Ranger Program</option>
+          <option value="Inactive Ranger Program"${type==='Inactive Ranger Program'?' selected':''}>⚫ Inactive Ranger Program</option>
+          <option value="Possible Ranger Program"${type==='Possible Ranger Program'?' selected':''}>🟡 Possible Ranger Program</option>
+        </select>
+      </div>
+      <hr class="section-divider">
       ${canAssign?`
       <div class="edit-wrap" style="position:relative;z-index:95"><div class="edit-label">Ranger 1</div>${bdd('r1',rangers,r1e,'Ranger')}</div>
       <div class="edit-wrap" style="position:relative;z-index:90"><div class="edit-label">Ranger 2</div>${bdd('r2',rangers,r2e,'Ranger')}</div>
@@ -1327,6 +1427,7 @@ async function saveSiteEdit(siteName){
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
   const updates={};
+  const tv=gv('ef-Type');if(tv!==null)updates['Type']=tv;
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
   const sch=gv('ef-Schedule');if(sch!==null)updates['Schedule']=sch;
   const mi=gv('ef-MainImg');if(mi!==null)updates['Main Image']=mi;
@@ -1586,7 +1687,7 @@ function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay
 function switchTab(tab,initMapFlag=false){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();},50);
+  if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();},50);
   if(tab==='plants')initPlants();
 }
 function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
