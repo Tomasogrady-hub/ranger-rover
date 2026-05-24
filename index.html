@@ -625,7 +625,18 @@ async function loadData(force=false){
       }
     }catch(e){setSync(false);}
   }
-  DATA={sites:DEMO_SITES,humans:DEMO_HUMANS,roles:['Ranger','Master Ranger','Principal','Main Contact 1','Main Contact 2','Main Contact 3','Plant Manager','School Administrative Assistant','Teacher','Garden Keeper'],chores:[]};
+  DATA={sites:DEMO_SITES,humans:DEMO_HUMANS,roles:[
+    {name:'Ranger',description:'',category:'ranger'},
+    {name:'Master Ranger',description:'',category:'ranger'},
+    {name:'Principal',description:'',category:'principal'},
+    {name:'Main Contact 1',description:'',category:''},
+    {name:'Main Contact 2',description:'',category:''},
+    {name:'Main Contact 3',description:'',category:''},
+    {name:'Plant Manager',description:'',category:'plant_manager'},
+    {name:'School Administrative Assistant',description:'',category:'saa'},
+    {name:'Teacher',description:'',category:''},
+    {name:'Garden Keeper',description:'',category:'garden_keeper'}
+  ],chores:[]};
   renderAll();
 }
 
@@ -640,7 +651,7 @@ async function saveToSheet(sheet,key,updates){
   localStorage.setItem(CFG.CK,JSON.stringify(DATA));
 }
 async function addHumanToSheet(data){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'addHuman',data});if(!j.ok)throw new Error(j.error||'Add failed');DATA.humans.push(data);localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
-async function addRoleToSheet(role){if(!CFG.URL)throw new Error('No API URL');await gasPost({action:'addRole',role});if(!DATA.roles.includes(role))DATA.roles.push(role);localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
+async function addRoleToSheet(role){if(!CFG.URL)throw new Error('No API URL');await gasPost({action:'addRole',role});if(!DATA.roles.some(r=>r.name===role))DATA.roles.push({name:role,description:'',category:''});localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function reassignChore(choreId,newAssignee){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'reassignChore',choreId,newAssignee});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c['Assigned to']=newAssignee;localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function closeChoreApi(choreId){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'closeChore',choreId});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c.Status='Closed';localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function updateChoreApi(choreId,updates){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'updateChore',choreId,updates});if(!j.ok)throw new Error(j.error||'Update failed');}
@@ -733,10 +744,9 @@ function renderChoreDetail(c,editMode){
           style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:10px"
           onerror="this.style.display='none'">`:
           `<div id="chore-edit-img" style="display:none"></div>`}
-        <label style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+        <button type="button" onclick="showPhotoOptions(f=>previewChorePhotoFile(f,'chore-edit-img','chore-photo-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
           📷 ${imgSrc?'Replace Photo':'Add Photo'}
-          <input type="file" accept="image/*" style="display:none" onchange="previewChorePhoto(this,'chore-edit-img')">
-        </label>
+        </button>
         <div style="font-size:14px;color:var(--silver);margin-top:5px" id="chore-photo-status"></div>
       </div>
       <div class="edit-actions">
@@ -853,12 +863,19 @@ async function _uploadChorePhotoBase64(choreId,file){
   });
 }
 
+/* Returns humans whose Role matches any role with the given category */
+function humansByCategory(cat){
+  if(!cat)return DATA.humans;
+  const names=DATA.roles.filter(r=>r.category===cat).map(r=>r.name);
+  return DATA.humans.filter(h=>names.includes(h.Role||h.role||''));
+}
+
 /* ═══ ADD NEW CHORE ═══ */
 function _isAssignable(h){
-  const role=(h.Role||h.role||'').toLowerCase();
-  const roleAlt=(h['Role Additional']||h.RoleAdditional||'').toLowerCase();
-  return role.includes('ranger')||role.includes('garden keeper')||
-         roleAlt.includes('ranger')||roleAlt.includes('garden keeper');
+  const role=(h.Role||h.role||'');
+  return DATA.roles.some(function(r){
+    return r.name===role&&(r.category==='ranger'||r.category==='garden_keeper');
+  });
 }
 
 function showAddChore(){
@@ -912,10 +929,9 @@ function showAddChore(){
     </div>
     <div class="edit-wrap">
       <div class="edit-label">Photo (optional)</div>
-      <label style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+      <button type="button" onclick="showPhotoOptions(f=>previewNewChorePhotoFile(f))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
         📷 Add Photo
-        <input type="file" accept="image/*" style="display:none" onchange="previewNewChorePhoto(this)">
-      </label>
+      </button>
       <div id="nc-photo-preview" style="margin-top:8px"></div>
       <div style="font-size:14px;color:var(--silver);margin-top:4px" id="nc-photo-status"></div>
     </div>
@@ -1175,11 +1191,11 @@ function renderSchoolDetail(site,editMode){
   if(editMode){
     const lvl=SESSION?SESSION.accessLevel:3;
     const canAssign=true; // all access levels can edit site fields
-    const rangers=DATA.humans.filter(h=>{const r=(h.Role||h.role||'').toLowerCase();return r.includes('ranger');});
-    const gardenKeepers=DATA.humans.filter(h=>{const r=(h.Role||h.role||'').toLowerCase();return r.includes('ranger')||r.includes('garden keeper');});
-    const principals=DATA.humans.filter(h=>(h.Role||h.role||'').toLowerCase().includes('principal'));
-    const plantManagers=DATA.humans.filter(h=>(h.Role||h.role||'').toLowerCase().includes('plant manager'));
-    const saas=DATA.humans.filter(h=>{const r=(h.Role||h.role||'').toLowerCase();return r.includes('school administrative assistant')||r.includes('saa');});
+    const rangers       = humansByCategory('ranger');
+    const gardenKeepers = humansByCategory('garden_keeper');
+    const principals    = humansByCategory('principal');
+    const plantManagers = humansByCategory('plant_manager');
+    const saas          = humansByCategory('saa');
     const allH=DATA.humans;
     function personOpt(h){const n=fullName(h)||h.Email;const e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;}
     function bdd(id,people,curEmail,roleForNew){
@@ -1217,10 +1233,9 @@ function renderSchoolDetail(site,editMode){
           style="${mainImg?'':'display:none;'}width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <label style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-MainImage','MainImage'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${mainImg?'Replace':'Add'} Photo
-            <input type="file" accept="image/*" style="display:none" onchange="previewSitePhoto(this,'ef-preview-MainImage','MainImage')">
-          </label>
+          </button>
           <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
         <input class="edit-input" id="ef-MainImg" value="${ea(sf(site,'Main Image','MainImage'))}" placeholder="Paste Google Drive or image URL…"></div>
@@ -1229,10 +1244,9 @@ function renderSchoolDetail(site,editMode){
           style="${helpImg1?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <label style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg1','HelpImg1'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg1?'Replace':'Add'} Photo
-            <input type="file" accept="image/*" style="display:none" onchange="previewSitePhoto(this,'ef-preview-HelpImg1','HelpImg1')">
-          </label>
+          </button>
           <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
         <input class="edit-input" id="ef-HelpImg1" value="${ea(sf(site,'Helpful Image 1','HelpfulImage1'))}" placeholder="Paste image URL…"></div>
@@ -1241,10 +1255,9 @@ function renderSchoolDetail(site,editMode){
           style="${helpImg2?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <label style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg2','HelpImg2'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg2?'Replace':'Add'} Photo
-            <input type="file" accept="image/*" style="display:none" onchange="previewSitePhoto(this,'ef-preview-HelpImg2','HelpImg2')">
-          </label>
+          </button>
           <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
         <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" placeholder="Paste image URL…"></div>`:''}
@@ -1348,7 +1361,7 @@ function renderPD(h,edit){
   const princAt=DATA.sites.filter(s=>sf(s,'Principal','principal')===email).map(s=>sf(s,'Name','name')).join(', ');
   const openChores=openChoresForHuman(email);
   if(edit){
-    const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r===role?' selected':''}" data-name="${r}" onclick="selectRoleItem(this,'role-select-btn','role-dd')">${r}</div>`).join('');
+    const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r.name===role?' selected':''}" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'role-select-btn','role-dd')">${r.name}</div>`).join('');
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">${avatarHtml(h,52)}<div class="sheet-title" style="font-size:28px">${name}</div></div>
@@ -1403,7 +1416,7 @@ function renderPD(h,edit){
 }
 
 function selectRoleItem(el,btnId,panelId){const btn=document.getElementById(btnId);btn.textContent=el.dataset.name;btn.dataset.value=el.dataset.name;document.getElementById(panelId).classList.remove('open');}
-async function addNewRole(){const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(DATA.roles.includes(r)){alert('Role already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
+async function addNewRole(){const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(DATA.roles.some(x=>x.name===r)){alert('Role already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
 function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
 
 async function savePerson(orig){
@@ -1454,7 +1467,7 @@ function showAddContact(){
         <button type="button" class="custom-select-btn" id="nc-role-btn" onclick="toggleDropdown('nc-role-dd')" data-value="">— Select role —</button>
         <div class="dropdown-panel" id="nc-role-dd">
           <div class="dropdown-search"><input placeholder="Search roles…" oninput="filterDropdownItems('nc-role-dd',this.value)"></div>
-          <div class="dropdown-list">${DATA.roles.map(r=>`<div class="dropdown-item" data-name="${r}" onclick="selectRoleItem(this,'nc-role-btn','nc-role-dd')">${r}</div>`).join('')}</div>
+          <div class="dropdown-list">${DATA.roles.map(r=>`<div class="dropdown-item" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'nc-role-btn','nc-role-dd')">${r.name}</div>`).join('')}</div>
         </div>
       </div>
     </div>
@@ -1477,7 +1490,7 @@ async function saveNewContact(){
 
 /* ═══ ADD CONTACT FOR SITE (from site edit dropdown) ═══ */
 function showAddContactForSite(siteName, prefillRole, returnBtnId){
-  const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r===prefillRole?' selected':''}" data-name="${ea(r)}" onclick="selectRoleItem(this,'acfs-role-btn','acfs-role-dd')">${r}</div>`).join('');
+  const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r.name===prefillRole?' selected':''}" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'acfs-role-btn','acfs-role-dd')">${r.name}</div>`).join('');
   const modal=document.createElement('div');
   modal.id='acfs-modal';
   modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end';
@@ -1520,7 +1533,7 @@ function addNewRoleAcfs(){
   const role=prompt('Enter new role name:');
   if(!role||!role.trim())return;
   const r=role.trim();
-  if(!DATA.roles.includes(r))DATA.roles.push(r);
+  if(!DATA.roles.some(x=>x.name===r))DATA.roles.push({name:r,description:'',category:''});
   const list=document.querySelector('#acfs-role-dd .dropdown-list');
   if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'acfs-role-btn','acfs-role-dd');};list.appendChild(item);}
   const btn=document.getElementById('acfs-role-btn');if(btn){btn.textContent=r;btn.dataset.value=r;}
@@ -1728,10 +1741,9 @@ async function showSelfEdit(){
           </div>
           <div>
             <div class="sheet-title" style="font-size:28px">My Profile</div>
-            <label style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:13px;color:var(--sage);cursor:pointer;font-family:var(--font-b)">
+            <button type="button" onclick="showPhotoOptions(f=>previewSelfPhotoFile(f))" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:8px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);font-size:13px;color:var(--sage);cursor:pointer;font-family:var(--font-b)">
               📷 ${resolvedImg?'Replace':'Add'} photo
-              <input type="file" accept="image/*" style="display:none" onchange="previewSelfPhoto(this)">
-            </label>
+            </button>
           </div>
         </div>
         <button class="sheet-x" onclick="closeDetail()">✕</button>
@@ -1797,6 +1809,83 @@ async function deleteChoreFromDetail(choreId,description){
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     closeDetail();renderAll();
   }catch(e){alert('Error: '+e.message);}
+}
+
+/* ═══ PHOTO ACTION SHEET ═══ */
+function showPhotoOptions(onFileCb){
+  const modal=document.createElement('div');
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:26px 26px 0 0;width:100%;padding:20px 20px calc(20px + var(--safe-bottom))">
+      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:16px;text-align:center">Add Photo</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button id="po-camera" style="padding:16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">📷 Take Photo</button>
+        <button id="po-gallery" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">🖼 Choose from Gallery</button>
+        <button id="po-cancel" style="padding:14px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer">Cancel</button>
+      </div>
+    </div>`;
+  const cleanup=()=>modal.remove();
+  modal.querySelector('#po-camera').onclick=()=>{cleanup();_pickPhoto(true,onFileCb);};
+  modal.querySelector('#po-gallery').onclick=()=>{cleanup();_pickPhoto(false,onFileCb);};
+  modal.querySelector('#po-cancel').onclick=cleanup;
+  modal.addEventListener('click',e=>{if(e.target===modal)cleanup();});
+  document.body.appendChild(modal);
+}
+
+function _pickPhoto(useCamera,cb){
+  const input=document.createElement('input');
+  input.type='file';input.accept='image/*';
+  if(useCamera)input.setAttribute('capture','environment');
+  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0';
+  input.onchange=()=>{if(input.files[0])cb(input.files[0]);input.remove();};
+  input.oncancel=()=>input.remove();
+  document.body.appendChild(input);
+  input.click();
+}
+
+/* File-accepting wrappers for each preview function */
+function previewChorePhotoFile(file,imgId,statusId){
+  if(!file)return;
+  window._pendingChorePhoto=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=document.getElementById(imgId);
+    if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:10px';}
+    const st=document.getElementById(statusId||'chore-photo-status');if(st)st.textContent=`📎 ${file.name} — ready`;
+  };
+  reader.readAsDataURL(file);
+}
+function previewNewChorePhotoFile(file){
+  if(!file)return;
+  window._pendingNewChorePhoto=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const p=document.getElementById('nc-photo-preview');
+    if(p)p.innerHTML=`<img src="${e.target.result}" style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm)">`;
+    const st=document.getElementById('nc-photo-status');if(st)st.textContent=`📎 ${file.name}`;
+  };
+  reader.readAsDataURL(file);
+}
+function previewSitePhotoFile(file,previewId,fieldKey){
+  if(!file)return;
+  if(!window._pendingSitePhotos)window._pendingSitePhotos={};
+  window._pendingSitePhotos[fieldKey]=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=document.getElementById(previewId);
+    if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px';}
+  };
+  reader.readAsDataURL(file);
+}
+function previewSelfPhotoFile(file){
+  if(!file)return;
+  window._pendingSelfPhoto=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wrap=document.getElementById('self-avatar-wrap');
+    if(wrap)wrap.innerHTML=`<img id="self-img-preview" src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  reader.readAsDataURL(file);
 }
 
 /* ═══ PHOTO UPLOAD HELPERS ═══ */
