@@ -1667,21 +1667,61 @@ async function saveNewContactForSite(returnBtnId){
   const roleBtn=document.getElementById('acfs-role-btn');
   const fn=(document.getElementById('acfs-FirstName').value||'').trim();
   const ln=(document.getElementById('acfs-LastName').value||'').trim();
+  const siteName=(document.getElementById('acfs-School').value||'').trim();
+  const role=roleBtn?(roleBtn.dataset.value||roleBtn.textContent.trim()):'';
   const data={
     'First Name':fn,'Last Name':ln,
     'Email':email,
     'Mobile':(document.getElementById('acfs-Mobile').value||'').trim(),
-    'Role':roleBtn?(roleBtn.dataset.value||roleBtn.textContent.trim()):'',
-    'School':(document.getElementById('acfs-School').value||'').trim(),
+    'Role':role,
+    'School':siteName,
   };
+
+  // Maps the dropdown button ID back to the column name in the Sites sheet
+  const BTN_TO_COL={
+    'dsb-r1':   'Ranger 1',
+    'dsb-r2':   'Ranger 2',
+    'dsb-gk':   'Garden Keeper',
+    'dsb-prin': 'Principal',
+    'dsb-saa':  'School Administrative Assistant',
+    'dsb-mc1':  'Main Contact 1',
+    'dsb-mc2':  'Main Contact 2',
+    'dsb-mc3':  'Main Contact 3',
+    'dsb-pm':   'Plant Manager',
+  };
+  const siteCol=BTN_TO_COL[returnBtnId];
+
   try{
+    // 1. Add the person to the Humans sheet
     await addHumanToSheet(data);
+
+    // 2. If this contact was added from a site edit form,
+    //    write their email into the correct column of the Sites sheet too.
+    if(siteName && siteCol){
+      const displayName=(fn+' '+ln).trim()||email;
+      const siteUpdates={[siteCol]:email};
+      // Rangers and Garden Keepers also have a companion "Name" column
+      if(siteCol==='Ranger 1')      siteUpdates['Ranger 1 Name']=displayName;
+      if(siteCol==='Ranger 2')      siteUpdates['Ranger 2 Name']=displayName;
+      if(siteCol==='Garden Keeper') siteUpdates['Garden Keeper Name']=displayName;
+      try{
+        await saveToSheet('Sites', siteName, siteUpdates);
+        // Patch in-memory cache so the site card/detail reflects the change immediately
+        const site=DATA.sites.find(s=>sf(s,'Name','name')===siteName);
+        if(site)Object.assign(site, siteUpdates);
+      }catch(se){
+        // Non-fatal: person was saved; site assignment failed. Warn and carry on.
+        console.warn('Site column update failed:', se.message);
+        m.textContent='✓ Person added (site assignment may need a manual refresh)';
+      }
+    }
+
     m.textContent='✓ Added!';
     // Auto-select the new contact in the originating dropdown
     const displayName=(fn+' '+ln).trim()||email;
     const btn=document.getElementById(returnBtnId);
     if(btn){btn.textContent=displayName;btn.dataset.value=email;}
-    // Also inject them into the dropdown list so they appear immediately
+    // Inject them into the open dropdown list so they appear immediately
     const ddPanelId='dd-'+returnBtnId.replace('dsb-','');
     const list=document.querySelector('#'+ddPanelId+' .dropdown-list');
     if(list){
