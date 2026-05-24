@@ -1059,7 +1059,7 @@ function renderSchools(){
       if(f==='gusd'&&d!=='gusd')return false;
       if(f==='no-ranger'&&(r1n||r1e||gkn||gke))return false;
       if(f==='has-chores'&&openChoresForSite(name).length===0)return false;
-      if(f==='active'&&!type.includes('active'))return false;
+      if(f==='active'&&(!type.includes('active')||type.includes('inactive')))return false;
       if(f==='future'&&!type.includes('future'))return false;
       if(f==='inactive'&&!type.includes('inactive'))return false;
       if(f==='possible'&&!type.includes('possible'))return false;
@@ -1083,7 +1083,7 @@ function renderSchools(){
       <div class="sdm dm-${dc(dist)}"></div>
       <div class="school-info">
         <div class="school-name-row"><span class="school-name">${name}</span></div>
-        <div class="ranger-line ${hasR?'':'no-ranger'}"><div class="rdot ${hasR?'':'empty'}"></div>${r1n||gkn||'No ranger assigned'}</div>
+        ${hasR?`<div class="ranger-line"><div class="rdot"></div>${r1n||gkn}</div>`:''}
         ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
       </div>
       <span class="school-chevron">›</span>
