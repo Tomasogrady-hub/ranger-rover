@@ -75,12 +75,9 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 /* ── CONTENT ── */
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .tab-pane{display:none}.tab-pane.active{display:block}
-.filter-row-wrap{position:relative;border-bottom:1px solid var(--mist)}
-.filter-row-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:36px;background:linear-gradient(to right,transparent,var(--paper));pointer-events:none;z-index:2}
-.filter-row{display:flex;overflow-x:auto;scrollbar-width:none;padding:0 16px}
-.filter-row::-webkit-scrollbar{display:none}
-.chip{flex-shrink:0;padding:10px 11px;border:none;background:transparent;font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
-.chip.active{color:var(--grove);border-bottom-color:var(--grove)}
+.filter-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--mist)}
+.chip{flex-shrink:0;padding:6px 11px;border:1px solid var(--mist);border-radius:99px;background:var(--fog);font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--stone);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+.chip.active{background:var(--grove);border-color:var(--grove);color:#fff}
 .page-header{padding:20px 20px 12px;display:flex;align-items:baseline;justify-content:space-between}
 .page-title{font-family:var(--font-d);font-size:45px;font-weight:300;font-style:italic;color:var(--ink)}
 .page-count{font-size:15px;font-weight:400;letter-spacing:0.12em;text-transform:uppercase;color:var(--silver)}
@@ -327,7 +324,6 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
   <!-- SCHOOLS -->
   <div class="tab-pane active" id="tab-schools">
-    <div class="filter-row-wrap">
     <div class="filter-row" id="schoolFilters">
       <button class="chip"        data-filter="all"        data-label="All"           onclick="filterSchools('all')">All</button>
       <button class="chip active" data-filter="active"     data-label="🟢 Active"     onclick="filterSchools('active')">🟢 Active</button>
@@ -340,7 +336,6 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
       <button class="chip"        data-filter="no-ranger"  data-label="Unassigned"    onclick="filterSchools('no-ranger')">Unassigned</button>
       <button class="chip"        data-filter="has-chores" data-label="⚠ Open Chores" onclick="filterSchools('has-chores')">⚠ Open Chores</button>
     </div>
-    </div><!-- /filter-row-wrap -->
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
   </div>
@@ -1172,9 +1167,27 @@ function filterChores(f){
   renderChores();
 }
 
+function updateMapFilterCounts(){
+  if(SESSION&&SESSION.accessLevel>=3)return;
+  const pool=DATA.sites;
+  const counts={all:pool.length,active:0,future:0,inactive:0,possible:0};
+  pool.forEach(s=>{
+    const t=(sf(s,'Type','type')||'').toLowerCase();
+    if(t.includes('active'))counts.active++;
+    if(t.includes('future'))counts.future++;
+    if(t.includes('inactive'))counts.inactive++;
+    if(t.includes('possible'))counts.possible++;
+  });
+  const labels={all:'All',active:'🟢 Active',future:'🔵 Future',inactive:'⚫ Inactive',possible:'🟡 Possible'};
+  document.querySelectorAll('#mapTypeFilters .map-chip').forEach(c=>{
+    const f=c.dataset.filter,n=counts[f]!==undefined?counts[f]:0;
+    c.textContent=`${labels[f]||f} (${n})`;
+  });
+}
+
 function renderAll(){
   renderSchools();
-  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();}
+  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();updateMapFilterCounts();}
   renderChores();
   if(mapInited)refreshMapChores();
 }
@@ -1674,7 +1687,7 @@ function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay
 function switchTab(tab,initMapFlag=false){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();},50);
+  if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();},50);
   if(tab==='plants')initPlants();
 }
 function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
