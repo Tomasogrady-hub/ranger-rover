@@ -91,7 +91,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .dm-lausd{background:var(--grove)}.dm-busd{background:var(--amber)}.dm-gusd{background:var(--clay)}.dm-other{background:var(--silver)}
 .school-info{flex:1;min-width:0}
 .school-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}
-.school-name{font-size:20px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.school-name{font-size:23px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .dist-label{font-size:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--stone);flex-shrink:0}
 .school-address{font-size:16px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
 .ranger-line{display:flex;align-items:center;gap:6px;font-size:16px;color:var(--sage)}
@@ -1082,8 +1082,7 @@ function renderSchools(){
     return `<div class="school-card" onclick="showSchoolDetail(${i})"${dimmed?' style="opacity:.5"':''}>
       <div class="sdm dm-${dc(dist)}"></div>
       <div class="school-info">
-        <div class="school-name-row"><span class="school-name">${name}</span><span class="dist-label">${sd(dist)}</span></div>
-        ${addr?`<div class="school-address">${addr.replace(/, USA$/,'')}</div>`:''}
+        <div class="school-name-row"><span class="school-name">${name}</span></div>
         <div class="ranger-line ${hasR?'':'no-ranger'}"><div class="rdot ${hasR?'':'empty'}"></div>${r1n||gkn||'No ranger assigned'}</div>
         ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
       </div>
