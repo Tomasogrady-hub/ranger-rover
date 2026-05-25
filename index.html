@@ -1065,7 +1065,7 @@ function updateSchoolFilterCounts(){
     if(!r1n&&!r1e&&!gkn&&!gke)counts['no-ranger']++;
     if(openChoresForSite(sf(s,'Name','name')).length>0)counts['has-chores']++;
     const t=(sf(s,'Type','type')||'').toLowerCase();
-    if(t.includes('active'))counts.active++;
+    if(t.includes('active') && !t.includes('inactive'))counts.active++;
     if(t.includes('future'))counts.future++;
     if(t.includes('inactive'))counts.inactive++;
     if(t.includes('possible'))counts.possible++;
@@ -1203,7 +1203,7 @@ function updateMapFilterCounts(){
   const counts={all:pool.length,active:0,future:0,inactive:0,possible:0};
   pool.forEach(s=>{
     const t=(sf(s,'Type','type')||'').toLowerCase();
-    if(t.includes('active'))counts.active++;
+    if(t.includes('active') && !t.includes('inactive'))counts.active++;
     if(t.includes('future'))counts.future++;
     if(t.includes('inactive'))counts.inactive++;
     if(t.includes('possible'))counts.possible++;
