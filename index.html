@@ -1082,7 +1082,7 @@ function updateSchoolFilterCounts(){
     if(!r1n&&!r1e&&!gkn&&!gke)counts['no-ranger']++;
     if(openChoresForSite(sf(s,'Name','name')).length>0)counts['has-chores']++;
     const t=(sf(s,'Type','type')||'').toLowerCase();
-    if(t.includes('active'))counts.active++;
+    if(t.includes('active') && !t.includes('inactive'))counts.active++;
     if(t.includes('future'))counts.future++;
     if(t.includes('inactive'))counts.inactive++;
     if(t.includes('possible'))counts.possible++;
@@ -1305,7 +1305,7 @@ function buildMapMarkers(){
   if(cmf!=='all'&&SESSION&&SESSION.accessLevel<=2){
     sites=sites.filter(s=>{
       const t=(sf(s,'Type','type')||'').toLowerCase();
-      if(cmf==='active')return t.includes('active');
+      if(cmf==='active')return t.includes('active') && !t.includes('inactive');
       if(cmf==='future')return t.includes('future');
       if(cmf==='inactive')return t.includes('inactive');
       if(cmf==='possible')return t.includes('possible');
