@@ -496,6 +496,10 @@ let SESSION=null;
 let csf='active',crf='all',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
 let _plantSearchTimer=null;
+/* ── PERFORMANCE: active-tab tracking ── */
+let _activeTab='notes';
+const _tabDirty={schools:false,rangers:false,people:false,chores:false};
+let _humansLoaded=false;  // true once humans phase-2 fetch completes
 
 /* ═══ UTILS ═══ */
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
@@ -543,8 +547,35 @@ function fmtDate(ts){if(!ts)return '';try{return new Date(ts).toLocaleDateString
 function avatarHtml(human,size=48){
   const name=fullName(human)||human.Email||'';
   const imgUrl=getImgSrc(human['Main Image']||human.MainImage||'');
-  const inner=imgUrl?`<img src="${imgUrl}" loading="lazy" onerror="this.style.display='none'">`:`<span>${inits(name)}</span>`;
+  const initials=inits(name);
+  // Use data-lazy so images only fire when scrolled near viewport
+  const inner=imgUrl
+    ?`<img data-lazy="${imgUrl}" alt="${initials}" style="width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .25s" onerror="this.style.display='none'">`
+    :`<span>${initials}</span>`;
   return `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.38)}px">${inner}</div>`;
+}
+
+/* ── LAZY IMAGE LOADER (IntersectionObserver) ── */
+let _lazyObs=null;
+function _initLazyImages(){
+  const imgs=document.querySelectorAll('img[data-lazy]:not([src])');
+  if(!imgs.length)return;
+  if(!('IntersectionObserver' in window)){
+    imgs.forEach(img=>{img.src=img.dataset.lazy;img.style.opacity='1';});
+    return;
+  }
+  if(!_lazyObs){
+    _lazyObs=new IntersectionObserver(entries=>{
+      entries.forEach(e=>{
+        if(!e.isIntersecting)return;
+        const img=e.target;
+        img.src=img.dataset.lazy;
+        img.onload=()=>{img.style.opacity='1';};
+        _lazyObs.unobserve(img);
+      });
+    },{rootMargin:'350px 0px'}); // start loading 350px before entering view
+  }
+  imgs.forEach(img=>_lazyObs.observe(img));
 }
 
 function ctaRow(mobile,email){
@@ -682,32 +713,70 @@ function showApp(){
 async function gasPost(payload){const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
 
 async function loadData(force=false){
-  if(!force){const c=localStorage.getItem(CFG.CK),ts=parseInt(localStorage.getItem(CFG.TK)||'0');if(c&&Date.now()-ts<CFG.TTL){try{DATA=JSON.parse(c);syncTS(ts);renderAll();return;}catch(e){}}}
-  if(CFG.URL){
-    try{
-      setSync(true);
-      const r=await fetch(CFG.URL+'?t='+Date.now());
-      const j=await r.json();
-      if(j.sites||j.humans){
-        DATA=j;DATA.roles=j.roles||[];DATA.chores=j.chores||[];
-        localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-        const n=Date.now();localStorage.setItem(CFG.TK,n);syncTS(n);renderAll();return;
-      }
-    }catch(e){setSync(false);}
+  // ── Cache hit: render immediately then return ──────────────────────────────
+  if(!force){
+    const c=localStorage.getItem(CFG.CK),ts=parseInt(localStorage.getItem(CFG.TK)||'0');
+    if(c&&Date.now()-ts<CFG.TTL){
+      try{
+        DATA=JSON.parse(c);
+        _humansLoaded=!!(DATA.humans&&DATA.humans.length);
+        syncTS(ts);renderAll();return;
+      }catch(e){}
+    }
   }
-  DATA={sites:DEMO_SITES,humans:DEMO_HUMANS,roles:[
-    {name:'Ranger',description:'',category:'ranger'},
-    {name:'Master Ranger',description:'',category:'ranger'},
-    {name:'Principal',description:'',category:'principal'},
-    {name:'Main Contact 1',description:'',category:''},
-    {name:'Main Contact 2',description:'',category:''},
-    {name:'Main Contact 3',description:'',category:''},
-    {name:'Plant Manager',description:'',category:'plant_manager'},
-    {name:'School Administrative Assistant',description:'',category:'saa'},
-    {name:'Teacher',description:'',category:''},
-    {name:'Garden Keeper',description:'',category:'garden_keeper'}
-  ],chores:[]};
-  renderAll();
+
+  // ── No live GAS URL: fall back to demo data ──────────────────────────────
+  if(!CFG.URL){
+    _humansLoaded=true;
+    DATA={sites:DEMO_SITES,humans:DEMO_HUMANS,roles:[
+      {name:'Ranger',description:'',category:'ranger'},
+      {name:'Master Ranger',description:'',category:'ranger'},
+      {name:'Principal',description:'',category:'principal'},
+      {name:'Main Contact 1',description:'',category:''},
+      {name:'Main Contact 2',description:'',category:''},
+      {name:'Main Contact 3',description:'',category:''},
+      {name:'Plant Manager',description:'',category:'plant_manager'},
+      {name:'School Administrative Assistant',description:'',category:'saa'},
+      {name:'Teacher',description:'',category:''},
+      {name:'Garden Keeper',description:'',category:'garden_keeper'}
+    ],chores:[]};
+    renderAll();return;
+  }
+
+  // ── PHASE 1: Sites + Chores (fast) ────────────────────────────────────────
+  try{
+    setSync(true);
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const j=await r.json();
+    if(j.sites){
+      DATA.sites=j.sites;DATA.chores=j.chores||[];
+      // Render schools & chores tabs right away
+      renderAll();
+    }
+  }catch(e){setSync(false);}
+
+  // ── PHASE 2: Humans + Roles (background) ──────────────────────────────────
+  _loadHumansBackground();
+}
+
+async function _loadHumansBackground(){
+  if(!CFG.URL)return;
+  try{
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
+    const j=await r.json();
+    if(j.humans){
+      DATA.humans=j.humans;DATA.roles=j.roles||[];
+      _humansLoaded=true;
+      setSync(true);
+      const n=Date.now();
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+      localStorage.setItem(CFG.TK,n);syncTS(n);
+      // Mark rangers/people tabs dirty; render immediately if one is active
+      _tabDirty.rangers=true;_tabDirty.people=true;
+      if(_activeTab==='rangers'||_activeTab==='people')_renderDirtyTab(_activeTab);
+      if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
+    }
+  }catch(e){setSync(false);}
 }
 
 async function saveToSheet(sheet,key,updates){
@@ -1275,10 +1344,36 @@ function updateRangerFilterCounts(){
 }
 
 function renderAll(){
-  renderSchools();
-  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();updateMapFilterCounts();updateRangerFilterCounts();}
-  renderChores();
+  // Mark all data tabs as needing a refresh
+  Object.keys(_tabDirty).forEach(k=>_tabDirty[k]=true);
+  // Immediately render only the visible tab — others render on demand when switched to
+  _renderDirtyTab(_activeTab);
+  // Chip counts are cheap text updates — always keep them fresh
+  if(SESSION&&SESSION.accessLevel<=2){updateMapFilterCounts();updateRangerFilterCounts();}
   if(mapInited)refreshMapChores();
+}
+
+function _renderDirtyTab(tab){
+  if(!_tabDirty[tab])return;
+  if(tab==='schools'){renderSchools();_tabDirty.schools=false;}
+  else if(tab==='rangers'){
+    if(!_humansLoaded){
+      // Show a loading placeholder until humans arrive
+      const rl=document.getElementById('rangerList');
+      if(rl&&rl.innerHTML.indexOf('spinner')===-1)rl.innerHTML='<div class="spinner"></div>';
+    } else {
+      renderRangers();_initLazyImages();_tabDirty.rangers=false;
+    }
+  }
+  else if(tab==='people'){
+    if(!_humansLoaded){
+      const pl=document.getElementById('peopleList');
+      if(pl&&pl.innerHTML.indexOf('spinner')===-1)pl.innerHTML='<div class="spinner"></div>';
+    } else {
+      renderPeople();_initLazyImages();_tabDirty.people=false;
+    }
+  }
+  else if(tab==='chores'){renderChores();_tabDirty.chores=false;}
 }
 
 /* ═══ MAP ═══ */
@@ -1814,16 +1909,19 @@ function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay
 
 /* ═══ TABS ═══ */
 function switchTab(tab,initMapFlag=false){
+  _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
   document.getElementById('searchbar').style.display=tab==='notes'?'none':'block';
   if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();},50);
   if(tab==='plants')initPlants();
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
+  // Render this tab if it has pending data changes
+  if(_tabDirty[tab])_renderDirtyTab(tab);
 }
 function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
-function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();}
-function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();}
+function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();_initLazyImages();}
+function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();_initLazyImages();}
 let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();},200);});
 
 /* ═══ PLANTS ═══ */
