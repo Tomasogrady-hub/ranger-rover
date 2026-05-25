@@ -1246,7 +1246,7 @@ function buildMapMarkers(){
   if(cmf!=='all'&&SESSION&&SESSION.accessLevel<=2){
     sites=sites.filter(s=>{
       const t=(sf(s,'Type','type')||'').toLowerCase();
-      if(cmf==='active')return t.includes('active');
+      if(cmf==='active') return t.includes('active') && !t.includes('inactive');
       if(cmf==='future')return t.includes('future');
       if(cmf==='inactive')return t.includes('inactive');
       if(cmf==='possible')return t.includes('possible');
