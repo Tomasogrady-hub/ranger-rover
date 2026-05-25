@@ -363,8 +363,12 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
   <!-- RANGERS -->
   <div class="tab-pane" id="tab-rangers">
     <div class="filter-row" id="rangerFilters">
-      <button class="chip active" data-filter="all"    onclick="filterRangers('all')">Active</button>
-      <button class="chip"        data-filter="master" onclick="filterRangers('master')">Master Rangers</button>
+      <button class="chip active" data-filter="all"              onclick="filterRangers('all')">All</button>
+      <button class="chip"        data-filter="ranger"           onclick="filterRangers('ranger')">Ranger</button>
+      <button class="chip"        data-filter="master_ranger"    onclick="filterRangers('master_ranger')">Master Ranger</button>
+      <button class="chip"        data-filter="garden_keeper"    onclick="filterRangers('garden_keeper')">Garden Keeper</button>
+      <button class="chip"        data-filter="ranger_applicant" onclick="filterRangers('ranger_applicant')">Ranger Applicant</button>
+      <button class="chip"        data-filter="ranger_past"      onclick="filterRangers('ranger_past')">Ranger Past</button>
     </div>
     <div class="page-header"><span class="page-title">Rangers</span><span class="page-count" id="rangerCount"></span></div>
     <div class="card-list" id="rangerList"><div class="spinner"></div></div>
@@ -493,6 +497,10 @@ let _plantSearchTimer=null;
 /* ═══ UTILS ═══ */
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 function sf(o,...k){for(const key of k)if(o[key]!==undefined&&o[key]!==null&&o[key]!=='')return o[key];return '';}
+/* ── ROLE CATEGORY HELPERS ── */
+function normCat(c){return(c||'').toLowerCase().replace(/[\s\-]+/g,'_').trim();}
+function humanRoleCat(h){const roleName=h.Role||h.role||'';const roleObj=DATA.roles.find(r=>r.name===roleName);return normCat(roleObj?.category||'');}
+const RANGER_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past'];
 function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase())||null;}
 function fullName(h){if(!h)return '';const fn=h['First Name']||h.FirstName||'',ln=h['Last Name']||h.LastName||'';if(fn||ln)return(fn+' '+ln).trim();return h.Name||h.name||h.Email||h.email||'';}
 function hn(e){const h=gh(e);return h?(fullName(h)||e):e;}
@@ -917,16 +925,15 @@ async function _uploadChorePhotoBase64(choreId,file){
 /* Returns humans whose Role matches any role with the given category */
 function humansByCategory(cat){
   if(!cat)return DATA.humans;
-  const names=DATA.roles.filter(r=>r.category===cat).map(r=>r.name);
+  const nc=normCat(cat);
+  const names=DATA.roles.filter(r=>normCat(r.category)===nc).map(r=>r.name);
   return DATA.humans.filter(h=>names.includes(h.Role||h.role||''));
 }
 
 /* ═══ ADD NEW CHORE ═══ */
 function _isAssignable(h){
-  const role=(h.Role||h.role||'');
-  return DATA.roles.some(function(r){
-    return r.name===role&&(r.category==='ranger'||r.category==='garden_keeper');
-  });
+  const cat=humanRoleCat(h);
+  return cat==='ranger'||cat==='master_ranger'||cat==='garden_keeper';
 }
 
 function showAddChore(){
@@ -1065,7 +1072,7 @@ function updateSchoolFilterCounts(){
     if(!r1n&&!r1e&&!gkn&&!gke)counts['no-ranger']++;
     if(openChoresForSite(sf(s,'Name','name')).length>0)counts['has-chores']++;
     const t=(sf(s,'Type','type')||'').toLowerCase();
-    if(t.includes('active') && !t.includes('inactive'))counts.active++;
+    if(t.includes('active'))counts.active++;
     if(t.includes('future'))counts.future++;
     if(t.includes('inactive'))counts.inactive++;
     if(t.includes('possible'))counts.possible++;
@@ -1125,7 +1132,13 @@ function renderSchools(){
 /* ═══ RENDER RANGERS ═══ */
 function renderRangers(){
   const q=sq.toLowerCase(),f=crf;
-  const rangers=DATA.humans.filter(h=>{const role=(h.Role||h.role||'').toLowerCase();if(!role.includes('ranger'))return false;if(f==='master'&&!role.includes('master'))return false;if(q&&!(fullName(h)+(h.Email||h.email||'')).toLowerCase().includes(q))return false;return true;});
+  const rangers=DATA.humans.filter(h=>{
+    const cat=humanRoleCat(h);
+    if(!RANGER_CATS.includes(cat))return false;
+    if(f!=='all'&&cat!==f)return false;
+    if(q&&!(fullName(h)+(h.Email||h.email||'')).toLowerCase().includes(q))return false;
+    return true;
+  });
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
   if(!rangers.length){document.getElementById('rangerList').innerHTML=empty('—','No results','');return;}
   document.getElementById('rangerList').innerHTML=rangers.map(h=>{
@@ -1136,7 +1149,7 @@ function renderRangers(){
       ${avatarHtml(h)}
       <div class="people-info">
         <div class="people-name">${name}</div>
-        <div class="people-role">${role.toLowerCase().includes('master')?'Master Ranger':'Ranger'}${schools?' · '+schools:''}</div>
+        <div class="people-role">${role}${schools?' · '+schools:''}</div>
         <div class="card-contacts">${ctaRow(mobile,email)}</div>
         ${openC>0?`<div class="chore-pill">⚠ ${openC} open chore${openC>1?'s':''}</div>`:''}
       </div>
@@ -1215,9 +1228,26 @@ function updateMapFilterCounts(){
   });
 }
 
+function updateRangerFilterCounts(){
+  if(SESSION&&SESSION.accessLevel>=3)return;
+  const counts={all:0,ranger:0,master_ranger:0,garden_keeper:0,ranger_applicant:0,ranger_past:0};
+  DATA.humans.forEach(h=>{
+    const cat=humanRoleCat(h);
+    if(RANGER_CATS.includes(cat)){
+      counts.all++;
+      if(counts[cat]!==undefined)counts[cat]++;
+    }
+  });
+  const labels={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Ranger Applicant',ranger_past:'Ranger Past'};
+  document.querySelectorAll('#rangerFilters .chip').forEach(c=>{
+    const f=c.dataset.filter,n=counts[f]!==undefined?counts[f]:0;
+    c.textContent=`${labels[f]||f} (${n})`;
+  });
+}
+
 function renderAll(){
   renderSchools();
-  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();updateMapFilterCounts();}
+  if(SESSION&&SESSION.accessLevel<=2){renderRangers();renderPeople();updateMapFilterCounts();updateRangerFilterCounts();}
   renderChores();
   if(mapInited)refreshMapChores();
 }
@@ -1246,7 +1276,7 @@ function buildMapMarkers(){
   if(cmf!=='all'&&SESSION&&SESSION.accessLevel<=2){
     sites=sites.filter(s=>{
       const t=(sf(s,'Type','type')||'').toLowerCase();
-      if(cmf==='active') return t.includes('active') && !t.includes('inactive');
+      if(cmf==='active')return t.includes('active');
       if(cmf==='future')return t.includes('future');
       if(cmf==='inactive')return t.includes('inactive');
       if(cmf==='possible')return t.includes('possible');
