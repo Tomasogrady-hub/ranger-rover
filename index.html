@@ -499,7 +499,15 @@ async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEn
 function sf(o,...k){for(const key of k)if(o[key]!==undefined&&o[key]!==null&&o[key]!=='')return o[key];return '';}
 /* ── ROLE CATEGORY HELPERS ── */
 function normCat(c){return(c||'').toLowerCase().replace(/[\s\-]+/g,'_').trim();}
-function humanRoleCat(h){const roleName=h.Role||h.role||'';const roleObj=DATA.roles.find(r=>r.name===roleName);return normCat(roleObj?.category||'');}
+function humanRoleCats(h){
+  const cats=[];
+  const r1=h.Role||h.role||'';
+  const r2=h['Role Additional']||h.RoleAdditional||'';
+  if(r1){const o=DATA.roles.find(r=>r.name===r1);if(o&&o.category)cats.push(normCat(o.category));}
+  if(r2){const o=DATA.roles.find(r=>r.name===r2);if(o&&o.category)cats.push(normCat(o.category));}
+  return cats.filter(Boolean);
+}
+function humanRoleCat(h){return humanRoleCats(h)[0]||'';}
 const RANGER_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past'];
 function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase())||null;}
 function fullName(h){if(!h)return '';const fn=h['First Name']||h.FirstName||'',ln=h['Last Name']||h.LastName||'';if(fn||ln)return(fn+' '+ln).trim();return h.Name||h.name||h.Email||h.email||'';}
@@ -926,14 +934,13 @@ async function _uploadChorePhotoBase64(choreId,file){
 function humansByCategory(cat){
   if(!cat)return DATA.humans;
   const nc=normCat(cat);
-  const names=DATA.roles.filter(r=>normCat(r.category)===nc).map(r=>r.name);
-  return DATA.humans.filter(h=>names.includes(h.Role||h.role||''));
+  return DATA.humans.filter(h=>humanRoleCats(h).includes(nc));
 }
 
 /* ═══ ADD NEW CHORE ═══ */
 function _isAssignable(h){
-  const cat=humanRoleCat(h);
-  return cat==='ranger'||cat==='master_ranger'||cat==='garden_keeper';
+  const cats=humanRoleCats(h);
+  return cats.some(c=>c==='ranger'||c==='master_ranger'||c==='garden_keeper');
 }
 
 function showAddChore(){
@@ -1133,23 +1140,25 @@ function renderSchools(){
 function renderRangers(){
   const q=sq.toLowerCase(),f=crf;
   const rangers=DATA.humans.filter(h=>{
-    const cat=humanRoleCat(h);
-    if(!RANGER_CATS.includes(cat))return false;
-    if(f!=='all'&&cat!==f)return false;
+    const cats=humanRoleCats(h);
+    if(!cats.some(c=>RANGER_CATS.includes(c)))return false;
+    if(f!=='all'&&!cats.includes(f))return false;
     if(q&&!(fullName(h)+(h.Email||h.email||'')).toLowerCase().includes(q))return false;
     return true;
   });
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
   if(!rangers.length){document.getElementById('rangerList').innerHTML=empty('—','No results','');return;}
   document.getElementById('rangerList').innerHTML=rangers.map(h=>{
-    const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
+    const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'';
+    const role=h.Role||h.role||'',roleAdd=h['Role Additional']||h.RoleAdditional||'';
+    const roleLabel=roleAdd?`${role} · ${roleAdd}`:role;
     const schools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email||sf(s,'Garden Keeper','GardenKeeper')===email).map(s=>sf(s,'Name','name')).join(', ');
     const openC=openChoresForHuman(email).length;
     return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
       ${avatarHtml(h)}
       <div class="people-info">
         <div class="people-name">${name}</div>
-        <div class="people-role">${role}${schools?' · '+schools:''}</div>
+        <div class="people-role">${roleLabel}${schools?' · '+schools:''}</div>
         <div class="card-contacts">${ctaRow(mobile,email)}</div>
         ${openC>0?`<div class="chore-pill">⚠ ${openC} open chore${openC>1?'s':''}</div>`:''}
       </div>
@@ -1232,10 +1241,11 @@ function updateRangerFilterCounts(){
   if(SESSION&&SESSION.accessLevel>=3)return;
   const counts={all:0,ranger:0,master_ranger:0,garden_keeper:0,ranger_applicant:0,ranger_past:0};
   DATA.humans.forEach(h=>{
-    const cat=humanRoleCat(h);
-    if(RANGER_CATS.includes(cat)){
+    const cats=humanRoleCats(h);
+    const rangerCats=cats.filter(c=>RANGER_CATS.includes(c));
+    if(rangerCats.length){
       counts.all++;
-      if(counts[cat]!==undefined)counts[cat]++;
+      rangerCats.forEach(c=>{if(counts[c]!==undefined)counts[c]++;});
     }
   });
   const labels={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Ranger Applicant',ranger_past:'Ranger Past'};
