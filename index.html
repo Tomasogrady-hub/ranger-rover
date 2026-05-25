@@ -330,14 +330,11 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
   <!-- NOTES -->
   <div class="tab-pane active" id="tab-notes">
-    <div class="page-header">
-      <span class="page-title">My Notes</span>
-      <span class="notes-status" id="notesSaveStatus"></span>
-    </div>
-    <div style="padding:0 16px 28px">
-      <textarea id="notesArea" placeholder="Jot down reminders, to-dos, ideas…" oninput="onNotesInput()"></textarea>
-    </div>
-  </div>
+  <div class="page-header">
+  <span class="page-title">My Notes</span>
+  <span class="notes-status" id="notesSaveStatus"></span>
+</div>
+<div id="notesGreeting" style="padding:0 20px 14px;font-family:var(--font-d);font-size:28px;font-weight:300;font-style:italic;color:var(--stone);line-height:1.3"></div>
 
   <!-- SCHOOLS -->
   <div class="tab-pane" id="tab-schools">
@@ -629,7 +626,14 @@ async function handleForgotPassword(){
 }
 function startSession(email,name,accessLevel){SESSION={email,name,accessLevel:parseInt(accessLevel)||3};localStorage.setItem(CFG.SK,JSON.stringify(SESSION));showApp();}
 function logout(){SESSION=null;localStorage.removeItem(CFG.SK);['header','searchbar','content','nav'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('authScreen').style.display='flex';goToStep('stepEmail');document.getElementById('authEmail').value='';document.getElementById('emailErr').textContent='';}
-
+function setGreeting(){
+  const el=document.getElementById('notesGreeting');
+  if(!el||!SESSION)return;
+  const h=new Date().getHours();
+  const salutation=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
+  const firstName=(SESSION.name||SESSION.email.split('@')[0]).split(' ')[0];
+  el.textContent=salutation+', '+firstName+'.';
+}
 function showApp(){
   document.getElementById('authScreen').style.display='none';
   ['header','searchbar','content','nav'].forEach(id=>document.getElementById(id).style.display=id==='nav'||id==='header'?'flex':'block');
@@ -644,6 +648,7 @@ function showApp(){
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
   const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   switchTab('notes');          // show notes immediately
+  setGreeting();              // Good morning. Good evening, etc.
   loadNotes();                 // fast single-cell fetch — renders in ~300ms
   loadData();                  // full data loads in background
 }
