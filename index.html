@@ -963,7 +963,7 @@ function renderChoreDetail(c,editMode){
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingChorePhoto=null;
-    _attachDropdownDismiss();
+    window._pendingVideoUrl=null;
   } else {
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
@@ -1074,10 +1074,10 @@ async function saveChoreEdit(choreId){
       if(url)updates['Helpful Image 1']=url;
       window._pendingChorePhoto=null;
     }
-    // Video link — only update if field has a value (blank = leave existing alone)
-    const videoLinkEl=document.getElementById('ce-VideoLink');
-    const videoLinkVal=videoLinkEl?videoLinkEl.value.trim():'';
-    if(videoLinkVal)updates['Helpful Video 1']=videoLinkVal;
+    // Video link — use window var (set by Cloudinary upload) or fallback to pasted/existing input
+    const videoUrl=window._pendingVideoUrl||(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
+    if(videoUrl)updates['Helpful Video 1']=videoUrl;
+    window._pendingVideoUrl=null;
     await updateChoreApi(choreId,updates);
     const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
     if(c)Object.assign(c,updates);
@@ -1196,7 +1196,7 @@ function showAddChore(){
     </div>
     <div class="save-msg" id="saveMsg"></div>`;
   window._pendingNewChorePhoto=null;
-  openDetail();
+  window._pendingVideoUrl=null;
   _attachDropdownDismiss();
 }
 
@@ -1228,10 +1228,10 @@ async function saveNewChore(){
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
     'Asked by':SESSION?SESSION.email:'','Status':'Open',
   };
-  // Video link saved to its own column — independent of photo
-  const videoLinkEl=document.getElementById('nc-VideoLink');
-  const videoLink=videoLinkEl?videoLinkEl.value.trim():'';
-  if(videoLink)data['Helpful Video 1']=videoLink;
+  // Video link — use window var (set by Cloudinary upload) or fallback to pasted input
+  const videoUrl=window._pendingVideoUrl||(document.getElementById('nc-VideoLink')||{}).value?.trim()||'';
+  if(videoUrl)data['Helpful Video 1']=videoUrl;
+  window._pendingVideoUrl=null;
   try{
     const res=await gasPost({action:'addChore',data});
     if(!res.ok)throw new Error(res.error||'Add failed');
@@ -2377,9 +2377,17 @@ async function recordVideoForChore(inputId, statusId){
     if(st){st.style.color='var(--silver)';st.textContent='Checking video…';}
     try{
       const url=await _uploadToCloudinary(file,statusId);
+      // Store in window var (reliable) AND set input display (visual feedback)
+      window._pendingVideoUrl=url;
       const inp=document.getElementById(inputId);
-      if(inp){inp.value=url;inp.dispatchEvent(new Event('input'));}
+      if(inp){
+        inp.value=url;
+        inp.style.background='var(--mint)';
+        inp.dispatchEvent(new Event('input'));
+      }
+      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready — tap Save to attach';}
     }catch(e){
+      window._pendingVideoUrl=null;
       if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
     }
   });
