@@ -1197,6 +1197,7 @@ function showAddChore(){
     <div class="save-msg" id="saveMsg"></div>`;
   window._pendingNewChorePhoto=null;
   window._pendingVideoUrl=null;
+  openDetail();
   _attachDropdownDismiss();
 }
 
@@ -1243,9 +1244,10 @@ async function saveNewChore(){
     }
     DATA.chores.unshift(newChore);
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    m.textContent='✓ Chore added!';
+    const hasVideo=!!(newChore['Helpful Video 1']);
+    m.textContent='✓ Chore added'+(hasVideo?' + video attached':'')+'!';
     renderAll();
-    setTimeout(()=>closeDetail(),700);
+    setTimeout(()=>closeDetail(),1200);
   }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
 
