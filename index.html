@@ -533,6 +533,25 @@ function getImgSrc(url){
   return url;
 }
 
+/* ── VIDEO LINK HELPERS ────────────────────────────────────────────────────── */
+function isVideoLink(url){
+  if(!url||typeof url!=='string')return false;
+  const u=url.trim();
+  return u.includes('drive.google.com/file/')||
+         u.includes('photos.app.goo.gl')||
+         u.includes('youtube.com/')||
+         u.includes('youtu.be/');
+}
+function videoLinkHtml(url){
+  if(!url)return '';
+  let label='▶ View Video';
+  if(url.includes('youtube')||url.includes('youtu.be'))label='▶ Watch on YouTube';
+  else if(url.includes('photos.app.goo.gl'))label='▶ View in Google Photos';
+  else label='▶ View Video in Drive';
+  return `<a href="${url}" target="_blank" rel="noopener"
+    style="display:inline-flex;align-items:center;gap:8px;padding:13px 18px;background:var(--grove);color:white;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;text-decoration:none;letter-spacing:.04em;margin-top:8px">${label}</a>`;
+}
+
 function dc(d=''){d=d.toLowerCase();if(d.includes('glendale'))return 'gusd';if(d.includes('bellflower')||d.includes('burbank'))return 'busd';if(d.includes('los angeles')||d.includes('lausd'))return 'lausd';return 'other';}
 function sd(d=''){const l=d.toLowerCase();if(l.includes('los angeles unified'))return 'LAUSD';if(l.includes('glendale unified'))return 'GUSD';if(l.includes('bellflower')||l.includes('burbank'))return 'BUSD';return d.replace(/ Unified School District/,'').replace(/ Unified/,'').trim()||'—';}
 function inits(n){if(!n)return '?';const p=n.trim().split(/\s+/);return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():n.slice(0,2).toUpperCase();}
@@ -832,6 +851,7 @@ function renderChoreDetail(c,editMode){
   const askedOf=c['Asked of']||c.AskedOf||'';
   const status=c.Status||c.status||'Open';
   const imgSrc=getImgSrc(c['Helpful Image 1']||c.HelpfulImage1||'');
+  const videoSrc=(c['Helpful Video 1']||c.HelpfulVideo1||'').trim();
   const isOpen=status.toLowerCase()==='open';
   const urgCls=urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
   const isUrgentFlash=urgency.toLowerCase()==='urgent';
@@ -888,6 +908,15 @@ function renderChoreDetail(c,editMode){
         </button>
         <div style="font-size:14px;color:var(--silver);margin-top:5px" id="chore-photo-status"></div>
       </div>
+      <div class="edit-wrap">
+        <div class="edit-label">Video Link (optional)</div>
+        <input class="edit-input" id="ce-VideoLink"
+          placeholder="Paste Google Drive share link…"
+          value="${ea(videoSrc)}"
+          style="font-size:16px"
+          oninput="document.getElementById('ce-video-hint').style.display=this.value.trim()?'block':'none'">
+        <div id="ce-video-hint" style="display:${videoSrc?'block':'none'};margin-top:6px;font-size:14px;color:var(--sage)">✓ Will show as ▶ View Video in Drive</div>
+      </div>
       <div class="edit-actions">
         <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">Save</button>
         <button class="btn-cancel" onclick="renderChoreDetail(window._currentChore,false)">Cancel</button>
@@ -919,6 +948,7 @@ function renderChoreDetail(c,editMode){
         <img src="${imgSrc}" loading="lazy"
           style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);margin-top:8px"
           onerror="this.parentElement.style.display='none'"></div>`:''}
+      ${videoSrc?`<div class="ds"><div class="dl">Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       <div class="detail-ctas">
         ${SESSION&&id?`<button class="dcta filled" onclick="renderChoreDetail(window._currentChore,true)">✏ Edit</button>`:''}
         ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Mark as Closed</button>`:''}
@@ -961,12 +991,16 @@ async function saveChoreEdit(choreId){
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
   };
   try{
+    // Photo upload (if a new photo was taken/chosen)
     if(window._pendingChorePhoto){
       const st=document.getElementById('chore-photo-status');if(st)st.textContent='Uploading photo…';
       const url=await _uploadChorePhotoBase64(choreId,window._pendingChorePhoto);
       if(url)updates['Helpful Image 1']=url;
       window._pendingChorePhoto=null;
     }
+    // Video link — separate column, saved as plain URL
+    const videoLinkEl=document.getElementById('ce-VideoLink');
+    if(videoLinkEl)updates['Helpful Video 1']=videoLinkEl.value.trim();
     await updateChoreApi(choreId,updates);
     const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
     if(c)Object.assign(c,updates);
@@ -1072,6 +1106,14 @@ function showAddChore(){
       <div id="nc-photo-preview" style="margin-top:8px"></div>
       <div style="font-size:14px;color:var(--silver);margin-top:4px" id="nc-photo-status"></div>
     </div>
+    <div class="edit-wrap">
+      <div class="edit-label">Video Link (optional)</div>
+      <input class="edit-input" id="nc-VideoLink"
+        placeholder="Paste Google Drive share link…"
+        style="font-size:16px"
+        oninput="document.getElementById('nc-video-hint').style.display=this.value.trim()?'block':'none'">
+      <div id="nc-video-hint" style="display:none;margin-top:6px;font-size:14px;color:var(--sage)">✓ Will show as ▶ View Video in Drive</div>
+    </div>
     <div class="edit-actions">
       <button class="btn-save" onclick="saveNewChore()">Add Chore</button>
       <button class="btn-cancel" onclick="closeDetail()">Cancel</button>
@@ -1110,6 +1152,10 @@ async function saveNewChore(){
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
     'Asked by':SESSION?SESSION.email:'','Status':'Open',
   };
+  // Video link saved to its own column — independent of photo
+  const videoLinkEl=document.getElementById('nc-VideoLink');
+  const videoLink=videoLinkEl?videoLinkEl.value.trim():'';
+  if(videoLink)data['Helpful Video 1']=videoLink;
   try{
     const res=await gasPost({action:'addChore',data});
     if(!res.ok)throw new Error(res.error||'Add failed');
