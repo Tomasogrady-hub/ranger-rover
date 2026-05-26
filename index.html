@@ -575,13 +575,15 @@ function isVideoLink(url){
   return u.includes('drive.google.com/file/')||
          u.includes('photos.app.goo.gl')||
          u.includes('youtube.com/')||
-         u.includes('youtu.be/');
+         u.includes('youtu.be/')||
+         u.includes('cloudinary.com');
 }
 function videoLinkHtml(url){
   if(!url)return '';
   let label='▶ View Video';
   if(url.includes('youtube')||url.includes('youtu.be'))label='▶ Watch on YouTube';
   else if(url.includes('photos.app.goo.gl'))label='▶ View in Google Photos';
+  else if(url.includes('cloudinary.com'))label='▶ Play Video';
   else label='▶ View Video in Drive';
   return `<a href="${url}" target="_blank" rel="noopener"
     style="display:inline-flex;align-items:center;gap:8px;padding:13px 18px;background:var(--grove);color:white;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;text-decoration:none;letter-spacing:.04em;margin-top:8px">${label}</a>`;
@@ -1036,9 +1038,10 @@ async function saveChoreEdit(choreId){
       if(url)updates['Helpful Image 1']=url;
       window._pendingChorePhoto=null;
     }
-    // Video link — separate column, saved as plain URL
+    // Video link — only update if field has a value (blank = leave existing alone)
     const videoLinkEl=document.getElementById('ce-VideoLink');
-    if(videoLinkEl)updates['Helpful Video 1']=videoLinkEl.value.trim();
+    const videoLinkVal=videoLinkEl?videoLinkEl.value.trim():'';
+    if(videoLinkVal)updates['Helpful Video 1']=videoLinkVal;
     await updateChoreApi(choreId,updates);
     const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
     if(c)Object.assign(c,updates);
