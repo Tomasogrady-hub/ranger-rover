@@ -887,8 +887,10 @@ function renderChoreDetail(c,editMode){
   const askedBy=c['Asked by']||c.AskedBy||'';
   const askedOf=c['Asked of']||c.AskedOf||'';
   const status=c.Status||c.status||'Open';
-  const imgSrc=getImgSrc(c['Helpful Image 1']||c.HelpfulImage1||'');
-  const videoSrc=(c['Helpful Video 1']||c.HelpfulVideo1||'').trim();
+  const img1Src=getImgSrc(c['Helpful Image 1']||'');
+  const img2Src=getImgSrc(c['Helpful Image 2']||'');
+  const img3Src=getImgSrc(c['Helpful Image 3']||'');
+  const videoSrc=(c['Helpful Video']||'').trim();
   const isOpen=status.toLowerCase()==='open';
   const urgCls=urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
   const isUrgentFlash=urgency.toLowerCase()==='urgent';
@@ -935,34 +937,29 @@ function renderChoreDetail(c,editMode){
         <select class="edit-input" id="ce-Status">${statOpts}</select></div>
       <hr class="section-divider">
       <div class="edit-wrap">
-        <div class="edit-label">Photo</div>
-        ${imgSrc?`<img src="${imgSrc}" id="chore-edit-img" loading="lazy"
-          style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:10px"
-          onerror="this.style.display='none'">`:
-          `<div id="chore-edit-img" style="display:none"></div>`}
-        <button type="button" onclick="showChoreMediaOptions(f=>previewChorePhotoFile(f,'chore-edit-img','chore-photo-status'),f=>uploadVideoForChore(f,'ce-VideoLink','ce-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
-          📷 ${imgSrc?'Replace Photo':'Add Photo / Video'}
-        </button>
-        <div style="font-size:14px;color:var(--silver);margin-top:5px" id="chore-photo-status"></div>
+        <div class="edit-label">Photos (up to 3)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px">
+          ${chorePhotoSlotHtml(img1Src,0,'ce')}
+          ${chorePhotoSlotHtml(img2Src,1,'ce')}
+          ${chorePhotoSlotHtml(img3Src,2,'ce')}
+        </div>
       </div>
       <div class="edit-wrap">
-        <div class="edit-label">Video Link</div>
+        <div class="edit-label">Video</div>
         ${videoSrc?`<div style="margin-bottom:10px">${videoLinkHtml(videoSrc)}</div>`:''}
-        <div style="font-size:14px;color:var(--silver);margin-bottom:6px" id="ce-video-status"></div>
-        <div style="font-size:13px;color:var(--silver);margin-bottom:6px">or paste a Google Drive share link:</div>
-        <input class="edit-input" id="ce-VideoLink"
-          placeholder="https://drive.google.com/…"
-          value="${ea(videoSrc)}"
-          style="font-size:16px"
-          oninput="document.getElementById('ce-video-hint').style.display=this.value.trim()?'block':'none'">
-        <div id="ce-video-hint" style="display:${videoSrc?'block':'none'};margin-top:6px;font-size:14px;color:var(--sage)">✓ Will show as ▶ View Video in Drive</div>
+        <button type="button" onclick="showPhotoOptions_videoOnly(f=>uploadVideoForChore(f,'ce-VideoLink','ce-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+          🎥 ${videoSrc?'Replace Video':'Record Video'}
+        </button>
+        <div style="font-size:14px;margin-top:6px" id="ce-video-status"></div>
+        <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a Drive link:</div>
+        <input class="edit-input" id="ce-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
       </div>
       <div class="edit-actions">
         <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">Save</button>
         <button class="btn-cancel" onclick="renderChoreDetail(window._currentChore,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
-    window._pendingChorePhoto=null;
+    window._pendingChorePhotos={};
     window._pendingVideoUrl=null;
     window._pendingVideoPromise=null;
   } else {
@@ -985,10 +982,12 @@ function renderChoreDetail(c,editMode){
       ${askedBy?`<div class="ds"><div class="dl">Asked By</div><div class="dv">${hn(askedBy)||askedBy}</div></div>`:''}
       ${askedOf?`<div class="ds"><div class="dl">Asked Of</div><div class="dv">${hn(askedOf)||askedOf}</div></div>`:''}
       ${assigned?`<div class="ds"><div class="dl">Assigned To</div><div class="dv">${hn(assigned)||assigned}</div></div>`:''}
-      ${imgSrc?`<div class="ds"><div class="dl">Photo</div>
-        <img src="${imgSrc}" loading="lazy"
-          style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);margin-top:8px"
-          onerror="this.parentElement.style.display='none'"></div>`:''}
+      ${(img1Src||img2Src||img3Src)?`<div class="ds"><div class="dl">Photos</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          ${img1Src?`<img src="${img1Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
+          ${img2Src?`<img src="${img2Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
+          ${img3Src?`<img src="${img3Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
+        </div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       <div class="detail-ctas">
         ${SESSION&&id?`<button class="dcta filled" onclick="renderChoreDetail(window._currentChore,true)">✏ Edit</button>`:''}
@@ -1001,20 +1000,79 @@ function renderChoreDetail(c,editMode){
   }
 }
 
+/* ═══ CHORE PHOTO SLOTS ═══ */
+function chorePhotoSlotHtml(existingSrc, slotIdx, prefix){
+  const has=!!existingSrc;
+  return `<div style="display:flex;flex-direction:column;gap:6px">
+    <div id="${prefix}-photo-slot-${slotIdx}" style="width:100%;aspect-ratio:1;background:var(--fog);border-radius:var(--r-sm);overflow:hidden;display:flex;align-items:center;justify-content:center;border:1.5px ${has?'solid var(--grove)':'dashed var(--mist)'}">
+      ${has?`<img src="${existingSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<span style=\\'font-size:20px\\'>?</span>'">`:`<span style="font-size:26px;color:var(--silver)">+</span>`}
+    </div>
+    <button type="button"
+      onclick="showPhotoOptions(f=>_previewChoreSlot(f,${slotIdx},'${prefix}'))"
+      style="padding:8px 2px;background:${has?'var(--grove)':'var(--fog)'};color:${has?'white':'var(--ink)'};border:1px solid ${has?'var(--grove)':'var(--mist)'};border-radius:var(--r-sm);font-family:var(--font-b);font-size:12px;font-weight:500;cursor:pointer;text-align:center">
+      ${has?'↺ Replace':'📷 Add'}
+    </button>
+  </div>`;
+}
+
+function _previewChoreSlot(file, slotIdx, prefix){
+  if(!window._pendingChorePhotos)window._pendingChorePhotos={};
+  window._pendingChorePhotos[slotIdx]=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
+    if(slot){
+      slot.style.border='1.5px solid var(--grove)';
+      slot.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+      const btn=slot.nextElementSibling;
+      if(btn){btn.style.background='var(--grove)';btn.style.color='white';btn.style.borderColor='var(--grove)';btn.textContent='↺ Replace';}
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+/* Video-only action sheet (no photo option — used in video section) */
+function showPhotoOptions_videoOnly(onVideoCb){
+  const modal=document.createElement('div');
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:26px 26px 0 0;width:100%;padding:20px 20px calc(20px + var(--safe-bottom))">
+      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:16px;text-align:center">Add Video</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button id="pov-record" style="padding:16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">🎥 Record Video</button>
+        <button id="pov-gallery" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">📁 Choose Video from Gallery</button>
+        <button id="pov-cancel" style="padding:14px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer">Cancel</button>
+      </div>
+    </div>`;
+  const cleanup=()=>modal.remove();
+  modal.querySelector('#pov-record').onclick=()=>{cleanup();_pickVideo(onVideoCb);};
+  modal.querySelector('#pov-gallery').onclick=()=>{
+    cleanup();
+    // Pick from gallery without capture attribute (shows file picker for videos)
+    const input=document.createElement('input');
+    input.type='file';input.accept='video/*';
+    input.style='position:fixed;top:-9999px;left:-9999px;opacity:0';
+    input.onchange=()=>{if(input.files[0])onVideoCb(input.files[0]);input.remove();};
+    input.oncancel=()=>input.remove();
+    document.body.appendChild(input);input.click();
+  };
+  modal.querySelector('#pov-cancel').onclick=cleanup;
+  modal.addEventListener('click',e=>{if(e.target===modal)cleanup();});
+  document.body.appendChild(modal);
+}
+
 /* ═══ CHORE DEBUG (access level 1 only) ═══ */
 function showChoreDebug(){
   const c=window._currentChore||{};
-  const videoRaw=c['Helpful Video 1']||c.HelpfulVideo1||'';
-  const imgRaw=c['Helpful Image 1']||c.HelpfulImage1||'';
   const fields=[
     ['ID',              c.ID||c.id||'—'],
     ['Site',            c.Site||'—'],
-    ['Helpful Image 1', imgRaw||'(empty)'],
-    ['Helpful Video 1', videoRaw||'(empty)'],
-    ['getImgSrc result',getImgSrc(imgRaw)||'(empty)'],
-    ['isVideoLink',     String(isVideoLink(videoRaw))],
+    ['Helpful Image 1', c['Helpful Image 1']||'(empty)'],
+    ['Helpful Image 2', c['Helpful Image 2']||'(empty)'],
+    ['Helpful Image 3', c['Helpful Image 3']||'(empty)'],
+    ['Helpful Video',   c['Helpful Video']||'(empty)'],
+    ['isVideoLink',     String(isVideoLink(c['Helpful Video']||''))],
     ['Status',          c.Status||'—'],
-    ['Urgency',         c.Urgency||'—'],
     ['All keys',        Object.keys(c).join(', ')],
   ];
   const rows=fields.map(([k,v])=>`
@@ -1068,12 +1126,15 @@ async function saveChoreEdit(choreId){
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
   };
   try{
-    // Photo upload (if a new photo was taken/chosen)
-    if(window._pendingChorePhoto){
-      const st=document.getElementById('chore-photo-status');if(st)st.textContent='Uploading photo…';
-      const url=await _uploadChorePhotoBase64(choreId,window._pendingChorePhoto);
-      if(url)updates['Helpful Image 1']=url;
-      window._pendingChorePhoto=null;
+    // Upload any pending photos (slots 0→Helpful Image 1, 1→Helpful Image 2, 2→Helpful Image 3)
+    const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
+    if(window._pendingChorePhotos){
+      for(let i=0;i<3;i++){
+        const file=window._pendingChorePhotos[i];
+        if(!file)continue;
+        try{const url=await _uploadChorePhotoBase64(choreId,file);if(url)updates[imgCols[i]]=url;}catch(pe){}
+      }
+      window._pendingChorePhotos={};
     }
     // Video — if upload still in progress, wait for it; otherwise use completed URL
     if(window._pendingVideoPromise){
@@ -1081,7 +1142,7 @@ async function saveChoreEdit(choreId){
       try{await window._pendingVideoPromise;}catch(e){}
     }
     const videoUrl=window._pendingVideoUrl||(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
-    if(videoUrl)updates['Helpful Video 1']=videoUrl;
+    if(videoUrl)updates['Helpful Video']=videoUrl;
     window._pendingVideoUrl=null;
     window._pendingVideoPromise=null;
     await updateChoreApi(choreId,updates);
@@ -1182,26 +1243,28 @@ function showAddChore(){
       </div>
     </div>
     <div class="edit-wrap">
-      <div class="edit-label">Photo / Video (optional)</div>
-      <button type="button" onclick="showChoreMediaOptions(f=>previewNewChorePhotoFile(f),f=>uploadVideoForChore(f,'nc-VideoLink','nc-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
-        📷 Add Photo / Video
+      <div class="edit-label">Photos (up to 3)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px">
+        ${chorePhotoSlotHtml('',0,'nc')}
+        ${chorePhotoSlotHtml('',1,'nc')}
+        ${chorePhotoSlotHtml('',2,'nc')}
+      </div>
+    </div>
+    <div class="edit-wrap">
+      <div class="edit-label">Video (optional)</div>
+      <button type="button" onclick="showPhotoOptions_videoOnly(f=>uploadVideoForChore(f,'nc-VideoLink','nc-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+        🎥 Record Video
       </button>
-      <div id="nc-photo-preview" style="margin-top:8px"></div>
-      <div style="font-size:14px;color:var(--silver);margin-top:4px" id="nc-photo-status"></div>
       <div style="font-size:14px;margin-top:6px" id="nc-video-status"></div>
       <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a Drive link:</div>
-      <input class="edit-input" id="nc-VideoLink"
-        placeholder="https://drive.google.com/…"
-        style="font-size:16px"
-        oninput="document.getElementById('nc-video-hint').style.display=this.value.trim()?'block':'none'">
-      <div id="nc-video-hint" style="display:none;margin-top:6px;font-size:14px;color:var(--sage)">✓ Will show as ▶ View Video in Drive</div>
+      <input class="edit-input" id="nc-VideoLink" placeholder="https://drive.google.com/…" style="font-size:16px">
     </div>
     <div class="edit-actions">
       <button class="btn-save" onclick="saveNewChore()">Add Chore</button>
       <button class="btn-cancel" onclick="closeDetail()">Cancel</button>
     </div>
     <div class="save-msg" id="saveMsg"></div>`;
-  window._pendingNewChorePhoto=null;
+  window._pendingChorePhotos={};
   window._pendingVideoUrl=null;
   window._pendingVideoPromise=null;
   openDetail();
@@ -1236,28 +1299,37 @@ async function saveNewChore(){
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
     'Asked by':SESSION?SESSION.email:'','Status':'Open',
   };
-  // Video — if upload still in progress, wait for it; otherwise use completed URL
+  // Video — if upload still in progress, wait for remainder
   if(window._pendingVideoPromise){
     m.textContent='Finishing video upload…';
     try{await window._pendingVideoPromise;}catch(e){}
   }
   const videoUrl=window._pendingVideoUrl||(document.getElementById('nc-VideoLink')||{}).value?.trim()||'';
-  if(videoUrl)data['Helpful Video 1']=videoUrl;
+  if(videoUrl)data['Helpful Video']=videoUrl;
   window._pendingVideoUrl=null;
   window._pendingVideoPromise=null;
   try{
     const res=await gasPost({action:'addChore',data});
     if(!res.ok)throw new Error(res.error||'Add failed');
     const newChore={...data,ID:res.id};
-    if(window._pendingNewChorePhoto&&res.id){
-      const st=document.getElementById('nc-photo-status');if(st)st.textContent='Uploading photo…';
-      try{const url=await _uploadChorePhotoBase64(res.id,window._pendingNewChorePhoto);if(url)newChore['Helpful Image 1']=url;}catch(pe){}
-      window._pendingNewChorePhoto=null;
+    // Upload all pending photos
+    const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
+    if(window._pendingChorePhotos&&res.id){
+      for(let i=0;i<3;i++){
+        const file=window._pendingChorePhotos[i];
+        if(!file)continue;
+        try{const url=await _uploadChorePhotoBase64(res.id,file);if(url)newChore[imgCols[i]]=url;}catch(pe){}
+      }
+      window._pendingChorePhotos={};
     }
     DATA.chores.unshift(newChore);
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    const hasVideo=!!(newChore['Helpful Video 1']);
-    m.textContent='✓ Chore added'+(hasVideo?' + video attached':'')+'!';
+    const photoCount=imgCols.filter(c=>newChore[c]).length;
+    const hasVideo=!!(newChore['Helpful Video']);
+    const parts=[];
+    if(photoCount)parts.push(`${photoCount} photo${photoCount>1?'s':''}`);
+    if(hasVideo)parts.push('video');
+    m.textContent='✓ Chore added'+(parts.length?' + '+parts.join(' + '):'')+'!';
     renderAll();
     setTimeout(()=>closeDetail(),1200);
   }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
