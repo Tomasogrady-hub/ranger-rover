@@ -461,6 +461,36 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
           <button onclick="clearCache()" style="margin-top:4px;padding:10px 15px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">Clear &amp; Re-fetch</button>
         </div>
       </div>
+      <div class="dl" style="margin-bottom:10px">Video Settings</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="dl" style="margin-bottom:4px">Max file size</div>
+          <div class="settings-note">Videos larger than this are rejected before uploading.</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+            <input id="videoMaxMbInput" class="settings-input" type="number" min="10" max="500" style="margin:0;width:90px">
+            <span style="font-size:16px;color:var(--stone)">MB</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="dl" style="margin-bottom:4px">Max video length</div>
+          <div class="settings-note">Videos longer than this are rejected before uploading.</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+            <input id="videoMaxSecsInput" class="settings-input" type="number" min="10" max="600" style="margin:0;width:90px">
+            <span style="font-size:16px;color:var(--stone)">seconds</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="dl" style="margin-bottom:4px">Auto-delete videos after</div>
+          <div class="settings-note">Videos older than this are removed from Cloudinary overnight by the GAS cleanup trigger.</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+            <input id="videoDeleteDaysInput" class="settings-input" type="number" min="7" max="365" style="margin:0;width:90px">
+            <span style="font-size:16px;color:var(--stone)">days</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <button class="settings-btn" id="saveVideoSettingsBtn" onclick="saveVideoSettings()">Save Video Settings</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -489,7 +519,12 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 /* ═══ CONFIG ═══ */
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
-  CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:15*60*1000
+  CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:15*60*1000,
+  CLOUDINARY_CLOUD:'dtecnh1il',
+  CLOUDINARY_PRESET:'ranger_rover',
+  VIDEO_MAX_MB:parseInt(localStorage.getItem('rr_video_max_mb')||'150'),
+  VIDEO_MAX_SECS:parseInt(localStorage.getItem('rr_video_max_secs')||'180'),
+  VIDEO_DELETE_DAYS:parseInt(localStorage.getItem('rr_video_delete_days')||'90')
 };
 let DATA={sites:[],humans:[],roles:[],chores:[]};
 let SESSION=null;
@@ -903,15 +938,18 @@ function renderChoreDetail(c,editMode){
           style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:10px"
           onerror="this.style.display='none'">`:
           `<div id="chore-edit-img" style="display:none"></div>`}
-        <button type="button" onclick="showPhotoOptions(f=>previewChorePhotoFile(f,'chore-edit-img','chore-photo-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
-          📷 ${imgSrc?'Replace Photo':'Add Photo'}
+        <button type="button" onclick="showChoreMediaOptions(f=>previewChorePhotoFile(f,'chore-edit-img','chore-photo-status'),()=>recordVideoForChore('ce-VideoLink','ce-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+          📷 ${imgSrc?'Replace Photo':'Add Photo / Video'}
         </button>
         <div style="font-size:14px;color:var(--silver);margin-top:5px" id="chore-photo-status"></div>
       </div>
       <div class="edit-wrap">
-        <div class="edit-label">Video Link (optional)</div>
+        <div class="edit-label">Video Link</div>
+        ${videoSrc?`<div style="margin-bottom:10px">${videoLinkHtml(videoSrc)}</div>`:''}
+        <div style="font-size:14px;color:var(--silver);margin-bottom:6px" id="ce-video-status"></div>
+        <div style="font-size:13px;color:var(--silver);margin-bottom:6px">or paste a Google Drive share link:</div>
         <input class="edit-input" id="ce-VideoLink"
-          placeholder="Paste Google Drive share link…"
+          placeholder="https://drive.google.com/…"
           value="${ea(videoSrc)}"
           style="font-size:16px"
           oninput="document.getElementById('ce-video-hint').style.display=this.value.trim()?'block':'none'">
@@ -1099,17 +1137,16 @@ function showAddChore(){
       </div>
     </div>
     <div class="edit-wrap">
-      <div class="edit-label">Photo (optional)</div>
-      <button type="button" onclick="showPhotoOptions(f=>previewNewChorePhotoFile(f))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
-        📷 Add Photo
+      <div class="edit-label">Photo / Video (optional)</div>
+      <button type="button" onclick="showChoreMediaOptions(f=>previewNewChorePhotoFile(f),()=>recordVideoForChore('nc-VideoLink','nc-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+        📷 Add Photo / Video
       </button>
       <div id="nc-photo-preview" style="margin-top:8px"></div>
       <div style="font-size:14px;color:var(--silver);margin-top:4px" id="nc-photo-status"></div>
-    </div>
-    <div class="edit-wrap">
-      <div class="edit-label">Video Link (optional)</div>
+      <div style="font-size:14px;margin-top:6px" id="nc-video-status"></div>
+      <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a Drive link:</div>
       <input class="edit-input" id="nc-VideoLink"
-        placeholder="Paste Google Drive share link…"
+        placeholder="https://drive.google.com/…"
         style="font-size:16px"
         oninput="document.getElementById('nc-video-hint').style.display=this.value.trim()?'block':'none'">
       <div id="nc-video-hint" style="display:none;margin-top:6px;font-size:14px;color:var(--sage)">✓ Will show as ▶ View Video in Drive</div>
@@ -2187,6 +2224,9 @@ async function deleteChoreFromDetail(choreId,description){
 }
 
 /* ═══ PHOTO ACTION SHEET ═══ */
+/* ═══ MEDIA ACTION SHEETS ═══ */
+
+/* Photo-only sheet — used for sites and profile photos */
 function showPhotoOptions(onFileCb){
   const modal=document.createElement('div');
   modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
@@ -2207,6 +2247,29 @@ function showPhotoOptions(onFileCb){
   document.body.appendChild(modal);
 }
 
+/* Photo + Video sheet — used for chores */
+function showChoreMediaOptions(onPhotoCb, onVideoCb){
+  const modal=document.createElement('div');
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:26px 26px 0 0;width:100%;padding:20px 20px calc(20px + var(--safe-bottom))">
+      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:16px;text-align:center">Add Media</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button id="po-camera"  style="padding:16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">📷 Take Photo</button>
+        <button id="po-gallery" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">🖼 Photo from Gallery</button>
+        <button id="po-video"   style="padding:16px;background:var(--blue);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">🎥 Record Video</button>
+        <button id="po-cancel"  style="padding:14px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer">Cancel</button>
+      </div>
+    </div>`;
+  const cleanup=()=>modal.remove();
+  modal.querySelector('#po-camera').onclick=()=>{cleanup();_pickPhoto(true,onPhotoCb);};
+  modal.querySelector('#po-gallery').onclick=()=>{cleanup();_pickPhoto(false,onPhotoCb);};
+  modal.querySelector('#po-video').onclick=()=>{cleanup();_pickVideo(onVideoCb);};
+  modal.querySelector('#po-cancel').onclick=cleanup;
+  modal.addEventListener('click',e=>{if(e.target===modal)cleanup();});
+  document.body.appendChild(modal);
+}
+
 function _pickPhoto(useCamera,cb){
   const input=document.createElement('input');
   input.type='file';input.accept='image/*';
@@ -2216,6 +2279,84 @@ function _pickPhoto(useCamera,cb){
   input.oncancel=()=>input.remove();
   document.body.appendChild(input);
   input.click();
+}
+
+function _pickVideo(cb){
+  const input=document.createElement('input');
+  input.type='file';input.accept='video/*';
+  input.setAttribute('capture','environment'); // opens camera in video mode on mobile
+  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0';
+  input.onchange=()=>{if(input.files[0])cb(input.files[0]);input.remove();};
+  input.oncancel=()=>input.remove();
+  document.body.appendChild(input);
+  input.click();
+}
+
+/* ─── Video duration check (before upload) ─── */
+function _checkVideoDuration(file){
+  return new Promise(resolve=>{
+    const url=URL.createObjectURL(file);
+    const vid=document.createElement('video');
+    vid.preload='metadata';
+    vid.onloadedmetadata=()=>{URL.revokeObjectURL(url);resolve(vid.duration||0);};
+    vid.onerror=()=>{URL.revokeObjectURL(url);resolve(0);}; // if unreadable, allow through
+    vid.src=url;
+  });
+}
+
+/* ─── Cloudinary upload ─── */
+async function _uploadToCloudinary(file, statusElId){
+  const st=statusElId?document.getElementById(statusElId):null;
+  // 1. Size check
+  const maxBytes=(CFG.VIDEO_MAX_MB||150)*1024*1024;
+  if(file.size>maxBytes)throw new Error(`Video too large (max ${CFG.VIDEO_MAX_MB}MB). This clip is ${Math.round(file.size/1024/1024)}MB — try a shorter recording.`);
+  // 2. Duration check
+  if(st)st.textContent='Checking length…';
+  const dur=await _checkVideoDuration(file);
+  const maxSecs=CFG.VIDEO_MAX_SECS||180;
+  if(dur>maxSecs){
+    const m=Math.floor(maxSecs/60),s=maxSecs%60;
+    throw new Error(`Video too long (max ${m}m${s?s+'s':''}). This clip is ${Math.round(dur)}s — please trim or record a shorter clip.`);
+  }
+  // 3. Upload
+  if(st)st.textContent='Uploading…';
+  const fd=new FormData();
+  fd.append('file',file);
+  fd.append('upload_preset',CFG.CLOUDINARY_PRESET);
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${CFG.CLOUDINARY_CLOUD}/video/upload`,{method:'POST',body:fd});
+  if(!res.ok)throw new Error('Upload failed — check your connection and try again.');
+  const data=await res.json();
+  if(!data.secure_url)throw new Error(data.error?.message||'Upload failed');
+  if(st){st.style.color='var(--sage)';st.textContent='✓ Video uploaded';}
+  return data.secure_url;
+}
+
+/* ─── Record + upload handler for chore forms ─── */
+async function recordVideoForChore(inputId, statusId){
+  _pickVideo(async file=>{
+    const st=document.getElementById(statusId);
+    if(st){st.style.color='var(--silver)';st.textContent='Checking video…';}
+    try{
+      const url=await _uploadToCloudinary(file,statusId);
+      const inp=document.getElementById(inputId);
+      if(inp){inp.value=url;inp.dispatchEvent(new Event('input'));}
+    }catch(e){
+      if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
+    }
+  });
+}
+
+/* ═══ VIDEO SETTINGS ═══ */
+function saveVideoSettings(){
+  const mb=parseInt(document.getElementById('videoMaxMbInput').value)||150;
+  const secs=parseInt(document.getElementById('videoMaxSecsInput').value)||180;
+  const days=parseInt(document.getElementById('videoDeleteDaysInput').value)||90;
+  CFG.VIDEO_MAX_MB=mb;CFG.VIDEO_MAX_SECS=secs;CFG.VIDEO_DELETE_DAYS=days;
+  localStorage.setItem('rr_video_max_mb',mb);
+  localStorage.setItem('rr_video_max_secs',secs);
+  localStorage.setItem('rr_video_delete_days',days);
+  const btn=document.getElementById('saveVideoSettingsBtn');
+  if(btn){const orig=btn.textContent;btn.textContent='✓ Saved';setTimeout(()=>btn.textContent=orig,1500);}
 }
 
 /* File-accepting wrappers for each preview function */
@@ -2361,7 +2502,12 @@ async function saveNotes(){
 
 function saveGasUrl(){const u=document.getElementById('gasUrlInput').value.trim();CFG.URL=u;localStorage.setItem('rr_gas_url',u);localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);switchTab('schools');loadData(true);}
 function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);loadData(true);}
-window.addEventListener('DOMContentLoaded',()=>{if(CFG.URL&&document.getElementById('gasUrlInput'))document.getElementById('gasUrlInput').value=CFG.URL;});
+window.addEventListener('DOMContentLoaded',()=>{
+  if(CFG.URL&&document.getElementById('gasUrlInput'))document.getElementById('gasUrlInput').value=CFG.URL;
+  const vMb=document.getElementById('videoMaxMbInput');if(vMb)vMb.value=CFG.VIDEO_MAX_MB||150;
+  const vSecs=document.getElementById('videoMaxSecsInput');if(vSecs)vSecs.value=CFG.VIDEO_MAX_SECS||180;
+  const vDays=document.getElementById('videoDeleteDaysInput');if(vDays)vDays.value=CFG.VIDEO_DELETE_DAYS||90;
+});
 
 /* ═══ AUTH KEYBOARD ═══ */
 document.getElementById('authEmail').addEventListener('keydown',e=>{if(e.key==='Enter')handleEmailSubmit();});
