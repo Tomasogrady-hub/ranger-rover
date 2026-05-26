@@ -940,7 +940,7 @@ function renderChoreDetail(c,editMode){
           style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:10px"
           onerror="this.style.display='none'">`:
           `<div id="chore-edit-img" style="display:none"></div>`}
-        <button type="button" onclick="showChoreMediaOptions(f=>previewChorePhotoFile(f,'chore-edit-img','chore-photo-status'),()=>recordVideoForChore('ce-VideoLink','ce-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+        <button type="button" onclick="showChoreMediaOptions(f=>previewChorePhotoFile(f,'chore-edit-img','chore-photo-status'),f=>uploadVideoForChore(f,'ce-VideoLink','ce-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
           📷 ${imgSrc?'Replace Photo':'Add Photo / Video'}
         </button>
         <div style="font-size:14px;color:var(--silver);margin-top:5px" id="chore-photo-status"></div>
@@ -1177,7 +1177,7 @@ function showAddChore(){
     </div>
     <div class="edit-wrap">
       <div class="edit-label">Photo / Video (optional)</div>
-      <button type="button" onclick="showChoreMediaOptions(f=>previewNewChorePhotoFile(f),()=>recordVideoForChore('nc-VideoLink','nc-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+      <button type="button" onclick="showChoreMediaOptions(f=>previewNewChorePhotoFile(f),f=>uploadVideoForChore(f,'nc-VideoLink','nc-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
         📷 Add Photo / Video
       </button>
       <div id="nc-photo-preview" style="margin-top:8px"></div>
@@ -2372,27 +2372,20 @@ async function _uploadToCloudinary(file, statusElId){
   return data.secure_url;
 }
 
-/* ─── Record + upload handler for chore forms ─── */
-async function recordVideoForChore(inputId, statusId){
-  _pickVideo(async file=>{
-    const st=document.getElementById(statusId);
-    if(st){st.style.color='var(--silver)';st.textContent='Checking video…';}
-    try{
-      const url=await _uploadToCloudinary(file,statusId);
-      // Store in window var (reliable) AND set input display (visual feedback)
-      window._pendingVideoUrl=url;
-      const inp=document.getElementById(inputId);
-      if(inp){
-        inp.value=url;
-        inp.style.background='var(--mint)';
-        inp.dispatchEvent(new Event('input'));
-      }
-      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready — tap Save to attach';}
-    }catch(e){
-      window._pendingVideoUrl=null;
-      if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
-    }
-  });
+/* ─── Upload handler — receives the file directly from showChoreMediaOptions ─── */
+async function uploadVideoForChore(file, inputId, statusId){
+  const st=document.getElementById(statusId);
+  if(st){st.style.color='var(--silver)';st.textContent='Checking video…';}
+  try{
+    const url=await _uploadToCloudinary(file,statusId);
+    window._pendingVideoUrl=url;
+    const inp=document.getElementById(inputId);
+    if(inp){inp.value=url;inp.style.background='#f0fff4';inp.dispatchEvent(new Event('input'));}
+    if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready — tap Save to attach';}
+  }catch(e){
+    window._pendingVideoUrl=null;
+    if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
+  }
 }
 
 /* ═══ VIDEO SETTINGS ═══ */
