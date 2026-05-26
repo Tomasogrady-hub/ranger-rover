@@ -994,9 +994,45 @@ function renderChoreDetail(c,editMode){
         ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Mark as Closed</button>`:''}
         ${SESSION&&id?`<button class="dcta" onclick="deleteChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--danger);color:var(--danger)">🗑 Delete</button>`:''}
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
+        ${SESSION&&SESSION.accessLevel===1?`<button class="dcta" onclick="showChoreDebug()" style="border-color:var(--silver);color:var(--silver);font-size:12px">🔍 Debug</button>`:''}
       </div>`;
     window._currentChore=c;
   }
+}
+
+/* ═══ CHORE DEBUG (access level 1 only) ═══ */
+function showChoreDebug(){
+  const c=window._currentChore||{};
+  const videoRaw=c['Helpful Video 1']||c.HelpfulVideo1||'';
+  const imgRaw=c['Helpful Image 1']||c.HelpfulImage1||'';
+  const fields=[
+    ['ID',              c.ID||c.id||'—'],
+    ['Site',            c.Site||'—'],
+    ['Helpful Image 1', imgRaw||'(empty)'],
+    ['Helpful Video 1', videoRaw||'(empty)'],
+    ['getImgSrc result',getImgSrc(imgRaw)||'(empty)'],
+    ['isVideoLink',     String(isVideoLink(videoRaw))],
+    ['Status',          c.Status||'—'],
+    ['Urgency',         c.Urgency||'—'],
+    ['All keys',        Object.keys(c).join(', ')],
+  ];
+  const rows=fields.map(([k,v])=>`
+    <div style="padding:10px 0;border-bottom:1px solid var(--mist)">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--silver);margin-bottom:3px">${k}</div>
+      <div style="font-size:14px;color:var(--ink);word-break:break-all;font-family:monospace">${escHtml(String(v))}</div>
+    </div>`).join('');
+  const modal=document.createElement('div');
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20000;display:flex;align-items:flex-end';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:26px 26px 0 0;width:100%;max-height:80dvh;overflow-y:auto;padding:20px 20px calc(24px + var(--safe-bottom))">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-family:var(--font-d);font-size:22px;font-style:italic">Chore Debug</div>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--stone)">✕</button>
+      </div>
+      ${rows}
+    </div>`;
+  modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+  document.body.appendChild(modal);
 }
 
 function _attachDropdownDismiss(){
