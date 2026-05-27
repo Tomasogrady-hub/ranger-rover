@@ -1396,8 +1396,8 @@ function updateSchoolFilterCounts(){
     if(dist==='lausd')counts.lausd++;
     else if(dist==='busd')counts.busd++;
     else if(dist==='gusd')counts.gusd++;
-    const r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
-    if(!r1n&&!r1e&&!gkn&&!gke)counts['no-ranger']++;
+    const r1e=sf(s,'Ranger 1','Ranger1'),gke=sf(s,'Garden Keeper','GardenKeeper');
+    if(!r1e&&!gke)counts['no-ranger']++;
     if(openChoresForSite(sf(s,'Name','name')).length>0)counts['has-chores']++;
     const t=(sf(s,'Type','type')||'').toLowerCase();
     if(t.includes('active') && !t.includes('inactive'))counts.active++;
@@ -1443,9 +1443,9 @@ function renderSchools(){
 function _schoolCardHtml(s,i){
   const name=sf(s,'Name','name'),dist=sf(s,'District','district'),type=sf(s,'Type','type')||'';
   const r1e=sf(s,'Ranger 1','Ranger1');
-  const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||hn(r1e);
+  const r1n=r1e?(sf(s,'Ranger 1 Name','Ranger1Name')||hn(r1e)):'';
   const gke=sf(s,'Garden Keeper','GardenKeeper');
-  const gkn=sf(s,'Garden Keeper Name','GardenKeeperName')||hn(gke);
+  const gkn=gke?(sf(s,'Garden Keeper Name','GardenKeeperName')||hn(gke)):'';
   const tl=type.toLowerCase();
   const dimmed=csf==='all'&&!tl.includes('active');
   const openChores=openChoresForSite(name);
@@ -1458,8 +1458,8 @@ function _schoolCardHtml(s,i){
     <div class="sdm dm-${dc(dist)}"></div>
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${name}</span></div>
-      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div>${rLink(r1e,'🌿 '+r1n)}</div>`:''}
-      ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div>${rLink(gke,'🌱 '+gkn)}</div>`:''}
+      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
+      ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
       ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
     </div>
     <span class="school-chevron">›</span>
@@ -1779,9 +1779,9 @@ function renderSchoolDetail(site,editMode){
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
   const helpImg1=getImgSrc(sf(site,'Helpful Image 1','HelpfulImage1'));
   const helpImg2=getImgSrc(sf(site,'Helpful Image 2','HelpfulImage2'));
-  const r1e=sf(site,'Ranger 1','Ranger1'),r1n=sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e),r1m=hm(r1e);
-  const r2e=sf(site,'Ranger 2','Ranger2'),r2n=sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e),r2m=hm(r2e);
-  const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=sf(site,'Garden Keeper Name','GardenKeeperName')||hn(gke),gkm=hm(gke);
+  const r1e=sf(site,'Ranger 1','Ranger1'),r1n=r1e?(sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e)):'',r1m=hm(r1e);
+  const r2e=sf(site,'Ranger 2','Ranger2'),r2n=r2e?(sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e)):'',r2m=hm(r2e);
+  const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=gke?(sf(site,'Garden Keeper Name','GardenKeeperName')||hn(gke)):'',gkm=hm(gke);
   const pe=sf(site,'Principal','principal'),pn=hn(pe),pm=hm(pe);
   const saa=sf(site,'School Administrative Assistant','SchoolAdministrativeAssistant');
   const mc1=sf(site,'Main Contact 1','MainContact1'),mc2=sf(site,'Main Contact 2','MainContact2'),mc3=sf(site,'Main Contact 3','MainContact3');
@@ -1943,9 +1943,9 @@ async function saveSiteEdit(siteName){
   const mi=gv('ef-MainImg');if(mi!==null)updates['Main Image']=mi;
   const hi1=gv('ef-HelpImg1');if(hi1!==null)updates['Helpful Image 1']=hi1;
   const hi2=gv('ef-HelpImg2');if(hi2!==null)updates['Helpful Image 2']=hi2;
-  const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;if(r1v)updates['Ranger 1 Name']=hn(r1v);}
-  const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;if(r2v)updates['Ranger 2 Name']=hn(r2v);}
-  const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;if(gkv)updates['Garden Keeper Name']=hn(gkv);}
+  const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;updates['Ranger 1 Name']=r1v?hn(r1v):'';}
+  const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;updates['Ranger 2 Name']=r2v?hn(r2v):'';}
+  const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;updates['Garden Keeper Name']=gkv?hn(gkv):'';}
   const pv=gb('dsb-prin');if(pv!==null)updates['Principal']=pv;
   const saav=gb('dsb-saa');if(saav!==null)updates['School Administrative Assistant']=saav;
   const mc1v=gb('dsb-mc1');if(mc1v!==null)updates['Main Contact 1']=mc1v;
