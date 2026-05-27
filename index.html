@@ -1776,6 +1776,7 @@ function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name',
 function renderSchoolDetail(site,editMode){
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
   const details=sf(site,'SiteDetails','Site Details','siteDetails'),sched=sf(site,'Schedule','schedule');
+  const videoSrc=(sf(site,'Helpful Video 1','HelpfulVideo1')||'').trim();
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
   const helpImg1=getImgSrc(sf(site,'Helpful Image 1','HelpfulImage1'));
   const helpImg2=getImgSrc(sf(site,'Helpful Image 2','HelpfulImage2'));
@@ -1871,12 +1872,25 @@ function renderSchoolDetail(site,editMode){
           <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
         <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" placeholder="Paste image URL…"></div>`:''}
+      <hr class="section-divider">
+      <div class="edit-wrap">
+        <div class="edit-label">Site Video</div>
+        ${videoSrc?`<div style="margin-bottom:10px">${videoLinkHtml(videoSrc)}</div>`:''}
+        <button type="button" onclick="showPhotoOptions_videoOnly(f=>uploadVideoForSite(f,'ef-VideoLink','ef-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
+          🎥 ${videoSrc?'Replace Video':'Record Video'}
+        </button>
+        <div style="font-size:14px;margin-top:6px" id="ef-video-status"></div>
+        <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a link:</div>
+        <input class="edit-input" id="ef-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
+      </div>
       <div class="edit-actions">
         <button class="btn-save" onclick="saveSiteEdit('${ea(name)}')">Save</button>
         <button class="btn-cancel" onclick="renderSchoolDetail(window._currentSite,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingSitePhotos={};
+    window._pendingSiteVideoUrl=null;
+    window._pendingSiteVideoPromise=null;
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
@@ -1906,6 +1920,7 @@ function renderSchoolDetail(site,editMode){
       ${gkn?`<div class="ds"><div class="dl">Garden Keeper</div><div class="dv" style="margin-bottom:5px"><button class="contact-tap" onclick="showPersonDetail('${ea(gke)}')">${gkn}</button><br><span style="font-size:15px;color:var(--silver)">${gke}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(gkm,gke)}</div></div>`:''}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
+      ${videoSrc?`<div class="ds"><div class="dl">Site Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>
       ${editPeopleHtml}
@@ -1952,6 +1967,14 @@ async function saveSiteEdit(siteName){
   const mc2v=gb('dsb-mc2');if(mc2v!==null)updates['Main Contact 2']=mc2v;
   const mc3v=gb('dsb-mc3');if(mc3v!==null)updates['Main Contact 3']=mc3v;
   const pmv=gb('dsb-pm');if(pmv!==null)updates['Plant Manager']=pmv;
+  // Video — wait for any in-progress Cloudinary upload, then save URL
+  if(window._pendingSiteVideoPromise){
+    m.textContent='Finishing video upload…';
+    try{await window._pendingSiteVideoPromise;}catch(e){}
+  }
+  const vv=document.getElementById('ef-VideoLink');
+  if(vv!==null)updates['Helpful Video 1']=window._pendingSiteVideoUrl||vv.value.trim();
+  window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
   try{
     await saveToSheet('Sites',siteName,updates);
     m.textContent='✓ Saved';
@@ -2706,6 +2729,27 @@ async function _uploadHumanPhoto(email,file){
     reader.onerror=()=>reject(new Error('File read error'));
     reader.readAsDataURL(file);
   });
+}
+
+/* ═══ SITE VIDEO UPLOAD ═══ */
+function uploadVideoForSite(file,inputId,statusId){
+  const st=document.getElementById(statusId);
+  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
+  window._pendingSiteVideoUrl=null;
+  window._pendingSiteVideoPromise=_uploadToCloudinary(file,null)
+    .then(url=>{
+      window._pendingSiteVideoUrl=url;
+      window._pendingSiteVideoPromise=null;
+      const inp=document.getElementById(inputId);
+      if(inp){inp.value=url;inp.style.background='#f0fff4';inp.dispatchEvent(new Event('input'));}
+      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready';}
+      return url;
+    })
+    .catch(e=>{
+      window._pendingSiteVideoPromise=null;
+      window._pendingSiteVideoUrl=null;
+      if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
+    });
 }
 
 /* ═══ SETTINGS ═══ */
