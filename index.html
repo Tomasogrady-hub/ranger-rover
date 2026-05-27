@@ -1003,6 +1003,7 @@ function renderChoreDetail(c,editMode){
     window._pendingChorePhotos={};
     window._pendingVideoUrl=null;
     window._pendingVideoPromise=null;
+    window._currentEditSaveFn=()=>saveChoreEdit(id);
   } else {
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
@@ -1068,6 +1069,7 @@ function _previewChoreSlot(file, slotIdx, prefix){
       const btn=slot.nextElementSibling;
       if(btn){btn.style.background='var(--grove)';btn.style.color='white';btn.style.borderColor='var(--grove)';btn.textContent='↺ Replace';}
     }
+    showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
 }
@@ -1308,6 +1310,7 @@ function showAddChore(){
   window._pendingChorePhotos={};
   window._pendingVideoUrl=null;
   window._pendingVideoPromise=null;
+  window._currentEditSaveFn=()=>saveNewChore();
   openDetail();
   _attachDropdownDismiss();
 }
@@ -1891,6 +1894,7 @@ function renderSchoolDetail(site,editMode){
     window._pendingSitePhotos={};
     window._pendingSiteVideoUrl=null;
     window._pendingSiteVideoPromise=null;
+    window._currentEditSaveFn=()=>saveSiteEdit(name);
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
@@ -2026,6 +2030,7 @@ function renderPD(h,edit){
         <button class="btn-cancel" onclick="showPersonDetail('${ea(email||name)}')">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
+    window._currentEditSaveFn=()=>savePerson(email);
   } else {
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
@@ -2603,6 +2608,7 @@ function uploadVideoForChore(file, inputId, statusId){
   if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
   // Start upload immediately — store the Promise so save can await it if needed
   window._pendingVideoUrl=null;
+  showUploadPrompt('video');
   window._pendingVideoPromise=_uploadToCloudinary(file,null) // null = no status override during background upload
     .then(url=>{
       window._pendingVideoUrl=url;
@@ -2663,6 +2669,7 @@ function previewSitePhotoFile(file,previewId,fieldKey){
   reader.onload=e=>{
     const img=document.getElementById(previewId);
     if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px';}
+    showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
 }
@@ -2673,6 +2680,7 @@ function previewSelfPhotoFile(file){
   reader.onload=e=>{
     const wrap=document.getElementById('self-avatar-wrap');
     if(wrap)wrap.innerHTML=`<img id="self-img-preview" src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+    showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
 }
@@ -2736,6 +2744,7 @@ function uploadVideoForSite(file,inputId,statusId){
   const st=document.getElementById(statusId);
   if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
   window._pendingSiteVideoUrl=null;
+  showUploadPrompt('video');
   window._pendingSiteVideoPromise=_uploadToCloudinary(file,null)
     .then(url=>{
       window._pendingSiteVideoUrl=url;
@@ -2750,6 +2759,34 @@ function uploadVideoForSite(file,inputId,statusId){
       window._pendingSiteVideoUrl=null;
       if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
     });
+}
+
+/* ═══ UPLOAD PROMPT — appears after any photo or video is picked ═══ */
+function showUploadPrompt(mediaType){
+  document.getElementById('upload-prompt-modal')?.remove();
+  const isVideo=mediaType==='video';
+  const saveFn=window._currentEditSaveFn;
+  const modal=document.createElement('div');
+  modal.id='upload-prompt-modal';
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:11000;display:flex;align-items:flex-end';
+  modal.innerHTML=`
+    <div style="background:var(--paper);border-radius:26px 26px 0 0;width:100%;padding:26px 20px calc(30px + var(--safe-bottom))">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:40px;margin-bottom:10px">${isVideo?'🎥':'📷'}</div>
+        <div style="font-family:var(--font-d);font-size:32px;font-style:italic;color:var(--ink);margin-bottom:10px">${isVideo?'Video uploading…':'Photo attached'}</div>
+        <div style="font-size:17px;color:var(--stone);line-height:1.7;max-width:300px;margin:0 auto">${isVideo
+          ?'Your video is uploading in the background.<br>You can save &amp; close now — it will finish automatically.'
+          :'Your photo is attached and ready to save.'
+        }</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <button id="upr-save" style="padding:18px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:18px;font-weight:500;cursor:pointer;letter-spacing:.03em">✓ Finished — Save &amp; Close</button>
+        <button id="upr-continue" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">Continue Editing</button>
+      </div>
+    </div>`;
+  modal.querySelector('#upr-save').onclick=()=>{modal.remove();if(saveFn)saveFn();};
+  modal.querySelector('#upr-continue').onclick=()=>modal.remove();
+  document.body.appendChild(modal);
 }
 
 /* ═══ SETTINGS ═══ */
