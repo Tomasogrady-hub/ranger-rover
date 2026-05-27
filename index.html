@@ -260,6 +260,10 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 #notesArea::placeholder{color:var(--silver)}
 .notes-status{font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--silver);transition:opacity .3s}
 @media(min-width:450px){#app{box-shadow:0 0 0 1px var(--mist),0 20px 60px rgba(0,0,0,.08)}}
+/* ── Tappable contact name in detail & school card ── */
+.contact-tap{background:none;border:none;cursor:pointer;font-family:var(--font-b);font-weight:500;font-size:inherit;color:var(--sage);text-align:left;padding:0;line-height:inherit;text-decoration:underline;text-decoration-color:var(--mist);text-underline-offset:2px}
+.contact-tap:active{color:var(--grove)}
+.ranger-link-line{display:flex;align-items:center;gap:5px;margin-top:3px}
 </style>
 </head>
 <body>
@@ -1438,17 +1442,24 @@ function renderSchools(){
 
 function _schoolCardHtml(s,i){
   const name=sf(s,'Name','name'),dist=sf(s,'District','district'),type=sf(s,'Type','type')||'';
-  const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||hn(sf(s,'Ranger 1','Ranger1'));
-  const gkn=sf(s,'Garden Keeper Name','GardenKeeperName')||hn(sf(s,'Garden Keeper','GardenKeeper'));
+  const r1e=sf(s,'Ranger 1','Ranger1');
+  const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||hn(r1e);
+  const gke=sf(s,'Garden Keeper','GardenKeeper');
+  const gkn=sf(s,'Garden Keeper Name','GardenKeeperName')||hn(gke);
   const tl=type.toLowerCase();
   const dimmed=csf==='all'&&!tl.includes('active');
-  const hasR=!!(r1n||gkn);
   const openChores=openChoresForSite(name);
+  // Clickable ranger/GK names for levels 1 & 2; plain text for level 3
+  const canLink=SESSION&&SESSION.accessLevel<=2;
+  const rLink=(email,label)=>canLink&&email
+    ?`<button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(email)}')">${label}</button>`
+    :`<span style="font-size:15px">${label}</span>`;
   return `<div class="school-card" onclick="showSchoolDetail(${i})"${dimmed?' style="opacity:.5"':''}>
     <div class="sdm dm-${dc(dist)}"></div>
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${name}</span></div>
-      ${hasR?`<div class="ranger-line"><div class="rdot"></div>${r1n||gkn}</div>`:''}
+      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div>${rLink(r1e,'🌿 '+r1n)}</div>`:''}
+      ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div>${rLink(gke,'🌱 '+gkn)}</div>`:''}
       ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
     </div>
     <span class="school-chevron">›</span>
@@ -1513,7 +1524,9 @@ function _rangerCardHtml(h){
   const gkSites=DATA.sites.filter(s=>sf(s,'Garden Keeper','GardenKeeper')===email);
   const sLink=(s)=>{const n=sf(s,'Name','name');return `<button class="school-link-btn" onclick="showSchoolDetailByName('${esc(n)}');event.stopPropagation()">${n}</button>`;};
   let roleBlock='';
-  if(isPrimary){
+  // B: When Garden Keeper filter is active, suppress ranger-school block
+  const gkFilterActive=(crf==='garden_keeper');
+  if(isPrimary&&!gkFilterActive){
     roleBlock+=`<div class="people-role">${role}${rangerSites.length?' · '+rangerSites.length+' school'+(rangerSites.length>1?'s':''):''}</div>`;
     if(rangerSites.length)roleBlock+=`<div class="ranger-schools">${rangerSites.map(sLink).join('')}</div>`;
   }
@@ -1867,17 +1880,16 @@ function renderSchoolDetail(site,editMode){
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
-    function crow(label,email){if(!email)return '';const n=hn(email),m=hm(email);return `<div class="ds"><div class="dl">${label}</div><div class="dv" style="margin-bottom:5px">${n}<br><span style="font-size:15px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(m,email)}</div></div>`;}
-    const editPeopleHtml=canEdit()?`<hr class="section-divider" style="margin-top:16px">
-      <div style="padding:12px 20px 0">
-        <div class="dl" style="margin-bottom:8px">Edit a Contact's Record</div>
-        <div style="display:flex;flex-wrap:wrap;gap:7px">
-          ${r1e?`<button onclick="showPersonDetail('${ea(r1e)}')" class="cta">✏ ${r1n||'Ranger 1'}</button>`:''}
-          ${r2e?`<button onclick="showPersonDetail('${ea(r2e)}')" class="cta">✏ ${r2n||'Ranger 2'}</button>`:''}
-          ${gke?`<button onclick="showPersonDetail('${ea(gke)}')" class="cta">✏ ${gkn||'Keeper'}</button>`:''}
-          ${pe?`<button onclick="showPersonDetail('${ea(pe)}')" class="cta">✏ ${pn||'Principal'}</button>`:''}
-        </div>
-      </div>`:'';
+    function crow(label,email){
+      if(!email)return '';
+      const n=hn(email),m=hm(email);
+      const inDB=!!DATA.humans.find(p=>(p.Email||p.email||'')=== email);
+      const nameHtml=inDB
+        ?`<button class="contact-tap" onclick="showPersonDetail('${ea(email)}')">${n}</button>`
+        :`<span style="font-weight:500">${n}</span>`;
+      return `<div class="ds"><div class="dl">${label}</div><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><div class="dv" style="margin-bottom:5px">${nameHtml}<br><span style="font-size:15px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(m,email)}</div></div></div></div>`;
+    }
+    const editPeopleHtml='';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s" onerror="this.parentElement.style.display='none'"></div>`:''}
@@ -1887,11 +1899,11 @@ function renderSchoolDetail(site,editMode){
       ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
       <div class="ds">
         <div class="dl">Ranger${r2n?' 1':''}</div>
-        <div class="dv" style="margin-bottom:5px">${r1n?`<strong style="font-weight:500">${r1n}</strong><br><span style="font-size:15px;color:var(--silver)">${r1e}</span>`:'<span style="color:var(--danger)">Unassigned</span>'}</div>
+        <div class="dv" style="margin-bottom:5px">${r1n?`<button class="contact-tap" onclick="showPersonDetail('${ea(r1e)}')">${r1n}</button><br><span style="font-size:15px;color:var(--silver)">${r1e}</span>`:'<span style="color:var(--danger)">Unassigned</span>'}</div>
         ${r1e||r1m?`<div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r1m,r1e)}</div>`:''}
       </div>
-      ${r2n?`<div class="ds"><div class="dl">Ranger 2</div><div class="dv" style="margin-bottom:5px"><strong>${r2n}</strong><br><span style="font-size:15px;color:var(--silver)">${r2e}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r2m,r2e)}</div></div>`:''}
-      ${gkn?`<div class="ds"><div class="dl">Garden Keeper</div><div class="dv" style="margin-bottom:5px"><strong>${gkn}</strong><br><span style="font-size:15px;color:var(--silver)">${gke}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(gkm,gke)}</div></div>`:''}
+      ${r2n?`<div class="ds"><div class="dl">Ranger 2</div><div class="dv" style="margin-bottom:5px"><button class="contact-tap" onclick="showPersonDetail('${ea(r2e)}')">${r2n}</button><br><span style="font-size:15px;color:var(--silver)">${r2e}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r2m,r2e)}</div></div>`:''}
+      ${gkn?`<div class="ds"><div class="dl">Garden Keeper</div><div class="dv" style="margin-bottom:5px"><button class="contact-tap" onclick="showPersonDetail('${ea(gke)}')">${gkn}</button><br><span style="font-size:15px;color:var(--silver)">${gke}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(gkm,gke)}</div></div>`:''}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
@@ -1997,7 +2009,7 @@ function renderPD(h,edit){
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">${avatarHtml(h,54)}<div class="sheet-title" style="font-size:28px">${name}</div></div>
         <button class="sheet-x" onclick="closeDetail()">✕</button>
       </div>
-      ${imgUrl?`<div style="padding:14px 20px 0"><img src="${imgUrl}" loading="lazy" style="width:100%;height:190px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.parentElement.style.display='none'"></div>`:''}
+      ${imgUrl?`<div style="padding:14px 20px 0"><img data-lazy="${imgUrl}" style="width:100%;height:190px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.parentElement.style.display='none'"></div>":''}
       <div class="ds"><div class="dl">Role</div><div class="dv">${role||'—'}</div></div>
       ${schools?`<div class="ds"><div class="dl">Assigned School(s)</div><div class="dv">${schools}</div></div>`:''}
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
