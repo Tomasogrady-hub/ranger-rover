@@ -1132,7 +1132,7 @@ async function saveChoreEdit(choreId){
       for(let i=0;i<3;i++){
         const file=window._pendingChorePhotos[i];
         if(!file)continue;
-        try{const url=await _uploadChorePhotoBase64(choreId,file);if(url)updates[imgCols[i]]=url;}catch(pe){}
+        try{const url=await _uploadChorePhotoBase64(choreId,file,imgCols[i]);if(url)updates[imgCols[i]]=url;}catch(pe){}
       }
       window._pendingChorePhotos={};
     }
@@ -1165,13 +1165,13 @@ async function closeChoreFromDetail(choreId,description){
   }catch(e){alert('Error: '+e.message);}
 }
 
-async function _uploadChorePhotoBase64(choreId,file){
+async function _uploadChorePhotoBase64(choreId, file, imageCol='Helpful Image 1'){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onload=async e=>{
       try{
         const base64=e.target.result.split(',')[1];
-        const j=await gasPost({action:'uploadChoreImage',choreId,base64,mimeType:file.type,filename:file.name});
+        const j=await gasPost({action:'uploadChoreImage',choreId,base64,mimeType:file.type,filename:file.name,imageCol});
         j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
       }catch(err){reject(err);}
     };
@@ -1318,7 +1318,7 @@ async function saveNewChore(){
       for(let i=0;i<3;i++){
         const file=window._pendingChorePhotos[i];
         if(!file)continue;
-        try{const url=await _uploadChorePhotoBase64(res.id,file);if(url)newChore[imgCols[i]]=url;}catch(pe){}
+        try{const url=await _uploadChorePhotoBase64(res.id,file,imgCols[i]);if(url)newChore[imgCols[i]]=url;}catch(pe){}
       }
       window._pendingChorePhotos={};
     }
