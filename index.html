@@ -8,7 +8,10 @@
 <meta name="apple-mobile-web-app-title" content="Ranger Rover">
 <title>Ranger Rover — Enrich LA</title>
 <link rel="manifest" href="manifest.json">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet"></noscript>
 <style>
 :root {
   --ink:#1a1a1a; --charcoal:#3a3a3a; --stone:#6b6b6b; --silver:#9e9e9e;
@@ -519,7 +522,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 /* ═══ CONFIG ═══ */
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
-  CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:15*60*1000,
+  CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
   CLOUDINARY_CLOUD:'dtecnh1il',
   CLOUDINARY_PRESET:'ranger_rover',
   VIDEO_MAX_MB:parseInt(localStorage.getItem('rr_video_max_mb')||'150'),
@@ -612,7 +615,7 @@ function avatarHtml(human,size=48){
 }
 
 /* ── LAZY IMAGE LOADER (IntersectionObserver) ── */
-let _lazyObs=null;
+let _lazyObs=null;let _lazyObsTimer=null;
 function _initLazyImages(){
   const imgs=document.querySelectorAll('img[data-lazy]:not([src])');
   if(!imgs.length)return;
@@ -627,11 +630,17 @@ function _initLazyImages(){
         const img=e.target;
         img.src=img.dataset.lazy;
         img.onload=()=>{img.style.opacity='1';};
+        img.onerror=()=>{img.style.opacity='1';};
         _lazyObs.unobserve(img);
       });
-    },{rootMargin:'350px 0px'}); // start loading 350px before entering view
+    },{rootMargin:'400px 0px'}); // start loading 400px before entering view
   }
   imgs.forEach(img=>_lazyObs.observe(img));
+  // Also immediately load any data-lazy imgs that are currently in viewport
+  imgs.forEach(img=>{
+    const r=img.getBoundingClientRect();
+    if(r.top<window.innerHeight+400){img.src=img.dataset.lazy;img.onload=()=>{img.style.opacity='1';};img.onerror=()=>{img.style.opacity='1';};_lazyObs.unobserve(img);}
+  });
 }
 
 function ctaRow(mobile,email){
@@ -769,14 +778,17 @@ function showApp(){
 async function gasPost(payload){const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
 
 async function loadData(force=false){
-  // ── Cache hit: render immediately then return ──────────────────────────────
+  // ── Stale-While-Revalidate: render cache instantly, refresh in background ──
   if(!force){
     const c=localStorage.getItem(CFG.CK),ts=parseInt(localStorage.getItem(CFG.TK)||'0');
-    if(c&&Date.now()-ts<CFG.TTL){
+    const age=Date.now()-ts;
+    if(c&&age<CFG.STALE_TTL){          // use any cache younger than 24h
       try{
         DATA=JSON.parse(c);
         _humansLoaded=!!(DATA.humans&&DATA.humans.length);
-        syncTS(ts);renderAll();return;
+        syncTS(ts);renderAll();
+        if(age<CFG.TTL)return;          // fresh enough → skip background refresh
+        _refreshAllBackground();return; // stale → show now, refresh silently
       }catch(e){}
     }
   }
@@ -832,6 +844,31 @@ async function _loadHumansBackground(){
       if(_activeTab==='rangers'||_activeTab==='people')_renderDirtyTab(_activeTab);
       if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
     }
+  }catch(e){setSync(false);}
+}
+
+/* Stale-while-revalidate: refresh both core + humans silently in background */
+async function _refreshAllBackground(){
+  if(!CFG.URL)return;
+  try{
+    setSync(true);
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const j=await r.json();
+    if(j.sites){DATA.sites=j.sites;DATA.chores=j.chores||[];}
+  }catch(e){setSync(false);return;}
+  try{
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
+    const j=await r.json();
+    if(j.humans){DATA.humans=j.humans;DATA.roles=j.roles||[];_humansLoaded=true;}
+    const n=Date.now();
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    localStorage.setItem(CFG.TK,n);syncTS(n);
+    setSync(true);
+    // Quietly update the active tab if it changed
+    _tabDirty.schools=true;_tabDirty.chores=true;_tabDirty.rangers=true;_tabDirty.people=true;
+    if(_tabDirty[_activeTab])_renderDirtyTab(_activeTab);
+    if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
+    if(mapInited)refreshMapChores();
   }catch(e){setSync(false);}
 }
 
@@ -984,9 +1021,9 @@ function renderChoreDetail(c,editMode){
       ${assigned?`<div class="ds"><div class="dl">Assigned To</div><div class="dv">${hn(assigned)||assigned}</div></div>`:''}
       ${(img1Src||img2Src||img3Src)?`<div class="ds"><div class="dl">Photos</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-          ${img1Src?`<img src="${img1Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
-          ${img2Src?`<img src="${img2Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
-          ${img3Src?`<img src="${img3Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
+          ${img1Src?`<img data-lazy="${img1Src}" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.style.display='none'">` :''}
+          ${img2Src?`<img data-lazy="${img2Src}" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.style.display='none'">` :''}
+          ${img3Src?`<img data-lazy="${img3Src}" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.style.display='none'">` :''}
         </div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       <div class="detail-ctas">
@@ -1396,24 +1433,58 @@ function renderSchools(){
   document.getElementById('schoolFilters').style.display=SESSION&&SESSION.accessLevel>=3?'none':'flex';
   if(SESSION&&SESSION.accessLevel<=2)updateSchoolFilterCounts();
   if(!sites.length){document.getElementById('schoolList').innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):empty('—','No results','Try a different search or filter.');return;}
-  document.getElementById('schoolList').innerHTML=sites.map((s,i)=>{
-    const name=sf(s,'Name','name'),addr=sf(s,'FullAddress','Full Address','address'),dist=sf(s,'District','district'),type=sf(s,'Type','type')||'';
-    const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||hn(sf(s,'Ranger 1','Ranger1'));
-    const gkn=sf(s,'Garden Keeper Name','GardenKeeperName')||hn(sf(s,'Garden Keeper','GardenKeeper'));
-    const tl=type.toLowerCase();
-    const dimmed=f==='all'&&!tl.includes('active');
-    const hasR=!!(r1n||gkn);
-    const openChores=openChoresForSite(name);
-    return `<div class="school-card" onclick="showSchoolDetail(${i})"${dimmed?' style="opacity:.5"':''}>
-      <div class="sdm dm-${dc(dist)}"></div>
-      <div class="school-info">
-        <div class="school-name-row"><span class="school-name">${name}</span></div>
-        ${hasR?`<div class="ranger-line"><div class="rdot"></div>${r1n||gkn}</div>`:''}
-        ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
-      </div>
-      <span class="school-chevron">›</span>
-    </div>`;
-  }).join('');
+  _renderSchoolBatch(sites,0,40);
+}
+
+function _schoolCardHtml(s,i){
+  const name=sf(s,'Name','name'),dist=sf(s,'District','district'),type=sf(s,'Type','type')||'';
+  const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||hn(sf(s,'Ranger 1','Ranger1'));
+  const gkn=sf(s,'Garden Keeper Name','GardenKeeperName')||hn(sf(s,'Garden Keeper','GardenKeeper'));
+  const tl=type.toLowerCase();
+  const dimmed=csf==='all'&&!tl.includes('active');
+  const hasR=!!(r1n||gkn);
+  const openChores=openChoresForSite(name);
+  return `<div class="school-card" onclick="showSchoolDetail(${i})"${dimmed?' style="opacity:.5"':''}>
+    <div class="sdm dm-${dc(dist)}"></div>
+    <div class="school-info">
+      <div class="school-name-row"><span class="school-name">${name}</span></div>
+      ${hasR?`<div class="ranger-line"><div class="rdot"></div>${r1n||gkn}</div>`:''}
+      ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
+    </div>
+    <span class="school-chevron">›</span>
+  </div>`;
+}
+
+let _schoolListObs=null;
+function _renderSchoolBatch(sites,from,batchSize){
+  const container=document.getElementById('schoolList');
+  if(from===0){container.innerHTML='';}
+  const to=Math.min(from+batchSize,sites.length);
+  const frag=document.createDocumentFragment();
+  for(let i=from;i<to;i++){
+    const el=document.createElement('div');
+    el.innerHTML=_schoolCardHtml(sites[i],i);
+    frag.appendChild(el.firstChild);
+  }
+  // Remove old sentinel if any
+  const old=container.querySelector('.list-sentinel');if(old)old.remove();
+  container.appendChild(frag);
+  if(to<sites.length){
+    // Add scroll sentinel to load next batch
+    const remaining=sites.length-to;
+    const sentinel=document.createElement('div');
+    sentinel.className='list-sentinel';
+    sentinel.innerHTML=`<div style="text-align:center;padding:14px 0;font-size:14px;color:var(--silver);letter-spacing:.06em">Loading ${remaining} more…</div>`;
+    container.appendChild(sentinel);
+    if(_schoolListObs)_schoolListObs.disconnect();
+    _schoolListObs=new IntersectionObserver(entries=>{
+      if(!entries[0].isIntersecting)return;
+      _schoolListObs.disconnect();_schoolListObs=null;
+      sentinel.remove();
+      _renderSchoolBatch(sites,to,batchSize);
+    },{rootMargin:'300px'});
+    _schoolListObs.observe(sentinel);
+  }
 }
 
 /* ═══ RENDER RANGERS ═══ */
@@ -1428,38 +1499,71 @@ function renderRangers(){
   });
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
   if(!rangers.length){document.getElementById('rangerList').innerHTML=empty('—','No results','');return;}
-  document.getElementById('rangerList').innerHTML=rangers.map(h=>{
-    const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'';
-    const role=h.Role||h.role||'';
-    const roleAdd=h['Role Additional']||h.RoleAdditional||'';
-    const cats=humanRoleCats(h);
-    const isGK=cats.includes('garden_keeper');
-    const isPrimary=cats.some(c=>c==='ranger'||c==='master_ranger'||c==='ranger_applicant'||c==='ranger_past');
-    /* schools by column */
-    const rangerSites=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email);
-    const gkSites=DATA.sites.filter(s=>sf(s,'Garden Keeper','GardenKeeper')===email);
-    const sLink=(s)=>{const n=sf(s,'Name','name');return `<button class="school-link-btn" onclick="showSchoolDetailByName('${esc(n)}');event.stopPropagation()">${n}</button>`;};
-    let roleBlock='';
-    if(isPrimary){
-      roleBlock+=`<div class="people-role">${role}${rangerSites.length?' · '+rangerSites.length+' school'+(rangerSites.length>1?'s':''):''}</div>`;
-      if(rangerSites.length)roleBlock+=`<div class="ranger-schools">${rangerSites.map(sLink).join('')}</div>`;
-    }
-    if(isGK){
-      roleBlock+=`<div class="people-role">${roleAdd||'Garden Keeper'}${gkSites.length?' · '+gkSites.length+' school'+(gkSites.length>1?'s':''):''}</div>`;
-      if(gkSites.length)roleBlock+=`<div class="ranger-schools">${gkSites.map(sLink).join('')}</div>`;
-    }
-    if(!roleBlock)roleBlock=`<div class="people-role">${role}${roleAdd?' · '+roleAdd:''}</div>`;
-    const openC=openChoresForHuman(email).length;
-    return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
-      ${avatarHtml(h)}
-      <div class="people-info">
-        <div class="people-name">${name}</div>
-        ${roleBlock}
-        <div class="card-contacts">${ctaRow(mobile,email)}</div>
-        ${openC>0?`<div class="chore-pill">⚠ ${openC} open chore${openC>1?'s':''}</div>`:''}
-      </div>
-    </div>`;
-  }).join('');
+  _renderHumanBatch('rangerList',rangers,0,40,_rangerCardHtml);
+}
+
+function _rangerCardHtml(h){
+  const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'';
+  const role=h.Role||h.role||'';
+  const roleAdd=h['Role Additional']||h.RoleAdditional||'';
+  const cats=humanRoleCats(h);
+  const isGK=cats.includes('garden_keeper');
+  const isPrimary=cats.some(c=>c==='ranger'||c==='master_ranger'||c==='ranger_applicant'||c==='ranger_past');
+  const rangerSites=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email);
+  const gkSites=DATA.sites.filter(s=>sf(s,'Garden Keeper','GardenKeeper')===email);
+  const sLink=(s)=>{const n=sf(s,'Name','name');return `<button class="school-link-btn" onclick="showSchoolDetailByName('${esc(n)}');event.stopPropagation()">${n}</button>`;};
+  let roleBlock='';
+  if(isPrimary){
+    roleBlock+=`<div class="people-role">${role}${rangerSites.length?' · '+rangerSites.length+' school'+(rangerSites.length>1?'s':''):''}</div>`;
+    if(rangerSites.length)roleBlock+=`<div class="ranger-schools">${rangerSites.map(sLink).join('')}</div>`;
+  }
+  if(isGK){
+    roleBlock+=`<div class="people-role">${roleAdd||'Garden Keeper'}${gkSites.length?' · '+gkSites.length+' school'+(gkSites.length>1?'s':''):''}</div>`;
+    if(gkSites.length)roleBlock+=`<div class="ranger-schools">${gkSites.map(sLink).join('')}</div>`;
+  }
+  if(!roleBlock)roleBlock=`<div class="people-role">${role}${roleAdd?' · '+roleAdd:''}</div>`;
+  const openC=openChoresForHuman(email).length;
+  return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
+    ${avatarHtml(h)}
+    <div class="people-info">
+      <div class="people-name">${name}</div>
+      ${roleBlock}
+      <div class="card-contacts">${ctaRow(mobile,email)}</div>
+      ${openC>0?`<div class="chore-pill">⚠ ${openC} open chore${openC>1?'s':''}</div>`:''}
+    </div>
+  </div>`;
+}
+
+/* ── Generic human list batch renderer ── */
+const _humanListObsMap={};
+function _renderHumanBatch(listId,people,from,batchSize,cardFn){
+  const container=document.getElementById(listId);
+  if(from===0){container.innerHTML='';}
+  const to=Math.min(from+batchSize,people.length);
+  const frag=document.createDocumentFragment();
+  people.slice(from,to).forEach(h=>{
+    const el=document.createElement('div');
+    el.innerHTML=cardFn(h);
+    frag.appendChild(el.firstChild);
+  });
+  const oldS=container.querySelector('.list-sentinel');if(oldS)oldS.remove();
+  container.appendChild(frag);
+  _initLazyImages();   // lazy-load avatars that just appeared
+  if(to<people.length){
+    const remaining=people.length-to;
+    const sentinel=document.createElement('div');
+    sentinel.className='list-sentinel';
+    sentinel.innerHTML=`<div style="text-align:center;padding:14px 0;font-size:14px;color:var(--silver);letter-spacing:.06em">Loading ${remaining} more…</div>`;
+    container.appendChild(sentinel);
+    if(_humanListObsMap[listId])_humanListObsMap[listId].disconnect();
+    _humanListObsMap[listId]=new IntersectionObserver(entries=>{
+      if(!entries[0].isIntersecting)return;
+      _humanListObsMap[listId].disconnect();delete _humanListObsMap[listId];
+      sentinel.remove();
+      _renderHumanBatch(listId,people,to,batchSize,cardFn);
+    },{rootMargin:'300px'});
+    _humanListObsMap[listId].observe(sentinel);
+  }
 }
 
 /* ═══ RENDER PEOPLE ═══ */
@@ -1468,17 +1572,19 @@ function renderPeople(){
   const people=DATA.humans.filter(h=>{const role=h.Role||h.role||'';if(f!=='all'&&role!==f)return false;if(q&&!(fullName(h)+(h.Email||h.email||'')+role).toLowerCase().includes(q))return false;return true;});
   document.getElementById('peopleCount').textContent=people.length+' people';
   if(!people.length){document.getElementById('peopleList').innerHTML=empty('—','No results','');return;}
-  document.getElementById('peopleList').innerHTML=people.map(h=>{
-    const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
-    return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
-      ${avatarHtml(h)}
-      <div class="people-info">
-        <div class="people-name">${name}</div>
-        <div class="people-role">${role}</div>
-        <div class="card-contacts">${ctaRow(mobile,email)}</div>
-      </div>
-    </div>`;
-  }).join('');
+  _renderHumanBatch('peopleList',people,0,40,_personCardHtml);
+}
+
+function _personCardHtml(h){
+  const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
+  return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
+    ${avatarHtml(h)}
+    <div class="people-info">
+      <div class="people-name">${name}</div>
+      <div class="people-role">${role}</div>
+      <div class="card-contacts">${ctaRow(mobile,email)}</div>
+    </div>
+  </div>`;
 }
 
 /* ═══ RENDER CHORES ═══ */
@@ -1774,8 +1880,8 @@ function renderSchoolDetail(site,editMode){
       </div>`:'';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
-      ${mainImg?`<div style="padding:14px 20px 0"><img src="${mainImg}" class="site-img-full" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`:''}
-      ${(helpImg1||helpImg2)?`<div style="padding:8px 20px 0"><div class="img-gallery">${helpImg1?`<img src="${helpImg1}" class="img-thumb" loading="lazy" onerror="this.style.display='none'">`:''}${helpImg2?`<img src="${helpImg2}" class="img-thumb" loading="lazy" onerror="this.style.display='none'">`:''}</div></div>`:''}
+      ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s" onerror="this.parentElement.style.display='none'"></div>`:''}
+      ${(helpImg1||helpImg2)?`<div style="padding:8px 20px 0"><div class="img-gallery">${helpImg1?`<img data-lazy="${helpImg1}" class="img-thumb" style="opacity:0;transition:opacity .3s" onerror="this.style.display='none'">`:''}${helpImg2?`<img data-lazy="${helpImg2}" class="img-thumb" style="opacity:0;transition:opacity .3s" onerror="this.style.display='none'">`:''}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
@@ -2112,7 +2218,7 @@ async function saveNewContactForSite(returnBtnId){
 }
 
 /* ═══ OVERLAY ═══ */
-function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>o.classList.add('open'));}
+function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,320);});}
 function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
 
 /* ═══ TABS ═══ */
