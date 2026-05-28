@@ -1187,7 +1187,8 @@ async function saveChoreEdit(choreId){
     }
     if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
     const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
-    if(videoUrl)updates['Helpful Video']=videoUrl;
+    if(videoUrl){updates['Helpful Video']=videoUrl;}
+    else if(_pVidPromise||_preUploadedVideoUrl){showSaveToast('\u26a0 Video upload failed — chore saved without video');}
     window._pendingVideoUrl=null;
     try{
       await updateChoreApi(choreId,updates);
@@ -1353,20 +1354,21 @@ async function saveNewChore(){
   playSuccessSound();
   closeDetailImmediate();
   switchTab('chores');
-  // ── Background: add chore, upload photos/video ──
+  // ── Background: await video first → addChore with URL → upload photos ──
   (async()=>{
     try{
-      const res=await gasPost({action:'addChore',data});
-      if(!res.ok)throw new Error(res.error||'Add failed');
-      const newChore={...data,ID:res.id};
+      // 1. Wait for any in-progress video upload BEFORE creating the chore row
       if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
       const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
       window._pendingVideoUrl=null;
-      // Write video URL back to the sheet row that was just created
-      if(videoUrl&&res.id){
-        try{await updateChoreApi(res.id,{'Helpful Video':videoUrl});}catch(ve){console.warn('Video save failed:',ve);}
-        newChore['Helpful Video']=videoUrl;
-      }
+      if(videoUrl)data['Helpful Video']=videoUrl;
+      if((_pVidPromise||_preUploadedVideoUrl)&&!videoUrl)
+        showSaveToast('\u26a0 Video upload failed — chore saved without video');
+      // 2. Create the chore row — now includes video URL if upload succeeded
+      const res=await gasPost({action:'addChore',data});
+      if(!res.ok)throw new Error(res.error||'Add failed');
+      const newChore={...data,ID:res.id};
+      // 3. Upload photos (each writes its URL back to the sheet via GAS)
       const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
       if(res.id){
         for(let i=0;i<3;i++){
@@ -1977,7 +1979,9 @@ async function saveSiteEdit(siteName){
       catch(pe){console.warn('Site photo upload failed:',pe);}
     }
     if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-    updates['Helpful Video 1']=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal;
+    const siteVideoUrl=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal;
+    if(!siteVideoUrl&&(_pVidPromise||_preUploadedVideoUrl)){showSaveToast('\u26a0 Video upload failed — site saved without video');}
+    updates['Helpful Video 1']=siteVideoUrl;
     window._pendingSiteVideoUrl=null;
     try{
       await saveToSheet('Sites',siteName,updates);
