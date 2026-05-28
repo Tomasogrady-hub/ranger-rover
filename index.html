@@ -996,7 +996,7 @@ function renderChoreDetail(c,editMode){
         <input class="edit-input" id="ce-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
       </div>
       <div class="edit-actions">
-        <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">Save</button>
+        <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">✓ Finished — Save &amp; Close</button>
         <button class="btn-cancel" onclick="renderChoreDetail(window._currentChore,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
@@ -1158,47 +1158,45 @@ function previewChorePhoto(input,imgId){
 }
 
 async function saveChoreEdit(choreId){
-  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
   const assignBtn=document.getElementById('dsb-cassign');
   const updates={
-    'Task':document.getElementById('ce-Task').value.trim(),
-    'Additional Comments':document.getElementById('ce-Comments').value.trim(),
-    'Urgency':document.getElementById('ce-Urgency').value,
-    'Type':document.getElementById('ce-Type').value,
-    'Status':document.getElementById('ce-Status').value,
+    'Task':(document.getElementById('ce-Task')||{value:''}).value.trim(),
+    'Additional Comments':(document.getElementById('ce-Comments')||{value:''}).value.trim(),
+    'Urgency':(document.getElementById('ce-Urgency')||{value:''}).value,
+    'Type':(document.getElementById('ce-Type')||{value:''}).value,
+    'Status':(document.getElementById('ce-Status')||{value:''}).value,
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
   };
-  try{
-    // Upload any pending photos (slots 0→Helpful Image 1, 1→Helpful Image 2, 2→Helpful Image 3)
+  // Capture pending media refs BEFORE closing
+  const _pPhotos={...window._pendingChorePhotos||{}};
+  const _pVidPromise=window._pendingVideoPromise;
+  const _vidInputVal=(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
+  window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
+  // ── Immediately close + sound + return to chores list ──
+  playSuccessSound();
+  closeDetailImmediate();
+  switchTab('chores');
+  // ── Background: upload photos/video then save ──
+  (async()=>{
     const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
-    if(window._pendingChorePhotos){
-      for(let i=0;i<3;i++){
-        const file=window._pendingChorePhotos[i];
-        if(!file)continue;
-        try{const url=await _uploadChorePhotoBase64(choreId,file,imgCols[i]);if(url)updates[imgCols[i]]=url;}catch(pe){}
-      }
-      window._pendingChorePhotos={};
+    for(let i=0;i<3;i++){
+      const file=_pPhotos[i];if(!file)continue;
+      try{const url=await _uploadChorePhotoBase64(choreId,file,imgCols[i]);if(url)updates[imgCols[i]]=url;}
+      catch(pe){console.warn('Chore photo upload failed:',pe);}
     }
-    // Video — if upload still in progress, wait for it; otherwise use completed URL
-    if(window._pendingVideoPromise){
-      m.textContent='Finishing video upload…';
-      try{await window._pendingVideoPromise;}catch(e){}
-    }
-    const videoUrl=window._pendingVideoUrl||(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
+    if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
+    const videoUrl=window._pendingVideoUrl||_vidInputVal;
     if(videoUrl)updates['Helpful Video']=videoUrl;
     window._pendingVideoUrl=null;
-    window._pendingVideoPromise=null;
-    await updateChoreApi(choreId,updates);
-    const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
-    if(c)Object.assign(c,updates);
-    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    const _imm=window._saveImmediate;window._saveImmediate=false;
-    if(!_imm)m.textContent='✓ Saved';
-    if(c)setTimeout(()=>renderChoreDetail(c,false),_imm?0:700);
-    renderAll();
-  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
+    try{
+      await updateChoreApi(choreId,updates);
+      const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+      if(c)Object.assign(c,updates);
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+      renderAll();
+    }catch(e){showSaveToast('\u2717 Chore save failed: '+e.message);}
+  })();
 }
-
 async function closeChoreFromDetail(choreId,description){
   if(!confirm(`Mark "${description.slice(0,60)}" as Closed?`))return;
   try{
@@ -1304,7 +1302,7 @@ function showAddChore(){
       <input class="edit-input" id="nc-VideoLink" placeholder="https://drive.google.com/…" style="font-size:16px">
     </div>
     <div class="edit-actions">
-      <button class="btn-save" onclick="saveNewChore()">Add Chore</button>
+      <button class="btn-save" onclick="saveNewChore()">✓ Add &amp; Close</button>
       <button class="btn-cancel" onclick="closeDetail()">Cancel</button>
     </div>
     <div class="save-msg" id="saveMsg"></div>`;
@@ -1329,58 +1327,54 @@ function previewNewChorePhoto(input){
 }
 
 async function saveNewChore(){
-  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
   const siteBtn=document.getElementById('dsb-ns-site');
   const assignBtn=document.getElementById('dsb-ns-assign');
   const site=siteBtn?siteBtn.dataset.value:'';
-  const task=document.getElementById('nc-Task').value.trim();
-  if(!site){m.className='save-msg err';m.textContent='Please select a site.';return;}
-  if(!task){m.className='save-msg err';m.textContent='Task description is required.';return;}
+  const task=(document.getElementById('nc-Task')||{value:''}).value.trim();
+  // Validate before closing — show error in form if invalid
+  if(!site){const m=document.getElementById('saveMsg');if(m){m.className='save-msg err';m.textContent='Please select a site.';}return;}
+  if(!task){const m=document.getElementById('saveMsg');if(m){m.className='save-msg err';m.textContent='Task description is required.';}return;}
   const data={
     'Site':site,'Task':task,
-    'Additional Comments':document.getElementById('nc-Comments').value.trim(),
-    'Urgency':document.getElementById('nc-Urgency').value,
-    'Type':document.getElementById('nc-Type').value,
+    'Additional Comments':(document.getElementById('nc-Comments')||{value:''}).value.trim(),
+    'Urgency':(document.getElementById('nc-Urgency')||{value:''}).value,
+    'Type':(document.getElementById('nc-Type')||{value:''}).value,
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
     'Asked by':SESSION?SESSION.email:'','Status':'Open',
   };
-  // Video — if upload still in progress, wait for remainder
-  if(window._pendingVideoPromise){
-    m.textContent='Finishing video upload…';
-    try{await window._pendingVideoPromise;}catch(e){}
-  }
-  const videoUrl=window._pendingVideoUrl||(document.getElementById('nc-VideoLink')||{}).value?.trim()||'';
-  if(videoUrl)data['Helpful Video']=videoUrl;
-  window._pendingVideoUrl=null;
-  window._pendingVideoPromise=null;
-  try{
-    const res=await gasPost({action:'addChore',data});
-    if(!res.ok)throw new Error(res.error||'Add failed');
-    const newChore={...data,ID:res.id};
-    // Upload all pending photos
-    const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
-    if(window._pendingChorePhotos&&res.id){
-      for(let i=0;i<3;i++){
-        const file=window._pendingChorePhotos[i];
-        if(!file)continue;
-        try{const url=await _uploadChorePhotoBase64(res.id,file,imgCols[i]);if(url)newChore[imgCols[i]]=url;}catch(pe){}
+  // Capture pending media refs BEFORE closing
+  const _pPhotos={...window._pendingChorePhotos||{}};
+  const _pVidPromise=window._pendingVideoPromise;
+  const _vidInputVal=(document.getElementById('nc-VideoLink')||{}).value?.trim()||'';
+  window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
+  // ── Immediately close + sound + return to chores list ──
+  playSuccessSound();
+  closeDetailImmediate();
+  switchTab('chores');
+  // ── Background: add chore, upload photos/video ──
+  (async()=>{
+    try{
+      const res=await gasPost({action:'addChore',data});
+      if(!res.ok)throw new Error(res.error||'Add failed');
+      const newChore={...data,ID:res.id};
+      if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
+      const videoUrl=window._pendingVideoUrl||_vidInputVal;
+      if(videoUrl){newChore['Helpful Video']=videoUrl;}
+      window._pendingVideoUrl=null;
+      const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
+      if(res.id){
+        for(let i=0;i<3;i++){
+          const file=_pPhotos[i];if(!file)continue;
+          try{const url=await _uploadChorePhotoBase64(res.id,file,imgCols[i]);if(url)newChore[imgCols[i]]=url;}
+          catch(pe){console.warn('New chore photo upload failed:',pe);}
+        }
       }
-      window._pendingChorePhotos={};
-    }
-    DATA.chores.unshift(newChore);
-    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    const photoCount=imgCols.filter(c=>newChore[c]).length;
-    const hasVideo=!!(newChore['Helpful Video']);
-    const parts=[];
-    if(photoCount)parts.push(`${photoCount} photo${photoCount>1?'s':''}`);
-    if(hasVideo)parts.push('video');
-    const _imm=window._saveImmediate;window._saveImmediate=false;
-    if(!_imm)m.textContent='✓ Chore added'+(parts.length?' + '+parts.join(' + '):'')+'!';
-    renderAll();
-    setTimeout(()=>closeDetail(),_imm?0:1200);
-  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
+      DATA.chores.unshift(newChore);
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+      renderAll();
+    }catch(e){showSaveToast('\u2717 Could not add chore: '+e.message);}
+  })();
 }
-
 /* ═══ RENDER SCHOOLS ═══ */
 function getMySchools(){
   if(!SESSION||SESSION.accessLevel<=2)return null;
@@ -1889,7 +1883,7 @@ function renderSchoolDetail(site,editMode){
         <input class="edit-input" id="ef-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
       </div>
       <div class="edit-actions">
-        <button class="btn-save" onclick="saveSiteEdit('${ea(name)}')">Save</button>
+        <button class="btn-save" onclick="saveSiteEdit('${ea(name)}')">✓ Finished — Save &amp; Close</button>
         <button class="btn-cancel" onclick="renderSchoolDetail(window._currentSite,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
@@ -1941,20 +1935,6 @@ function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .
 function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel');const cs=panel.closest('.custom-select');const btn=cs.querySelector('.custom-select-btn');const email=isNone?'':el.dataset.email;btn.textContent=isNone?'— None —':el.dataset.name;btn.dataset.value=email;panel.classList.remove('open');}
 
 async function saveSiteEdit(siteName){
-  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
-  // Upload any pending site photos first — updates the URL input fields
-  if(window._pendingSitePhotos&&Object.keys(window._pendingSitePhotos).length>0){
-    m.textContent='Uploading photos…';
-    const inputMap={'MainImage':'ef-MainImg','HelpImg1':'ef-HelpImg1','HelpImg2':'ef-HelpImg2'};
-    for(const[key,file]of Object.entries(window._pendingSitePhotos)){
-      try{
-        const url=await _uploadSitePhoto(siteName,key,file);
-        const inp=document.getElementById(inputMap[key]);if(inp)inp.value=url;
-      }catch(pe){console.warn('Site photo upload failed:',pe);}
-    }
-    window._pendingSitePhotos={};
-    m.textContent='Saving…';
-  }
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
   const updates={};
@@ -1973,24 +1953,33 @@ async function saveSiteEdit(siteName){
   const mc2v=gb('dsb-mc2');if(mc2v!==null)updates['Main Contact 2']=mc2v;
   const mc3v=gb('dsb-mc3');if(mc3v!==null)updates['Main Contact 3']=mc3v;
   const pmv=gb('dsb-pm');if(pmv!==null)updates['Plant Manager']=pmv;
-  // Video — wait for any in-progress Cloudinary upload, then save URL
-  if(window._pendingSiteVideoPromise){
-    m.textContent='Finishing video upload…';
-    try{await window._pendingSiteVideoPromise;}catch(e){}
-  }
-  const vv=document.getElementById('ef-VideoLink');
-  if(vv!==null)updates['Helpful Video 1']=window._pendingSiteVideoUrl||vv.value.trim();
-  window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
-  try{
-    await saveToSheet('Sites',siteName,updates);
-    const _imm=window._saveImmediate;window._saveImmediate=false;
-    if(!_imm)m.textContent='✓ Saved';
-    const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
-    if(site){Object.assign(site,updates);setTimeout(()=>renderSchoolDetail(site,false),_imm?0:700);}
-    renderAll();
-  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
+  // Capture pending media refs BEFORE closing (DOM will be gone after)
+  const _pPhotos={...window._pendingSitePhotos||{}};
+  const _pVidPromise=window._pendingSiteVideoPromise;
+  const _vidInputVal=(document.getElementById('ef-VideoLink')||{}).value?.trim()||'';
+  window._pendingSitePhotos={};window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
+  // ── Immediately close + sound + return to schools list ──
+  playSuccessSound();
+  closeDetailImmediate();
+  switchTab('schools');
+  // ── Background: upload photos/video then save to sheet ──
+  (async()=>{
+    const colMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2'};
+    for(const[key,file]of Object.entries(_pPhotos)){
+      try{const url=await _uploadSitePhoto(siteName,key,file);if(url&&colMap[key])updates[colMap[key]]=url;}
+      catch(pe){console.warn('Site photo upload failed:',pe);}
+    }
+    if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
+    updates['Helpful Video 1']=window._pendingSiteVideoUrl||_vidInputVal;
+    window._pendingSiteVideoUrl=null;
+    try{
+      await saveToSheet('Sites',siteName,updates);
+      const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
+      if(site)Object.assign(site,updates);
+      renderAll();
+    }catch(e){showSaveToast('\u2717 Site save failed: '+e.message);}
+  })();
 }
-
 /* ═══ PERSON DETAIL ═══ */
 function showPersonDetail(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(!h)return;renderPD(h,false);openDetail();}
 
@@ -2263,6 +2252,30 @@ async function saveNewContactForSite(returnBtnId){
 /* ═══ OVERLAY ═══ */
 function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,320);});}
 function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
+
+function closeDetailImmediate(){const o=document.getElementById('detail-overlay');o.classList.remove('open');o.style.display='none';}
+
+function playSuccessSound(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [[523,0],[659,.13],[784,.26]].forEach(([freq,t])=>{
+      const osc=ctx.createOscillator(),g=ctx.createGain();
+      osc.connect(g);g.connect(ctx.destination);
+      osc.frequency.value=freq;osc.type='sine';
+      g.gain.setValueAtTime(0,ctx.currentTime+t);
+      g.gain.linearRampToValueAtTime(0.22,ctx.currentTime+t+0.025);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.45);
+      osc.start(ctx.currentTime+t);osc.stop(ctx.currentTime+t+0.5);
+    });
+  }catch(e){}
+}
+
+function showSaveToast(msg){
+  const t=document.createElement('div');
+  t.style='position:fixed;bottom:calc(84px + var(--safe-bottom));left:50%;transform:translateX(-50%);background:var(--danger);color:white;padding:12px 22px;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.25)';
+  t.textContent=msg;document.body.appendChild(t);
+  setTimeout(()=>{t.style.cssText+=';opacity:0;transition:opacity .3s';setTimeout(()=>t.remove(),350);},5000);
+}
 
 /* ═══ TABS ═══ */
 function switchTab(tab,initMapFlag=false){
@@ -2788,7 +2801,7 @@ function showUploadPrompt(mediaType){
         <button id="upr-continue" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">Continue Editing</button>
       </div>
     </div>`;
-  modal.querySelector('#upr-save').onclick=()=>{modal.remove();window._saveImmediate=true;if(saveFn)saveFn();};
+  modal.querySelector('#upr-save').onclick=()=>{modal.remove();if(saveFn)saveFn();};
   modal.querySelector('#upr-continue').onclick=()=>modal.remove();
   document.body.appendChild(modal);
 }
