@@ -1170,6 +1170,7 @@ async function saveChoreEdit(choreId){
   // Capture pending media refs BEFORE closing
   const _pPhotos={...window._pendingChorePhotos||{}};
   const _pVidPromise=window._pendingVideoPromise;
+  const _preUploadedVideoUrl=window._pendingVideoUrl||''; // if upload already finished
   const _vidInputVal=(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
   window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
   // ── Immediately close + sound + return to chores list ──
@@ -1185,7 +1186,7 @@ async function saveChoreEdit(choreId){
       catch(pe){console.warn('Chore photo upload failed:',pe);}
     }
     if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-    const videoUrl=window._pendingVideoUrl||_vidInputVal;
+    const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
     if(videoUrl)updates['Helpful Video']=videoUrl;
     window._pendingVideoUrl=null;
     try{
@@ -1345,6 +1346,7 @@ async function saveNewChore(){
   // Capture pending media refs BEFORE closing
   const _pPhotos={...window._pendingChorePhotos||{}};
   const _pVidPromise=window._pendingVideoPromise;
+  const _preUploadedVideoUrl=window._pendingVideoUrl||'';
   const _vidInputVal=(document.getElementById('nc-VideoLink')||{}).value?.trim()||'';
   window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
   // ── Immediately close + sound + return to chores list ──
@@ -1358,9 +1360,13 @@ async function saveNewChore(){
       if(!res.ok)throw new Error(res.error||'Add failed');
       const newChore={...data,ID:res.id};
       if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-      const videoUrl=window._pendingVideoUrl||_vidInputVal;
-      if(videoUrl){newChore['Helpful Video']=videoUrl;}
+      const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
       window._pendingVideoUrl=null;
+      // Write video URL back to the sheet row that was just created
+      if(videoUrl&&res.id){
+        try{await updateChoreApi(res.id,{'Helpful Video':videoUrl});}catch(ve){console.warn('Video save failed:',ve);}
+        newChore['Helpful Video']=videoUrl;
+      }
       const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
       if(res.id){
         for(let i=0;i<3;i++){
@@ -1956,6 +1962,7 @@ async function saveSiteEdit(siteName){
   // Capture pending media refs BEFORE closing (DOM will be gone after)
   const _pPhotos={...window._pendingSitePhotos||{}};
   const _pVidPromise=window._pendingSiteVideoPromise;
+  const _preUploadedVideoUrl=window._pendingSiteVideoUrl||'';
   const _vidInputVal=(document.getElementById('ef-VideoLink')||{}).value?.trim()||'';
   window._pendingSitePhotos={};window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
   // ── Immediately close + sound + return to schools list ──
@@ -1970,7 +1977,7 @@ async function saveSiteEdit(siteName){
       catch(pe){console.warn('Site photo upload failed:',pe);}
     }
     if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-    updates['Helpful Video 1']=window._pendingSiteVideoUrl||_vidInputVal;
+    updates['Helpful Video 1']=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal;
     window._pendingSiteVideoUrl=null;
     try{
       await saveToSheet('Sites',siteName,updates);
@@ -2502,13 +2509,19 @@ async function saveSelfEdit(email){
 
 async function deleteChoreFromDetail(choreId,description){
   if(!confirm(`Delete "${(description||'this chore').slice(0,60)}"?\n\nThis cannot be undone.`))return;
-  try{
-    const j=await gasPost({action:'deleteChore',choreId});
-    if(!j.ok)throw new Error(j.error||'Delete failed');
-    DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
-    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    closeDetail();renderAll();
-  }catch(e){alert('Error: '+e.message);}
+  // Close immediately + sound + back to chores list; delete happens in background
+  playSuccessSound();
+  closeDetailImmediate();
+  switchTab('chores');
+  (async()=>{
+    try{
+      const j=await gasPost({action:'deleteChore',choreId});
+      if(!j.ok)throw new Error(j.error||'Delete failed');
+      DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+      renderAll();
+    }catch(e){showSaveToast('\u2717 Delete failed: '+e.message);}
+  })();
 }
 
 /* ═══ PHOTO ACTION SHEET ═══ */
