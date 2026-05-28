@@ -1192,8 +1192,9 @@ async function saveChoreEdit(choreId){
     const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
     if(c)Object.assign(c,updates);
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    m.textContent='✓ Saved';
-    if(c)setTimeout(()=>renderChoreDetail(c,false),700);
+    const _imm=window._saveImmediate;window._saveImmediate=false;
+    if(!_imm)m.textContent='✓ Saved';
+    if(c)setTimeout(()=>renderChoreDetail(c,false),_imm?0:700);
     renderAll();
   }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
@@ -1373,9 +1374,10 @@ async function saveNewChore(){
     const parts=[];
     if(photoCount)parts.push(`${photoCount} photo${photoCount>1?'s':''}`);
     if(hasVideo)parts.push('video');
-    m.textContent='✓ Chore added'+(parts.length?' + '+parts.join(' + '):'')+'!';
+    const _imm=window._saveImmediate;window._saveImmediate=false;
+    if(!_imm)m.textContent='✓ Chore added'+(parts.length?' + '+parts.join(' + '):'')+'!';
     renderAll();
-    setTimeout(()=>closeDetail(),1200);
+    setTimeout(()=>closeDetail(),_imm?0:1200);
   }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
 
@@ -1981,9 +1983,10 @@ async function saveSiteEdit(siteName){
   window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
   try{
     await saveToSheet('Sites',siteName,updates);
-    m.textContent='✓ Saved';
+    const _imm=window._saveImmediate;window._saveImmediate=false;
+    if(!_imm)m.textContent='✓ Saved';
     const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
-    if(site){Object.assign(site,updates);setTimeout(()=>renderSchoolDetail(site,false),700);}
+    if(site){Object.assign(site,updates);setTimeout(()=>renderSchoolDetail(site,false),_imm?0:700);}
     renderAll();
   }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
@@ -2479,7 +2482,8 @@ async function saveSelfEdit(email){
     if(h)Object.assign(h,updates);
     const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
     if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=newName;}
-    m.textContent='✓ Saved';renderAll();setTimeout(()=>closeDetail(),800);
+    const _imm=window._saveImmediate;window._saveImmediate=false;
+    if(!_imm)m.textContent='✓ Saved';renderAll();setTimeout(()=>closeDetail(),_imm?0:800);
   }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
 
@@ -2784,7 +2788,7 @@ function showUploadPrompt(mediaType){
         <button id="upr-continue" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">Continue Editing</button>
       </div>
     </div>`;
-  modal.querySelector('#upr-save').onclick=()=>{modal.remove();if(saveFn)saveFn();};
+  modal.querySelector('#upr-save').onclick=()=>{modal.remove();window._saveImmediate=true;if(saveFn)saveFn();};
   modal.querySelector('#upr-continue').onclick=()=>modal.remove();
   document.body.appendChild(modal);
 }
