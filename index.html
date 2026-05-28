@@ -168,6 +168,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .btn-save{flex:1;padding:14px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 .btn-cancel{padding:14px 18px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;cursor:pointer}
 .btn-edit{padding:12px 18px;background:transparent;color:var(--sage);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin:15px 20px 0;display:inline-block}
+.btn-exit{width:calc(100% - 40px);margin:18px 20px 0;padding:16px;background:var(--fog);color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:block;text-align:center}
+.btn-exit:active{background:var(--mist)}
 .save-msg{padding:10px 20px 0;font-size:17px;color:var(--sage);min-height:28px}
 .save-msg.err{color:var(--danger)}
 .section-divider{margin:16px 20px 0;border:none;border-top:1px solid var(--mist)}
@@ -264,6 +266,23 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .contact-tap{background:none;border:none;cursor:pointer;font-family:var(--font-b);font-weight:500;font-size:inherit;color:var(--sage);text-align:left;padding:0;line-height:inherit;text-decoration:underline;text-decoration-color:var(--mist);text-underline-offset:2px}
 .contact-tap:active{color:var(--grove)}
 .ranger-link-line{display:flex;align-items:center;gap:5px;margin-top:3px}
+
+/* ── LOCATION ── */
+#locateBtn{position:absolute;bottom:18px;right:14px;z-index:1000;width:44px;height:44px;border-radius:50%;background:var(--paper);border:1px solid var(--mist);box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;transition:background .15s}
+#locateBtn.active{background:var(--blue-light);border-color:var(--blue)}
+#locateBtn.spinning{animation:spin .8s linear infinite}
+.location-user-dot{width:16px;height:16px;background:#1a73e8;border-radius:50%;border:3px solid white;box-shadow:0 0 0 3px rgba(26,115,232,.25)}
+#nearMeToast{position:absolute;bottom:72px;left:12px;right:12px;z-index:2000;background:var(--paper);border:1px solid var(--grove);border-radius:var(--r-md);box-shadow:0 4px 20px rgba(0,0,0,.18);padding:14px 16px;display:flex;align-items:center;gap:12px;transform:translateY(20px);opacity:0;transition:all .28s cubic-bezier(.32,.72,0,1);pointer-events:none}
+#nearMeToast.visible{transform:translateY(0);opacity:1;pointer-events:auto}
+.toast-icon{font-size:26px;flex-shrink:0}
+.toast-body{flex:1;min-width:0}
+.toast-label{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--sage);margin-bottom:2px}
+.toast-name{font-size:18px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast-dist{font-size:14px;color:var(--silver)}
+.toast-btn{flex-shrink:0;padding:10px 14px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;cursor:pointer}
+.toast-close{padding:6px;background:none;border:none;color:var(--silver);font-size:18px;cursor:pointer;flex-shrink:0}
+.dist-badge{font-size:13px;color:var(--blue);font-weight:500;flex-shrink:0;white-space:nowrap}
+.chip.loc-active{background:var(--blue);border-color:var(--blue);color:#fff}
 </style>
 </head>
 <body>
@@ -365,6 +384,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
       <button class="chip"        data-filter="gusd"       data-label="GUSD"          onclick="filterSchools('gusd')">GUSD</button>
       <button class="chip"        data-filter="no-ranger"  data-label="Unassigned"    onclick="filterSchools('no-ranger')">Unassigned</button>
       <button class="chip"        data-filter="has-chores" data-label="⚠ Open Chores" onclick="filterSchools('has-chores')">⚠ Open Chores</button>
+      <button class="chip" id="nearMeChip" data-filter="near-me"   data-label="📍 Near Me"     onclick="toggleNearMeFilter()">📍 Near Me</button>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
@@ -413,6 +433,17 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
       <button class="map-chip"        data-filter="possible" onclick="filterMap('possible')">🟡 Possible</button>
     </div>
     <div id="mapContainer"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div><div id="map"></div></div>
+    <button id="locateBtn" title="My location" onclick="locateMe()" style="display:none">📍</button>
+    <div id="nearMeToast">
+      <div class="toast-icon">📍</div>
+      <div class="toast-body">
+        <div class="toast-label">You're at a site</div>
+        <div class="toast-name" id="toastSiteName"></div>
+        <div class="toast-dist" id="toastSiteDist"></div>
+      </div>
+      <button class="toast-btn" onclick="openToastSite()">Open</button>
+      <button class="toast-close" onclick="dismissToast()">✕</button>
+    </div>
   </div>
 
   <!-- CHORES -->
@@ -543,6 +574,12 @@ let _activeTab='notes';
 const _tabDirty={schools:false,rangers:false,people:false,chores:false};
 let _humansLoaded=false;  // true once humans phase-2 fetch completes
 
+/* ── LOCATION STATE ── */
+let _userLat=null,_userLng=null;
+let _userMarker=null,_watchId=null;
+let _toastSite=null,_toastDismissed=false,_locActive=false;
+window._fsDistMap={};
+
 /* ═══ UTILS ═══ */
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 function sf(o,...k){for(const key of k)if(o[key]!==undefined&&o[key]!==null&&o[key]!=='')return o[key];return '';}
@@ -634,17 +671,11 @@ function _initLazyImages(){
         const img=e.target;
         img.src=img.dataset.lazy;
         img.onload=()=>{img.style.opacity='1';};
-        img.onerror=()=>{img.style.opacity='1';};
         _lazyObs.unobserve(img);
       });
-    },{rootMargin:'400px 0px'}); // start loading 400px before entering view
+    },{rootMargin:'350px 0px'}); // start loading 350px before entering view
   }
   imgs.forEach(img=>_lazyObs.observe(img));
-  // Also immediately load any data-lazy imgs that are currently in viewport
-  imgs.forEach(img=>{
-    const r=img.getBoundingClientRect();
-    if(r.top<window.innerHeight+400){img.src=img.dataset.lazy;img.onload=()=>{img.style.opacity='1';};img.onerror=()=>{img.style.opacity='1';};_lazyObs.unobserve(img);}
-  });
 }
 
 function ctaRow(mobile,email){
@@ -782,17 +813,17 @@ function showApp(){
 async function gasPost(payload){const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
 
 async function loadData(force=false){
-  // ── Stale-While-Revalidate: render cache instantly, refresh in background ──
+  // ── Cache hit: render immediately then return ──────────────────────────────
   if(!force){
     const c=localStorage.getItem(CFG.CK),ts=parseInt(localStorage.getItem(CFG.TK)||'0');
     const age=Date.now()-ts;
-    if(c&&age<CFG.STALE_TTL){          // use any cache younger than 24h
+    if(c&&age<CFG.STALE_TTL){
       try{
         DATA=JSON.parse(c);
         _humansLoaded=!!(DATA.humans&&DATA.humans.length);
         syncTS(ts);renderAll();
-        if(age<CFG.TTL)return;          // fresh enough → skip background refresh
-        _refreshAllBackground();return; // stale → show now, refresh silently
+        if(age<CFG.TTL)return;
+        _refreshAllBackground();return;
       }catch(e){}
     }
   }
@@ -848,31 +879,6 @@ async function _loadHumansBackground(){
       if(_activeTab==='rangers'||_activeTab==='people')_renderDirtyTab(_activeTab);
       if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
     }
-  }catch(e){setSync(false);}
-}
-
-/* Stale-while-revalidate: refresh both core + humans silently in background */
-async function _refreshAllBackground(){
-  if(!CFG.URL)return;
-  try{
-    setSync(true);
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
-    const j=await r.json();
-    if(j.sites){DATA.sites=j.sites;DATA.chores=j.chores||[];}
-  }catch(e){setSync(false);return;}
-  try{
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
-    const j=await r.json();
-    if(j.humans){DATA.humans=j.humans;DATA.roles=j.roles||[];_humansLoaded=true;}
-    const n=Date.now();
-    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    localStorage.setItem(CFG.TK,n);syncTS(n);
-    setSync(true);
-    // Quietly update the active tab if it changed
-    _tabDirty.schools=true;_tabDirty.chores=true;_tabDirty.rangers=true;_tabDirty.people=true;
-    if(_tabDirty[_activeTab])_renderDirtyTab(_activeTab);
-    if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
-    if(mapInited)refreshMapChores();
   }catch(e){setSync(false);}
 }
 
@@ -991,19 +997,19 @@ function renderChoreDetail(c,editMode){
         <button type="button" onclick="showPhotoOptions_videoOnly(f=>uploadVideoForChore(f,'ce-VideoLink','ce-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
           🎥 ${videoSrc?'Replace Video':'Record Video'}
         </button>
+        ${videoSrc?`<button type="button" onclick="_clearChoreVideo('ce-VideoLink')" style="display:inline-flex;align-items:center;gap:4px;padding:10px 15px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove Video</button>`:``}
         <div style="font-size:14px;margin-top:6px" id="ce-video-status"></div>
         <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a Drive link:</div>
         <input class="edit-input" id="ce-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
       </div>
       <div class="edit-actions">
-        <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">✓ Finished — Save &amp; Close</button>
+        <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">Save</button>
         <button class="btn-cancel" onclick="renderChoreDetail(window._currentChore,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingChorePhotos={};
     window._pendingVideoUrl=null;
     window._pendingVideoPromise=null;
-    window._currentEditSaveFn=()=>saveChoreEdit(id);
   } else {
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
@@ -1026,9 +1032,9 @@ function renderChoreDetail(c,editMode){
       ${assigned?`<div class="ds"><div class="dl">Assigned To</div><div class="dv">${hn(assigned)||assigned}</div></div>`:''}
       ${(img1Src||img2Src||img3Src)?`<div class="ds"><div class="dl">Photos</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-          ${img1Src?`<img data-lazy="${img1Src}" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.style.display='none'">` :''}
-          ${img2Src?`<img data-lazy="${img2Src}" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.style.display='none'">` :''}
-          ${img3Src?`<img data-lazy="${img3Src}" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.style.display='none'">` :''}
+          ${img1Src?`<img src="${img1Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
+          ${img2Src?`<img src="${img2Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
+          ${img3Src?`<img src="${img3Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
         </div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       <div class="detail-ctas">
@@ -1038,6 +1044,7 @@ function renderChoreDetail(c,editMode){
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
         ${SESSION&&SESSION.accessLevel===1?`<button class="dcta" onclick="showChoreDebug()" style="border-color:var(--silver);color:var(--silver);font-size:12px">🔍 Debug</button>`:''}
       </div>`;
+    <button class="btn-exit" onclick="closeDetail()">✕ Close</button>
     window._currentChore=c;
   }
 }
@@ -1054,7 +1061,30 @@ function chorePhotoSlotHtml(existingSrc, slotIdx, prefix){
       style="padding:8px 2px;background:${has?'var(--grove)':'var(--fog)'};color:${has?'white':'var(--ink)'};border:1px solid ${has?'var(--grove)':'var(--mist)'};border-radius:var(--r-sm);font-family:var(--font-b);font-size:12px;font-weight:500;cursor:pointer;text-align:center">
       ${has?'↺ Replace':'📷 Add'}
     </button>
+    ${has?`<button type="button"
+      onclick="_deleteChorePhotoSlot(${slotIdx},'${prefix}')"
+      style="padding:6px 2px;background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:11px;font-weight:500;cursor:pointer;text-align:center">
+      🗑 Remove
+    </button>`:''}
   </div>`;
+}
+
+function _deleteChorePhotoSlot(slotIdx,prefix){
+  if(!confirm('Remove this photo?'))return;
+  if(window._pendingChorePhotos)delete window._pendingChorePhotos[slotIdx];
+  const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
+  if(slot){
+    slot.style.border='1.5px dashed var(--mist)';
+    slot.innerHTML='<span style="font-size:26px;color:var(--silver)">+</span>';
+    const btn=slot.nextElementSibling;
+    if(btn){btn.style.background='var(--fog)';btn.style.color='var(--ink)';btn.style.borderColor='var(--mist)';btn.textContent='📷 Add';}
+    // Also null out delete btn
+    const delBtn=btn?btn.nextElementSibling:null;
+    if(delBtn)delBtn.style.display='none';
+  }
+  // Mark the column for deletion on save
+  if(!window._deleteChorePhotos)window._deleteChorePhotos={};
+  window._deleteChorePhotos[slotIdx]=true;
 }
 
 function _previewChoreSlot(file, slotIdx, prefix){
@@ -1167,17 +1197,14 @@ async function saveChoreEdit(choreId){
     'Status':(document.getElementById('ce-Status')||{value:''}).value,
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
   };
-  // Capture pending media refs BEFORE closing
   const _pPhotos={...window._pendingChorePhotos||{}};
   const _pVidPromise=window._pendingVideoPromise;
-  const _preUploadedVideoUrl=window._pendingVideoUrl||''; // if upload already finished
+  const _preUploadedVideoUrl=window._pendingVideoUrl||'';
   const _vidInputVal=(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
   window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
-  // ── Immediately close + sound + return to chores list ──
   playSuccessSound();
   closeDetailImmediate();
   switchTab('chores');
-  // ── Background: upload photos/video then save ──
   (async()=>{
     const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
     for(let i=0;i<3;i++){
@@ -1188,7 +1215,7 @@ async function saveChoreEdit(choreId){
     if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
     const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
     if(videoUrl){updates['Helpful Video']=videoUrl;}
-    else if(_pVidPromise||_preUploadedVideoUrl){showSaveToast('\u26a0 Video upload failed — chore saved without video');}
+    else if(_pVidPromise||_preUploadedVideoUrl){showSaveToast('⚠ Video upload failed — chore saved without video');}
     window._pendingVideoUrl=null;
     try{
       await updateChoreApi(choreId,updates);
@@ -1196,9 +1223,10 @@ async function saveChoreEdit(choreId){
       if(c)Object.assign(c,updates);
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
       renderAll();
-    }catch(e){showSaveToast('\u2717 Chore save failed: '+e.message);}
+    }catch(e){showSaveToast('✗ Chore save failed: '+e.message);}
   })();
 }
+
 async function closeChoreFromDetail(choreId,description){
   if(!confirm(`Mark "${description.slice(0,60)}" as Closed?`))return;
   try{
@@ -1304,14 +1332,13 @@ function showAddChore(){
       <input class="edit-input" id="nc-VideoLink" placeholder="https://drive.google.com/…" style="font-size:16px">
     </div>
     <div class="edit-actions">
-      <button class="btn-save" onclick="saveNewChore()">✓ Add &amp; Close</button>
+      <button class="btn-save" onclick="saveNewChore()">Add Chore</button>
       <button class="btn-cancel" onclick="closeDetail()">Cancel</button>
     </div>
     <div class="save-msg" id="saveMsg"></div>`;
   window._pendingChorePhotos={};
   window._pendingVideoUrl=null;
   window._pendingVideoPromise=null;
-  window._currentEditSaveFn=()=>saveNewChore();
   openDetail();
   _attachDropdownDismiss();
 }
@@ -1329,60 +1356,57 @@ function previewNewChorePhoto(input){
 }
 
 async function saveNewChore(){
+  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
   const siteBtn=document.getElementById('dsb-ns-site');
   const assignBtn=document.getElementById('dsb-ns-assign');
   const site=siteBtn?siteBtn.dataset.value:'';
-  const task=(document.getElementById('nc-Task')||{value:''}).value.trim();
-  // Validate before closing — show error in form if invalid
-  if(!site){const m=document.getElementById('saveMsg');if(m){m.className='save-msg err';m.textContent='Please select a site.';}return;}
-  if(!task){const m=document.getElementById('saveMsg');if(m){m.className='save-msg err';m.textContent='Task description is required.';}return;}
+  const task=document.getElementById('nc-Task').value.trim();
+  if(!site){m.className='save-msg err';m.textContent='Please select a site.';return;}
+  if(!task){m.className='save-msg err';m.textContent='Task description is required.';return;}
   const data={
     'Site':site,'Task':task,
-    'Additional Comments':(document.getElementById('nc-Comments')||{value:''}).value.trim(),
-    'Urgency':(document.getElementById('nc-Urgency')||{value:''}).value,
-    'Type':(document.getElementById('nc-Type')||{value:''}).value,
+    'Additional Comments':document.getElementById('nc-Comments').value.trim(),
+    'Urgency':document.getElementById('nc-Urgency').value,
+    'Type':document.getElementById('nc-Type').value,
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
     'Asked by':SESSION?SESSION.email:'','Status':'Open',
   };
-  // Capture pending media refs BEFORE closing
-  const _pPhotos={...window._pendingChorePhotos||{}};
-  const _pVidPromise=window._pendingVideoPromise;
-  const _preUploadedVideoUrl=window._pendingVideoUrl||'';
-  const _vidInputVal=(document.getElementById('nc-VideoLink')||{}).value?.trim()||'';
-  window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
-  // ── Immediately close + sound + return to chores list ──
-  playSuccessSound();
-  closeDetailImmediate();
-  switchTab('chores');
-  // ── Background: await video first → addChore with URL → upload photos ──
-  (async()=>{
-    try{
-      // 1. Wait for any in-progress video upload BEFORE creating the chore row
-      if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-      const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
-      window._pendingVideoUrl=null;
-      if(videoUrl)data['Helpful Video']=videoUrl;
-      if((_pVidPromise||_preUploadedVideoUrl)&&!videoUrl)
-        showSaveToast('\u26a0 Video upload failed — chore saved without video');
-      // 2. Create the chore row — now includes video URL if upload succeeded
-      const res=await gasPost({action:'addChore',data});
-      if(!res.ok)throw new Error(res.error||'Add failed');
-      const newChore={...data,ID:res.id};
-      // 3. Upload photos (each writes its URL back to the sheet via GAS)
-      const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
-      if(res.id){
-        for(let i=0;i<3;i++){
-          const file=_pPhotos[i];if(!file)continue;
-          try{const url=await _uploadChorePhotoBase64(res.id,file,imgCols[i]);if(url)newChore[imgCols[i]]=url;}
-          catch(pe){console.warn('New chore photo upload failed:',pe);}
-        }
+  // Video — if upload still in progress, wait for remainder
+  if(window._pendingVideoPromise){
+    m.textContent='Finishing video upload…';
+    try{await window._pendingVideoPromise;}catch(e){}
+  }
+  const videoUrl=window._pendingVideoUrl||(document.getElementById('nc-VideoLink')||{}).value?.trim()||'';
+  if(videoUrl)data['Helpful Video']=videoUrl;
+  window._pendingVideoUrl=null;
+  window._pendingVideoPromise=null;
+  try{
+    const res=await gasPost({action:'addChore',data});
+    if(!res.ok)throw new Error(res.error||'Add failed');
+    const newChore={...data,ID:res.id};
+    // Upload all pending photos
+    const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
+    if(window._pendingChorePhotos&&res.id){
+      for(let i=0;i<3;i++){
+        const file=window._pendingChorePhotos[i];
+        if(!file)continue;
+        try{const url=await _uploadChorePhotoBase64(res.id,file,imgCols[i]);if(url)newChore[imgCols[i]]=url;}catch(pe){}
       }
-      DATA.chores.unshift(newChore);
-      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-      renderAll();
-    }catch(e){showSaveToast('\u2717 Could not add chore: '+e.message);}
-  })();
+      window._pendingChorePhotos={};
+    }
+    DATA.chores.unshift(newChore);
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    const photoCount=imgCols.filter(c=>newChore[c]).length;
+    const hasVideo=!!(newChore['Helpful Video']);
+    const parts=[];
+    if(photoCount)parts.push(`${photoCount} photo${photoCount>1?'s':''}`);
+    if(hasVideo)parts.push('video');
+    m.textContent='✓ Chore added'+(parts.length?' + '+parts.join(' + '):'')+'!';
+    renderAll();
+    setTimeout(()=>closeDetail(),1200);
+  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
+
 /* ═══ RENDER SCHOOLS ═══ */
 function getMySchools(){
   if(!SESSION||SESSION.accessLevel<=2)return null;
@@ -1403,8 +1427,8 @@ function updateSchoolFilterCounts(){
     if(dist==='lausd')counts.lausd++;
     else if(dist==='busd')counts.busd++;
     else if(dist==='gusd')counts.gusd++;
-    const r1e=sf(s,'Ranger 1','Ranger1'),gke=sf(s,'Garden Keeper','GardenKeeper');
-    if(!r1e&&!gke)counts['no-ranger']++;
+    const r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
+    if(!r1n&&!r1e&&!gkn&&!gke)counts['no-ranger']++;
     if(openChoresForSite(sf(s,'Name','name')).length>0)counts['has-chores']++;
     const t=(sf(s,'Type','type')||'').toLowerCase();
     if(t.includes('active') && !t.includes('inactive'))counts.active++;
@@ -1436,15 +1460,34 @@ function renderSchools(){
       if(f==='future'&&!type.includes('future'))return false;
       if(f==='inactive'&&!type.includes('inactive'))return false;
       if(f==='possible'&&!type.includes('possible'))return false;
+      if(f==='near-me'){
+        if(_userLat===null)return true;
+        const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return false;
+        const p=ll.toString().split(',');if(p.length<2)return false;
+        const slat=parseFloat(p[0]),slng=parseFloat(p[1]);if(isNaN(slat)||isNaN(slng))return false;
+        return _haversine(_userLat,_userLng,slat,slng)<=5000;
+      }
     }
     return true;
   });
-  window._fs=sites;
+  // Compute distances and sort by nearest when near-me active
+  const sitesWithDist=sites.map(s=>{
+    let distM=null;
+    if(_userLat!==null){
+      const ll=sf(s,'Siteslatlong','siteslatlong');
+      if(ll){const p=ll.toString().split(',');if(p.length>=2){const slat=parseFloat(p[0]),slng=parseFloat(p[1]);if(!isNaN(slat)&&!isNaN(slng))distM=_haversine(_userLat,_userLng,slat,slng);}}
+    }
+    return {s,distM};
+  });
+  if(f==='near-me'&&_userLat!==null)sitesWithDist.sort((a,b)=>(a.distM??Infinity)-(b.distM??Infinity));
+  const sortedSites=sitesWithDist.map(x=>x.s);
+  window._fsDistMap=Object.fromEntries(sitesWithDist.map(({s,distM})=>[sf(s,'Name','name'),distM]));
+  window._fs=sortedSites;
   document.getElementById('schoolCount').textContent=sites.length+' sites';
   document.getElementById('schoolFilters').style.display=SESSION&&SESSION.accessLevel>=3?'none':'flex';
   if(SESSION&&SESSION.accessLevel<=2)updateSchoolFilterCounts();
-  if(!sites.length){document.getElementById('schoolList').innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):empty('—','No results','Try a different search or filter.');return;}
-  _renderSchoolBatch(sites,0,40);
+  if(!sortedSites.length){document.getElementById('schoolList').innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):f==='near-me'?empty('📍','No sites nearby','No sites found within 5 km of your location.'):empty('—','No results','Try a different search or filter.');return;}
+  _renderSchoolBatch(sortedSites,0,40);
 }
 
 function _schoolCardHtml(s,i){
@@ -1456,15 +1499,16 @@ function _schoolCardHtml(s,i){
   const tl=type.toLowerCase();
   const dimmed=csf==='all'&&!tl.includes('active');
   const openChores=openChoresForSite(name);
-  // Clickable ranger/GK names for levels 1 & 2; plain text for level 3
   const canLink=SESSION&&SESSION.accessLevel<=2;
   const rLink=(email,label)=>canLink&&email
     ?`<button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(email)}')">${label}</button>`
     :`<span style="font-size:15px">${label}</span>`;
+  const distM=window._fsDistMap&&window._fsDistMap[name]!=null?window._fsDistMap[name]:null;
+  const distBadge=distM!==null?`<span class="dist-badge">${_fmtDist(distM)}</span>`:'';
   return `<div class="school-card" onclick="showSchoolDetail(${i})"${dimmed?' style="opacity:.5"':''}>
     <div class="sdm dm-${dc(dist)}"></div>
     <div class="school-info">
-      <div class="school-name-row"><span class="school-name">${name}</span></div>
+      <div class="school-name-row"><span class="school-name">${name}</span>${distBadge}</div>
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
       ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
       ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
@@ -1484,11 +1528,9 @@ function _renderSchoolBatch(sites,from,batchSize){
     el.innerHTML=_schoolCardHtml(sites[i],i);
     frag.appendChild(el.firstChild);
   }
-  // Remove old sentinel if any
   const old=container.querySelector('.list-sentinel');if(old)old.remove();
   container.appendChild(frag);
   if(to<sites.length){
-    // Add scroll sentinel to load next batch
     const remaining=sites.length-to;
     const sentinel=document.createElement('div');
     sentinel.className='list-sentinel';
@@ -1531,7 +1573,6 @@ function _rangerCardHtml(h){
   const gkSites=DATA.sites.filter(s=>sf(s,'Garden Keeper','GardenKeeper')===email);
   const sLink=(s)=>{const n=sf(s,'Name','name');return `<button class="school-link-btn" onclick="showSchoolDetailByName('${esc(n)}');event.stopPropagation()">${n}</button>`;};
   let roleBlock='';
-  // B: When Garden Keeper filter is active, suppress ranger-school block
   const gkFilterActive=(crf==='garden_keeper');
   if(isPrimary&&!gkFilterActive){
     roleBlock+=`<div class="people-role">${role}${rangerSites.length?' · '+rangerSites.length+' school'+(rangerSites.length>1?'s':''):''}</div>`;
@@ -1554,7 +1595,6 @@ function _rangerCardHtml(h){
   </div>`;
 }
 
-/* ── Generic human list batch renderer ── */
 const _humanListObsMap={};
 function _renderHumanBatch(listId,people,from,batchSize,cardFn){
   const container=document.getElementById(listId);
@@ -1568,7 +1608,7 @@ function _renderHumanBatch(listId,people,from,batchSize,cardFn){
   });
   const oldS=container.querySelector('.list-sentinel');if(oldS)oldS.remove();
   container.appendChild(frag);
-  _initLazyImages();   // lazy-load avatars that just appeared
+  _initLazyImages();
   if(to<people.length){
     const remaining=people.length-to;
     const sentinel=document.createElement('div');
@@ -1774,6 +1814,94 @@ function refreshMapChores(){
   if(!_leafletMap)return;
   _leafletMap.eachLayer(l=>{if(l instanceof L.Marker)_leafletMap.removeLayer(l);});
   buildMapMarkers();
+  if(_userLat!==null)_placeUserMarker();
+}
+
+/* ═══ LOCATION TRACKING ═══ */
+function _haversine(lat1,lng1,lat2,lng2){
+  const R=6371000,toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1),dLng=toRad(lng2-lng1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function _fmtDist(m){return m<1000?Math.round(m)+'m away':+(m/1000).toFixed(1)+'km away';}
+function _nearestSite(lat,lng,maxMeters=200){
+  let best=null,bestDist=Infinity;
+  DATA.sites.forEach(s=>{
+    const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
+    const p=ll.toString().split(',');if(p.length<2)return;
+    const slat=parseFloat(p[0]),slng=parseFloat(p[1]);if(isNaN(slat)||isNaN(slng))return;
+    const d=_haversine(lat,lng,slat,slng);
+    if(d<maxMeters&&d<bestDist){bestDist=d;best={site:s,dist:d};}
+  });
+  return best;
+}
+function _placeUserMarker(){
+  if(!_leafletMap||_userLat===null)return;
+  const icon=L.divIcon({className:'',html:'<div class="location-user-dot"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+  if(_userMarker){_userMarker.setLatLng([_userLat,_userLng]);}
+  else{_userMarker=L.marker([_userLat,_userLng],{icon,zIndexOffset:1000}).addTo(_leafletMap);_userMarker.bindTooltip('You are here',{direction:'top',offset:[0,-10]});}
+}
+function _checkNearestAndToast(lat,lng){
+  const near=_nearestSite(lat,lng,200);
+  if(near&&!_toastDismissed){
+    const name=sf(near.site,'Name','name');
+    if(_toastSite!==name){_toastSite=name;document.getElementById('toastSiteName').textContent=name;document.getElementById('toastSiteDist').textContent=_fmtDist(near.dist);document.getElementById('nearMeToast').classList.add('visible');}
+  } else if(!near){_toastSite=null;_toastDismissed=false;document.getElementById('nearMeToast').classList.remove('visible');}
+}
+function openToastSite(){if(!_toastSite)return;dismissToast();showSchoolDetailByName(_toastSite);}
+function dismissToast(){_toastDismissed=true;document.getElementById('nearMeToast').classList.remove('visible');}
+function locateMe(){
+  if(!navigator.geolocation){alert('Geolocation is not supported by your browser.');return;}
+  const btn=document.getElementById('locateBtn');
+  if(_locActive){
+    if(_watchId!==null){navigator.geolocation.clearWatch(_watchId);_watchId=null;}
+    _locActive=false;btn.classList.remove('active');
+    if(_userMarker){_leafletMap&&_leafletMap.removeLayer(_userMarker);_userMarker=null;}
+    document.getElementById('nearMeToast').classList.remove('visible');return;
+  }
+  btn.classList.add('spinning');
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      btn.classList.remove('spinning');btn.classList.add('active');
+      _locActive=true;_userLat=pos.coords.latitude;_userLng=pos.coords.longitude;
+      if(_leafletMap){_placeUserMarker();_leafletMap.setView([_userLat,_userLng],14,{animate:true});}
+      _checkNearestAndToast(_userLat,_userLng);
+      if(_activeTab==='schools')renderSchools();
+      _watchId=navigator.geolocation.watchPosition(
+        p=>{
+          const prevLat=_userLat,prevLng=_userLng;
+          _userLat=p.coords.latitude;_userLng=p.coords.longitude;
+          _placeUserMarker();
+          if(_haversine(prevLat,prevLng,_userLat,_userLng)>20){_toastDismissed=false;_checkNearestAndToast(_userLat,_userLng);}
+          if(_activeTab==='schools')renderSchools();
+        },()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:20000}
+      );
+    },
+    err=>{
+      btn.classList.remove('spinning');
+      const msgs={1:'Location permission denied.',2:'Location unavailable.',3:'Timed out.'};
+      alert(msgs[err.code]||'Could not get location.');
+    },{enableHighAccuracy:true,timeout:12000,maximumAge:30000}
+  );
+}
+function toggleNearMeFilter(){
+  if(_userLat===null){
+    const chip=document.getElementById('nearMeChip');chip.textContent='📍 Locating…';chip.disabled=true;
+    if(!navigator.geolocation){alert('Geolocation not supported.');chip.textContent='📍 Near Me';chip.disabled=false;return;}
+    navigator.geolocation.getCurrentPosition(
+      pos=>{_userLat=pos.coords.latitude;_userLng=pos.coords.longitude;_locActive=true;chip.textContent='📍 Near Me';chip.disabled=false;_activateNearMeFilter();},
+      err=>{chip.textContent='📍 Near Me';chip.disabled=false;alert(['','Location permission denied.','Location unavailable.','Timed out.'][err.code]||'Could not get location.');},
+      {enableHighAccuracy:true,timeout:12000,maximumAge:60000}
+    );return;
+  }
+  if(csf==='near-me'){filterSchools('active');}else{_activateNearMeFilter();}
+}
+function _activateNearMeFilter(){
+  csf='near-me';
+  document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.remove('active','loc-active'));
+  document.getElementById('nearMeChip').classList.add('active','loc-active');
+  renderSchools();
 }
 
 /* ═══ SCHOOL DETAIL ═══ */
@@ -1787,9 +1915,9 @@ function renderSchoolDetail(site,editMode){
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
   const helpImg1=getImgSrc(sf(site,'Helpful Image 1','HelpfulImage1'));
   const helpImg2=getImgSrc(sf(site,'Helpful Image 2','HelpfulImage2'));
-  const r1e=sf(site,'Ranger 1','Ranger1'),r1n=r1e?(sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e)):'',r1m=hm(r1e);
-  const r2e=sf(site,'Ranger 2','Ranger2'),r2n=r2e?(sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e)):'',r2m=hm(r2e);
-  const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=gke?(sf(site,'Garden Keeper Name','GardenKeeperName')||hn(gke)):'',gkm=hm(gke);
+  const r1e=sf(site,'Ranger 1','Ranger1'),r1n=sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e),r1m=hm(r1e);
+  const r2e=sf(site,'Ranger 2','Ranger2'),r2n=sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e),r2m=hm(r2e);
+  const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=sf(site,'Garden Keeper Name','GardenKeeperName')||hn(gke),gkm=hm(gke);
   const pe=sf(site,'Principal','principal'),pn=hn(pe),pm=hm(pe);
   const saa=sf(site,'School Administrative Assistant','SchoolAdministrativeAssistant');
   const mc1=sf(site,'Main Contact 1','MainContact1'),mc2=sf(site,'Main Contact 2','MainContact2'),mc3=sf(site,'Main Contact 3','MainContact3');
@@ -1854,6 +1982,7 @@ function renderSchoolDetail(site,editMode){
           <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-MainImage','MainImage'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${mainImg?'Replace':'Add'} Photo
           </button>
+          ${mainImg?`<button type="button" onclick="_clearSitePhoto('ef-preview-MainImage','ef-MainImg')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
           <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
         <input class="edit-input" id="ef-MainImg" value="${ea(sf(site,'Main Image','MainImage'))}" placeholder="Paste Google Drive or image URL…"></div>
@@ -1865,6 +1994,7 @@ function renderSchoolDetail(site,editMode){
           <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg1','HelpImg1'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg1?'Replace':'Add'} Photo
           </button>
+          ${helpImg1?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg1','ef-HelpImg1')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
           <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
         <input class="edit-input" id="ef-HelpImg1" value="${ea(sf(site,'Helpful Image 1','HelpfulImage1'))}" placeholder="Paste image URL…"></div>
@@ -1876,9 +2006,11 @@ function renderSchoolDetail(site,editMode){
           <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg2','HelpImg2'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg2?'Replace':'Add'} Photo
           </button>
+          ${helpImg2?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg2','ef-HelpImg2')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
           <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
         <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" placeholder="Paste image URL…"></div>`:''}
+      <div class="edit-actions">
       <hr class="section-divider">
       <div class="edit-wrap">
         <div class="edit-label">Site Video</div>
@@ -1886,6 +2018,7 @@ function renderSchoolDetail(site,editMode){
         <button type="button" onclick="showPhotoOptions_videoOnly(f=>uploadVideoForSite(f,'ef-VideoLink','ef-video-status'))" style="display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--fog)">
           🎥 ${videoSrc?'Replace Video':'Record Video'}
         </button>
+        ${videoSrc?`<button type="button" onclick="_clearSiteVideo('ef-VideoLink','ef-video-status')" style="display:inline-flex;align-items:center;gap:4px;padding:10px 15px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove Video</button>`:``}
         <div style="font-size:14px;margin-top:6px" id="ef-video-status"></div>
         <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a link:</div>
         <input class="edit-input" id="ef-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
@@ -1906,12 +2039,19 @@ function renderSchoolDetail(site,editMode){
       if(!email)return '';
       const n=hn(email),m=hm(email);
       const inDB=!!DATA.humans.find(p=>(p.Email||p.email||'')=== email);
-      const nameHtml=inDB
-        ?`<button class="contact-tap" onclick="showPersonDetail('${ea(email)}')">${n}</button>`
-        :`<span style="font-weight:500">${n}</span>`;
+      const nameHtml=inDB?`<button class="contact-tap" onclick="showPersonDetail('${ea(email)}')">${n}</button>`:`<span style="font-weight:500">${n}</span>`;
       return `<div class="ds"><div class="dl">${label}</div><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><div class="dv" style="margin-bottom:5px">${nameHtml}<br><span style="font-size:15px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(m,email)}</div></div></div></div>`;
     }
-    const editPeopleHtml='';
+    const editPeopleHtml=canEdit()?`<hr class="section-divider" style="margin-top:16px">
+      <div style="padding:12px 20px 0">
+        <div class="dl" style="margin-bottom:8px">Edit a Contact's Record</div>
+        <div style="display:flex;flex-wrap:wrap;gap:7px">
+          ${r1e?`<button onclick="showPersonDetail('${ea(r1e)}')" class="cta">✏ ${r1n||'Ranger 1'}</button>`:''}
+          ${r2e?`<button onclick="showPersonDetail('${ea(r2e)}')" class="cta">✏ ${r2n||'Ranger 2'}</button>`:''}
+          ${gke?`<button onclick="showPersonDetail('${ea(gke)}')" class="cta">✏ ${gkn||'Keeper'}</button>`:''}
+          ${pe?`<button onclick="showPersonDetail('${ea(pe)}')" class="cta">✏ ${pn||'Principal'}</button>`:''}
+        </div>
+      </div>`:'';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s" onerror="this.parentElement.style.display='none'"></div>`:''}
@@ -1921,18 +2061,18 @@ function renderSchoolDetail(site,editMode){
       ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
       <div class="ds">
         <div class="dl">Ranger${r2n?' 1':''}</div>
-        <div class="dv" style="margin-bottom:5px">${r1n?`<button class="contact-tap" onclick="showPersonDetail('${ea(r1e)}')">${r1n}</button><br><span style="font-size:15px;color:var(--silver)">${r1e}</span>`:'<span style="color:var(--danger)">Unassigned</span>'}</div>
+        <div class="dv" style="margin-bottom:5px">${r1n?`<strong style="font-weight:500">${r1n}</strong><br><span style="font-size:15px;color:var(--silver)">${r1e}</span>`:'<span style="color:var(--danger)">Unassigned</span>'}</div>
         ${r1e||r1m?`<div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r1m,r1e)}</div>`:''}
       </div>
-      ${r2n?`<div class="ds"><div class="dl">Ranger 2</div><div class="dv" style="margin-bottom:5px"><button class="contact-tap" onclick="showPersonDetail('${ea(r2e)}')">${r2n}</button><br><span style="font-size:15px;color:var(--silver)">${r2e}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r2m,r2e)}</div></div>`:''}
-      ${gkn?`<div class="ds"><div class="dl">Garden Keeper</div><div class="dv" style="margin-bottom:5px"><button class="contact-tap" onclick="showPersonDetail('${ea(gke)}')">${gkn}</button><br><span style="font-size:15px;color:var(--silver)">${gke}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(gkm,gke)}</div></div>`:''}
+      ${r2n?`<div class="ds"><div class="dl">Ranger 2</div><div class="dv" style="margin-bottom:5px"><strong>${r2n}</strong><br><span style="font-size:15px;color:var(--silver)">${r2e}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r2m,r2e)}</div></div>`:''}
+      ${gkn?`<div class="ds"><div class="dl">Garden Keeper</div><div class="dv" style="margin-bottom:5px"><strong>${gkn}</strong><br><span style="font-size:15px;color:var(--silver)">${gke}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(gkm,gke)}</div></div>`:''}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
-      ${videoSrc?`<div class="ds"><div class="dl">Site Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>
       ${editPeopleHtml}
     <button class="btn-edit" onclick="window._currentSite=window._currentSite||${JSON.stringify(site).replace(/"/g,'&quot;')};renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
+    <button class="btn-exit" onclick="closeDetail()">✕ Close</button>
     `;
     window._currentSite=site;
   }
@@ -1943,6 +2083,20 @@ function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .
 function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel');const cs=panel.closest('.custom-select');const btn=cs.querySelector('.custom-select-btn');const email=isNone?'':el.dataset.email;btn.textContent=isNone?'— None —':el.dataset.name;btn.dataset.value=email;panel.classList.remove('open');}
 
 async function saveSiteEdit(siteName){
+  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
+  // Upload any pending site photos first — updates the URL input fields
+  if(window._pendingSitePhotos&&Object.keys(window._pendingSitePhotos).length>0){
+    m.textContent='Uploading photos…';
+    const inputMap={'MainImage':'ef-MainImg','HelpImg1':'ef-HelpImg1','HelpImg2':'ef-HelpImg2'};
+    for(const[key,file]of Object.entries(window._pendingSitePhotos)){
+      try{
+        const url=await _uploadSitePhoto(siteName,key,file);
+        const inp=document.getElementById(inputMap[key]);if(inp)inp.value=url;
+      }catch(pe){console.warn('Site photo upload failed:',pe);}
+    }
+    window._pendingSitePhotos={};
+    m.textContent='Saving…';
+  }
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
   const updates={};
@@ -1952,45 +2106,24 @@ async function saveSiteEdit(siteName){
   const mi=gv('ef-MainImg');if(mi!==null)updates['Main Image']=mi;
   const hi1=gv('ef-HelpImg1');if(hi1!==null)updates['Helpful Image 1']=hi1;
   const hi2=gv('ef-HelpImg2');if(hi2!==null)updates['Helpful Image 2']=hi2;
-  const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;updates['Ranger 1 Name']=r1v?hn(r1v):'';}
-  const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;updates['Ranger 2 Name']=r2v?hn(r2v):'';}
-  const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;updates['Garden Keeper Name']=gkv?hn(gkv):'';}
+  const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;if(r1v)updates['Ranger 1 Name']=hn(r1v);}
+  const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;if(r2v)updates['Ranger 2 Name']=hn(r2v);}
+  const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;if(gkv)updates['Garden Keeper Name']=hn(gkv);}
   const pv=gb('dsb-prin');if(pv!==null)updates['Principal']=pv;
   const saav=gb('dsb-saa');if(saav!==null)updates['School Administrative Assistant']=saav;
   const mc1v=gb('dsb-mc1');if(mc1v!==null)updates['Main Contact 1']=mc1v;
   const mc2v=gb('dsb-mc2');if(mc2v!==null)updates['Main Contact 2']=mc2v;
   const mc3v=gb('dsb-mc3');if(mc3v!==null)updates['Main Contact 3']=mc3v;
   const pmv=gb('dsb-pm');if(pmv!==null)updates['Plant Manager']=pmv;
-  // Capture pending media refs BEFORE closing (DOM will be gone after)
-  const _pPhotos={...window._pendingSitePhotos||{}};
-  const _pVidPromise=window._pendingSiteVideoPromise;
-  const _preUploadedVideoUrl=window._pendingSiteVideoUrl||'';
-  const _vidInputVal=(document.getElementById('ef-VideoLink')||{}).value?.trim()||'';
-  window._pendingSitePhotos={};window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
-  // ── Immediately close + sound + return to schools list ──
-  playSuccessSound();
-  closeDetailImmediate();
-  switchTab('schools');
-  // ── Background: upload photos/video then save to sheet ──
-  (async()=>{
-    const colMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2'};
-    for(const[key,file]of Object.entries(_pPhotos)){
-      try{const url=await _uploadSitePhoto(siteName,key,file);if(url&&colMap[key])updates[colMap[key]]=url;}
-      catch(pe){console.warn('Site photo upload failed:',pe);}
-    }
-    if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-    const siteVideoUrl=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal;
-    if(!siteVideoUrl&&(_pVidPromise||_preUploadedVideoUrl)){showSaveToast('\u26a0 Video upload failed — site saved without video');}
-    updates['Helpful Video 1']=siteVideoUrl;
-    window._pendingSiteVideoUrl=null;
-    try{
-      await saveToSheet('Sites',siteName,updates);
-      const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
-      if(site)Object.assign(site,updates);
-      renderAll();
-    }catch(e){showSaveToast('\u2717 Site save failed: '+e.message);}
-  })();
+  try{
+    await saveToSheet('Sites',siteName,updates);
+    m.textContent='✓ Saved';
+    const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
+    if(site){Object.assign(site,updates);setTimeout(()=>renderSchoolDetail(site,false),700);}
+    renderAll();
+  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
+
 /* ═══ PERSON DETAIL ═══ */
 function showPersonDetail(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(!h)return;renderPD(h,false);openDetail();}
 
@@ -2033,14 +2166,13 @@ function renderPD(h,edit){
         <button class="btn-cancel" onclick="showPersonDetail('${ea(email||name)}')">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
-    window._currentEditSaveFn=()=>savePerson(email);
   } else {
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">${avatarHtml(h,54)}<div class="sheet-title" style="font-size:28px">${name}</div></div>
         <button class="sheet-x" onclick="closeDetail()">✕</button>
       </div>
-      ${imgUrl?`<div style="padding:14px 20px 0"><img data-lazy="${imgUrl}" style="width:100%;height:190px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s" onerror="this.parentElement.style.display='none'"></div>`:''}
+      ${imgUrl?`<div style="padding:14px 20px 0"><img src="${imgUrl}" loading="lazy" style="width:100%;height:190px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.parentElement.style.display='none'"></div>`:''}
       <div class="ds"><div class="dl">Role</div><div class="dv">${role||'—'}</div></div>
       ${schools?`<div class="ds"><div class="dl">Assigned School(s)</div><div class="dv">${schools}</div></div>`:''}
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
@@ -2052,7 +2184,8 @@ function renderPD(h,edit){
         ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
       </div>
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
-      ${canEdit()?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}`;
+      ${canEdit()?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
+      <button class="btn-exit" onclick="closeDetail()">✕ Close</button>`;
   }
 }
 
@@ -2261,32 +2394,8 @@ async function saveNewContactForSite(returnBtnId){
 }
 
 /* ═══ OVERLAY ═══ */
-function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,320);});}
+function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>o.classList.add('open'));}
 function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
-
-function closeDetailImmediate(){const o=document.getElementById('detail-overlay');o.classList.remove('open');o.style.display='none';}
-
-function playSuccessSound(){
-  try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    [[523,0],[659,.13],[784,.26]].forEach(([freq,t])=>{
-      const osc=ctx.createOscillator(),g=ctx.createGain();
-      osc.connect(g);g.connect(ctx.destination);
-      osc.frequency.value=freq;osc.type='sine';
-      g.gain.setValueAtTime(0,ctx.currentTime+t);
-      g.gain.linearRampToValueAtTime(0.22,ctx.currentTime+t+0.025);
-      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.45);
-      osc.start(ctx.currentTime+t);osc.stop(ctx.currentTime+t+0.5);
-    });
-  }catch(e){}
-}
-
-function showSaveToast(msg){
-  const t=document.createElement('div');
-  t.style='position:fixed;bottom:calc(84px + var(--safe-bottom));left:50%;transform:translateX(-50%);background:var(--danger);color:white;padding:12px 22px;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.25)';
-  t.textContent=msg;document.body.appendChild(t);
-  setTimeout(()=>{t.style.cssText+=';opacity:0;transition:opacity .3s';setTimeout(()=>t.remove(),350);},5000);
-}
 
 /* ═══ TABS ═══ */
 function switchTab(tab,initMapFlag=false){
@@ -2294,13 +2403,27 @@ function switchTab(tab,initMapFlag=false){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
   document.getElementById('searchbar').style.display=tab==='notes'?'none':'block';
-  if(tab==='map'||initMapFlag)setTimeout(()=>{initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();},50);
+  if(tab==='map'||initMapFlag){
+    setTimeout(()=>{
+      initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();
+      const lb=document.getElementById('locateBtn');if(lb)lb.style.display='flex';
+      if(_userLat!==null){_placeUserMarker();_checkNearestAndToast(_userLat,_userLng);}
+    },50);
+  } else {
+    const t=document.getElementById('nearMeToast');if(t)t.classList.remove('visible');
+  }
   if(tab==='plants')initPlants();
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
   // Render this tab if it has pending data changes
   if(_tabDirty[tab])_renderDirtyTab(tab);
 }
-function filterSchools(f){csf=f;document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderSchools();}
+function filterSchools(f){
+  csf=f;
+  document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.remove('active','loc-active'));
+  if(f==='near-me'){document.getElementById('nearMeChip').classList.add('active','loc-active');}
+  else{document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));}
+  renderSchools();
+}
 function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();_initLazyImages();}
 function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();_initLazyImages();}
 let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();},200);});
@@ -2506,26 +2629,19 @@ async function saveSelfEdit(email){
     if(h)Object.assign(h,updates);
     const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
     if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=newName;}
-    const _imm=window._saveImmediate;window._saveImmediate=false;
-    if(!_imm)m.textContent='✓ Saved';renderAll();setTimeout(()=>closeDetail(),_imm?0:800);
+    m.textContent='✓ Saved';renderAll();setTimeout(()=>closeDetail(),800);
   }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
 }
 
 async function deleteChoreFromDetail(choreId,description){
   if(!confirm(`Delete "${(description||'this chore').slice(0,60)}"?\n\nThis cannot be undone.`))return;
-  // Close immediately + sound + back to chores list; delete happens in background
-  playSuccessSound();
-  closeDetailImmediate();
-  switchTab('chores');
-  (async()=>{
-    try{
-      const j=await gasPost({action:'deleteChore',choreId});
-      if(!j.ok)throw new Error(j.error||'Delete failed');
-      DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
-      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-      renderAll();
-    }catch(e){showSaveToast('\u2717 Delete failed: '+e.message);}
-  })();
+  try{
+    const j=await gasPost({action:'deleteChore',choreId});
+    if(!j.ok)throw new Error(j.error||'Delete failed');
+    DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    closeDetail();renderAll();
+  }catch(e){alert('Error: '+e.message);}
 }
 
 /* ═══ PHOTO ACTION SHEET ═══ */
@@ -2642,7 +2758,6 @@ function uploadVideoForChore(file, inputId, statusId){
   if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
   // Start upload immediately — store the Promise so save can await it if needed
   window._pendingVideoUrl=null;
-  showUploadPrompt('video');
   window._pendingVideoPromise=_uploadToCloudinary(file,null) // null = no status override during background upload
     .then(url=>{
       window._pendingVideoUrl=url;
@@ -2703,7 +2818,6 @@ function previewSitePhotoFile(file,previewId,fieldKey){
   reader.onload=e=>{
     const img=document.getElementById(previewId);
     if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px';}
-    showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
 }
@@ -2714,7 +2828,6 @@ function previewSelfPhotoFile(file){
   reader.onload=e=>{
     const wrap=document.getElementById('self-avatar-wrap');
     if(wrap)wrap.innerHTML=`<img id="self-img-preview" src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
-    showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
 }
@@ -2773,27 +2886,6 @@ async function _uploadHumanPhoto(email,file){
   });
 }
 
-/* ═══ SITE VIDEO UPLOAD ═══ */
-function uploadVideoForSite(file,inputId,statusId){
-  const st=document.getElementById(statusId);
-  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
-  window._pendingSiteVideoUrl=null;
-  showUploadPrompt('video');
-  window._pendingSiteVideoPromise=_uploadToCloudinary(file,null)
-    .then(url=>{
-      window._pendingSiteVideoUrl=url;
-      window._pendingSiteVideoPromise=null;
-      const inp=document.getElementById(inputId);
-      if(inp){inp.value=url;inp.style.background='#f0fff4';inp.dispatchEvent(new Event('input'));}
-      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready';}
-      return url;
-    })
-    .catch(e=>{
-      window._pendingSiteVideoPromise=null;
-      window._pendingSiteVideoUrl=null;
-      if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
-    });
-}
 
 /* ═══ UPLOAD PROMPT — appears after any photo or video is picked ═══ */
 function showUploadPrompt(mediaType){
@@ -2814,7 +2906,7 @@ function showUploadPrompt(mediaType){
         }</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:11px">
-        <button id="upr-save" style="padding:18px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:18px;font-weight:500;cursor:pointer;letter-spacing:.03em">✓ Finished — Save &amp; Close</button>
+        <button id="upr-save" style="padding:18px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:18px;font-weight:500;cursor:pointer">✓ Finished — Save &amp; Close</button>
         <button id="upr-continue" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">Continue Editing</button>
       </div>
     </div>`;
@@ -2822,7 +2914,6 @@ function showUploadPrompt(mediaType){
   modal.querySelector('#upr-continue').onclick=()=>modal.remove();
   document.body.appendChild(modal);
 }
-
 /* ═══ SETTINGS ═══ */
 
 /* ═══ NOTES ═══ */
@@ -2865,6 +2956,29 @@ async function saveNotes(){
   }
 }
 
+
+/* ═══ MEDIA DELETE HELPERS ═══ */
+function _clearSitePhoto(previewId,inputId){
+  if(!confirm('Remove this photo?'))return;
+  const img=document.getElementById(previewId);if(img){img.src='';img.style.display='none';}
+  const inp=document.getElementById(inputId);if(inp)inp.value='';
+  // Remove from pending uploads if not yet saved
+  if(window._pendingSitePhotos){
+    const keyMap={'ef-preview-MainImage':'MainImage','ef-preview-HelpImg1':'HelpImg1','ef-preview-HelpImg2':'HelpImg2'};
+    delete window._pendingSitePhotos[keyMap[previewId]||previewId];
+  }
+}
+function _clearSiteVideo(inputId,statusId){
+  if(!confirm('Remove this video?'))return;
+  const inp=document.getElementById(inputId);if(inp)inp.value='';
+  const st=document.getElementById(statusId);if(st)st.textContent='';
+  window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
+}
+function _clearChoreVideo(inputId){
+  if(!confirm('Remove this video?'))return;
+  const inp=document.getElementById(inputId);if(inp)inp.value='';
+  window._pendingVideoUrl=null;window._pendingVideoPromise=null;
+}
 function saveGasUrl(){const u=document.getElementById('gasUrlInput').value.trim();CFG.URL=u;localStorage.setItem('rr_gas_url',u);localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);switchTab('schools');loadData(true);}
 function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);loadData(true);}
 window.addEventListener('DOMContentLoaded',()=>{
