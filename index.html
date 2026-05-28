@@ -1043,8 +1043,8 @@ function renderChoreDetail(c,editMode){
         ${SESSION&&id?`<button class="dcta" onclick="deleteChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--danger);color:var(--danger)">🗑 Delete</button>`:''}
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
         ${SESSION&&SESSION.accessLevel===1?`<button class="dcta" onclick="showChoreDebug()" style="border-color:var(--silver);color:var(--silver);font-size:12px">🔍 Debug</button>`:''}
-      </div>`;
-    <button class="btn-exit" onclick="closeDetail()">✕ Close</button>
+      </div>
+      <button class="btn-exit" onclick="closeDetail()">✕ Close</button>`;
     window._currentChore=c;
   }
 }
