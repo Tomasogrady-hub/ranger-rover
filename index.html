@@ -102,7 +102,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .rdot{width:7px;height:7px;min-width:7px;min-height:7px;max-width:7px;max-height:7px;border-radius:50%;background:var(--sage);flex-shrink:0;align-self:center}
 .rdot.empty{background:var(--danger)}
 .school-chevron{color:var(--mist);font-size:22px;flex-shrink:0;align-self:center}
-.chore-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:var(--warn-bg);color:var(--warn);font-size:13px;font-weight:600;margin-top:6px;white-space:nowrap}
+.chore-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:var(--warn-bg);color:var(--warn);font-size:13px;font-weight:600;white-space:nowrap}
+.add-chore-btn{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;background:var(--mint);color:var(--grove);border:1px solid var(--sage);font-family:var(--font-b);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;letter-spacing:.02em}
 
 /* ── PEOPLE CARDS ── */
 .people-card{border-bottom:1px solid var(--mist);padding:17px 0;cursor:pointer;display:flex;align-items:flex-start;gap:13px}
@@ -360,6 +361,11 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
  <!-- NOTES -->
 <!-- NOTES -->
   <div class="tab-pane active" id="tab-notes">
+    <!-- ── BROADCAST MESSAGE (shown when set by admin) ── -->
+    <div id="broadcastBanner" style="display:none;margin:14px 16px 0;padding:13px 16px;background:var(--warn-bg);border-left:4px solid var(--amber);border-radius:var(--r-sm)">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:4px">📢 Message from Tomas</div>
+      <div id="broadcastText" style="font-size:16px;color:var(--ink);line-height:1.6"></div>
+    </div>
     <!-- ── GREETING — shown above My Notes title ── -->
     <div id="notesGreeting" style="padding:20px 20px 0;font-family:var(--font-d);font-size:28px;font-weight:300;font-style:italic;color:var(--stone);line-height:1.3"></div>
     <div class="page-header">
@@ -532,6 +538,37 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
     </div>
   </div>
 
+  <!-- CONTROL PANEL (access level 1 only) -->
+  <div class="tab-pane" id="tab-control">
+    <div class="page-header"><span class="page-title">Control Panel</span></div>
+    <div class="settings-section">
+
+      <!-- Plants tab toggle -->
+      <div class="dl" style="margin-bottom:8px">Feature Flags</div>
+      <div class="settings-group">
+        <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div>
+            <div class="dl" style="margin-bottom:3px">🌿 Plants Tab</div>
+            <div class="settings-note">Show or hide the Plants tab for all users (levels 2 &amp; 3).</div>
+          </div>
+          <button id="plantsToggleBtn" onclick="togglePlantsFeature()" style="flex-shrink:0;min-width:72px;padding:10px 16px;border-radius:99px;border:none;font-family:var(--font-b);font-size:15px;font-weight:600;cursor:pointer;transition:background .2s,color .2s">ON</button>
+        </div>
+      </div>
+
+      <!-- Broadcast message -->
+      <div class="dl" style="margin-bottom:8px;margin-top:4px">📢 Broadcast Message</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-note" style="margin-bottom:10px">Appears at the top of the Notes screen for ALL users. Leave blank to hide it.</div>
+          <textarea id="broadcastInput" class="settings-input" rows="4" placeholder="e.g. New feature: tap + Chore on any school card to log a chore instantly!" style="min-height:100px;resize:vertical;line-height:1.55;font-size:16px"></textarea>
+          <button class="settings-btn" style="margin-top:8px" onclick="saveBroadcast()">Save Message</button>
+          <div id="broadcastSaveStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:20px"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div><!-- /content -->
 
 <div id="nav" style="display:none">
@@ -543,6 +580,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
   <button class="nav-btn"        data-tab="chores"   onclick="switchTab('chores')"   id="navChores"><span class="nav-icon">✅</span>Chores</button>
   <button class="nav-btn"        data-tab="plants"   onclick="switchTab('plants')"   id="navPlants"><span class="nav-icon">🌿</span>Plants</button>
   <button class="nav-btn"        data-tab="settings" onclick="switchTab('settings')" id="navSettings"><span class="nav-icon">⚙️</span>Settings</button>
+  <button class="nav-btn"        data-tab="control"  onclick="switchTab('control')"  id="navControl"><span class="nav-icon">🎛</span>Control</button>
 </div>
 
 <div id="detail-overlay" onclick="closeDetail(event)">
@@ -801,6 +839,7 @@ function showApp(){
   document.getElementById('navRangers').style.display=lvl<=2?'flex':'none';
   document.getElementById('navPeople').style.display=lvl<=2?'flex':'none';
   document.getElementById('navSettings').style.display=lvl===1?'flex':'none';
+  document.getElementById('navControl').style.display=lvl===1?'flex':'none';
   document.getElementById('navChores').style.display='flex';
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
@@ -808,10 +847,11 @@ function showApp(){
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
   const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent='v'+APP_VERSION;
-  switchTab('notes');          // show notes immediately
-  setGreeting();              // Good morning. Good evening, etc.
-  loadNotes();                 // fast single-cell fetch — renders in ~300ms
-  loadData();                  // full data loads in background
+  switchTab('notes');
+  setGreeting();
+  loadNotes();
+  loadData();
+  loadAppSettings(); // load plants-on/off + broadcast message
 }
 
 /* ═══ API ═══ */
@@ -1272,15 +1312,20 @@ function _isAssignable(h){
   return cats.some(c=>c==='ranger'||c==='master_ranger'||c==='garden_keeper');
 }
 
-function showAddChore(){
+function showAddChore(preSiteName){
   const myEmail=SESSION?SESSION.email:'';
   const myName=myEmail?(hn(myEmail)||myEmail):'';
-  const siteItems=DATA.sites.map(s=>{const n=sf(s,'Name','name');return `<div class="dropdown-item" data-email="${ea(n)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}</div>`;}).join('');
+  // Level 3: only show their assigned schools; level 1-2: all sites
+  const sitesPool=(SESSION&&SESSION.accessLevel>=3)?getMySchools()||DATA.sites:DATA.sites;
+  const siteItems=sitesPool.map(s=>{const n=sf(s,'Name','name');return `<div class="dropdown-item" data-email="${ea(n)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}</div>`;}).join('');
   /* Only rangers, garden keepers, master rangers in the Assign To list */
   const assignableHumans=DATA.humans.filter(_isAssignable);
   const personOpt=h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;};
   const urgOpts=['ASAP','Urgent','Normal','Low'].map(u=>`<option value="${u}"${u==='Normal'?' selected':''}>${u}</option>`).join('');
   const typeOpts=['Fieldwork','Admin','Other'].map(t=>`<option value="${t}">${t}</option>`).join('');
+  // Pre-fill site if provided
+  const preSiteLabel=preSiteName||'— Select site —';
+  const preSiteVal=preSiteName||'';
 
   document.getElementById('detail-content').innerHTML=`
     <div class="sheet-head"><div class="sheet-title">New Chore</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
@@ -1291,7 +1336,7 @@ function showAddChore(){
     <div class="edit-wrap" style="position:relative;z-index:60">
       <div class="edit-label">Site *</div>
       <div class="custom-select">
-        <button type="button" class="custom-select-btn" onclick="toggleDropdown('dd-ns-site')" id="dsb-ns-site" data-value="">— Select site —</button>
+        <button type="button" class="custom-select-btn" onclick="toggleDropdown('dd-ns-site')" id="dsb-ns-site" data-value="${ea(preSiteVal)}">${ea(preSiteLabel)}</button>
         <div class="dropdown-panel" id="dd-ns-site">
           <div class="dropdown-search"><input placeholder="Search sites…" oninput="filterDropdownItems('dd-ns-site',this.value)"></div>
           <div class="dropdown-list">${siteItems}</div>
@@ -1346,6 +1391,8 @@ function showAddChore(){
   window._pendingChorePhotos={};
   window._pendingVideoUrl=null;
   window._pendingVideoPromise=null;
+  window._currentEditContext='chores';
+  window._currentEditSaveFn=null; // new chores don't use the upload-prompt save path
   openDetail();
   _attachDropdownDismiss();
 }
@@ -1518,7 +1565,10 @@ function _schoolCardHtml(s,i){
       <div class="school-name-row"><span class="school-name">${name}</span>${distBadge}</div>
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
       ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
-      ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
+        ${openChores.length>0?`<div class="chore-pill">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</div>`:''}
+        <button class="add-chore-btn" onclick="event.stopPropagation();showAddChore('${esc(name)}')">+ Chore</button>
+      </div>
     </div>
     <span class="school-chevron">›</span>
   </div>`;
@@ -3124,6 +3174,79 @@ function _clearChoreVideo(inputId){
 }
 function saveGasUrl(){const u=document.getElementById('gasUrlInput').value.trim();CFG.URL=u;localStorage.setItem('rr_gas_url',u);localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);switchTab('schools');loadData(true);}
 function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);loadData(true);}
+
+/* ═══ CONTROL PANEL ═══ */
+// App settings stored server-side via GAS so all users see the same state.
+// Falls back to localStorage if GAS is unavailable.
+let _appSettings={plantsEnabled:true,broadcast:''};
+
+async function loadAppSettings(){
+  // Apply cached settings immediately for instant render
+  const cached=localStorage.getItem('rr_app_settings');
+  if(cached){try{_appSettings=JSON.parse(cached);}catch(e){}}
+  _applyAppSettings();
+  // Then fetch fresh from GAS in background
+  if(!CFG.URL)return;
+  try{
+    const r=await gasPost({action:'getAppSettings'});
+    if(r.ok&&r.settings){
+      _appSettings=r.settings;
+      localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
+      _applyAppSettings();
+    }
+  }catch(e){}
+}
+
+function _applyAppSettings(){
+  const plantsOn=_appSettings.plantsEnabled!==false; // default true
+  const lvl=SESSION?SESSION.accessLevel:3;
+  // Plants tab: always visible for level 1; toggle controls level 2+
+  const showPlants=lvl===1||plantsOn;
+  const np=document.getElementById('navPlants');if(np)np.style.display=showPlants?'flex':'none';
+  // Update control panel toggle button
+  const tb=document.getElementById('plantsToggleBtn');
+  if(tb){
+    tb.textContent=plantsOn?'ON':'OFF';
+    tb.style.background=plantsOn?'var(--grove)':'var(--silver)';
+    tb.style.color='white';
+  }
+  // Update broadcast textarea if on control panel
+  const bi=document.getElementById('broadcastInput');if(bi)bi.value=_appSettings.broadcast||'';
+  // Show/hide broadcast banner on notes tab
+  const bb=document.getElementById('broadcastBanner');
+  const bt=document.getElementById('broadcastText');
+  const msg=(_appSettings.broadcast||'').trim();
+  if(bb&&bt){
+    if(msg&&lvl!==1){bb.style.display='block';bt.textContent=msg;}
+    else if(msg&&lvl===1){bb.style.display='block';bt.textContent='[Admin preview] '+msg;}
+    else{bb.style.display='none';}
+  }
+}
+
+async function togglePlantsFeature(){
+  _appSettings.plantsEnabled=!(_appSettings.plantsEnabled!==false);
+  _applyAppSettings();
+  localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
+  if(!CFG.URL)return;
+  try{await gasPost({action:'saveAppSettings',settings:_appSettings});}
+  catch(e){showSaveToast('⚠ Could not save setting');}
+}
+
+async function saveBroadcast(){
+  const msg=(document.getElementById('broadcastInput')||{value:''}).value.trim();
+  _appSettings.broadcast=msg;
+  _applyAppSettings();
+  localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
+  const st=document.getElementById('broadcastSaveStatus');
+  if(st)st.textContent='Saving…';
+  if(!CFG.URL){if(st)st.textContent='✓ Saved locally';return;}
+  try{
+    await gasPost({action:'saveAppSettings',settings:_appSettings});
+    if(st){st.textContent='✓ Message saved & live';setTimeout(()=>{if(st)st.textContent='';},3000);}
+  }catch(e){
+    if(st)st.textContent='⚠ Could not reach server';
+  }
+}
 window.addEventListener('DOMContentLoaded',()=>{
   if(CFG.URL&&document.getElementById('gasUrlInput'))document.getElementById('gasUrlInput').value=CFG.URL;
   const vMb=document.getElementById('videoMaxMbInput');if(vMb)vMb.value=CFG.VIDEO_MAX_MB||150;
