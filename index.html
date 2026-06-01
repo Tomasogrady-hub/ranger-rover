@@ -593,7 +593,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='2.1';
+const APP_VERSION='2.2';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -989,8 +989,8 @@ function renderChoreDetail(c,editMode){
   const dateStr=fmtDate(c.Timestamp);
 
   if(editMode){
-    const urgOpts=['ASAP','Urgent','Normal','Low'].map(u=>`<option value="${u}"${urgency===u?' selected':''}>${u}</option>`).join('');
-    const typeOpts=['Fieldwork','Admin','Other'].map(t=>`<option value="${t}"${type===t?' selected':''}>${t}</option>`).join('');
+    const urgOpts=['Urgent','ASAP','Not Urgent but still important'].map(u=>`<option value="${u}"${urgency===u?' selected':''}>${u}</option>`).join('');
+    const typeOpts=['Administrative','Fieldwork'].map(t=>`<option value="${t}"${type===t?' selected':''}>${t}</option>`).join('');
     const statOpts=['Open','Closed'].map(s=>`<option value="${s}"${status===s?' selected':''}>${s}</option>`).join('');
     const personOpt=h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;};
     const assignableHumans=DATA.humans.filter(_isAssignable);
@@ -1276,12 +1276,23 @@ async function saveChoreEdit(choreId){
 
 async function closeChoreFromDetail(choreId,description){
   if(!confirm(`Mark "${description.slice(0,60)}" as Closed?`))return;
-  try{
-    await closeChoreApi(choreId);
-    const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
-    if(c){c.Status='Closed';window._currentChore=c;renderChoreDetail(c,false);}
+  // Update local data immediately so it vanishes from the list right away
+  const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+  if(c)c.Status='Closed';
+  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  _playChime();
+  closeDetailImmediate();
+  switchTab('chores');
+  renderAll();
+  // Confirm with server in background
+  try{await closeChoreApi(choreId);}
+  catch(e){
+    // Revert if server failed
+    if(c)c.Status='Open';
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     renderAll();
-  }catch(e){alert('Error: '+e.message);}
+    showSaveToast('⚠ Could not close chore — '+e.message);
+  }
 }
 
 async function _uploadChorePhotoBase64(choreId, file, imageCol='Helpful Image 1'){
@@ -1321,8 +1332,8 @@ function showAddChore(preSiteName){
   /* Only rangers, garden keepers, master rangers in the Assign To list */
   const assignableHumans=DATA.humans.filter(_isAssignable);
   const personOpt=h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;};
-  const urgOpts=['ASAP','Urgent','Normal','Low'].map(u=>`<option value="${u}"${u==='Normal'?' selected':''}>${u}</option>`).join('');
-  const typeOpts=['Fieldwork','Admin','Other'].map(t=>`<option value="${t}">${t}</option>`).join('');
+  const urgOpts=['Urgent','ASAP','Not Urgent but still important'].map(u=>`<option value="${u}"${u==='Not Urgent but still important'?' selected':''}>${u}</option>`).join('');
+  const typeOpts=['Administrative','Fieldwork'].map(t=>`<option value="${t}">${t}</option>`).join('');
   // Pre-fill site if provided
   const preSiteLabel=preSiteName||'— Select site —';
   const preSiteVal=preSiteName||'';
@@ -2102,23 +2113,21 @@ function renderSchoolDetail(site,editMode){
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
+    // All contact rows use the same helper — name is always a tappable link if in DB
     function crow(label,email){
       if(!email)return '';
       const n=hn(email),m=hm(email);
-      const inDB=!!DATA.humans.find(p=>(p.Email||p.email||'')=== email);
-      const nameHtml=inDB?`<button class="contact-tap" onclick="showPersonDetail('${ea(email)}')">${n}</button>`:`<span style="font-weight:500">${n}</span>`;
-      return `<div class="ds"><div class="dl">${label}</div><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><div class="dv" style="margin-bottom:5px">${nameHtml}<br><span style="font-size:15px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(m,email)}</div></div></div></div>`;
+      const inDB=!!DATA.humans.find(p=>(p.Email||p.email||'')===email);
+      const nameHtml=inDB
+        ?`<button class="contact-tap" onclick="showPersonDetail('${ea(email)}')">${n}</button>`
+        :`<span style="font-weight:500">${n}</span>`;
+      return `<div class="ds"><div class="dl">${label}</div><div><div class="dv" style="margin-bottom:5px">${nameHtml}<br><span style="font-size:15px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(m,email)}</div></div></div>`;
     }
-    const editPeopleHtml=canEdit()?`<hr class="section-divider" style="margin-top:16px">
-      <div style="padding:12px 20px 0">
-        <div class="dl" style="margin-bottom:8px">Edit a Contact's Record</div>
-        <div style="display:flex;flex-wrap:wrap;gap:7px">
-          ${r1e?`<button onclick="showPersonDetail('${ea(r1e)}')" class="cta">✏ ${r1n||'Ranger 1'}</button>`:''}
-          ${r2e?`<button onclick="showPersonDetail('${ea(r2e)}')" class="cta">✏ ${r2n||'Ranger 2'}</button>`:''}
-          ${gke?`<button onclick="showPersonDetail('${ea(gke)}')" class="cta">✏ ${gkn||'Keeper'}</button>`:''}
-          ${pe?`<button onclick="showPersonDetail('${ea(pe)}')" class="cta">✏ ${pn||'Principal'}</button>`:''}
-        </div>
-      </div>`:'';
+    // Ranger rows also use crow so they get the same hotlink treatment
+    const ranger1Html=r1e?crow('Ranger'+(r2e?' 1':''),r1e)
+      :`<div class="ds"><div class="dl">Ranger</div><div class="dv" style="color:var(--danger)">Unassigned</div></div>`;
+    const ranger2Html=r2e?crow('Ranger 2',r2e):'';
+    const keeperHtml=gke?crow('Garden Keeper',gke):'';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetail()">✕</button></div>
       ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s" onerror="this.parentElement.style.display='none'"></div>`:''}
@@ -2126,18 +2135,11 @@ function renderSchoolDetail(site,editMode){
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
-      <div class="ds">
-        <div class="dl">Ranger${r2n?' 1':''}</div>
-        <div class="dv" style="margin-bottom:5px">${r1n?`<strong style="font-weight:500">${r1n}</strong><br><span style="font-size:15px;color:var(--silver)">${r1e}</span>`:'<span style="color:var(--danger)">Unassigned</span>'}</div>
-        ${r1e||r1m?`<div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r1m,r1e)}</div>`:''}
-      </div>
-      ${r2n?`<div class="ds"><div class="dl">Ranger 2</div><div class="dv" style="margin-bottom:5px"><strong>${r2n}</strong><br><span style="font-size:15px;color:var(--silver)">${r2e}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(r2m,r2e)}</div></div>`:''}
-      ${gkn?`<div class="ds"><div class="dl">Garden Keeper</div><div class="dv" style="margin-bottom:5px"><strong>${gkn}</strong><br><span style="font-size:15px;color:var(--silver)">${gke}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(gkm,gke)}</div></div>`:''}
+      ${ranger1Html}${ranger2Html}${keeperHtml}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>
-      ${editPeopleHtml}
     <button class="btn-edit" onclick="window._currentSite=window._currentSite||${JSON.stringify(site).replace(/"/g,'&quot;')};renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
     <button class="btn-exit" onclick="closeDetail()">✕ Close</button>
     `;
@@ -2320,8 +2322,18 @@ async function doReassign(choreId,siteName,el){
 }
 async function closeChore(choreId,description){
   if(!confirm(`Mark "${description.slice(0,50)}" as Closed?`))return;
-  try{await closeChoreApi(choreId);renderAll();}
-  catch(e){alert('Error: '+e.message);}
+  const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+  if(c)c.Status='Closed';
+  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  _playChime();
+  renderAll();
+  try{await closeChoreApi(choreId);}
+  catch(e){
+    if(c)c.Status='Open';
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    renderAll();
+    showSaveToast('⚠ Could not close chore — '+e.message);
+  }
 }
 
 /* ═══ ADD CONTACT ═══ */
