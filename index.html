@@ -341,7 +341,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
 <!-- APP -->
 <div id="header" style="display:none">
-  <div><span class="logo">Ranger Rover</span><span class="logo-sub">Enrich LA</span></div>
+  <div><span class="logo">Ranger Rover</span><span class="logo-sub">Enrich LA &nbsp;<span id="appVersionLabel" style="font-size:11px;opacity:.55">v2.0</span></span></div>
   <div style="display:flex;align-items:center;gap:8px">
     <button id="headerNameBtn" onclick="showSelfEdit()" style="font-size:13px;color:var(--grove);background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 10px;cursor:pointer;font-family:var(--font-b);font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"></button>
     <div class="sync-pill"><div class="sync-dot" id="syncDot"></div><span id="syncText">Live</span></div>
@@ -555,6 +555,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
+const APP_VERSION='2.0';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -806,6 +807,7 @@ function showApp(){
   const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
   const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
+  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent='v'+APP_VERSION;
   switchTab('notes');          // show notes immediately
   setGreeting();              // Good morning. Good evening, etc.
   loadNotes();                 // fast single-cell fetch — renders in ~300ms
@@ -1013,6 +1015,8 @@ function renderChoreDetail(c,editMode){
     window._pendingChorePhotos={};
     window._pendingVideoUrl=null;
     window._pendingVideoPromise=null;
+    window._currentEditContext='chores';
+    window._currentEditSaveFn=()=>saveChoreEdit(id);
   } else {
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
@@ -1205,7 +1209,7 @@ async function saveChoreEdit(choreId){
   const _preUploadedVideoUrl=window._pendingVideoUrl||'';
   const _vidInputVal=(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
   window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
-  playSuccessSound();
+  _playChime();
   closeDetailImmediate();
   switchTab('chores');
   (async()=>{
@@ -2035,6 +2039,7 @@ function renderSchoolDetail(site,editMode){
     window._pendingSiteVideoUrl=null;
     window._pendingSiteVideoPromise=null;
     window._currentEditSaveFn=()=>saveSiteEdit(name);
+    window._currentEditContext='sites';
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
@@ -2086,20 +2091,7 @@ function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .
 function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel');const cs=panel.closest('.custom-select');const btn=cs.querySelector('.custom-select-btn');const email=isNone?'':el.dataset.email;btn.textContent=isNone?'— None —':el.dataset.name;btn.dataset.value=email;panel.classList.remove('open');}
 
 async function saveSiteEdit(siteName){
-  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
-  // Upload any pending site photos first — updates the URL input fields
-  if(window._pendingSitePhotos&&Object.keys(window._pendingSitePhotos).length>0){
-    m.textContent='Uploading photos…';
-    const inputMap={'MainImage':'ef-MainImg','HelpImg1':'ef-HelpImg1','HelpImg2':'ef-HelpImg2'};
-    for(const[key,file]of Object.entries(window._pendingSitePhotos)){
-      try{
-        const url=await _uploadSitePhoto(siteName,key,file);
-        const inp=document.getElementById(inputMap[key]);if(inp)inp.value=url;
-      }catch(pe){console.warn('Site photo upload failed:',pe);}
-    }
-    window._pendingSitePhotos={};
-    m.textContent='Saving…';
-  }
+  // Snapshot all form values immediately
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
   const updates={};
@@ -2118,13 +2110,39 @@ async function saveSiteEdit(siteName){
   const mc2v=gb('dsb-mc2');if(mc2v!==null)updates['Main Contact 2']=mc2v;
   const mc3v=gb('dsb-mc3');if(mc3v!==null)updates['Main Contact 3']=mc3v;
   const pmv=gb('dsb-pm');if(pmv!==null)updates['Plant Manager']=pmv;
-  try{
-    await saveToSheet('Sites',siteName,updates);
-    m.textContent='✓ Saved';
-    const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
-    if(site){Object.assign(site,updates);setTimeout(()=>renderSchoolDetail(site,false),700);}
-    renderAll();
-  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
+  // Snapshot pending media
+  const _pPhotos={...window._pendingSitePhotos||{}};
+  const _pVidPromise=window._pendingSiteVideoPromise;
+  const _preUploadedVideoUrl=window._pendingSiteVideoUrl||'';
+  const _vidInputVal=gv('ef-VideoLink')||'';
+  window._pendingSitePhotos={};window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
+  // Instant close + chime + go to schools list
+  _playChime();
+  closeDetailImmediate();
+  switchTab('schools');
+  // Save everything in the background
+  (async()=>{
+    // Upload any pending site photos first
+    const inputMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2'};
+    for(const[key,file]of Object.entries(_pPhotos)){
+      try{
+        const url=await _uploadSitePhoto(siteName,key,file);
+        if(url)updates[inputMap[key]||key]=url;
+      }catch(pe){console.warn('Site photo upload failed:',pe);}
+    }
+    // Handle video
+    if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
+    const videoUrl=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal;
+    if(videoUrl)updates['Schedule Video']=videoUrl;
+    window._pendingSiteVideoUrl=null;
+    try{
+      await saveToSheet('Sites',siteName,updates);
+      const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
+      if(site)Object.assign(site,updates);
+      renderAll();
+      showSaveToast('✓ '+siteName+' saved');
+    }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
+  })();
 }
 
 /* ═══ PERSON DETAIL ═══ */
@@ -2197,12 +2215,29 @@ async function addNewRole(){const role=prompt('Enter new role name:');if(!role||
 function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
 
 async function savePerson(orig){
-  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
+  // Snapshot form values immediately before any async work
   const roleBtn=document.getElementById('role-select-btn');
-  const u={'First Name':document.getElementById('ef-FirstName').value.trim(),'Last Name':document.getElementById('ef-LastName').value.trim(),Mobile:document.getElementById('ef-Mobile').value.trim(),Email:document.getElementById('ef-Email').value.trim(),Role:roleBtn?roleBtn.dataset.value||roleBtn.textContent:''};
-  const img=document.getElementById('ef-Img');if(img)u['Main Image']=img.value.trim();
-  try{await saveToSheet('Humans',orig,u);m.textContent='✓ Saved';setTimeout(()=>showPersonDetail(u.Email||orig),800);renderAll();}
-  catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
+  const updates={
+    'First Name':(document.getElementById('ef-FirstName')||{value:''}).value.trim(),
+    'Last Name':(document.getElementById('ef-LastName')||{value:''}).value.trim(),
+    'Mobile':(document.getElementById('ef-Mobile')||{value:''}).value.trim(),
+    'Email':(document.getElementById('ef-Email')||{value:''}).value.trim(),
+    'Role':roleBtn?roleBtn.dataset.value||roleBtn.textContent:'',
+  };
+  const imgEl=document.getElementById('ef-Img');if(imgEl)updates['Main Image']=imgEl.value.trim();
+  // Instant: chime → close → go to people list
+  _playChime();
+  closeDetailImmediate();
+  switchTab('people');
+  // Save in background
+  (async()=>{
+    try{
+      await saveToSheet('Humans',orig,updates);
+      renderAll();
+      const displayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||updates['Email']||orig;
+      showSaveToast('✓ '+displayName+' saved');
+    }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
+  })();
 }
 
 /* ═══ CHORE ACTIONS ═══ */
@@ -2636,18 +2671,8 @@ async function showSelfEdit(){
 }
 
 async function saveSelfEdit(email){
-  const m=document.getElementById('saveMsg');m.className='save-msg';m.textContent='Saving…';
   const lvl=SESSION.accessLevel;
-  // Upload pending profile photo first
-  if(window._pendingSelfPhoto){
-    m.textContent='Uploading photo…';
-    try{
-      const url=await _uploadHumanPhoto(email,window._pendingSelfPhoto);
-      const inp=document.getElementById('self-MainImage');if(inp)inp.value=url;
-      window._pendingSelfPhoto=null;
-    }catch(pe){console.warn('Profile photo upload failed:',pe);}
-    m.textContent='Saving…';
-  }
+  // Snapshot form values immediately
   const updates={
     'First Name':(document.getElementById('self-FirstName')||{value:''}).value.trim(),
     'Last Name':(document.getElementById('self-LastName')||{value:''}).value.trim(),
@@ -2655,14 +2680,32 @@ async function saveSelfEdit(email){
     'Main Image':(document.getElementById('self-MainImage')||{value:''}).value.trim(),
   };
   if(lvl<=2){const cel=document.getElementById('self-Comments');if(cel)updates['Comments']=cel.value.trim();}
-  try{
-    await saveToSheet('Humans',email,updates);
-    const h=DATA.humans.find(x=>(x.Email||'').toLowerCase()===email.toLowerCase());
-    if(h)Object.assign(h,updates);
-    const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
-    if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=newName;}
-    m.textContent='✓ Saved';renderAll();setTimeout(()=>closeDetail(),800);
-  }catch(e){m.className='save-msg err';m.textContent='✗ '+e.message;}
+  const pendingPhoto=window._pendingSelfPhoto;
+  window._pendingSelfPhoto=null;
+  // Update session name immediately so header reflects change without waiting
+  const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
+  if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=newName;}
+  // Instant: chime → close → go to rangers
+  _playChime();
+  closeDetailImmediate();
+  switchTab('rangers');
+  // Save in background
+  (async()=>{
+    // Upload pending profile photo if any
+    if(pendingPhoto){
+      try{
+        const url=await _uploadHumanPhoto(email,pendingPhoto);
+        if(url)updates['Main Image']=url;
+      }catch(pe){console.warn('Profile photo upload failed:',pe);}
+    }
+    try{
+      await saveToSheet('Humans',email,updates);
+      const h=DATA.humans.find(x=>(x.Email||'').toLowerCase()===email.toLowerCase());
+      if(h)Object.assign(h,updates);
+      renderAll();
+      showSaveToast('✓ Profile saved');
+    }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
+  })();
 }
 
 async function deleteChoreFromDetail(choreId,description){
@@ -2788,9 +2831,8 @@ async function _uploadToCloudinary(file, statusElId){
 function uploadVideoForChore(file, inputId, statusId){
   const st=document.getElementById(statusId);
   if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
-  // Start upload immediately — store the Promise so save can await it if needed
   window._pendingVideoUrl=null;
-  window._pendingVideoPromise=_uploadToCloudinary(file,null) // null = no status override during background upload
+  window._pendingVideoPromise=_uploadToCloudinary(file,null)
     .then(url=>{
       window._pendingVideoUrl=url;
       window._pendingVideoPromise=null;
@@ -2804,6 +2846,28 @@ function uploadVideoForChore(file, inputId, statusId){
       window._pendingVideoUrl=null;
       if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
     });
+  showUploadPrompt('video');
+}
+
+function uploadVideoForSite(file, inputId, statusId){
+  const st=document.getElementById(statusId);
+  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
+  window._pendingSiteVideoUrl=null;
+  window._pendingSiteVideoPromise=_uploadToCloudinary(file,null)
+    .then(url=>{
+      window._pendingSiteVideoUrl=url;
+      window._pendingSiteVideoPromise=null;
+      const inp=document.getElementById(inputId);
+      if(inp){inp.value=url;inp.style.background='#f0fff4';inp.dispatchEvent(new Event('input'));}
+      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready';}
+      return url;
+    })
+    .catch(e=>{
+      window._pendingSiteVideoPromise=null;
+      window._pendingSiteVideoUrl=null;
+      if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
+    });
+  showUploadPrompt('video');
 }
 
 /* ═══ VIDEO SETTINGS ═══ */
@@ -2850,6 +2914,7 @@ function previewSitePhotoFile(file,previewId,fieldKey){
   reader.onload=e=>{
     const img=document.getElementById(previewId);
     if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px';}
+    showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
 }
@@ -2923,28 +2988,74 @@ async function _uploadHumanPhoto(email,file){
 function showUploadPrompt(mediaType){
   document.getElementById('upload-prompt-modal')?.remove();
   const isVideo=mediaType==='video';
+  // Snapshot everything we need NOW before modal renders
   const saveFn=window._currentEditSaveFn;
+  const editContext=window._currentEditContext||'chores'; // 'sites' or 'chores'
   const modal=document.createElement('div');
   modal.id='upload-prompt-modal';
-  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:11000;display:flex;align-items:flex-end';
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:11000;display:flex;align-items:flex-end';
   modal.innerHTML=`
-    <div style="background:var(--paper);border-radius:26px 26px 0 0;width:100%;padding:26px 20px calc(30px + var(--safe-bottom))">
-      <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:40px;margin-bottom:10px">${isVideo?'🎥':'📷'}</div>
-        <div style="font-family:var(--font-d);font-size:32px;font-style:italic;color:var(--ink);margin-bottom:10px">${isVideo?'Video uploading…':'Photo attached'}</div>
-        <div style="font-size:17px;color:var(--stone);line-height:1.7;max-width:300px;margin:0 auto">${isVideo
-          ?'Your video is uploading in the background.<br>You can save &amp; close now — it will finish automatically.'
-          :'Your photo is attached and ready to save.'
+    <div style="background:var(--paper);border-radius:26px 26px 0 0;width:100%;padding:28px 22px calc(32px + var(--safe-bottom));animation:slideUp .28s cubic-bezier(.32,.72,0,1)">
+      <style>@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}</style>
+      <div style="text-align:center;margin-bottom:22px">
+        <div style="font-size:44px;margin-bottom:10px">${isVideo?'🎥':'📷'}</div>
+        <div style="font-family:var(--font-d);font-size:33px;font-style:italic;color:var(--ink);margin-bottom:10px">${isVideo?'Video uploading…':'Photo ready'}</div>
+        <div style="font-size:17px;color:var(--stone);line-height:1.7;max-width:310px;margin:0 auto">${isVideo
+          ?'Uploading in the background — you can close now and it will finish automatically.'
+          :'Photo attached and ready to save.'
         }</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:11px">
-        <button id="upr-save" style="padding:18px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:18px;font-weight:500;cursor:pointer">✓ Finished — Save &amp; Close</button>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button id="upr-save" style="padding:19px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:19px;font-weight:600;cursor:pointer;letter-spacing:.02em">✓ Save &amp; Close</button>
         <button id="upr-continue" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">Continue Editing</button>
       </div>
     </div>`;
-  modal.querySelector('#upr-save').onclick=()=>{modal.remove();if(saveFn)saveFn();};
+
+  modal.querySelector('#upr-save').onclick=()=>{
+    modal.remove();
+    _saveAndCloseToList(saveFn, editContext);
+  };
   modal.querySelector('#upr-continue').onclick=()=>modal.remove();
   document.body.appendChild(modal);
+}
+
+/* Called by Save & Close: plays chime, closes detail immediately,
+   navigates to the correct list, then saves in the background */
+function _saveAndCloseToList(saveFn, context){
+  _playChime();
+  closeDetailImmediate();
+  // Navigate to the right list instantly
+  const tab=(context==='sites')?'schools':'chores';
+  switchTab(tab);
+  // Save in background — show a toast when done
+  if(!saveFn){showSaveToast('✓ Saved');return;}
+  // Wrap saveFn so it navigates back first and toasts on completion
+  // saveFn may be async; run it detached
+  Promise.resolve().then(async()=>{
+    try{
+      await saveFn();
+      showSaveToast('✓ Saved successfully');
+    }catch(e){
+      showSaveToast('⚠ Save had an issue — check your connection');
+    }
+  });
+}
+
+/* Clean two-note chime (C5 → E5) */
+function _playChime(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const master=ctx.createGain();master.gain.value=0.22;master.connect(ctx.destination);
+    [[523,0],[659,0.18]].forEach(([freq,delay])=>{
+      const o=ctx.createOscillator();const g=ctx.createGain();
+      o.type='sine';o.frequency.value=freq;
+      o.connect(g);g.connect(master);
+      g.gain.setValueAtTime(0.001,ctx.currentTime+delay);
+      g.gain.linearRampToValueAtTime(1,ctx.currentTime+delay+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.38);
+      o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.4);
+    });
+  }catch(e){}
 }
 /* ═══ SETTINGS ═══ */
 
