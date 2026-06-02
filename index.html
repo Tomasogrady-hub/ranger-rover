@@ -342,9 +342,14 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
 <!-- APP -->
 <div id="header" style="display:none">
-  <div><span class="logo">Ranger Rover</span><span class="logo-sub">Enrich LA &nbsp;<span id="appVersionLabel" style="font-size:11px;opacity:.55">v2.0</span></span></div>
+  <div>
+    <span class="logo">Ranger Rover</span>
+    <span class="logo-sub">Enrich LA &nbsp;<span id="appVersionLabel" style="font-size:11px;opacity:.55">v2.3</span></span>
+    <div id="buildStampLabel" style="display:none;font-size:10px;color:var(--silver);margin-top:1px;font-family:var(--font-b)">Built: 2026-06-02 04:26 PT</div>
+  </div>
   <div style="display:flex;align-items:center;gap:8px">
     <button id="headerNameBtn" onclick="showSelfEdit()" style="font-size:13px;color:var(--grove);background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 10px;cursor:pointer;font-family:var(--font-b);font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"></button>
+    <button id="refreshBtn" onclick="forceRefresh()" title="Refresh data" style="background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 9px;cursor:pointer;font-size:16px;line-height:1;color:var(--stone)" aria-label="Refresh">↺</button>
     <div class="sync-pill"><div class="sync-dot" id="syncDot"></div><span id="syncText">Live</span></div>
     <button class="logout-btn" onclick="logout()">Sign out</button>
   </div>
@@ -593,7 +598,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='2.2';
+const APP_VERSION='2.3';
+const BUILD_STAMP='2026-06-02 04:26 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -847,6 +853,8 @@ function showApp(){
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
   const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent='v'+APP_VERSION;
+  const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=lvl===1?'block':'none';
+  if(bs)bs.textContent='Built: '+BUILD_STAMP;
   switchTab('notes');
   setGreeting();
   loadNotes();
@@ -1165,16 +1173,17 @@ function showPhotoOptions_videoOnly(onVideoCb){
       </div>
     </div>`;
   const cleanup=()=>modal.remove();
-  modal.querySelector('#pov-record').onclick=()=>{cleanup();_pickVideo(onVideoCb);};
+  modal.querySelector('#pov-record').onclick=()=>{_pickVideo(onVideoCb);cleanup();};
   modal.querySelector('#pov-gallery').onclick=()=>{
-    cleanup();
-    // Pick from gallery without capture attribute (shows file picker for videos)
+    // Pick from gallery — no capture attr so it shows files/library, not camera
     const input=document.createElement('input');
     input.type='file';input.accept='video/*';
-    input.style='position:fixed;top:-9999px;left:-9999px;opacity:0';
-    input.onchange=()=>{if(input.files[0])onVideoCb(input.files[0]);input.remove();};
-    input.oncancel=()=>input.remove();
-    document.body.appendChild(input);input.click();
+    input.style='position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
+    document.body.appendChild(input);
+    input.onchange=()=>{if(input.files&&input.files[0])onVideoCb(input.files[0]);try{document.body.removeChild(input);}catch(e){}};
+    input.addEventListener('cancel',()=>{try{document.body.removeChild(input);}catch(e){}});
+    input.click(); // synchronous, same gesture tick
+    cleanup();
   };
   modal.querySelector('#pov-cancel').onclick=cleanup;
   modal.addEventListener('click',e=>{if(e.target===modal)cleanup();});
@@ -2516,7 +2525,35 @@ function showSaveToast(msg){
 }
 function playSuccessSound(){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(.18,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.25);o.start(ctx.currentTime);o.stop(ctx.currentTime+.25);}catch(e){}}
 
-/* ═══ BACKGROUND REFRESH (stale-while-revalidate) ═══ */
+/* ═══ FORCE REFRESH (↺ button) ═══
+   All edits already save to GAS immediately in the background, so
+   forceRefresh just pulls the latest data back from the sheets.
+   One fetch is all that's needed — GAS reads fresh from Sheets each time. */
+async function forceRefresh(){
+  const btn=document.getElementById('refreshBtn');
+  if(btn){btn.style.transform='rotate(360deg)';btn.style.transition='transform .6s ease';btn.disabled=true;}
+  setSync(false);
+  showSaveToast('Refreshing…');
+  try{
+    // Phase 1 — sites + chores
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const j=await r.json();
+    if(j.sites){DATA.sites=j.sites;DATA.chores=j.chores||[];}
+    // Phase 2 — humans (background, don't block)
+    fetch(CFG.URL+'?t='+Date.now()+'&type=humans')
+      .then(r2=>r2.json())
+      .then(j2=>{if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;}
+        const n=Date.now();localStorage.setItem(CFG.CK,JSON.stringify(DATA));localStorage.setItem(CFG.TK,n);syncTS(n);
+        renderAll();setSync(true);
+      }).catch(()=>{});
+    renderAll();
+    showSaveToast('✓ Data refreshed');
+  }catch(e){
+    showSaveToast('⚠ Refresh failed — check connection');
+  }finally{
+    if(btn){setTimeout(()=>{btn.style.transform='';btn.style.transition='';btn.disabled=false;},700);}
+  }
+}
 async function _refreshAllBackground(){
   if(!CFG.URL)return;
   try{
@@ -2807,8 +2844,9 @@ function showPhotoOptions(onFileCb){
       </div>
     </div>`;
   const cleanup=()=>modal.remove();
-  modal.querySelector('#po-camera').onclick=()=>{cleanup();_pickPhoto(true,onFileCb);};
-  modal.querySelector('#po-gallery').onclick=()=>{cleanup();_pickPhoto(false,onFileCb);};
+  // _pickPhoto FIRST (user-gesture tick), THEN cleanup — required for iOS Safari
+  modal.querySelector('#po-camera').onclick=()=>{_pickPhoto(true,onFileCb);cleanup();};
+  modal.querySelector('#po-gallery').onclick=()=>{_pickPhoto(false,onFileCb);cleanup();};
   modal.querySelector('#po-cancel').onclick=cleanup;
   modal.addEventListener('click',e=>{if(e.target===modal)cleanup();});
   document.body.appendChild(modal);
@@ -2829,33 +2867,37 @@ function showChoreMediaOptions(onPhotoCb, onVideoCb){
       </div>
     </div>`;
   const cleanup=()=>modal.remove();
-  modal.querySelector('#po-camera').onclick=()=>{cleanup();_pickPhoto(true,onPhotoCb);};
-  modal.querySelector('#po-gallery').onclick=()=>{cleanup();_pickPhoto(false,onPhotoCb);};
-  modal.querySelector('#po-video').onclick=()=>{cleanup();_pickVideo(onVideoCb);};
+  modal.querySelector('#po-camera').onclick=()=>{_pickPhoto(true,onPhotoCb);cleanup();};
+  modal.querySelector('#po-gallery').onclick=()=>{_pickPhoto(false,onPhotoCb);cleanup();};
+  modal.querySelector('#po-video').onclick=()=>{_pickVideo(onVideoCb);cleanup();};
   modal.querySelector('#po-cancel').onclick=cleanup;
   modal.addEventListener('click',e=>{if(e.target===modal)cleanup();});
   document.body.appendChild(modal);
 }
 
 function _pickPhoto(useCamera,cb){
+  // IMPORTANT: input.click() MUST happen synchronously in the same user-gesture
+  // call stack — iOS Safari blocks it if called after any async or DOM removal.
   const input=document.createElement('input');
-  input.type='file';input.accept='image/*';
+  input.type='file';
+  input.accept='image/*';
   if(useCamera)input.setAttribute('capture','environment');
-  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0';
-  input.onchange=()=>{if(input.files[0])cb(input.files[0]);input.remove();};
-  input.oncancel=()=>input.remove();
+  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
   document.body.appendChild(input);
-  input.click();
+  // Bind handler before click so it's ready
+  input.onchange=()=>{if(input.files&&input.files[0])cb(input.files[0]);document.body.removeChild(input);};
+  input.addEventListener('cancel',()=>{try{document.body.removeChild(input);}catch(e){}});
+  input.click(); // synchronous — same tick as user tap
 }
 
 function _pickVideo(cb){
   const input=document.createElement('input');
   input.type='file';input.accept='video/*';
-  input.setAttribute('capture','environment'); // opens camera in video mode on mobile
-  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0';
-  input.onchange=()=>{if(input.files[0])cb(input.files[0]);input.remove();};
-  input.oncancel=()=>input.remove();
+  input.setAttribute('capture','environment');
+  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
   document.body.appendChild(input);
+  input.onchange=()=>{if(input.files&&input.files[0])cb(input.files[0]);try{document.body.removeChild(input);}catch(e){}};
+  input.addEventListener('cancel',()=>{try{document.body.removeChild(input);}catch(e){}});
   input.click();
 }
 
