@@ -598,8 +598,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='2.3';
-const BUILD_STAMP='2026-06-02 04:26 PT';
+const APP_VERSION='2.4';
+const BUILD_STAMP='2026-06-02 05:10 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1433,40 +1433,50 @@ async function saveNewChore(){
   const m=document.getElementById('saveMsg');
   const siteBtn=document.getElementById('dsb-ns-site');
   const assignBtn=document.getElementById('dsb-ns-assign');
-  const site=siteBtn?siteBtn.dataset.value:'';
+  const site=(siteBtn?siteBtn.dataset.value:'').trim();
   const task=(document.getElementById('nc-Task')||{value:''}).value.trim();
-  // Validate before closing
-  if(!site){m.className='save-msg err';m.textContent='Please select a site.';return;}
-  if(!task){m.className='save-msg err';m.textContent='Task description is required.';return;}
-  // Snapshot everything before async
+  // Validate BEFORE closing — show error in-form so user sees it
+  if(!site){
+    if(m){m.className='save-msg err';m.textContent='⚠ Please select a site first.';}
+    siteBtn&&siteBtn.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  if(!task){
+    if(m){m.className='save-msg err';m.textContent='⚠ Task description is required.';}
+    document.getElementById('nc-Task')&&document.getElementById('nc-Task').focus();
+    return;
+  }
+  // All good — snapshot everything before async
   const choreData={
-    'Site':site,'Task':task,
+    'Site':site,
+    'Task':task,
     'Additional Comments':(document.getElementById('nc-Comments')||{value:''}).value.trim(),
-    'Urgency':(document.getElementById('nc-Urgency')||{value:'Normal'}).value,
+    'Urgency':(document.getElementById('nc-Urgency')||{value:'Not Urgent but still important'}).value,
     'Type':(document.getElementById('nc-Type')||{value:'Fieldwork'}).value,
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
-    'Asked by':SESSION?SESSION.email:'','Status':'Open',
+    'Asked by':SESSION?SESSION.email:'',
+    'Status':'Open',
   };
   const _pPhotos={...window._pendingChorePhotos||{}};
   const _pVidPromise=window._pendingVideoPromise;
-  const _vidInputVal=(document.getElementById('nc-VideoLink')||{value:''}).value?.trim()||'';
-  window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
-  // Instant: chime → close → go to chores list
+  const _vidInputVal=(document.getElementById('nc-VideoLink')||{value:''}).value.trim();
+  window._pendingChorePhotos={};
+  window._pendingVideoUrl=null;
+  window._pendingVideoPromise=null;
+  // Instant close + chime + go to chores list
   _playChime();
   closeDetailImmediate();
   switchTab('chores');
   // Save in background
   (async()=>{
-    // Wait for any in-progress video upload
-    if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-    const videoUrl=window._pendingVideoUrl||_vidInputVal;
-    if(videoUrl)choreData['Helpful Video']=videoUrl;
-    window._pendingVideoUrl=null;
     try{
+      if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
+      const videoUrl=window._pendingVideoUrl||_vidInputVal;
+      if(videoUrl)choreData['Helpful Video']=videoUrl;
+      window._pendingVideoUrl=null;
       const res=await gasPost({action:'addChore',data:choreData});
-      if(!res.ok)throw new Error(res.error||'Add failed');
+      if(!res||!res.ok)throw new Error((res&&res.error)||'GAS returned error — check it is redeployed');
       const newChore={...choreData,ID:res.id};
-      // Upload any pending photos
       const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
       if(res.id){
         for(let i=0;i<3;i++){
@@ -1479,13 +1489,8 @@ async function saveNewChore(){
       renderAll();
       showSaveToast('✓ Chore added for '+site);
     }catch(e){
-      // Put the failed chore back in view so user can retry
-      const msg=e.message||'';
-      if(msg.includes('fetch')||msg.includes('network')||msg.includes('Failed')){
-        showSaveToast('⚠ No connection — chore not saved. Go back to Chores and try again.');
-      } else {
-        showSaveToast('⚠ Could not save chore: '+msg);
-      }
+      showSaveToast('⚠ Chore NOT saved — '+String(e.message||e).slice(0,120));
+      console.error('saveNewChore failed:',e);
     }
   })();
 }
@@ -2065,7 +2070,8 @@ function renderSchoolDetail(site,editMode){
           style="${mainImg?'':'display:none;'}width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-MainImage','MainImage'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <input type="file" accept="image/*" id="fi-MainImage" style="display:none" onchange="if(this.files[0])previewSitePhotoFile(this.files[0],'ef-preview-MainImage','MainImage')">
+          <button type="button" onclick="document.getElementById('fi-MainImage').click()" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${mainImg?'Replace':'Add'} Photo
           </button>
           ${mainImg?`<button type="button" onclick="_clearSitePhoto('ef-preview-MainImage','ef-MainImg')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
@@ -2077,7 +2083,8 @@ function renderSchoolDetail(site,editMode){
           style="${helpImg1?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg1','HelpImg1'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <input type="file" accept="image/*" id="fi-HelpImg1" style="display:none" onchange="if(this.files[0])previewSitePhotoFile(this.files[0],'ef-preview-HelpImg1','HelpImg1')">
+          <button type="button" onclick="document.getElementById('fi-HelpImg1').click()" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg1?'Replace':'Add'} Photo
           </button>
           ${helpImg1?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg1','ef-HelpImg1')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
@@ -2089,7 +2096,8 @@ function renderSchoolDetail(site,editMode){
           style="${helpImg2?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg2','HelpImg2'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <input type="file" accept="image/*" id="fi-HelpImg2" style="display:none" onchange="if(this.files[0])previewSitePhotoFile(this.files[0],'ef-preview-HelpImg2','HelpImg2')">
+          <button type="button" onclick="document.getElementById('fi-HelpImg2').click()" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg2?'Replace':'Add'} Photo
           </button>
           ${helpImg2?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg2','ef-HelpImg2')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
