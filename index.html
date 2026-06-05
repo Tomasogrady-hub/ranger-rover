@@ -344,8 +344,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 <div id="header" style="display:none">
   <div>
     <span class="logo">Ranger Rover</span>
-    <span class="logo-sub">Enrich LA &nbsp;<span id="appVersionLabel" style="font-size:11px;opacity:.55">v2.3</span></span>
-    <div id="buildStampLabel" style="display:none;font-size:10px;color:var(--silver);margin-top:1px;font-family:var(--font-b)">Built: 2026-06-02 04:26 PT</div>
+    <span class="logo-sub">Enrich LA &nbsp;<span id="appVersionLabel" style="font-size:11px;opacity:.55">v2.5</span></span>
+    <div id="buildStampLabel" style="display:none;font-size:10px;color:var(--silver);margin-top:1px;font-family:var(--font-b)">Built: 2026-06-05 09:30 PT</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <button id="headerNameBtn" onclick="showSelfEdit()" style="font-size:13px;color:var(--grove);background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 10px;cursor:pointer;font-family:var(--font-b);font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"></button>
@@ -598,8 +598,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='2.4';
-const BUILD_STAMP='2026-06-02 05:10 PT';
+const APP_VERSION='2.5';
+const BUILD_STAMP='2026-06-05 09:30 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1412,7 +1412,7 @@ function showAddChore(preSiteName){
   window._pendingVideoUrl=null;
   window._pendingVideoPromise=null;
   window._currentEditContext='chores';
-  window._currentEditSaveFn=null; // new chores don't use the upload-prompt save path
+  window._currentEditSaveFn=saveNewChore; // upload-prompt Save & Close must call this
   openDetail();
   _attachDropdownDismiss();
 }
@@ -1430,6 +1430,15 @@ function previewNewChorePhoto(input){
 }
 
 async function saveNewChore(){
+  // If called from the upload-prompt "Save & Close" path, the DOM is already gone.
+  // In that case _currentEditSaveFn points here but _ncSnapshotData holds pre-snapped data.
+  if(window._ncSnapshotData){
+    const snap=window._ncSnapshotData;
+    window._ncSnapshotData=null;
+    // _saveAndCloseToList already closed + navigated; just run the background save
+    await _execSaveNewChore(snap.choreData,snap.photos,snap.vidPromise,snap.vidInputVal);
+    return;
+  }
   const m=document.getElementById('saveMsg');
   const siteBtn=document.getElementById('dsb-ns-site');
   const assignBtn=document.getElementById('dsb-ns-assign');
@@ -1446,7 +1455,7 @@ async function saveNewChore(){
     document.getElementById('nc-Task')&&document.getElementById('nc-Task').focus();
     return;
   }
-  // All good — snapshot everything before async
+  // Snapshot everything from DOM before closing
   const choreData={
     'Site':site,
     'Task':task,
@@ -1457,42 +1466,39 @@ async function saveNewChore(){
     'Asked by':SESSION?SESSION.email:'',
     'Status':'Open',
   };
-  const _pPhotos={...window._pendingChorePhotos||{}};
-  const _pVidPromise=window._pendingVideoPromise;
-  const _vidInputVal=(document.getElementById('nc-VideoLink')||{value:''}).value.trim();
-  window._pendingChorePhotos={};
-  window._pendingVideoUrl=null;
-  window._pendingVideoPromise=null;
-  // Instant close + chime + go to chores list
-  _playChime();
-  closeDetailImmediate();
-  switchTab('chores');
-  // Save in background
-  (async()=>{
-    try{
-      if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-      const videoUrl=window._pendingVideoUrl||_vidInputVal;
-      if(videoUrl)choreData['Helpful Video']=videoUrl;
-      window._pendingVideoUrl=null;
-      const res=await gasPost({action:'addChore',data:choreData});
-      if(!res||!res.ok)throw new Error((res&&res.error)||'GAS returned error — check it is redeployed');
-      const newChore={...choreData,ID:res.id};
-      const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
-      if(res.id){
-        for(let i=0;i<3;i++){
-          const file=_pPhotos[i];if(!file)continue;
-          try{const url=await _uploadChorePhotoBase64(res.id,file,imgCols[i]);if(url)newChore[imgCols[i]]=url;}catch(pe){}
-        }
+  const photos={...window._pendingChorePhotos||{}};
+  const vidPromise=window._pendingVideoPromise;
+  const vidInputVal=(document.getElementById('nc-VideoLink')||{value:''}).value.trim();
+  window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
+  // Instant close + chime + navigate
+  _playChime();closeDetailImmediate();switchTab('chores');
+  await _execSaveNewChore(choreData,photos,vidPromise,vidInputVal);
+}
+
+async function _execSaveNewChore(choreData,photos,vidPromise,vidInputVal){
+  try{
+    if(vidPromise){try{await vidPromise;}catch(e){}}
+    const videoUrl=window._pendingVideoUrl||vidInputVal;
+    if(videoUrl)choreData['Helpful Video']=videoUrl;
+    window._pendingVideoUrl=null;
+    const res=await gasPost({action:'addChore',data:choreData});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'GAS returned error — check it is redeployed');
+    const newChore={...choreData,ID:res.id};
+    const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
+    if(res.id){
+      for(let i=0;i<3;i++){
+        const file=photos[i];if(!file)continue;
+        try{const url=await _uploadChorePhotoBase64(res.id,file,imgCols[i]);if(url)newChore[imgCols[i]]=url;}catch(pe){}
       }
-      DATA.chores.unshift(newChore);
-      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-      renderAll();
-      showSaveToast('✓ Chore added for '+site);
-    }catch(e){
-      showSaveToast('⚠ Chore NOT saved — '+String(e.message||e).slice(0,120));
-      console.error('saveNewChore failed:',e);
     }
-  })();
+    DATA.chores.unshift(newChore);
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    renderAll();
+    showSaveToast('✓ Chore added for '+choreData['Site']);
+  }catch(e){
+    showSaveToast('⚠ Chore NOT saved — '+String(e.message||e).slice(0,120));
+    console.error('saveNewChore failed:',e);
+  }
 }
 
 /* ═══ RENDER SCHOOLS ═══ */
@@ -3112,6 +3118,26 @@ function showUploadPrompt(mediaType){
   // Snapshot everything we need NOW before modal renders
   const saveFn=window._currentEditSaveFn;
   const editContext=window._currentEditContext||'chores'; // 'sites' or 'chores'
+  // If this is the NEW CHORE form, snapshot DOM values now (they'll be gone after close)
+  if(saveFn===saveNewChore){
+    const siteBtn=document.getElementById('dsb-ns-site');
+    const assignBtn=document.getElementById('dsb-ns-assign');
+    window._ncSnapshotData={
+      choreData:{
+        'Site':(siteBtn?siteBtn.dataset.value:'').trim(),
+        'Task':(document.getElementById('nc-Task')||{value:''}).value.trim(),
+        'Additional Comments':(document.getElementById('nc-Comments')||{value:''}).value.trim(),
+        'Urgency':(document.getElementById('nc-Urgency')||{value:'Not Urgent but still important'}).value,
+        'Type':(document.getElementById('nc-Type')||{value:'Fieldwork'}).value,
+        'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
+        'Asked by':SESSION?SESSION.email:'',
+        'Status':'Open',
+      },
+      photos:{...window._pendingChorePhotos||{}},
+      vidPromise:window._pendingVideoPromise,
+      vidInputVal:(document.getElementById('nc-VideoLink')||{value:''}).value.trim(),
+    };
+  }
   const modal=document.createElement('div');
   modal.id='upload-prompt-modal';
   modal.style='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:11000;display:flex;align-items:flex-end';
