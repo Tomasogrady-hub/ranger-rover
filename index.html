@@ -210,6 +210,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .map-chip[data-filter="future"].active{background:var(--blue)}
 .map-chip[data-filter="inactive"].active{background:var(--stone)}
 .map-chip[data-filter="possible"].active{background:var(--amber)}
+.map-chip[data-filter="open-chores"].active{background:var(--warn);color:white}
 .leaflet-tooltip.map-label{background:white;border:none;box-shadow:0 1px 5px rgba(0,0,0,.2);border-radius:4px;padding:3px 7px;font-size:13px;font-family:'Outfit',sans-serif;font-weight:500;white-space:nowrap;color:#1a1a1a;pointer-events:auto!important;cursor:pointer}
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
 .leaflet-tooltip.map-label::before{display:none}
@@ -437,11 +438,12 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
   <!-- MAP -->
   <div class="tab-pane" id="tab-map" style="height:100%;position:relative">
     <div id="mapTypeFilters">
-      <button class="map-chip active" data-filter="all"      onclick="filterMap('all')">All</button>
-      <button class="map-chip"        data-filter="active"   onclick="filterMap('active')">🟢 Active</button>
-      <button class="map-chip"        data-filter="future"   onclick="filterMap('future')">🔵 Future</button>
-      <button class="map-chip"        data-filter="inactive" onclick="filterMap('inactive')">⚫ Inactive</button>
-      <button class="map-chip"        data-filter="possible" onclick="filterMap('possible')">🟡 Possible</button>
+      <button class="map-chip active" data-filter="all"        onclick="filterMap('all')">All</button>
+      <button class="map-chip"        data-filter="active"     onclick="filterMap('active')">🟢 Active</button>
+      <button class="map-chip"        data-filter="future"     onclick="filterMap('future')">🔵 Future</button>
+      <button class="map-chip"        data-filter="inactive"   onclick="filterMap('inactive')">⚫ Inactive</button>
+      <button class="map-chip"        data-filter="possible"   onclick="filterMap('possible')">🟡 Possible</button>
+      <button class="map-chip"        data-filter="open-chores" onclick="filterMap('open-chores')">⚠ Open Chores</button>
     </div>
     <div id="mapContainer"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div><div id="map"></div></div>
     <button id="locateBtn" title="My location" onclick="locateMe()" style="display:none">📍</button>
@@ -589,7 +591,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div>
 
 <div id="detail-overlay" onclick="closeDetail(event)">
-  <div id="detail-sheet">
+  <div id="detail-sheet" onclick="event.stopPropagation()">
     <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
     <div id="detail-content"></div>
   </div>
@@ -598,8 +600,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='2.5';
-const BUILD_STAMP='2026-06-05 09:30 PT';
+const APP_VERSION='2.6';
+const BUILD_STAMP='2026-06-05 10:30 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1173,12 +1175,12 @@ function showPhotoOptions_videoOnly(onVideoCb){
       </div>
     </div>`;
   const cleanup=()=>modal.remove();
-  modal.querySelector('#pov-record').onclick=()=>{_pickVideo(onVideoCb);cleanup();};
+  modal.querySelector('#pov-record').onclick=()=>{_pickVideo(onVideoCb,true);cleanup();};
   modal.querySelector('#pov-gallery').onclick=()=>{
     // Pick from gallery — no capture attr so it shows files/library, not camera
     const input=document.createElement('input');
     input.type='file';input.accept='video/*';
-    input.style='position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
+    input.style.display='none';
     document.body.appendChild(input);
     input.onchange=()=>{if(input.files&&input.files[0])onVideoCb(input.files[0]);try{document.body.removeChild(input);}catch(e){}};
     input.addEventListener('cancel',()=>{try{document.body.removeChild(input);}catch(e){}});
@@ -1781,15 +1783,17 @@ function filterChores(f){
 function updateMapFilterCounts(){
   if(SESSION&&SESSION.accessLevel>=3)return;
   const pool=DATA.sites;
-  const counts={all:pool.length,active:0,future:0,inactive:0,possible:0};
+  const counts={all:pool.length,active:0,future:0,inactive:0,possible:0,'open-chores':0};
   pool.forEach(s=>{
     const t=(sf(s,'Type','type')||'').toLowerCase();
+    const name=sf(s,'Name','name');
     if(t.includes('active') && !t.includes('inactive'))counts.active++;
     if(t.includes('future'))counts.future++;
     if(t.includes('inactive'))counts.inactive++;
     if(t.includes('possible'))counts.possible++;
+    if(openChoresForSite(name).length>0)counts['open-chores']++;
   });
-  const labels={all:'All',active:'🟢 Active',future:'🔵 Future',inactive:'⚫ Inactive',possible:'🟡 Possible'};
+  const labels={all:'All',active:'🟢 Active',future:'🔵 Future',inactive:'⚫ Inactive',possible:'🟡 Possible','open-chores':'⚠ Open Chores'};
   document.querySelectorAll('#mapTypeFilters .map-chip').forEach(c=>{
     const f=c.dataset.filter,n=counts[f]!==undefined?counts[f]:0;
     c.textContent=`${labels[f]||f} (${n})`;
@@ -1871,6 +1875,8 @@ function buildMapMarkers(){
   if(cmf!=='all'&&SESSION&&SESSION.accessLevel<=2){
     sites=sites.filter(s=>{
       const t=(sf(s,'Type','type')||'').toLowerCase();
+      const name=sf(s,'Name','name');
+      if(cmf==='open-chores')return openChoresForSite(name).length>0;
       if(cmf==='active')return t.includes('active') && !t.includes('inactive');
       if(cmf==='future')return t.includes('future');
       if(cmf==='inactive')return t.includes('inactive');
@@ -2340,8 +2346,12 @@ function showReassignChore(choreId,siteName){
 async function doReassign(choreId,siteName,el){
   const email=el.dataset.email;const name=el.textContent.trim().split('\n')[0];
   el.closest('[style*=fixed]')?.remove();
-  try{await reassignChore(choreId,email);renderAll();alert(`Chore reassigned to ${name}`);}
-  catch(e){alert('Error: '+e.message);}
+  try{
+    await reassignChore(choreId,email);
+    _playChime();
+    renderAll();
+    showSaveToast('✓ Chore reassigned to '+name);
+  }catch(e){showSaveToast('⚠ Error: '+e.message);}
 }
 async function closeChore(choreId,description){
   if(!confirm(`Mark "${description.slice(0,50)}" as Closed?`))return;
@@ -2883,7 +2893,7 @@ function showChoreMediaOptions(onPhotoCb, onVideoCb){
   const cleanup=()=>modal.remove();
   modal.querySelector('#po-camera').onclick=()=>{_pickPhoto(true,onPhotoCb);cleanup();};
   modal.querySelector('#po-gallery').onclick=()=>{_pickPhoto(false,onPhotoCb);cleanup();};
-  modal.querySelector('#po-video').onclick=()=>{_pickVideo(onVideoCb);cleanup();};
+  modal.querySelector('#po-video').onclick=()=>{_pickVideo(onVideoCb,true);cleanup();};
   modal.querySelector('#po-cancel').onclick=cleanup;
   modal.addEventListener('click',e=>{if(e.target===modal)cleanup();});
   document.body.appendChild(modal);
@@ -2896,19 +2906,20 @@ function _pickPhoto(useCamera,cb){
   input.type='file';
   input.accept='image/*';
   if(useCamera)input.setAttribute('capture','environment');
-  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
+  // Use display:none — more reliable than off-screen position:fixed on Android/Windows
+  input.style.display='none';
   document.body.appendChild(input);
-  // Bind handler before click so it's ready
-  input.onchange=()=>{if(input.files&&input.files[0])cb(input.files[0]);document.body.removeChild(input);};
+  input.onchange=()=>{if(input.files&&input.files[0])cb(input.files[0]);try{document.body.removeChild(input);}catch(e){}};
   input.addEventListener('cancel',()=>{try{document.body.removeChild(input);}catch(e){}});
   input.click(); // synchronous — same tick as user tap
 }
 
-function _pickVideo(cb){
+function _pickVideo(cb,useCamera=false){
   const input=document.createElement('input');
   input.type='file';input.accept='video/*';
-  input.setAttribute('capture','environment');
-  input.style='position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
+  // Only force camera if explicitly requested — otherwise allow gallery too
+  if(useCamera)input.setAttribute('capture','environment');
+  input.style.display='none';
   document.body.appendChild(input);
   input.onchange=()=>{if(input.files&&input.files[0])cb(input.files[0]);try{document.body.removeChild(input);}catch(e){}};
   input.addEventListener('cancel',()=>{try{document.body.removeChild(input);}catch(e){}});
