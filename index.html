@@ -66,7 +66,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .auth-spin{width:22px;height:22px;border:2px solid var(--mist);border-top-color:var(--sage);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto}
 
 /* ── HEADER ── */
-#header{flex-shrink:0;height:calc(62px + var(--safe-top));padding-top:var(--safe-top);background:var(--enrich-dark);border-bottom:none;display:flex;align-items:center;justify-content:space-between;padding-left:20px;padding-right:20px;z-index:10}
+#header{flex-shrink:0;height:calc(62px + var(--safe-top));padding-top:var(--safe-top);background:linear-gradient(135deg,var(--enrich-dark) 0%,#2a5a2a 40%,var(--enrich-teal) 100%);border-bottom:none;display:flex;align-items:center;justify-content:space-between;padding-left:20px;padding-right:20px;z-index:10}
 .logo{font-family:var(--font-d);font-size:31px;font-weight:600;letter-spacing:0.1em;color:#fff;text-transform:uppercase}
 .logo-sub{font-family:var(--font-b);font-size:13px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,.55);display:block;margin-top:-2px}
 .sync-pill{display:flex;align-items:center;gap:5px;font-size:14px;color:rgba(255,255,255,.6)}
@@ -283,8 +283,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
 
 /* ── NOTES TAB ── */
-#notesArea{width:100%;padding:16px;background:var(--paper);border:1px solid var(--mist);border-radius:var(--r-md);font-family:var(--font-b);font-size:18px;color:var(--ink);line-height:1.75;resize:none;outline:none;min-height:calc(100dvh - 215px);transition:border-color .15s}
-#notesArea:focus{border-color:var(--sage);background:var(--paper)}
+#notesArea{width:100%;padding:16px;background:var(--paper);border:none;border-radius:0;font-family:var(--font-b);font-size:18px;color:var(--ink);line-height:1.75;resize:none;outline:none;min-height:calc(100dvh - 215px)}
+#notesArea:focus{background:var(--paper)}
 #notesArea::placeholder{color:var(--silver)}
 .notes-status{font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--silver);transition:opacity .3s}
 @media(min-width:450px){#app{box-shadow:0 0 0 1px var(--mist),0 20px 60px rgba(0,0,0,.08)}}
@@ -384,10 +384,10 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
   <div>
     <span class="logo">Enrich LA</span>
     <span class="logo-sub">Enrich LA &nbsp;<span id="appVersionLabel" style="font-size:11px;opacity:.55">v2.5</span></span>
-    <div id="buildStampLabel" style="display:none;font-size:10px;color:var(--silver);margin-top:1px;font-family:var(--font-b)">Built: 2026-06-05 09:30 PT</div>
+    <div id="buildStampLabel" style="display:none;font-size:10px;color:rgba(255,255,255,.45);margin-top:1px;font-family:var(--font-b)">Built: 2026-06-05 09:30 PT</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
-    <button id="headerNameBtn" onclick="showSelfEdit()" style="font-size:13px;color:var(--grove);background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 10px;cursor:pointer;font-family:var(--font-b);font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"></button>
+    <button id="headerNameBtn" onclick="showSelfEdit()" style="font-size:13px;color:#fff;background:none;border:1px solid rgba(255,255,255,.3);border-radius:var(--r-xs);padding:5px 10px;cursor:pointer;font-family:var(--font-b);font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"></button>
     <button id="refreshBtn" onclick="forceRefresh()" title="Refresh data" style="background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 9px;cursor:pointer;font-size:16px;line-height:1;color:var(--stone)" aria-label="Refresh">↺</button>
     <div class="sync-pill"><div class="sync-dot" id="syncDot"></div><span id="syncText">Live</span></div>
     <button class="logout-btn" onclick="logout()">Sign out</button>
@@ -633,8 +633,8 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='2.8';
-const BUILD_STAMP='2026-06-05 19:00 PT';
+const APP_VERSION='2.9';
+const BUILD_STAMP='2026-06-05 20:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
