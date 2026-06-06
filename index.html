@@ -69,18 +69,21 @@ button *{pointer-events:none}
 .auth-spin{width:22px;height:22px;border:2px solid var(--mist);border-top-color:var(--sage);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto}
 
 /* ── HEADER ── */
-#header{flex-shrink:0;height:calc(56px + var(--safe-top));padding-top:var(--safe-top);background:#ffffff;border-bottom:2px solid var(--mist);display:flex;align-items:stretch;justify-content:space-between;z-index:10;gap:0}
+#header{flex-shrink:0;height:calc(58px + var(--safe-top));padding-top:var(--safe-top);background:var(--enrich-dark);border-bottom:none;display:flex;align-items:stretch;justify-content:space-between;z-index:10;gap:0}
 .hdr-logo{display:flex;align-items:center;padding:0 14px;flex-shrink:0}
 .hdr-logo img{height:34px;width:auto;display:block}
-.hdr-btn{display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-size:11px;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;flex-direction:column;gap:2px;padding:0 10px;min-width:52px;background:transparent;color:var(--ink);transition:background .15s;border-left:1px solid var(--mist);white-space:nowrap;pointer-events:all}
-.hdr-btn:hover{background:var(--fog)}
-.hdr-btn .hdr-icon{font-size:18px;line-height:1;pointer-events:none}
-.hdr-btn .hdr-label{font-size:10px;line-height:1;pointer-events:none}
-.hdr-name-btn{flex:1;max-width:140px;overflow:hidden;text-overflow:ellipsis}
-.hdr-sync{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--sage);border-left:1px solid var(--mist);padding:0 10px;flex-direction:column;justify-content:center;min-width:44px}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--enrich-teal)}
-.sync-dot.offline{background:var(--silver)}
-.logo{font-family:var(--font-d);font-size:24px;font-weight:600;letter-spacing:0.06em;color:var(--enrich-dark);text-transform:uppercase;line-height:1}
+.hdr-btn{display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-size:10px;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;flex-direction:column;gap:3px;padding:0;min-width:0;flex:1;background:transparent;color:#fff;white-space:nowrap;pointer-events:all;height:100%}
+.hdr-btn:active{filter:brightness(1.2)}
+.hdr-btn .hdr-icon{font-size:16px;line-height:1;pointer-events:none}
+.hdr-btn .hdr-label{font-size:9px;line-height:1.2;pointer-events:none;letter-spacing:.05em;text-transform:uppercase;text-align:center;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.2);display:block;pointer-events:none;flex-shrink:0}
+.hdr-avatar-init{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:13px;color:#fff;pointer-events:none;flex-shrink:0}
+.hdr-name-btn{background:#4CBFAD;color:#1e3a1e}
+.hdr-name-btn .hdr-label{color:#1e3a1e;max-width:72px;white-space:normal;text-align:center;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-overflow:ellipsis}
+.hdr-sync{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;background:#8DB84E;color:#1e3a1e;flex:1;height:100%;padding:0}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#1e3a1e;pointer-events:none}
+.sync-dot.offline{background:rgba(255,255,255,.5)}
+.logo{display:none}
 .logo-sub{display:none}
 .logout-btn{display:none}
 
@@ -124,7 +127,7 @@ button *{pointer-events:none}
 .school-card{border-bottom:1px solid var(--mist);padding:18px 0;cursor:pointer;display:flex;align-items:flex-start;gap:14px}
 .school-card:first-child{border-top:1px solid var(--mist)}
 .school-card:active{background:var(--fog);margin:0 -16px;padding-left:16px;padding-right:16px}
-.sdm{width:3px;min-height:54px;flex-shrink:0;border-radius:2px;margin-top:2px}
+.sdm{width:0;min-height:0;display:none}
 .dm-lausd{background:var(--enrich-teal)}.dm-busd{background:var(--enrich-orange)}.dm-gusd{background:var(--enrich-purple)}.dm-other{background:var(--silver)}
 .school-info{flex:1;min-width:0}
 .school-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}
@@ -176,9 +179,9 @@ button *{pointer-events:none}
 .dcta.blue{background:var(--enrich-purple);border-color:var(--enrich-purple);color:white}
 
 /* ── CHORE CARDS ── */
-.chore-card{background:var(--fog);border-radius:var(--r-sm);padding:14px 16px;margin-top:9px;border-left:4px solid var(--enrich-orange);cursor:pointer;transition:background .12s}
+.chore-card{background:var(--fog);border-radius:var(--r-sm);padding:14px 16px;margin-top:9px;cursor:pointer;transition:background .12s;border:1px solid var(--mist)}
 .chore-card:active{background:var(--mist)}
-.chore-card.urgent{border-left-color:var(--enrich-red)}
+.chore-card.urgent{border-top:2px solid var(--enrich-red)}
 .chore-title{font-size:17px;font-weight:500;color:var(--ink);margin-bottom:5px;line-height:1.4}
 .chore-meta{font-size:15px;color:var(--stone);display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:5px}
 .chore-badge-pill{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600}
@@ -390,30 +393,36 @@ button *{pointer-events:none}
 </div>
 
 <!-- APP -->
-<div id="header" style="display:none">
-  <div class="hdr-logo">
-    <span class="logo">Enrich&nbsp;LA <span id="appVersionLabel" style="font-size:13px;font-weight:400;opacity:.5;letter-spacing:.04em"></span></span>
+<div id="header" style="display:none;background:var(--enrich-dark)">
+  <!-- Logo square -->
+  <div style="background:#1e3a1e;display:flex;align-items:center;justify-content:center;padding:0 10px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1)">
+    <img src="data:image/png;base64,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" alt="Enrich LA" style="height:38px;width:38px;object-fit:contain;border-radius:6px;display:block">
+    <span id="appVersionLabel" style="display:none"></span>
   </div>
-  <div style="display:flex;align-items:stretch;flex:1;justify-content:flex-end">
+  <!-- 4 equal colored buttons -->
+  <div style="display:flex;align-items:stretch;flex:1">
+    <!-- Person/profile -->
     <button id="headerNameBtn" class="hdr-btn hdr-name-btn" onclick="showSelfEdit()">
-      <span class="hdr-icon">👤</span>
-      <span class="hdr-label" id="hdrNameLabel"></span>
+      <div id="hdrAvatarWrap" class="hdr-avatar-init">?</div>
+      <span class="hdr-label" id="hdrNameLabel" style="color:#1e3a1e;max-width:72px;white-space:normal;text-align:center;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-overflow:ellipsis"></span>
     </button>
-    <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" title="Refresh data" aria-label="Refresh">
-      <span class="hdr-icon" id="refreshIcon">↺</span>
-      <span class="hdr-label">Refresh</span>
+    <!-- Refresh -->
+    <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" style="background:#F5A623;color:#1e3a1e">
+      <span class="hdr-icon" id="refreshIcon" style="pointer-events:none;font-size:20px">↺</span>
+      <span class="hdr-label" style="color:#1e3a1e">Refresh</span>
     </button>
+    <!-- Live sync -->
     <div class="hdr-sync">
       <div class="sync-dot" id="syncDot"></div>
-      <span id="syncText" style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--sage)">Live</span>
+      <span id="syncText" style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#1e3a1e">Live</span>
     </div>
-    <button class="hdr-btn" onclick="logout()" style="background:var(--enrich-orange);color:#fff;border-left:none">
-      <span class="hdr-icon">⬡</span>
+    <!-- Sign out -->
+    <button class="hdr-btn" onclick="logout()" style="background:#E8473F;color:#fff">
+      <span class="hdr-icon" style="pointer-events:none">✕</span>
       <span class="hdr-label">Sign Out</span>
     </button>
   </div>
-  <div id="buildStampLabel" style="display:none;font-size:10px;color:var(--silver);position:absolute;top:2px;left:50%;transform:translateX(-50%);white-space:nowrap">Built: 2026-06-06 12:00 PT</div>
-  <span id="appVersionLabel" style="display:none"></span>
+  <div id="buildStampLabel" style="display:none;font-size:9px;color:rgba(255,255,255,.4);position:absolute;top:1px;left:56px;white-space:nowrap;pointer-events:none">Built: 2026-06-06 15:00 PT</div>
 </div>
 
 <div id="searchbar" style="display:none">
@@ -655,7 +664,7 @@ button *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='3.0';
+const APP_VERSION='3.1';
 const BUILD_STAMP='2026-06-05 20:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -712,6 +721,26 @@ function getImgSrc(url){
   if(fileM)return `https://lh3.googleusercontent.com/d/${fileM[1]}`;
   if(url.startsWith('Sites_Images/')||url.startsWith('Humans_Images/')||url.startsWith('Chores_Images/')||url.startsWith('Chores_Files_/'))return '';
   return url;
+}
+
+function _updateHdrAvatar(){
+  if(!SESSION)return;
+  const wrap=document.getElementById('hdrAvatarWrap');
+  if(!wrap)return;
+  // Try to find the logged-in user in DATA.humans
+  const email=(SESSION.email||'').toLowerCase().trim();
+  const h=DATA.humans&&DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase().trim()===email);
+  const imgSrc=h?getImgSrc(h['Main Image']||h.MainImage||''):'';
+  const initials=(SESSION.name||SESSION.email||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  if(imgSrc){
+    wrap.className='';
+    wrap.style.cssText='width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.2);display:block;pointer-events:none;flex-shrink:0;overflow:hidden';
+    wrap.innerHTML=`<img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.innerHTML='${initials}';this.parentElement.style.cssText='width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:12px;color:#1e3a1e;pointer-events:none;flex-shrink:0'">`;
+  } else {
+    wrap.className='hdr-avatar-init';
+    wrap.style.cssText='';
+    wrap.textContent=initials;
+  }
 }
 
 /* ── VIDEO LINK HELPERS ────────────────────────────────────────────────────── */
@@ -945,6 +974,7 @@ function showApp(){
   const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
   const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
+  _updateHdrAvatar();
   const vl=document.getElementById('appVersionLabel');if(vl){vl.textContent='v'+APP_VERSION;vl.style.display='inline';}
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=lvl===1?'block':'none';
   if(bs)bs.textContent='Built: '+BUILD_STAMP;
@@ -1016,6 +1046,7 @@ async function _loadHumansBackground(){
     if(j.humans){
       DATA.humans=j.humans;DATA.roles=j.roles||[];
       _humansLoaded=true;
+      _updateHdrAvatar();
       setSync(true);
       const n=Date.now();
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
@@ -2661,7 +2692,7 @@ async function forceRefresh(){
       .then(r2=>r2.json())
       .then(j2=>{if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;}
         const n=Date.now();localStorage.setItem(CFG.CK,JSON.stringify(DATA));localStorage.setItem(CFG.TK,n);syncTS(n);
-        renderAll();setSync(true);
+        _updateHdrAvatar();renderAll();setSync(true);
       }).catch(()=>{});
     renderAll();
     showSaveToast('✓ Data refreshed');
@@ -2910,6 +2941,7 @@ async function saveSelfEdit(email){
   // Update session name immediately so header reflects change without waiting
   const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
   if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=newName;}
+  setTimeout(_updateHdrAvatar,300); // re-check after humans may have updated
   // Instant: chime → close → go to rangers
   _playChime();
   closeDetailImmediate();
