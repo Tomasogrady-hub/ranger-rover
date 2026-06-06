@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
 <meta name="apple-mobile-web-app-title" content="Enrich LA">
 <title>Enrich LA — Garden Rangers</title>
 <link rel="manifest" href="manifest.json">
@@ -35,6 +36,8 @@
 
 /* ── BASE: 21px (~25% up from 17px) ── */
 html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(--font-b);-webkit-font-smoothing:antialiased;overscroll-behavior:none;font-size:21px}
+/* Ensure all button child elements pass clicks through to the button */
+button *{pointer-events:none}
 #app{display:flex;flex-direction:column;height:100dvh;max-width:430px;margin:0 auto;background:var(--white);overflow:hidden;position:relative}
 
 /* ── AUTH ── */
@@ -66,13 +69,20 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 .auth-spin{width:22px;height:22px;border:2px solid var(--mist);border-top-color:var(--sage);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto}
 
 /* ── HEADER ── */
-#header{flex-shrink:0;height:calc(62px + var(--safe-top));padding-top:var(--safe-top);background:linear-gradient(135deg,var(--enrich-dark) 0%,#2a5a2a 40%,var(--enrich-teal) 100%);border-bottom:none;display:flex;align-items:center;justify-content:space-between;padding-left:20px;padding-right:20px;z-index:10}
-.logo{font-family:var(--font-d);font-size:31px;font-weight:600;letter-spacing:0.1em;color:#fff;text-transform:uppercase}
-.logo-sub{font-family:var(--font-b);font-size:13px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,.55);display:block;margin-top:-2px}
-.sync-pill{display:flex;align-items:center;gap:5px;font-size:14px;color:rgba(255,255,255,.6)}
+#header{flex-shrink:0;height:calc(56px + var(--safe-top));padding-top:var(--safe-top);background:#ffffff;border-bottom:2px solid var(--mist);display:flex;align-items:stretch;justify-content:space-between;z-index:10;gap:0}
+.hdr-logo{display:flex;align-items:center;padding:0 14px;flex-shrink:0}
+.hdr-logo img{height:34px;width:auto;display:block}
+.hdr-btn{display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-size:11px;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;flex-direction:column;gap:2px;padding:0 10px;min-width:52px;background:transparent;color:var(--ink);transition:background .15s;border-left:1px solid var(--mist);white-space:nowrap;pointer-events:all}
+.hdr-btn:hover{background:var(--fog)}
+.hdr-btn .hdr-icon{font-size:18px;line-height:1;pointer-events:none}
+.hdr-btn .hdr-label{font-size:10px;line-height:1;pointer-events:none}
+.hdr-name-btn{flex:1;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.hdr-sync{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--sage);border-left:1px solid var(--mist);padding:0 10px;flex-direction:column;justify-content:center;min-width:44px}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--enrich-teal)}
-.sync-dot.offline{background:rgba(255,255,255,.35)}
-.logout-btn{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.7);background:none;border:1px solid rgba(255,255,255,.25);border-radius:var(--r-xs);padding:6px 11px;cursor:pointer;font-family:var(--font-b)}
+.sync-dot.offline{background:var(--silver)}
+.logo{font-family:var(--font-d);font-size:24px;font-weight:600;letter-spacing:0.06em;color:var(--enrich-dark);text-transform:uppercase;line-height:1}
+.logo-sub{display:none}
+.logout-btn{display:none}
 
 /* ── SEARCH ── */
 #searchbar{flex-shrink:0;padding:10px 16px;background:var(--paper);border-bottom:1px solid var(--mist)}
@@ -381,17 +391,29 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 
 <!-- APP -->
 <div id="header" style="display:none">
-  <div>
-    <span class="logo">Enrich LA</span>
-    <span class="logo-sub">Enrich LA &nbsp;<span id="appVersionLabel" style="font-size:11px;opacity:.55">v2.5</span></span>
-    <div id="buildStampLabel" style="display:none;font-size:10px;color:rgba(255,255,255,.45);margin-top:1px;font-family:var(--font-b)">Built: 2026-06-05 09:30 PT</div>
+  <div class="hdr-logo">
+    <span class="logo">Enrich&nbsp;LA <span id="appVersionLabel" style="font-size:13px;font-weight:400;opacity:.5;letter-spacing:.04em"></span></span>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <button id="headerNameBtn" onclick="showSelfEdit()" style="font-size:13px;color:#fff;background:none;border:1px solid rgba(255,255,255,.3);border-radius:var(--r-xs);padding:5px 10px;cursor:pointer;font-family:var(--font-b);font-weight:500;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"></button>
-    <button id="refreshBtn" onclick="forceRefresh()" title="Refresh data" style="background:none;border:1px solid var(--mist);border-radius:var(--r-xs);padding:5px 9px;cursor:pointer;font-size:16px;line-height:1;color:var(--stone)" aria-label="Refresh">↺</button>
-    <div class="sync-pill"><div class="sync-dot" id="syncDot"></div><span id="syncText">Live</span></div>
-    <button class="logout-btn" onclick="logout()">Sign out</button>
+  <div style="display:flex;align-items:stretch;flex:1;justify-content:flex-end">
+    <button id="headerNameBtn" class="hdr-btn hdr-name-btn" onclick="showSelfEdit()">
+      <span class="hdr-icon">👤</span>
+      <span class="hdr-label" id="hdrNameLabel"></span>
+    </button>
+    <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" title="Refresh data" aria-label="Refresh">
+      <span class="hdr-icon" id="refreshIcon">↺</span>
+      <span class="hdr-label">Refresh</span>
+    </button>
+    <div class="hdr-sync">
+      <div class="sync-dot" id="syncDot"></div>
+      <span id="syncText" style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--sage)">Live</span>
+    </div>
+    <button class="hdr-btn" onclick="logout()" style="background:var(--enrich-orange);color:#fff;border-left:none">
+      <span class="hdr-icon">⬡</span>
+      <span class="hdr-label">Sign Out</span>
+    </button>
   </div>
+  <div id="buildStampLabel" style="display:none;font-size:10px;color:var(--silver);position:absolute;top:2px;left:50%;transform:translateX(-50%);white-space:nowrap">Built: 2026-06-06 12:00 PT</div>
+  <span id="appVersionLabel" style="display:none"></span>
 </div>
 
 <div id="searchbar" style="display:none">
@@ -633,7 +655,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='2.9';
+const APP_VERSION='3.0';
 const BUILD_STAMP='2026-06-05 20:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -922,8 +944,8 @@ function showApp(){
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
   const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
   document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
-  const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
-  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent='v'+APP_VERSION;
+  const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
+  const vl=document.getElementById('appVersionLabel');if(vl){vl.textContent='v'+APP_VERSION;vl.style.display='inline';}
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=lvl===1?'block':'none';
   if(bs)bs.textContent='Built: '+BUILD_STAMP;
   switchTab('notes');
@@ -2624,7 +2646,9 @@ function playSuccessSound(){try{const ctx=new(window.AudioContext||window.webkit
    One fetch is all that's needed — GAS reads fresh from Sheets each time. */
 async function forceRefresh(){
   const btn=document.getElementById('refreshBtn');
-  if(btn){btn.style.transform='rotate(360deg)';btn.style.transition='transform .6s ease';btn.disabled=true;}
+  const ico=document.getElementById('refreshIcon');
+  if(ico){ico.style.display='inline-block';ico.style.transform='rotate(360deg)';ico.style.transition='transform .6s ease';}
+  if(btn)btn.disabled=true;
   setSync(false);
   showSaveToast('Refreshing…');
   try{
@@ -2644,7 +2668,7 @@ async function forceRefresh(){
   }catch(e){
     showSaveToast('⚠ Refresh failed — check connection');
   }finally{
-    if(btn){setTimeout(()=>{btn.style.transform='';btn.style.transition='';btn.disabled=false;},700);}
+    if(btn){setTimeout(()=>{if(ico){ico.style.transform='';ico.style.transition='';}btn.disabled=false;},700);}
   }
 }
 async function _refreshAllBackground(){
@@ -2885,7 +2909,7 @@ async function saveSelfEdit(email){
   window._pendingSelfPhoto=null;
   // Update session name immediately so header reflects change without waiting
   const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
-  if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('headerNameBtn');if(nb)nb.textContent=newName;}
+  if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=newName;}
   // Instant: chime → close → go to rangers
   _playChime();
   closeDetailImmediate();
