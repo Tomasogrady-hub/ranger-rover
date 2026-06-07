@@ -40,45 +40,7 @@ html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(-
 button *{pointer-events:none}
 #app{display:flex;flex-direction:column;height:100dvh;max-width:430px;margin:0 auto;background:var(--white);overflow:hidden;position:relative}
 
-/* ── DESKTOP (≥900px) ── */
-@media(min-width:900px){
-  html,body{background:#f0f2f5}
-  #app{max-width:100%;flex-direction:row;height:100dvh;border-radius:0;box-shadow:none}
 
-  /* Sidebar nav */
-  #nav{display:flex!important;flex-direction:column!important;width:190px;flex-shrink:0;height:100%;background:#1e3a1e;overflow-y:auto}
-  #nav .nav-row{flex-direction:column!important;width:100%;display:flex!important}
-  #nav .nav-btn{height:50px;width:100%;flex:none!important;justify-content:flex-start!important;padding:0 18px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.07);border-radius:0;letter-spacing:.08em;background:#1e3a1e;color:rgba(255,255,255,.7);box-shadow:none}
-  #nav .nav-btn[data-tab="notes"]{border-left:4px solid #E8473F}
-  #nav .nav-btn[data-tab="schools"]{border-left:4px solid #4CBFAD}
-  #nav .nav-btn[data-tab="rangers"]{border-left:4px solid #8DB84E}
-  #nav .nav-btn[data-tab="people"]{border-left:4px solid #F5A623}
-  #nav .nav-btn[data-tab="map"]{border-left:4px solid #9B6BB5}
-  #nav .nav-btn[data-tab="chores"]{border-left:4px solid #F06B8A}
-  #nav .nav-btn[data-tab="plants"]{border-left:4px solid #3B9E8E}
-  #nav .nav-btn[data-tab="settings"]{border-left:4px solid #F0C040}
-  #nav .nav-btn[data-tab="control"]{border-left:4px solid #6B4E9B}
-  #nav .nav-btn.active{background:rgba(255,255,255,.14);color:#fff}
-  #navSidebarBrand{display:flex;align-items:center;justify-content:center;height:58px;border-bottom:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.35);font-family:var(--font-b);font-size:9px;letter-spacing:.2em;text-transform:uppercase;flex-shrink:0}
-
-  /* Main column */
-  #desktopMain{display:flex;flex-direction:column;flex:1;overflow:hidden;min-width:0}
-  #header{flex-shrink:0}
-  #searchbar{flex-shrink:0}
-
-  /* Content + detail side by side */
-  #desktopBody{display:flex;flex:1;overflow:hidden;min-height:0}
-  #content{flex:0 0 400px;overflow-y:auto;border-right:1px solid var(--mist);background:var(--white)}
-  #desktopDetailPanel{flex:1;overflow-y:auto;background:var(--fog);display:none;flex-direction:column;align-items:center;justify-content:flex-start;padding:28px}
-  #desktopDetailPanel.open{display:flex}
-  #desktopPlaceholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:320px;color:var(--silver);font-family:var(--font-b);font-size:13px;gap:14px;text-transform:uppercase;letter-spacing:.13em;width:100%;max-width:680px}
-  #desktopPlaceholder .dph-icon{font-size:52px;opacity:.25}
-
-  /* detail-overlay becomes inline card — NO !important on display */
-  #detail-overlay{position:static;background:none;z-index:auto;display:block;opacity:1;pointer-events:auto;padding:0;width:100%;max-width:680px}
-  #detail-sheet{position:static;transform:none;border-radius:14px;max-height:none;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,.1);width:100%}
-  .sheet-pull{display:none}
-}
 
 /* ── AUTH ── */
 #authScreen{position:absolute;inset:0;background:var(--paper);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;padding-top:calc(40px + var(--safe-top))}
@@ -198,7 +160,7 @@ button *{pointer-events:none}
 .school-link-btn:active{background:var(--mint)}
 
 /* ── DETAIL OVERLAY ── */
-#desktopBody{display:block}#desktopDetailPanel{display:none}#detail-overlay{position:absolute;inset:0;background:rgba(10,10,10,.4);z-index:1001;display:none;align-items:flex-end}
+#detail-overlay{position:absolute;inset:0;background:rgba(10,10,10,.4);z-index:1001;display:none;align-items:flex-end}
 #detail-overlay.open{display:flex}
 #detail-sheet{background:var(--paper);border-radius:var(--r-xl) var(--r-xl) 0 0;width:100%;max-height:90dvh;overflow-y:auto;padding-bottom:calc(36px + var(--safe-bottom));transform:translateY(100%);transition:transform .32s cubic-bezier(.32,.72,0,1)}
 #detail-overlay.open #detail-sheet{transform:translateY(0)}
@@ -432,13 +394,11 @@ button *{pointer-events:none}
 
 <!-- APP -->
 <div id="nav" style="display:none">
-  <div id="navSidebarBrand" style="display:none">Menu</div>
   <!-- Row 1: always visible core tabs (filled by buildNav) -->
   <div class="nav-row" id="navRow1"></div>
   <!-- Row 2: extra tabs for levels 1-2 (hidden for level 3) -->
   <div class="nav-row" id="navRow2" style="display:none"></div>
 </div>
-<div id="desktopMain">
 <div id="header" style="display:none">
   <!-- 1: Logo square — square fill, object-fit:contain so icon shows fully -->
   <div style="background:#fff;display:flex;align-items:center;justify-content:center;width:58px;height:100%;flex-shrink:0;border-right:1px solid rgba(0,0,0,.06);overflow:hidden;padding:4px;box-sizing:border-box">
@@ -464,7 +424,7 @@ button *{pointer-events:none}
   <button class="hdr-btn" onclick="logout()" style="background:#E8473F;flex:0 0 52px;border-right:none">
     <span style="font-size:22px;pointer-events:none">✕</span>
   </button>
-  <div id="buildStampLabel" style="display:none;font-size:9px;color:rgba(255,255,255,.4);position:absolute;top:1px;left:130px;white-space:nowrap;pointer-events:none">Built: 2026-06-07 00:30 PT</div>
+  <div id="buildStampLabel" style="display:none;font-size:9px;color:rgba(255,255,255,.4);position:absolute;top:1px;left:130px;white-space:nowrap;pointer-events:none">Built: 2026-06-07 12:00 PT</div>
 </div>
 
 <div id="searchbar" style="display:none">
@@ -473,7 +433,7 @@ button *{pointer-events:none}
   </div>
 </div>
 
-<div id="desktopBody"><div id="content" style="display:none">
+<div id="content" style="display:none">
 
  <!-- NOTES -->
 <!-- NOTES -->
@@ -687,26 +647,19 @@ button *{pointer-events:none}
     </div>
   </div>
 
-</div><!-- /content -->
-<div id="desktopDetailPanel">
-  <div id="desktopPlaceholder">
-    <span class="dph-icon">🌿</span>
-    <span>Select an item</span>
+
+<div id="detail-overlay" onclick="closeDetail(event)">
+  <div id="detail-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
+    <div id="detail-content"></div>
   </div>
-  <div id="detail-overlay" onclick="closeDetail(event)">
-    <div id="detail-sheet" onclick="event.stopPropagation()">
-      <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
-      <div id="detail-content"></div>
-    </div>
-  </div>
-</div><!-- /desktopDetailPanel -->
-</div><!-- /desktopBody -->
-</div><!-- /desktopMain -->
+</div>
+
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='3.6';
-const BUILD_STAMP='2026-06-05 20:00 PT';
+const APP_VERSION='3.7';
+const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1002,7 +955,7 @@ function buildNav(lvl,plantsOn){
   if(!active){const first=row1.querySelector('.nav-btn');if(first)first.classList.add('active');}
   // Update nav height CSS var for toast positioning
   const rows=lvl>=3?1:2;
-  document.documentElement.style.setProperty('--nav-h',_isDesktop()?'0px':(rows*52)+'px');
+  document.documentElement.style.setProperty('--nav-h',(rows*52)+'px');
 }
 function showApp(){
   document.getElementById('authScreen').style.display='none';
@@ -2698,48 +2651,9 @@ async function saveNewContactForSite(returnBtnId){
 }
 
 /* ═══ OVERLAY ═══ */
-function openDetail(){
-  if(_isDesktop()){
-    const dp=document.getElementById('desktopDetailPanel');
-    const ph=document.getElementById('desktopPlaceholder');
-    const ov=document.getElementById('detail-overlay');
-    if(dp)dp.classList.add('open');
-    if(ph)ph.style.display='none';
-    if(ov){ov.style.display='block';}
-    setTimeout(_initLazyImages,80);
-    return;
-  }
-  const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,80);});
-}
-function closeDetail(e){
-  if(_isDesktop()){
-    const dp=document.getElementById('desktopDetailPanel');
-    const ph=document.getElementById('desktopPlaceholder');
-    const dc=document.getElementById('detail-content');
-    const ov=document.getElementById('detail-overlay');
-    if(dc)dc.innerHTML='';
-    if(ov)ov.style.display='none';
-    if(dp)dp.classList.remove('open');
-    if(ph)ph.style.display='flex';
-    return;
-  }
-  if(e&&e.target!==document.getElementById('detail-overlay'))return;
-  const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);
-}
-function closeDetailImmediate(){
-  if(_isDesktop()){
-    const dp=document.getElementById('desktopDetailPanel');
-    const ph=document.getElementById('desktopPlaceholder');
-    const dc=document.getElementById('detail-content');
-    const ov=document.getElementById('detail-overlay');
-    if(dc)dc.innerHTML='';
-    if(ov)ov.style.display='none';
-    if(dp)dp.classList.remove('open');
-    if(ph)ph.style.display='flex';
-    return;
-  }
-  const o=document.getElementById('detail-overlay');o.classList.remove('open');o.style.display='none';
-}
+function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,80);});}
+function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
+function closeDetailImmediate(){const o=document.getElementById('detail-overlay');o.classList.remove('open');o.style.display='none';}
 
 /* ═══ TOAST / SOUND HELPERS ═══ */
 function showSaveToast(msg){
