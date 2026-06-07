@@ -329,6 +329,16 @@ button *{pointer-events:none}
 #pwaSplash .sp-la{width:120px;height:120px;border-radius:50%;display:block;transform:translateX(calc(-50vw - 60px)) rotate(0deg);opacity:0;animation:spLaIn 1.1s cubic-bezier(.25,.46,.45,.94) .3s forwards}
 @keyframes spLaIn{0%{transform:translateX(calc(-50vw - 60px)) rotate(0deg);opacity:0}30%{opacity:1}100%{transform:translateX(0) rotate(-360deg);opacity:1}}
 </style>
+
+<style id="layout-lock">
+html { height: 100% !important; overflow: hidden !important; }
+body { height: 100% !important; overflow: hidden !important; }
+#app  { display: flex !important; flex-direction: column !important; height: 100dvh !important; overflow: hidden !important; }
+#header   { flex: 0 0 auto !important; flex-shrink: 0 !important; flex-grow: 0 !important; }
+#searchbar{ flex: 0 0 auto !important; flex-shrink: 0 !important; flex-grow: 0 !important; }
+#content  { flex: 1 1 0 !important; min-height: 0 !important; max-height: 100% !important; overflow-y: auto !important; overflow-x: hidden !important; }
+#nav      { flex: 0 0 auto !important; flex-shrink: 0 !important; flex-grow: 0 !important; }
+</style>
 </head>
 <body>
 <div id="app">
@@ -658,7 +668,7 @@ button *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='4.6';
+const APP_VERSION='4.7';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
