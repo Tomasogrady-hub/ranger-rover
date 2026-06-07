@@ -393,12 +393,6 @@ button *{pointer-events:none}
 </div>
 
 <!-- APP -->
-<div id="nav" style="display:none">
-  <!-- Row 1: always visible core tabs (filled by buildNav) -->
-  <div class="nav-row" id="navRow1"></div>
-  <!-- Row 2: extra tabs for levels 1-2 (hidden for level 3) -->
-  <div class="nav-row" id="navRow2" style="display:none"></div>
-</div>
 <div id="header" style="display:none">
   <!-- 1: Logo square — square fill, object-fit:contain so icon shows fully -->
   <div style="background:#fff;display:flex;align-items:center;justify-content:center;width:58px;height:100%;flex-shrink:0;border-right:1px solid rgba(0,0,0,.06);overflow:hidden;padding:4px;box-sizing:border-box">
@@ -655,10 +649,16 @@ button *{pointer-events:none}
   </div>
 </div>
 
+<div id="nav" style="display:none">
+  <!-- Row 1: always visible core tabs (filled by buildNav) -->
+  <div class="nav-row" id="navRow1"></div>
+  <!-- Row 2: extra tabs for levels 1-2 (hidden for level 3) -->
+  <div class="nav-row" id="navRow2" style="display:none"></div>
+</div>
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='3.7';
+const APP_VERSION='3.9';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -1068,7 +1068,7 @@ async function reassignChore(choreId,newAssignee){if(!CFG.URL)throw new Error('N
 async function closeChoreApi(choreId){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'closeChore',choreId});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c.Status='Closed';localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function updateChoreApi(choreId,updates){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'updateChore',choreId,updates});if(!j.ok)throw new Error(j.error||'Update failed');}
 
-function setSync(ok){document.getElementById('syncDot').className='sync-dot'+(ok?'':' offline');document.getElementById('syncText').textContent=ok?'Live':'Offline';}
+function setSync(ok){const d=document.getElementById('syncDot');const t=document.getElementById('syncText');if(d)d.className='sync-dot'+(ok?'':' offline');if(t)t.textContent=ok?'Live':'Offline';}
 function syncTS(ts){const el=document.getElementById('lastSync');if(!el)return;const d=new Date(ts);el.textContent=d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' '+d.toLocaleDateString([],{month:'short',day:'numeric'});}
 
 /* ═══ DEMO DATA ═══ */
