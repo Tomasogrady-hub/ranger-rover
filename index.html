@@ -35,7 +35,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 /* ── BASE: 21px (~25% up from 17px) ── */
-html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(--font-b);-webkit-font-smoothing:antialiased;overscroll-behavior:none;font-size:21px}
+html,body{height:100%;overflow:hidden;background:var(--white);color:var(--ink);font-family:var(--font-b);-webkit-font-smoothing:antialiased;overscroll-behavior:none;font-size:21px}
 /* Ensure all button child elements pass clicks through to the button */
 button *{pointer-events:none}
 #app{display:flex;flex-direction:column;height:100dvh;max-width:430px;margin:0 auto;background:var(--white);overflow:hidden;position:relative}
@@ -658,7 +658,7 @@ button *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='4.5';
+const APP_VERSION='4.6';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
