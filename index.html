@@ -96,7 +96,7 @@ button *{pointer-events:none}
 
 /* ── NAV ── */
 /* ── Block nav ── */
-#nav{flex-shrink:0;padding-bottom:var(--safe-bottom);background:var(--enrich-dark);display:flex;flex-direction:column;z-index:10;gap:0}
+#nav{flex-shrink:0;padding-bottom:var(--safe-bottom);background:var(--enrich-dark);display:flex;flex-direction:column;z-index:10;gap:0;position:relative}
 .nav-row{display:flex;flex-direction:row;width:100%}
 .nav-btn{flex:1;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-size:12px;font-weight:900;letter-spacing:0.06em;text-transform:uppercase;height:58px;transition:filter .15s,opacity .15s;position:relative;padding:0 4px;text-align:center;line-height:1.1}
 .nav-btn.active{filter:brightness(1.18);box-shadow:inset 0 -3px 0 rgba(255,255,255,.5)}
@@ -113,7 +113,7 @@ button *{pointer-events:none}
 .nav-btn[data-tab="control"]  {background:#6B4E9B;color:#fff}
 
 /* ── CONTENT ── */
-#content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .tab-pane{display:none}.tab-pane.active{display:block}
 .filter-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--mist)}
 .chip{flex-shrink:0;padding:6px 11px;border:1px solid var(--mist);border-radius:99px;background:var(--fog);font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--stone);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
@@ -658,7 +658,7 @@ button *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='3.9';
+const APP_VERSION='4.0';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
