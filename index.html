@@ -38,7 +38,7 @@
 html,body{height:100%;background:var(--white);color:var(--ink);font-family:var(--font-b);-webkit-font-smoothing:antialiased;overscroll-behavior:none;font-size:21px}
 /* Ensure all button child elements pass clicks through to the button */
 button *{pointer-events:none}
-#app{position:relative;max-width:430px;margin:0 auto;background:var(--white);min-height:100dvh}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:430px;margin:0 auto;background:var(--white);overflow:hidden;position:relative}
 
 
 
@@ -71,7 +71,7 @@ button *{pointer-events:none}
 .auth-spin{width:22px;height:22px;border:2px solid var(--mist);border-top-color:var(--sage);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto}
 
 /* ── HEADER ── */
-#header{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;height:calc(58px + var(--safe-top));padding-top:var(--safe-top);background:var(--enrich-dark);border-bottom:none;display:flex;align-items:stretch;justify-content:flex-start;z-index:100;gap:0}
+#header{flex:0 0 auto;height:calc(58px + var(--safe-top));padding-top:var(--safe-top);background:var(--enrich-dark);border-bottom:none;display:flex;align-items:stretch;justify-content:flex-start;z-index:10;gap:0}
 .hdr-btn{display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-weight:900;letter-spacing:0.05em;text-transform:uppercase;flex-direction:column;gap:0;padding:0;min-width:0;flex:1;background:transparent;color:#fff;white-space:nowrap;pointer-events:all;height:100%;border-right:1px solid rgba(255,255,255,.12)}
 .hdr-btn:active{filter:brightness(1.25)}
 .hdr-btn .hdr-icon{font-size:22px;line-height:1;pointer-events:none}
@@ -88,7 +88,7 @@ button *{pointer-events:none}
 .logo{display:none}.logo-sub{display:none}.logout-btn{display:none}
 
 /* ── SEARCH ── */
-#searchbar{position:fixed;top:calc(58px + var(--safe-top));left:50%;transform:translateX(-50%);width:100%;max-width:430px;padding:10px 16px;background:var(--paper);border-bottom:1px solid var(--mist);z-index:99}
+#searchbar{flex:0 0 auto;padding:10px 16px;background:var(--paper);border-bottom:1px solid var(--mist)}
 #searchInput{width:100%;padding:13px 13px 13px 40px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:19px;color:var(--ink);outline:none;position:relative}
 #searchInput::placeholder{color:var(--silver)}
 .search-icon-wrap{position:relative}
@@ -96,7 +96,7 @@ button *{pointer-events:none}
 
 /* ── NAV ── */
 /* ── Block nav ── */
-#nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;padding-bottom:var(--safe-bottom);background:var(--enrich-dark);display:flex;flex-direction:column;z-index:100;gap:0}
+#nav{flex:0 0 auto;padding-bottom:var(--safe-bottom);background:var(--enrich-dark);display:flex;flex-direction:column;z-index:10;gap:0}
 .nav-row{display:flex;flex-direction:row;width:100%}
 .nav-btn{flex:1;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-size:12px;font-weight:900;letter-spacing:0.06em;text-transform:uppercase;height:58px;transition:filter .15s,opacity .15s;position:relative;padding:0 4px;text-align:center;line-height:1.1}
 .nav-btn.active{filter:brightness(1.18);box-shadow:inset 0 -3px 0 rgba(255,255,255,.5)}
@@ -113,7 +113,7 @@ button *{pointer-events:none}
 .nav-btn[data-tab="control"]  {background:#6B4E9B;color:#fff}
 
 /* ── CONTENT ── */
-#content{position:fixed;top:calc(58px + var(--safe-top) + 52px);left:50%;transform:translateX(-50%);width:100%;max-width:430px;bottom:var(--nav-h,104px);overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--white)}
+#content{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--white)}
 .tab-pane{display:none}.tab-pane.active{display:block}
 .filter-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--mist)}
 .chip{flex-shrink:0;padding:6px 11px;border:1px solid var(--mist);border-radius:99px;background:var(--fog);font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--stone);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
@@ -658,7 +658,7 @@ button *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='4.2';
+const APP_VERSION='4.3';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -2718,10 +2718,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  const _sb=document.getElementById('searchbar');
-  const _ct=document.getElementById('content');
-  if(tab==='notes'){_sb.style.display='none';if(_ct)_ct.style.top='calc(58px + var(--safe-top))';}
-  else{_sb.style.display='block';if(_ct)_ct.style.top='calc(58px + var(--safe-top) + 52px)';}
+  document.getElementById('searchbar').style.display=tab==='notes'?'none':'block';
   if(tab==='map'||initMapFlag){
     setTimeout(()=>{
       initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();
