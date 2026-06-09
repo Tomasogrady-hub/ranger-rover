@@ -773,7 +773,7 @@ button *{pointer-events:none}a *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='5.6';
+const APP_VERSION='5.7';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -954,7 +954,7 @@ function choreCardHtml(c,showSite=false){
   const dateStr=fmtDate(c.Timestamp);
 
   return `<div class="chore-card ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')">
-    <div class="chore-title">${showSite?`<strong>${c.Site||''}</strong> — `:''}${task}</div>
+    <div class="chore-title">${showSite&&(c.Site||'')?`<button class="contact-tap" style="font-weight:600;font-size:inherit" onclick="event.stopPropagation();showSchoolDetailByName('${esc(c.Site||'')}')">${c.Site}</button><span style="color:var(--stone)"> — </span>`:''}<span>${task}</span></div>
     ${c['Additional Comments']?`<div style="font-size:15px;color:var(--stone);margin-top:3px;line-height:1.4">${c['Additional Comments']}</div>`:''}
     <div class="chore-meta">
       <span class="chore-badge-pill ${urgCls} ${isUrgentFlash?'flash-urgent':''}">${urgency||'Normal'}</span>
@@ -2355,8 +2355,7 @@ function renderSchoolDetail(site,editMode){
           style="${mainImg?'':'display:none;'}width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <input type="file" accept="image/*" id="fi-MainImage" style="display:none" onchange="if(this.files[0])previewSitePhotoFile(this.files[0],'ef-preview-MainImage','MainImage')">
-          <button type="button" onclick="document.getElementById('fi-MainImage').click()" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-MainImage','MainImage'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${mainImg?'Replace':'Add'} Photo
           </button>
           ${mainImg?`<button type="button" onclick="_clearSitePhoto('ef-preview-MainImage','ef-MainImg')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
@@ -2368,8 +2367,7 @@ function renderSchoolDetail(site,editMode){
           style="${helpImg1?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <input type="file" accept="image/*" id="fi-HelpImg1" style="display:none" onchange="if(this.files[0])previewSitePhotoFile(this.files[0],'ef-preview-HelpImg1','HelpImg1')">
-          <button type="button" onclick="document.getElementById('fi-HelpImg1').click()" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg1','HelpImg1'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg1?'Replace':'Add'} Photo
           </button>
           ${helpImg1?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg1','ef-HelpImg1')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
@@ -2381,8 +2379,7 @@ function renderSchoolDetail(site,editMode){
           style="${helpImg2?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
           onerror="this.style.display='none'">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <input type="file" accept="image/*" id="fi-HelpImg2" style="display:none" onchange="if(this.files[0])previewSitePhotoFile(this.files[0],'ef-preview-HelpImg2','HelpImg2')">
-          <button type="button" onclick="document.getElementById('fi-HelpImg2').click()" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpImg2','HelpImg2'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
             📷 ${helpImg2?'Replace':'Add'} Photo
           </button>
           ${helpImg2?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg2','ef-HelpImg2')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
@@ -2568,7 +2565,7 @@ function renderPD(h,edit){
         ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
       </div>
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
-      ${canEdit()?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
+      ${(canEdit()||(SESSION&&SESSION.email.toLowerCase()===(email||'').toLowerCase()))?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
       <button class="btn-exit" onclick="closeDetail()">✕ Close</button>`;
   }
 }
@@ -3120,7 +3117,7 @@ async function saveSelfEdit(email){
 async function deleteChoreFromDetail(choreId,description){
   if(!confirm(`Delete "${(description||'this chore').slice(0,60)}"?\n\nThis cannot be undone.`))return;
   try{
-    const j=await gasPost({action:'deleteChore',choreId});
+    const j=await gasPost({action:'deleteChore',choreId,actor:SESSION?SESSION.email:'',subject:description||choreId});
     if(!j.ok)throw new Error(j.error||'Delete failed');
     DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
@@ -3669,8 +3666,9 @@ function activityRowHtml(item){
   const actorH=DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===(item.actor||'').toLowerCase());
   const actorName=actorH?((actorH['First Name']||'')+' '+(actorH['Last Name']||'')).trim():((item.actor||'').split('@')[0]);
   const ts=item.ts?_fmtActivityTs(item.ts):'';
-  const icon=item.subjectType==='chore'?'✅':item.subjectType==='site'?'🏫':item.subjectType==='person'?'👤':'📝';
-  // Make subject clickable
+  const actorLink=actorH
+    ?`<button class="contact-tap" style="font-weight:600;font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${actorName}</button>`
+    :`<strong style="font-weight:600">${actorName}</strong>`;
   let subjectLink='';
   if(item.subjectType==='chore'){
     const chore=DATA.chores.find(c=>(c.Task||'').toLowerCase()===(item.subject||'').toLowerCase()||(c.ID||c.id||'')===(item.subject||''));
@@ -3683,15 +3681,12 @@ function activityRowHtml(item){
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   }
-  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--mist)">
-    <span style="font-size:18px;flex-shrink:0;margin-top:1px">${icon}</span>
-    <div style="flex:1;min-width:0;font-size:16px;line-height:1.5;color:var(--ink)">
-      <strong style="font-weight:600">${actorName}</strong>
-      <span style="color:var(--stone)"> ${item.action} </span>
-      ${subjectLink}
-      ${item.detail?`<span style="color:var(--silver);font-size:14px"> · ${item.detail}</span>`:''}
-      <div style="font-size:13px;color:var(--silver);margin-top:2px">${ts}</div>
-    </div>
+  const detail=(item.detail||'').replace(/^Site:\s*/i,'').trim();
+  const line1=[actorLink,`<span style="color:var(--stone)"> ${item.action} </span>`,subjectLink];
+  if(detail)line1.push(`<span style="color:var(--silver);font-size:15px"> — ${detail}</span>`);
+  return `<div style="padding:11px 0;border-bottom:1px solid var(--mist)">
+    <div style="font-size:16px;line-height:1.5;color:var(--ink)">${line1.join('')}</div>
+    <div style="font-size:13px;color:var(--silver);margin-top:2px">${ts}</div>
   </div>`;
 }
 
