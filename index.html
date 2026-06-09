@@ -111,6 +111,7 @@ button *{pointer-events:none}a *{pointer-events:none}
 .nav-btn[data-tab="plants"]   {background:#3B9E8E;color:#fff}
 .nav-btn[data-tab="settings"] {background:#F0C040;color:#1e3a1e}
 .nav-btn[data-tab="control"]  {background:#6B4E9B;color:#fff}
+.nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
 
 /* ── CONTENT ── */
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -665,6 +666,15 @@ button *{pointer-events:none}a *{pointer-events:none}
     </div>
   </div>
 
+  <!-- LATEST -->
+  <div class="tab-pane" id="tab-latest">
+    <div class="page-header" style="padding-bottom:6px">
+      <span class="page-title">Latest</span>
+      <button onclick="loadActivity(true)" style="padding:7px 13px;background:transparent;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:500;cursor:pointer;color:var(--stone);letter-spacing:.06em;text-transform:uppercase">↺ Refresh</button>
+    </div>
+    <div id="activityList" style="padding:0 16px 28px"><div class="spinner"></div></div>
+  </div>
+
   <!-- SETTINGS -->
   <div class="tab-pane" id="tab-settings">
     <div class="page-header"><span class="page-title">Settings</span></div>
@@ -763,7 +773,7 @@ button *{pointer-events:none}a *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='5.5';
+const APP_VERSION='5.6';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -1032,7 +1042,7 @@ function buildNav(lvl,plantsOn){
   // Level 3: one row of 4
   if(lvl>=3){
     row1.innerHTML=
-      _navBtn('notes','Notes')+
+      _navBtn('latest','Latest')+
       _navBtn('schools','Schools')+
       _navBtn('map','Map')+
       _navBtn('chores','Chores');
@@ -1041,12 +1051,13 @@ function buildNav(lvl,plantsOn){
     // Level 1 or 2: two rows
     // Row 1: Notes, Schools, Map, Chores
     row1.innerHTML=
-      _navBtn('notes','Notes')+
+      _navBtn('latest','Latest')+
       _navBtn('schools','Schools')+
       _navBtn('map','Map')+
       _navBtn('chores','Chores');
-    // Row 2: Rangers, People, Plants(if on), Settings(lvl1), Control(lvl1)
+    // Row 2: Notes, Rangers, People, Plants(if on), Settings(lvl1), Control(lvl1)
     let row2tabs=[];
+    row2tabs.push(_navBtn('notes','Notes'));
     row2tabs.push(_navBtn('rangers','Rangers'));
     row2tabs.push(_navBtn('people','People'));
     if(plantsOn||lvl===1) row2tabs.push(_navBtn('plants','Plants'));
@@ -1084,7 +1095,7 @@ function showApp(){
 }
 
 /* ═══ API ═══ */
-async function gasPost(payload){const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
+async function gasPost(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
 
 async function loadData(force=false){
   // ── Cache hit: render immediately then return ──────────────────────────────
@@ -1170,8 +1181,8 @@ async function saveToSheet(sheet,key,updates){
 async function addHumanToSheet(data){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'addHuman',data});if(!j.ok)throw new Error(j.error||'Add failed');DATA.humans.push(data);localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function addRoleToSheet(role){if(!CFG.URL)throw new Error('No API URL');await gasPost({action:'addRole',role});if(!DATA.roles.some(r=>r.name===role))DATA.roles.push({name:role,description:'',category:''});localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function reassignChore(choreId,newAssignee){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'reassignChore',choreId,newAssignee});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c['Assigned to']=newAssignee;localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
-async function closeChoreApi(choreId){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'closeChore',choreId});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c.Status='Closed';localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
-async function updateChoreApi(choreId,updates){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'updateChore',choreId,updates});if(!j.ok)throw new Error(j.error||'Update failed');}
+async function closeChoreApi(choreId){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'closeChore',choreId,closedBy:SESSION?SESSION.email:''});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c.Status='Closed';localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
+async function updateChoreApi(choreId,updates){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'updateChore',choreId,updates,actor:SESSION?SESSION.email:''});if(!j.ok)throw new Error(j.error||'Update failed');}
 
 function setSync(ok){const d=document.getElementById('syncDot');const t=document.getElementById('syncText');if(d)d.className='sync-dot'+(ok?'':' offline');if(t)t.textContent=ok?'Live':'Offline';}
 function syncTS(ts){const el=document.getElementById('lastSync');if(!el)return;const d=new Date(ts);el.textContent=d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' '+d.toLocaleDateString([],{month:'short',day:'numeric'});}
@@ -1546,7 +1557,7 @@ async function _uploadChorePhotoBase64(choreId, file, imageCol='Helpful Image 1'
     reader.onload=async e=>{
       try{
         const base64=e.target.result.split(',')[1];
-        const j=await gasPost({action:'uploadChoreImage',choreId,base64,mimeType:file.type,filename:file.name,imageCol});
+        const j=await gasPost({action:'uploadChoreImage',choreId,base64,mimeType:file.type,filename:file.name,imageCol,actor:SESSION?SESSION.email:''});
         j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
       }catch(err){reject(err);}
     };
@@ -2835,7 +2846,7 @@ async function forceRefresh(){
         _updateHdrAvatar();renderAll();setSync(true);
       }).catch(()=>{});
     renderAll();
-    showSaveToast('✓ Data refreshed');
+    _activityLoaded=false;showSaveToast('✓ Data refreshed');
   }catch(e){
     showSaveToast('⚠ Refresh failed — check connection');
   }finally{
@@ -2876,6 +2887,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
     const t=document.getElementById('nearMeToast');if(t)t.classList.remove('visible');
   }
   if(tab==='plants')initPlants();
+  if(tab==='latest')loadActivity();
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
   // Render this tab if it has pending data changes
   if(_tabDirty[tab])_renderDirtyTab(tab);
@@ -3362,7 +3374,7 @@ async function _uploadSitePhoto(siteName,fieldKey,file){
     reader.onload=async e=>{
       try{
         const base64=e.target.result.split(',')[1];
-        const j=await gasPost({action:'uploadSiteImage',siteName,fieldKey,base64,mimeType:file.type,filename:file.name});
+        const j=await gasPost({action:'uploadSiteImage',siteName,fieldKey,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
         j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
       }catch(err){reject(err);}
     };
@@ -3632,6 +3644,69 @@ window.addEventListener('DOMContentLoaded',()=>{
 document.getElementById('authEmail').addEventListener('keydown',e=>{if(e.key==='Enter')handleEmailSubmit();});
 document.getElementById('authPw').addEventListener('keydown',e=>{if(e.key==='Enter')handleSignIn();});
 document.getElementById('authPw2').addEventListener('keydown',e=>{if(e.key==='Enter')handleSetPassword();});
+
+/* ═══ ACTIVITY FEED ═══ */
+let _activityLoaded=false;
+async function loadActivity(force=false){
+  const list=document.getElementById('activityList');
+  if(!list)return;
+  if(_activityLoaded&&!force)return;
+  list.innerHTML='<div class="spinner"></div>';
+  try{
+    const res=await gasPost({action:'getActivity'});
+    _activityLoaded=true;
+    if(!res.ok||!res.items||!res.items.length){
+      list.innerHTML='<div class="empty"><div class="empty-glyph">📋</div><h3>No activity yet</h3><p>Actions like adding chores, editing schools, and uploading photos will appear here.</p></div>';
+      return;
+    }
+    list.innerHTML=res.items.map(item=>activityRowHtml(item)).join('');
+  }catch(e){
+    list.innerHTML='<div class="empty"><div class="empty-glyph">⚠</div><h3>Could not load</h3><p>Check your connection and try again.</p></div>';
+  }
+}
+
+function activityRowHtml(item){
+  const actorH=DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===(item.actor||'').toLowerCase());
+  const actorName=actorH?((actorH['First Name']||'')+' '+(actorH['Last Name']||'')).trim():((item.actor||'').split('@')[0]);
+  const ts=item.ts?_fmtActivityTs(item.ts):'';
+  const icon=item.subjectType==='chore'?'✅':item.subjectType==='site'?'🏫':item.subjectType==='person'?'👤':'📝';
+  // Make subject clickable
+  let subjectLink='';
+  if(item.subjectType==='chore'){
+    const chore=DATA.chores.find(c=>(c.Task||'').toLowerCase()===(item.subject||'').toLowerCase()||(c.ID||c.id||'')===(item.subject||''));
+    if(chore)subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showChoreDetail('${ea(chore.ID||chore.id||'')}')">${item.subject}</button>`;
+    else subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
+  } else if(item.subjectType==='site'){
+    subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByName('${ea(item.subject||'')}')">${item.subject||''}</button>`;
+  } else if(item.subjectType==='person'){
+    subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
+  } else {
+    subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
+  }
+  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--mist)">
+    <span style="font-size:18px;flex-shrink:0;margin-top:1px">${icon}</span>
+    <div style="flex:1;min-width:0;font-size:16px;line-height:1.5;color:var(--ink)">
+      <strong style="font-weight:600">${actorName}</strong>
+      <span style="color:var(--stone)"> ${item.action} </span>
+      ${subjectLink}
+      ${item.detail?`<span style="color:var(--silver);font-size:14px"> · ${item.detail}</span>`:''}
+      <div style="font-size:13px;color:var(--silver);margin-top:2px">${ts}</div>
+    </div>
+  </div>`;
+}
+
+function _fmtActivityTs(iso){
+  try{
+    const d=new Date(iso);
+    const now=new Date();
+    const diff=now-d;
+    if(diff<60000)return 'just now';
+    if(diff<3600000)return Math.floor(diff/60000)+'m ago';
+    if(diff<86400000)return Math.floor(diff/3600000)+'h ago';
+    if(diff<604800000)return Math.floor(diff/86400000)+'d ago';
+    return d.toLocaleDateString([],{month:'short',day:'numeric'});
+  }catch(e){return '';}
+}
 
 /* ═══ BOOT ═══ */
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);
