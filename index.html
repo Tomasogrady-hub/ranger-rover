@@ -310,7 +310,7 @@ button *{pointer-events:none}a *{pointer-events:none}
 #locateBtn{position:absolute;bottom:18px;right:14px;z-index:1000;width:44px;height:44px;border-radius:50%;background:var(--paper);border:1px solid var(--mist);box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;transition:background .15s}
 #locateBtn.active{background:var(--blue-light);border-color:var(--blue)}
 #locateBtn.spinning{animation:spin .8s linear infinite}
-.location-user-dot{width:16px;height:16px;background:#1a73e8;border-radius:50%;border:3px solid white;box-shadow:0 0 0 3px rgba(26,115,232,.25)}
+.location-user-dot{display:none}
 #nearMeToast{position:absolute;bottom:72px;left:12px;right:12px;z-index:2000;background:var(--paper);border:1px solid var(--grove);border-radius:var(--r-md);box-shadow:0 4px 20px rgba(0,0,0,.18);padding:14px 16px;display:flex;align-items:center;gap:12px;transform:translateY(20px);opacity:0;transition:all .28s cubic-bezier(.32,.72,0,1);pointer-events:none}
 #nearMeToast.visible{transform:translateY(0);opacity:1;pointer-events:auto}
 .toast-icon{font-size:26px;flex-shrink:0}
@@ -763,7 +763,7 @@ button *{pointer-events:none}a *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='5.4';
+const APP_VERSION='5.5';
 const BUILD_STAMP='2026-06-07 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -1070,7 +1070,7 @@ function showApp(){
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
   const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
-  document.getElementById('searchInput').placeholder=lvl<=2?'Search schools or people…':'Search your schools…';
+  document.getElementById('searchInput').placeholder='Search…';
   const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   _updateHdrAvatar();
   const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent='v'+APP_VERSION;
@@ -1255,6 +1255,19 @@ function renderChoreDetail(c,editMode){
           </div>
         </div>
       </div>
+      <div class="edit-wrap" style="position:relative;z-index:45">
+        <div class="edit-label">Asked By</div>
+        <div class="custom-select">
+          <button type="button" class="custom-select-btn" onclick="toggleDropdown('dd-caskedby')" id="dsb-caskedby" data-value="${ea(askedBy)}">${askedBy?(hn(askedBy)||askedBy):'— None —'}</button>
+          <div class="dropdown-panel" id="dd-caskedby">
+            <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('dd-caskedby',this.value)"></div>
+            <div class="dropdown-list">
+              <div class="dropdown-item" data-email="" data-name="— None —" onclick="selectDropdown(this,true)">— None —</div>
+              ${DATA.humans.map(h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;}).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="edit-wrap"><div class="edit-label">Status</div>
         <select class="edit-input" id="ce-Status">${statOpts}</select></div>
       <hr class="section-divider">
@@ -1304,9 +1317,9 @@ function renderChoreDetail(c,editMode){
       <div class="ds"><div class="dl">Task</div><div class="dv" style="line-height:1.6">${task||'—'}</div></div>
       ${comments?`<div class="ds"><div class="dl">Additional Comments</div>
         <div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${comments}</div></div>`:''}
-      ${askedBy?`<div class="ds"><div class="dl">Asked By</div><div class="dv">${hn(askedBy)||askedBy}</div></div>`:''}
-      ${askedOf?`<div class="ds"><div class="dl">Asked Of</div><div class="dv">${hn(askedOf)||askedOf}</div></div>`:''}
-      ${assigned?`<div class="ds"><div class="dl">Assigned To</div><div class="dv">${hn(assigned)||assigned}</div></div>`:''}
+      ${askedBy?`<div class="ds"><div class="dl">Asked By</div><div class="dv"><button class="contact-tap" onclick="showPersonDetail('${ea(askedBy)}')">${hn(askedBy)||askedBy}</button></div></div>`:''}
+      ${askedOf?`<div class="ds"><div class="dl">Asked Of</div><div class="dv"><button class="contact-tap" onclick="showPersonDetail('${ea(askedOf)}')">${hn(askedOf)||askedOf}</button></div></div>`:''}
+      ${assigned?`<div class="ds"><div class="dl">Assigned To</div><div class="dv"><button class="contact-tap" onclick="showPersonDetail('${ea(assigned)}')">${hn(assigned)||assigned}</button></div></div>`:''}
       ${(img1Src||img2Src||img3Src)?`<div class="ds"><div class="dl">Photos</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
           ${img1Src?`<img src="${img1Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
@@ -1474,6 +1487,7 @@ async function saveChoreEdit(choreId){
     'Type':(document.getElementById('ce-Type')||{value:''}).value,
     'Status':(document.getElementById('ce-Status')||{value:''}).value,
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
+    'Asked by':(document.getElementById('dsb-caskedby')||{dataset:{value:''}}).dataset.value||askedBy||(SESSION?SESSION.email:''),
   };
   const _pPhotos={...window._pendingChorePhotos||{}};
   const _pVidPromise=window._pendingVideoPromise;
@@ -2161,9 +2175,37 @@ function _nearestSite(lat,lng,maxMeters=200){
 }
 function _placeUserMarker(){
   if(!_leafletMap||_userLat===null)return;
-  const icon=L.divIcon({className:'',html:'<div class="location-user-dot"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-  if(_userMarker){_userMarker.setLatLng([_userLat,_userLng]);}
-  else{_userMarker=L.marker([_userLat,_userLng],{icon,zIndexOffset:1000}).addTo(_leafletMap);_userMarker.bindTooltip('You are here',{direction:'top',offset:[0,-10]});}
+  const carSvg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
+    <filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.35"/></filter>
+    <g filter="url(#shadow)">
+      <!-- Car body -->
+      <rect x="8" y="12" width="20" height="14" rx="4" fill="#1a73e8"/>
+      <!-- Roof -->
+      <path d="M13,12 L15,6 L21,6 L23,12 Z" fill="#1558b0"/>
+      <!-- Windshield -->
+      <path d="M14.5,12 L16,7.5 L20,7.5 L21.5,12 Z" fill="#a8d4f5" opacity="0.9"/>
+      <!-- Windows side -->
+      <rect x="9" y="13" width="5" height="4" rx="1.5" fill="#a8d4f5" opacity="0.7"/>
+      <rect x="22" y="13" width="5" height="4" rx="1.5" fill="#a8d4f5" opacity="0.7"/>
+      <!-- Wheels -->
+      <circle cx="13" cy="26" r="3.5" fill="#222"/><circle cx="13" cy="26" r="1.5" fill="#888"/>
+      <circle cx="23" cy="26" r="3.5" fill="#222"/><circle cx="23" cy="26" r="1.5" fill="#888"/>
+      <!-- Headlights -->
+      <rect x="9" y="19" width="4" height="2.5" rx="1" fill="#fff9c4"/>
+      <rect x="23" y="19" width="4" height="2.5" rx="1" fill="#fff9c4"/>
+      <!-- Direction dot -->
+      <circle cx="18" cy="5" r="2.5" fill="#1a73e8" opacity="0.7"/>
+    </g>
+  </svg>`;
+  const icon=L.divIcon({className:'',html:carSvg,iconSize:[36,36],iconAnchor:[18,28]});
+  if(_userMarker){
+    _userMarker.setLatLng([_userLat,_userLng]);
+  } else {
+    _userMarker=L.marker([_userLat,_userLng],{icon,zIndexOffset:1000}).addTo(_leafletMap);
+    _userMarker.bindTooltip('You are here',{direction:'top',offset:[0,-14]});
+  }
+  // Auto-pan map to follow user
+  _leafletMap.panTo([_userLat,_userLng],{animate:true,duration:0.5});
 }
 function _checkNearestAndToast(lat,lng){
   const near=_nearestSite(lat,lng,200);
