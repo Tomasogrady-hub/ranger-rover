@@ -773,8 +773,8 @@ button *{pointer-events:none}a *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='5.8';
-const BUILD_STAMP='2026-06-11 10:00 PT';
+const APP_VERSION='5.9';
+const BUILD_STAMP='2026-06-12 09:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2407,9 +2407,9 @@ function renderSchoolDetail(site,editMode){
         <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a link:</div>
         <input class="edit-input" id="ef-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
       </div>
-      <div class="edit-actions">
-        <button class="btn-save" onclick="saveSiteEdit('${ea(name)}')">✓ Finished — Save &amp; Close</button>
-        <button class="btn-cancel" onclick="renderSchoolDetail(window._currentSite,false)">Cancel</button>
+      <div class="edit-actions" style="flex-direction:column">
+        <button class="btn-save" style="width:100%;font-size:17px;padding:18px" onclick="saveSiteEdit('${ea(name)}')">✓ Finished — Save &amp; Close</button>
+        <button class="btn-cancel" style="width:100%;text-align:center" onclick="renderSchoolDetail(window._currentSite,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingSitePhotos={};
@@ -2424,10 +2424,13 @@ function renderSchoolDetail(site,editMode){
     function crow(label,email){
       if(!email)return '';
       const n=hn(email),m=hm(email);
-      const inDB=!!DATA.humans.find(p=>(p.Email||p.email||'')===email);
+      const inDB=!!DATA.humans.find(p=>(p.Email||p.email||'')===email||(fullName(p)||'')===email);
+      const lookupKey=DATA.humans.find(p=>(p.Email||p.email||'')===email)
+        ?(email)
+        :(DATA.humans.find(p=>(fullName(p)||'')===email)?email:'');
       const nameHtml=inDB
         ?`<button class="contact-tap" onclick="showPersonDetail('${ea(email)}')">${n}</button>`
-        :`<span style="font-weight:500">${n}</span>`;
+        :`<span style="font-weight:500">${n||email}</span>`;
       return `<div class="ds"><div class="dl">${label}</div><div><div class="dv" style="margin-bottom:5px">${nameHtml}<br><span style="font-size:15px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(m,email)}</div></div></div>`;
     }
     // Ranger rows also use crow so they get the same hotlink treatment
@@ -2447,7 +2450,7 @@ function renderSchoolDetail(site,editMode){
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>
-    <button class="btn-edit" onclick="window._currentSite=window._currentSite||${JSON.stringify(site).replace(/"/g,'&quot;')};renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
+    <button class="btn-edit" onclick="renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
     <button class="btn-exit" onclick="closeDetail()">✕ Close</button>
     `;
     window._currentSite=site;
@@ -2573,7 +2576,7 @@ function renderPD(h,edit){
         ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
       </div>
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
-      ${(canEdit()||(SESSION&&SESSION.email.toLowerCase()===(email||'').toLowerCase()))?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
+      ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
       <button class="btn-exit" onclick="closeDetail()">✕ Close</button>`;
   }
 }
@@ -3124,13 +3127,20 @@ async function saveSelfEdit(email){
 
 async function deleteChoreFromDetail(choreId,description){
   if(!confirm(`Delete "${(description||'this chore').slice(0,60)}"?\n\nThis cannot be undone.`))return;
+  // Instant: chime + remove from local data + close + navigate
+  _playChime();
+  DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
+  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  closeDetailImmediate();
+  switchTab('chores');
+  renderAll();
+  // Background delete on server
   try{
     const j=await gasPost({action:'deleteChore',choreId,actor:SESSION?SESSION.email:'',subject:description||choreId});
     if(!j.ok)throw new Error(j.error||'Delete failed');
-    DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
-    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    closeDetail();renderAll();
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){
+    showSaveToast('⚠ Server delete failed — '+e.message);
+  }
 }
 
 /* ═══ PHOTO ACTION SHEET ═══ */
