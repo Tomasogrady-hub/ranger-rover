@@ -37,7 +37,7 @@
 /* ── BASE: 21px (~25% up from 17px) ── */
 html,body{height:100%;overflow:hidden;background:var(--white);color:var(--ink);font-family:var(--font-b);-webkit-font-smoothing:antialiased;overscroll-behavior:none;font-size:21px}
 /* Ensure all button child elements pass clicks through to the button */
-button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.add-chore-btn,.chore-pill{user-select:none;-webkit-user-select:none}
+button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.add-chore-btn,.chore-pill,.btn-edit,.btn-exit,.btn-save,.btn-cancel{user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 #app{display:flex;flex-direction:column;height:100dvh;max-width:430px;margin:0 auto;background:var(--white);overflow:hidden;position:relative}
 
 
@@ -328,7 +328,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 #pwaSplash .sp-enrich{width:68vw;max-width:280px;height:auto}
 #pwaSplash .sp-la-wrap{width:100%;display:flex;justify-content:center;overflow:hidden}
 #pwaSplash .sp-la{width:120px;height:120px;border-radius:50%;display:block;transform:translateX(calc(-50vw - 60px)) rotate(0deg);opacity:0;animation:spLaIn 0.8s cubic-bezier(.25,.46,.45,.94) .1s forwards}
-@keyframes spLaIn{0%{transform:translateX(calc(-50vw - 60px)) rotate(0deg);opacity:0}25%{opacity:1}100%{transform:translateX(0) rotate(-540deg);opacity:1}}
+@keyframes spLaIn{0%{transform:translateX(calc(-50vw - 60px)) rotate(0deg);opacity:0}25%{opacity:1}100%{transform:translateX(0) rotate(-720deg);opacity:1}}
 </style>
 
 </head>
@@ -673,8 +673,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='6.2';
-const BUILD_STAMP='2026-06-14 14:00 PT';
+const APP_VERSION='6.3';
+const BUILD_STAMP='2026-06-14 18:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1206,8 +1206,7 @@ function renderChoreDetail(c,editMode){
         </button>
         ${videoSrc?`<button type="button" onclick="_clearChoreVideo('ce-VideoLink')" style="display:inline-flex;align-items:center;gap:4px;padding:10px 15px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove Video</button>`:``}
         <div style="font-size:14px;margin-top:6px" id="ce-video-status"></div>
-        <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a Drive link:</div>
-        <input class="edit-input" id="ce-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
+        <input class="edit-input" id="ce-VideoLink" value="${ea(videoSrc)}" style="display:none">
       </div>
       <div class="edit-actions">
         <button class="btn-save" onclick="saveChoreEdit('${ea(id)}')">Save</button>
@@ -1555,8 +1554,7 @@ function showAddChore(preSiteName){
         🎥 Record Video
       </button>
       <div style="font-size:14px;margin-top:6px" id="nc-video-status"></div>
-      <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a Drive link:</div>
-      <input class="edit-input" id="nc-VideoLink" placeholder="https://drive.google.com/…" style="font-size:16px">
+      <input class="edit-input" id="nc-VideoLink" value="" style="display:none">
     </div>
     <div class="edit-actions">
       <button class="btn-save" onclick="saveNewChore()">Add Chore</button>
@@ -2282,9 +2280,8 @@ function renderSchoolDetail(site,editMode){
             📷 ${mainImg?'Replace':'Add'} Photo
           </button>
           ${mainImg?`<button type="button" onclick="_clearSitePhoto('ef-preview-MainImage','ef-MainImg')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
-          <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
-        <input class="edit-input" id="ef-MainImg" value="${ea(sf(site,'Main Image','MainImage'))}" placeholder="Paste Google Drive or image URL…"></div>
+        <input class="edit-input" id="ef-MainImg" value="${ea(sf(site,'Main Image','MainImage'))}" style="display:none"></div>
       <div class="edit-wrap"><div class="edit-label">Helpful Image 1</div>
         <img id="ef-preview-HelpImg1" src="${helpImg1}" loading="lazy"
           style="${helpImg1?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
@@ -2294,9 +2291,8 @@ function renderSchoolDetail(site,editMode){
             📷 ${helpImg1?'Replace':'Add'} Photo
           </button>
           ${helpImg1?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg1','ef-HelpImg1')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
-          <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
-        <input class="edit-input" id="ef-HelpImg1" value="${ea(sf(site,'Helpful Image 1','HelpfulImage1'))}" placeholder="Paste image URL…"></div>
+        <input class="edit-input" id="ef-HelpImg1" value="${ea(sf(site,'Helpful Image 1','HelpfulImage1'))}" style="display:none"></div>
       <div class="edit-wrap"><div class="edit-label">Helpful Image 2</div>
         <img id="ef-preview-HelpImg2" src="${helpImg2}" loading="lazy"
           style="${helpImg2?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
@@ -2306,9 +2302,8 @@ function renderSchoolDetail(site,editMode){
             📷 ${helpImg2?'Replace':'Add'} Photo
           </button>
           ${helpImg2?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg2','ef-HelpImg2')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
-          <span style="font-size:13px;color:var(--silver)">or paste URL:</span>
         </div>
-        <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" placeholder="Paste image URL…"></div>`:''}
+        <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" style="display:none"></div>`:''}
       <div class="edit-actions">
       <hr class="section-divider">
       <div class="edit-wrap">
@@ -2319,8 +2314,7 @@ function renderSchoolDetail(site,editMode){
         </button>
         ${videoSrc?`<button type="button" onclick="_clearSiteVideo('ef-VideoLink','ef-video-status')" style="display:inline-flex;align-items:center;gap:4px;padding:10px 15px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove Video</button>`:``}
         <div style="font-size:14px;margin-top:6px" id="ef-video-status"></div>
-        <div style="font-size:13px;color:var(--silver);margin:8px 0 4px">or paste a link:</div>
-        <input class="edit-input" id="ef-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
+        <input class="edit-input" id="ef-VideoLink" value="${ea(videoSrc)}" style="display:none">
       </div>
       <div class="edit-actions" style="flex-direction:column">
         <button class="btn-save" style="width:100%;font-size:17px;padding:18px" onclick="saveSiteEdit(window._currentSite.Key||window._currentSite.key||'')">✓ Finished — Save &amp; Close</button>
@@ -2483,7 +2477,7 @@ function renderPD(h,edit){
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">${avatarHtml(h,54)}<div class="sheet-title" style="font-size:28px">${name}</div></div>
         <button class="sheet-x" onclick="closeDetailBtnChime()">✕</button>
       </div>
-      ${imgUrl?`<div style="padding:14px 20px 0"><img data-lazy="${imgUrl}" style="width:100%;height:190px;object-fit:cover;border-radius:var(--r-sm);opacity:0;transition:opacity .3s;background:var(--fog)" onerror="this.parentElement.style.display='none'"></div>`:''}
+      ${imgUrl?`<div style="padding:14px 20px 0"><img data-lazy="${imgUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;object-position:top center;border-radius:var(--r-sm);opacity:0;transition:opacity .3s;background:var(--fog)" onerror="this.parentElement.style.display='none'"></div>`:''}
       <div class="ds"><div class="dl">Role</div><div class="dv">${role||'—'}</div></div>
       ${schools?`<div class="ds"><div class="dl">Assigned School(s)</div><div class="dv">${schools}</div></div>`:''}
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
@@ -2496,10 +2490,25 @@ function renderPD(h,edit){
       </div>
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
+      ${canEdit()?`<button style="width:calc(100% - 40px);margin:10px 20px 0;padding:16px;background:var(--danger-bg);color:var(--danger);border:2px solid var(--danger);border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;display:block;text-align:center" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
   }
 }
 
+async function deleteContact(key,displayName){
+  if(!confirm('Delete "'+displayName+'" from Humans?\n\nThis cannot be undone.'))return;
+  _playChime();
+  DATA.humans=DATA.humans.filter(h=>(h.Email||h.email||'')!==key&&fullName(h)!==key);
+  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  closeDetailImmediate();
+  switchTab('people');
+  renderAll();
+  try{
+    const j=await gasPost({action:'deleteHuman',key,actor:SESSION?SESSION.email:''});
+    if(!j.ok)throw new Error(j.error||'Delete failed');
+    showSaveToast('✓ '+displayName+' deleted');
+  }catch(e){showSaveToast('⚠ Server delete failed — '+e.message);}
+}
 function selectRoleItem(el,btnId,panelId){const btn=document.getElementById(btnId);btn.textContent=el.dataset.name;btn.dataset.value=el.dataset.name;document.getElementById(panelId).classList.remove('open');}
 async function addNewRole(){const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(DATA.roles.some(x=>x.name===r)){alert('Role already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
 function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
