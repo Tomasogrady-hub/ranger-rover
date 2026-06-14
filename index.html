@@ -206,6 +206,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .edit-actions{padding:18px 20px 0;display:flex;gap:8px}
 .btn-save{flex:1;padding:14px;background:var(--enrich-teal);color:var(--enrich-dark);border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 .btn-cancel{padding:14px 18px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;cursor:pointer}
+.btn-danger{width:calc(100% - 40px);margin:10px 20px 0;padding:16px;background:var(--danger-bg);color:var(--danger);border:2px solid var(--danger);border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;display:block;text-align:center;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .btn-edit{width:calc(100% - 40px);padding:16px;background:var(--fog);color:var(--sage);border:2px solid var(--sage);border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin:15px 20px 0;display:block;text-align:center}
 .btn-exit{width:calc(100% - 40px);margin:18px 20px 0;padding:16px;background:var(--fog);color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:block;text-align:center}
 .btn-exit:active{background:var(--mist)}
@@ -673,8 +674,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='6.3';
-const BUILD_STAMP='2026-06-14 18:00 PT';
+const APP_VERSION='6.4';
+const BUILD_STAMP='2026-06-14 21:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2460,6 +2461,7 @@ function renderPD(h,edit){
           </div>
         </div>
       </div>
+      <div class="edit-wrap"><div class="edit-label">Role Additional</div><input class="edit-input" id="ef-RoleAdditional" value="${ea(h['Role Additional']||h.RoleAdditional||'')}" placeholder="e.g. Lead Ranger, Trainer…"></div>
       <hr class="section-divider">
       <div class="edit-wrap">
         <div class="edit-label">Profile Image URL</div>
@@ -2490,16 +2492,42 @@ function renderPD(h,edit){
       </div>
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
-      ${canEdit()?`<button style="width:calc(100% - 40px);margin:10px 20px 0;padding:16px;background:var(--danger-bg);color:var(--danger);border:2px solid var(--danger);border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;display:block;text-align:center" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
+      ${canEdit()?`<button class="btn-danger" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
   }
+}
+
+/* ═══ EMAIL CASCADE (local DATA update) ═══ */
+const SITE_EMAIL_COLS=['Ranger 1','Ranger 2','Principal','School Administrative Assistant','Main Contact 1','Main Contact 2','Main Contact 3','Plant Manager','CPM','Teachers','Other Contacts','Garden Keeper'];
+const CHORE_EMAIL_COLS=['Asked by','Asked of','Assigned to'];
+function cascadeEmailInData(oldEmail,newEmail){
+  // Update Sites — each col may hold a single email or comma-separated list
+  DATA.sites.forEach(site=>{
+    SITE_EMAIL_COLS.forEach(col=>{
+      const v=String(site[col]||'');
+      if(!v.includes(oldEmail))return;
+      // Handle comma/newline separated lists
+      const parts=v.split(/[,\n]+/).map(x=>x.trim());
+      const updated=parts.map(x=>x===oldEmail?(newEmail||''):x).filter(Boolean).join(', ');
+      site[col]=updated;
+    });
+  });
+  // Update Chores
+  DATA.chores.forEach(chore=>{
+    CHORE_EMAIL_COLS.forEach(col=>{
+      const v=String(chore[col]||'');
+      if(v===oldEmail)chore[col]=newEmail||'';
+    });
+  });
+  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
 }
 
 async function deleteContact(key,displayName){
   if(!confirm('Delete "'+displayName+'" from Humans?\n\nThis cannot be undone.'))return;
   _playChime();
   DATA.humans=DATA.humans.filter(h=>(h.Email||h.email||'')!==key&&fullName(h)!==key);
-  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  // Remove this email from Sites and Chores references
+  if(key&&key.includes('@'))cascadeEmailInData(key,'');
   closeDetailImmediate();
   switchTab('people');
   renderAll();
@@ -2507,7 +2535,7 @@ async function deleteContact(key,displayName){
     const j=await gasPost({action:'deleteHuman',key,actor:SESSION?SESSION.email:''});
     if(!j.ok)throw new Error(j.error||'Delete failed');
     showSaveToast('✓ '+displayName+' deleted');
-  }catch(e){showSaveToast('⚠ Server delete failed — '+e.message);}
+  }catch(e){showSaveToast('⚠ Delete failed: '+e.message);}
 }
 function selectRoleItem(el,btnId,panelId){const btn=document.getElementById(btnId);btn.textContent=el.dataset.name;btn.dataset.value=el.dataset.name;document.getElementById(panelId).classList.remove('open');}
 async function addNewRole(){const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(DATA.roles.some(x=>x.name===r)){alert('Role already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
@@ -2522,19 +2550,30 @@ async function savePerson(orig){
     'Mobile':(document.getElementById('ef-Mobile')||{value:''}).value.trim(),
     'Email':(document.getElementById('ef-Email')||{value:''}).value.trim(),
     'Role':roleBtn?roleBtn.dataset.value||roleBtn.textContent:'',
+    'Role Additional':(document.getElementById('ef-RoleAdditional')||{value:''}).value.trim(),
   };
   const imgEl=document.getElementById('ef-Img');if(imgEl)updates['Main Image']=imgEl.value.trim();
+  const newEmail=updates['Email']||orig;
+  const emailChanged=orig&&newEmail&&orig.toLowerCase()!==newEmail.toLowerCase();
+  // Update local DATA immediately
+  const hRec=DATA.humans.find(h=>(h.Email||h.email||'')===orig);
+  if(hRec){Object.keys(updates).forEach(k=>{hRec[k]=updates[k];});if(emailChanged)hRec.Email=newEmail;}
+  if(emailChanged)cascadeEmailInData(orig,newEmail);
   // Instant: chime → close → go to people list
   _playChime();
   closeDetailImmediate();
   switchTab('people');
+  renderAll();
   // Save in background
   (async()=>{
     try{
       await saveToSheet('Humans',orig,updates);
-      renderAll();
-      const displayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||updates['Email']||orig;
-      showSaveToast('✓ '+displayName+' saved');
+      if(emailChanged){
+        // Ask GAS to cascade the email change in Sites + Chores sheets
+        await gasPost({action:'cascadeEmail',oldEmail:orig,newEmail:newEmail,actor:SESSION?SESSION.email:''});
+      }
+      const displayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail;
+      showSaveToast('✓ '+displayName+' saved'+(emailChanged?' (email updated everywhere)':''));
     }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
   })();
 }
