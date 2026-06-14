@@ -773,8 +773,8 @@ button *{pointer-events:none}a *{pointer-events:none}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='5.9';
-const BUILD_STAMP='2026-06-12 09:00 PT';
+const APP_VERSION='6.0';
+const BUILD_STAMP='2026-06-14 09:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -797,7 +797,7 @@ let _humansLoaded=false;  // true once humans phase-2 fetch completes
 /* ── LOCATION STATE ── */
 let _userLat=null,_userLng=null;
 let _userMarker=null,_watchId=null;
-let _toastSite=null,_toastDismissed=false,_locActive=false;
+let _toastSite=null,_toastSiteKey=null,_toastDismissed=false,_locActive=false;
 window._fsDistMap={};
 
 /* ═══ UTILS ═══ */
@@ -1854,7 +1854,8 @@ function _schoolCardHtml(s,i){
     :`<span style="font-size:15px">${label}</span>`;
   const distM=window._fsDistMap&&window._fsDistMap[name]!=null?window._fsDistMap[name]:null;
   const distBadge=distM!==null?`<span class="dist-badge">${_fmtDist(distM)}</span>`:'';
-  return `<div class="school-card" onclick="showSchoolDetail(${i})"${dimmed?' style="opacity:.5"':''}>
+  const siteKey=sf(s,'Key','key')||'';
+  return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)"${dimmed?' style="opacity:.5"':''}>
     <div class="sdm dm-${dc(dist)}"></div>
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${name}</span>${distBadge}</div>
@@ -1923,7 +1924,7 @@ function _rangerCardHtml(h){
   const isPrimary=cats.some(c=>c==='ranger'||c==='master_ranger'||c==='ranger_applicant'||c==='ranger_past');
   const rangerSites=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email);
   const gkSites=DATA.sites.filter(s=>sf(s,'Garden Keeper','GardenKeeper')===email);
-  const sLink=(s)=>{const n=sf(s,'Name','name');return `<button class="school-link-btn" onclick="showSchoolDetailByName('${esc(n)}');event.stopPropagation()">${n}</button>`;};
+  const sLink=(s)=>{const n=sf(s,'Name','name');const k=sf(s,'Key','key');return `<button class="school-link-btn" onclick="showSchoolDetailByKey('${ea(k)}');event.stopPropagation()">${n}</button>`;};
   let roleBlock='';
   const gkFilterActive=(crf==='garden_keeper');
   if(isPrimary&&!gkFilterActive){
@@ -2153,7 +2154,7 @@ function buildMapMarkers(){
       iconSize:[14,14],iconAnchor:[7,7]
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
-    const openHandler=()=>{const idx=DATA.sites.indexOf(s);window._fs=DATA.sites;showSchoolDetail(idx);};
+    const openHandler=()=>{showSchoolDetailByKey(sf(s,'Key','key')||'');};
     marker.on('click',openHandler);
     marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-10],interactive:true});
     marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
@@ -2230,10 +2231,11 @@ function _checkNearestAndToast(lat,lng){
   const near=_nearestSite(lat,lng,200);
   if(near&&!_toastDismissed){
     const name=sf(near.site,'Name','name');
-    if(_toastSite!==name){_toastSite=name;document.getElementById('toastSiteName').textContent=name;document.getElementById('toastSiteDist').textContent=_fmtDist(near.dist);document.getElementById('nearMeToast').classList.add('visible');}
+    const key=sf(near.site,'Key','key');
+    if(_toastSite!==name){_toastSite=name;_toastSiteKey=key;document.getElementById('toastSiteName').textContent=name;document.getElementById('toastSiteDist').textContent=_fmtDist(near.dist);document.getElementById('nearMeToast').classList.add('visible');}
   } else if(!near){_toastSite=null;_toastDismissed=false;document.getElementById('nearMeToast').classList.remove('visible');}
 }
-function openToastSite(){if(!_toastSite)return;dismissToast();showSchoolDetailByName(_toastSite);}
+function openToastSite(){if(!_toastSite)return;dismissToast();showSchoolDetailByKey(_toastSiteKey||'');}
 function dismissToast(){_toastDismissed=true;document.getElementById('nearMeToast').classList.remove('visible');}
 function locateMe(){
   if(!navigator.geolocation){alert('Geolocation is not supported by your browser.');return;}
@@ -2290,7 +2292,8 @@ function _activateNearMeFilter(){
 
 /* ═══ SCHOOL DETAIL ═══ */
 function showSchoolDetail(idx){const site=(window._fs||DATA.sites)[idx];if(!site)return;renderSchoolDetail(site,false);openDetail();}
-function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name','name')===name);if(!site)return;window._fs=DATA.sites;renderSchoolDetail(site,false);openDetail();}
+function showSchoolDetailByKey(key){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolDetail(site,false);openDetail();}
+function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name','name')===name);if(!site)return;renderSchoolDetail(site,false);openDetail();}
 
 function renderSchoolDetail(site,editMode){
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
@@ -2408,7 +2411,7 @@ function renderSchoolDetail(site,editMode){
         <input class="edit-input" id="ef-VideoLink" placeholder="https://drive.google.com/…" value="${ea(videoSrc)}" style="font-size:16px">
       </div>
       <div class="edit-actions" style="flex-direction:column">
-        <button class="btn-save" style="width:100%;font-size:17px;padding:18px" onclick="saveSiteEdit('${ea(name)}')">✓ Finished — Save &amp; Close</button>
+        <button class="btn-save" style="width:100%;font-size:17px;padding:18px" onclick="saveSiteEdit(window._currentSite.Key||window._currentSite.key||'')">✓ Finished — Save &amp; Close</button>
         <button class="btn-cancel" style="width:100%;text-align:center" onclick="renderSchoolDetail(window._currentSite,false)">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
@@ -2420,18 +2423,21 @@ function renderSchoolDetail(site,editMode){
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
-    // All contact rows use the same helper — name is always a tappable link if in DB
-    function crow(label,email){
-      if(!email)return '';
-      const n=hn(email),m=hm(email);
-      const inDB=!!DATA.humans.find(p=>(p.Email||p.email||'')===email||(fullName(p)||'')===email);
-      const lookupKey=DATA.humans.find(p=>(p.Email||p.email||'')===email)
-        ?(email)
-        :(DATA.humans.find(p=>(fullName(p)||'')===email)?email:'');
-      const nameHtml=inDB
-        ?`<button class="contact-tap" onclick="showPersonDetail('${ea(email)}')">${n}</button>`
-        :`<span style="font-weight:500">${n||email}</span>`;
-      return `<div class="ds"><div class="dl">${label}</div><div><div class="dv" style="margin-bottom:5px">${nameHtml}<br><span style="font-size:15px;color:var(--silver)">${email}</span></div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(m,email)}</div></div></div>`;
+    // All contact rows — field stores email (primary key); display name derived from Humans
+    function crow(label,val){
+      if(!val)return '';
+      const isEmail=val.includes('@');
+      const h=isEmail
+        ?DATA.humans.find(p=>(p.Email||p.email||'').toLowerCase()===val.toLowerCase())
+        :DATA.humans.find(p=>(fullName(p)||'').toLowerCase()===val.toLowerCase());
+      const displayName=h?fullName(h):val;
+      const lookupKey=h?(h.Email||h.email||val):val;
+      const mobile=h?(h.Mobile||h.mobile||''):'';
+      const emailDisplay=isEmail?val:(h?(h.Email||h.email||''):'');
+      const nameHtml=h
+        ?`<button class="contact-tap" onclick="showPersonDetail('${ea(lookupKey)}')">${displayName}</button>`
+        :`<span style="font-weight:500">${displayName}</span>`;
+      return `<div class="ds"><div class="dl">${label}</div><div><div class="dv" style="margin-bottom:5px">${nameHtml}${emailDisplay?`<br><span style="font-size:15px;color:var(--silver)">${emailDisplay}</span>`:''}</div><div style="display:flex;gap:7px;flex-wrap:wrap">${ctaRow(mobile,lookupKey)}</div></div></div>`;
     }
     // Ranger rows also use crow so they get the same hotlink treatment
     const ranger1Html=r1e?crow('Ranger'+(r2e?' 1':''),r1e)
@@ -2461,7 +2467,8 @@ function toggleDropdown(id){const el=document.getElementById(id);document.queryS
 function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .dropdown-item`).forEach(i=>{i.style.display=i.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});}
 function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel');const cs=panel.closest('.custom-select');const btn=cs.querySelector('.custom-select-btn');const email=isNone?'':el.dataset.email;btn.textContent=isNone?'— None —':el.dataset.name;btn.dataset.value=email;panel.classList.remove('open');}
 
-async function saveSiteEdit(siteName){
+async function saveSiteEdit(siteKey){
+  const siteName=sf(window._currentSite,'Name','name')||siteKey;
   // Snapshot all form values immediately
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
@@ -2497,7 +2504,7 @@ async function saveSiteEdit(siteName){
     const inputMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2'};
     for(const[key,file]of Object.entries(_pPhotos)){
       try{
-        const url=await _uploadSitePhoto(siteName,key,file);
+        const url=await _uploadSitePhoto(siteKey,key,file);
         if(url)updates[inputMap[key]||key]=url;
       }catch(pe){console.warn('Site photo upload failed:',pe);}
     }
@@ -2507,8 +2514,8 @@ async function saveSiteEdit(siteName){
     if(videoUrl)updates['Schedule Video']=videoUrl;
     window._pendingSiteVideoUrl=null;
     try{
-      await saveToSheet('Sites',siteName,updates);
-      const site=(window._fs||DATA.sites).find(s=>sf(s,'Name','name')===siteName);
+      await saveToSheet('Sites',siteKey,updates);
+      const site=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
       if(site)Object.assign(site,updates);
       renderAll();
       showSaveToast('✓ '+siteName+' saved');
@@ -2783,9 +2790,11 @@ async function saveNewContactForSite(returnBtnId){
       if(siteCol==='Ranger 2')      siteUpdates['Ranger 2 Name']=displayName;
       if(siteCol==='Garden Keeper') siteUpdates['Garden Keeper Name']=displayName;
       try{
-        await saveToSheet('Sites', siteName, siteUpdates);
+        const _siteForKey=DATA.sites.find(x=>sf(x,'Name','name')===siteName);
+        const _siteKeyVal=_siteForKey?(sf(_siteForKey,'Key','key')||siteName):siteName;
+        await saveToSheet('Sites', _siteKeyVal, siteUpdates);
         // Patch in-memory cache so the site card/detail reflects the change immediately
-        const site=DATA.sites.find(s=>sf(s,'Name','name')===siteName);
+        const site=DATA.sites.find(s=>sf(s,'Name','name')===siteName||sf(s,'Key','key')===siteName);
         if(site)Object.assign(site, siteUpdates);
       }catch(se){
         // Non-fatal: person was saved; site assignment failed. Warn and carry on.
@@ -3127,20 +3136,16 @@ async function saveSelfEdit(email){
 
 async function deleteChoreFromDetail(choreId,description){
   if(!confirm(`Delete "${(description||'this chore').slice(0,60)}"?\n\nThis cannot be undone.`))return;
-  // Instant: chime + remove from local data + close + navigate
   _playChime();
   DATA.chores=DATA.chores.filter(x=>(x.ID||x.id)!==choreId);
   localStorage.setItem(CFG.CK,JSON.stringify(DATA));
   closeDetailImmediate();
   switchTab('chores');
   renderAll();
-  // Background delete on server
   try{
     const j=await gasPost({action:'deleteChore',choreId,actor:SESSION?SESSION.email:'',subject:description||choreId});
     if(!j.ok)throw new Error(j.error||'Delete failed');
-  }catch(e){
-    showSaveToast('⚠ Server delete failed — '+e.message);
-  }
+  }catch(e){showSaveToast('⚠ Server delete failed — '+e.message);}
 }
 
 /* ═══ PHOTO ACTION SHEET ═══ */
@@ -3383,13 +3388,13 @@ function previewSelfPhoto(input){
   reader.readAsDataURL(file);
 }
 
-async function _uploadSitePhoto(siteName,fieldKey,file){
+async function _uploadSitePhoto(siteKeyOrName,fieldKey,file){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onload=async e=>{
       try{
         const base64=e.target.result.split(',')[1];
-        const j=await gasPost({action:'uploadSiteImage',siteName,fieldKey,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
+        const j=await gasPost({action:'uploadSiteImage',siteKey:siteKeyOrName,siteName:siteKeyOrName,fieldKey,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
         j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
       }catch(err){reject(err);}
     };
