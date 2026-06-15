@@ -674,8 +674,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='6.4';
-const BUILD_STAMP='2026-06-14 21:00 PT';
+const APP_VERSION='6.5';
+const BUILD_STAMP='2026-06-14 22:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1082,8 +1082,10 @@ async function saveToSheet(sheet,key,updates){
   const j=await gasPost({sheet,key,updates});
   if(!j.ok)throw new Error(j.error||'Save failed');
   const arr=sheet==='Humans'?DATA.humans:DATA.sites;
-  const kf=sheet==='Humans'?'Email':'Name';
-  const row=arr.find(x=>(x[kf]||'')===key);
+  // Sites are keyed by 'Key' column; Humans by 'Email'
+  const row=sheet==='Humans'
+    ? arr.find(x=>(x.Email||x.email||'')===key)
+    : arr.find(x=>(x.Key||x.key||'')===key);
   if(row)Object.assign(row,updates);
   localStorage.setItem(CFG.CK,JSON.stringify(DATA));
 }
