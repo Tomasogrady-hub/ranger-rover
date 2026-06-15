@@ -674,8 +674,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='6.9';
-const BUILD_STAMP='2026-06-15 09:00 PT';
+const APP_VERSION='7.0';
+const BUILD_STAMP='2026-06-15 10:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2363,6 +2363,8 @@ function renderSchoolDetail(site,editMode){
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingSitePhotos={};
     window._sitePhotosCleared={};
+    window._pendingSiteUploadPromises={};
+    window._pendingSitePhotoUrls={};
     window._pendingSiteVideoUrl=null;
     window._pendingSiteVideoPromise=null;
     window._currentEditSaveFn=()=>saveSiteEdit(window._currentSite.Key||window._currentSite.key||sf(window._currentSite,'Name','name'));
@@ -2454,17 +2456,32 @@ async function saveSiteEdit(siteKey){
   switchTab('schools');
   // Save everything in the background
   (async()=>{
-    // Upload any pending site photos first — sequentially so each one lands before the next
+    // Wait for any in-flight eager uploads to complete
     const inputMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2'};
+    const uploadPromises=window._pendingSiteUploadPromises||{};
+    const stillPending=Object.keys(uploadPromises);
+    if(stillPending.length>0){
+      showSaveToast('⏳ Finishing photo uploads…');
+      await Promise.allSettled(stillPending.map(k=>uploadPromises[k]));
+    }
+    window._pendingSiteUploadPromises={};
+    // Pick up any URLs that resolved (either eagerly or now)
+    const resolvedUrls=window._pendingSitePhotoUrls||{};
+    window._pendingSitePhotoUrls={};
+    Object.entries(resolvedUrls).forEach(([key,url])=>{
+      const colName=inputMap[key]||key;
+      if(url)updates[colName]=url;
+    });
+    // Retry any photos that failed eager upload (stored in _pPhotos fallback)
     const photoEntries=Object.entries(_pPhotos);
     for(const[key,file]of photoEntries){
       const colName=inputMap[key]||key;
+      if(updates[colName])continue; // already uploaded eagerly
       showSaveToast('📤 Uploading photo…');
       try{
         const url=await _uploadSitePhoto(siteKey,key,file);
         if(url){
           updates[colName]=url;
-          // Update local DATA immediately so it's correct even if saveToSheet fails
           const siteRow=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
           if(siteRow)siteRow[colName]=url;
           localStorage.setItem(CFG.CK,JSON.stringify(DATA));
@@ -3374,15 +3391,75 @@ function previewNewChorePhotoFile(file){
 }
 function previewSitePhotoFile(file,previewId,fieldKey){
   if(!file)return;
-  if(!window._pendingSitePhotos)window._pendingSitePhotos={};
-  window._pendingSitePhotos[fieldKey]=file;
+  // Map fieldKey → hidden input id and column name
+  const inputIdMap={MainImage:'ef-MainImg',HelpImg1:'ef-HelpImg1',HelpImg2:'ef-HelpImg2'};
+  const colMap={MainImage:'Main Image',HelpImg1:'Helpful Image 1',HelpImg2:'Helpful Image 2'};
+  const inputId=inputIdMap[fieldKey];
+  const colName=colMap[fieldKey];
+  // Show local preview immediately
   const reader=new FileReader();
   reader.onload=e=>{
     const img=document.getElementById(previewId);
-    if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px';}
+    if(img){
+      img.src=e.target.result;
+      img.style.display='block';
+      img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px;opacity:.7';
+      // Show uploading badge on the preview
+      const badge=document.createElement('div');
+      badge.id='upload-badge-'+fieldKey;
+      badge.style='position:absolute;top:6px;left:6px;background:rgba(0,0,0,.6);color:white;font-size:12px;font-family:var(--font-b);padding:3px 8px;border-radius:20px;pointer-events:none';
+      badge.textContent='⬆ Uploading…';
+      // Wrap in relative container if not already
+      const wrap=img.parentElement;
+      if(wrap){wrap.style.position='relative';wrap.appendChild(badge);}
+    }
     showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
+  // ── START UPLOAD IMMEDIATELY ──────────────────────────────────────────────
+  if(!window._pendingSiteUploadPromises)window._pendingSiteUploadPromises={};
+  if(!window._pendingSitePhotoUrls)window._pendingSitePhotoUrls={};
+  const site=window._currentSite;
+  if(!site||!CFG.URL){
+    // No site context yet (shouldn't happen) — fall back to old file-queue approach
+    if(!window._pendingSitePhotos)window._pendingSitePhotos={};
+    window._pendingSitePhotos[fieldKey]=file;
+    return;
+  }
+  const siteKey=site.Key||site.key||sf(site,'Name','name');
+  const siteName=sf(site,'Name','name');
+  const promise=(async()=>{
+    try{
+      const url=await _uploadSitePhoto(siteKey,fieldKey,file);
+      if(url){
+        // Store URL so saveSiteEdit can use it
+        window._pendingSitePhotoUrls[fieldKey]=url;
+        // Update hidden input so gv() picks it up in saveSiteEdit
+        const inp=document.getElementById(inputId);
+        if(inp)inp.value=url;
+        // Update local DATA immediately
+        if(site&&colName)site[colName]=url;
+        const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+        if(row&&colName)row[colName]=url;
+        localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+        // Update preview: full opacity + green badge
+        const img=document.getElementById(previewId);
+        if(img)img.style.opacity='1';
+        const badge=document.getElementById('upload-badge-'+fieldKey);
+        if(badge){badge.textContent='✓ Uploaded';badge.style.background='rgba(34,139,34,.85)';setTimeout(()=>badge.remove(),2500);}
+      }
+    }catch(err){
+      // Upload failed — fall back to queuing the file for retry on Save
+      if(!window._pendingSitePhotos)window._pendingSitePhotos={};
+      window._pendingSitePhotos[fieldKey]=file;
+      const badge=document.getElementById('upload-badge-'+fieldKey);
+      if(badge){badge.textContent='⚠ Will retry on Save';badge.style.background='rgba(180,60,0,.85)';}
+      const img=document.getElementById(previewId);
+      if(img)img.style.opacity='1';
+      console.warn('Eager site photo upload failed, will retry on save:',err);
+    }
+  })();
+  window._pendingSiteUploadPromises[fieldKey]=promise;
 }
 function previewSelfPhotoFile(file){
   if(!file)return;
@@ -3485,11 +3562,8 @@ function showUploadPrompt(mediaType){
       <style>@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}</style>
       <div style="text-align:center;margin-bottom:22px">
         <div style="font-size:44px;margin-bottom:10px">${isVideo?'🎥':'📷'}</div>
-        <div style="font-family:var(--font-d);font-size:33px;font-style:italic;color:var(--ink);margin-bottom:10px">${isVideo?'Video uploading…':'Photo ready'}</div>
-        <div style="font-size:17px;color:var(--stone);line-height:1.7;max-width:310px;margin:0 auto">${isVideo
-          ?'Uploading in the background — you can close now and it will finish automatically.'
-          :'Photo attached and ready to save.'
-        }</div>
+        <div style="font-family:var(--font-d);font-size:33px;font-style:italic;color:var(--ink);margin-bottom:10px">${isVideo?'Video uploading…':'Photo uploading…'}</div>
+        <div style="font-size:17px;color:var(--stone);line-height:1.7;max-width:310px;margin:0 auto">Uploading in the background — you can close now or add more photos and it will finish automatically.</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px">
         <button id="upr-save" style="padding:19px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:19px;font-weight:600;cursor:pointer;letter-spacing:.02em">✓ Save &amp; Close</button>
