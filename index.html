@@ -674,8 +674,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='7.0';
-const BUILD_STAMP='2026-06-15 10:00 PT';
+const APP_VERSION='7.1';
+const BUILD_STAMP='2026-06-15 11:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -948,10 +948,10 @@ function buildNav(lvl,plantsOn){
   const row1=document.getElementById('navRow1');
   const row2=document.getElementById('navRow2');
   if(!row1||!row2)return;
-  // Level 3: one row of 4
+  // Level 3: one row of 4 — Notes instead of Latest
   if(lvl>=3){
     row1.innerHTML=
-      _navBtn('latest','Latest')+
+      _navBtn('notes','Notes')+
       _navBtn('schools','Schools')+
       _navBtn('map','Map')+
       _navBtn('chores','Chores');
@@ -2544,7 +2544,23 @@ function renderPD(h,edit){
           </div>
         </div>
       </div>
-      <div class="edit-wrap"><div class="edit-label">Role Additional</div><input class="edit-input" id="ef-RoleAdditional" value="${ea(h['Role Additional']||h.RoleAdditional||'')}" placeholder="e.g. Lead Ranger, Trainer…"></div>
+      <div class="edit-wrap" style="position:relative;z-index:40">
+        <div class="edit-label">Role Additional</div>
+        <div class="custom-select">
+          <button type="button" class="custom-select-btn" id="ra-select-btn" onclick="toggleDropdown('ra-dd')" data-value="${ea(h['Role Additional']||h.RoleAdditional||'')}">
+            ${h['Role Additional']||h.RoleAdditional||'— None —'}
+          </button>
+          <div class="dropdown-panel" id="ra-dd">
+            <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('ra-dd',this.value)"></div>
+            <div class="dropdown-list">
+              <div class="dropdown-item" data-name="" onclick="selectRoleAddItem(this,'ra-select-btn','ra-dd')">— None —</div>
+              ${[...new Set(DATA.humans.map(p=>p['Role Additional']||p.RoleAdditional||'').filter(v=>v.trim()))].sort().map(v=>`<div class="dropdown-item${(h['Role Additional']||h.RoleAdditional||'')===v?' selected':''}" data-name="${ea(v)}" onclick="selectRoleAddItem(this,'ra-select-btn','ra-dd')">${v}</div>`).join('')}
+            </div>
+            <div class="dropdown-add" onclick="addNewRoleAdditional()">+ Add custom…</div>
+          </div>
+        </div>
+        <input type="hidden" id="ef-RoleAdditional" value="${ea(h['Role Additional']||h.RoleAdditional||'')}">
+      </div>
       <hr class="section-divider">
       <div class="edit-wrap">
         <div class="edit-label">Profile Image URL</div>
@@ -2621,6 +2637,34 @@ async function deleteContact(key,displayName){
   }catch(e){showSaveToast('⚠ Delete failed: '+e.message);}
 }
 function selectRoleItem(el,btnId,panelId){const btn=document.getElementById(btnId);btn.textContent=el.dataset.name;btn.dataset.value=el.dataset.name;document.getElementById(panelId).classList.remove('open');}
+function selectRoleAddItem(el,btnId,panelId){
+  const val=el.dataset.name;
+  const btn=document.getElementById(btnId);
+  if(btn){btn.textContent=val||'— None —';btn.dataset.value=val;}
+  const inp=document.getElementById('ef-RoleAdditional');
+  if(inp)inp.value=val;
+  document.getElementById(panelId).classList.remove('open');
+}
+function addNewRoleAdditional(){
+  const val=prompt('Enter Role Additional value:');
+  if(!val||!val.trim())return;
+  const v=val.trim();
+  const panel=document.getElementById('ra-dd');
+  const list=panel?panel.querySelector('.dropdown-list'):null;
+  if(list){
+    const item=document.createElement('div');
+    item.className='dropdown-item';
+    item.dataset.name=v;
+    item.textContent=v;
+    item.onclick=function(){selectRoleAddItem(this,'ra-select-btn','ra-dd');};
+    list.appendChild(item);
+  }
+  const btn=document.getElementById('ra-select-btn');
+  if(btn){btn.textContent=v;btn.dataset.value=v;}
+  const inp=document.getElementById('ef-RoleAdditional');
+  if(inp)inp.value=v;
+  if(panel)panel.classList.remove('open');
+}
 async function addNewRole(){const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(DATA.roles.some(x=>x.name===r)){alert('Role already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
 function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
 
