@@ -674,8 +674,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='6.8';
-const BUILD_STAMP='2026-06-15 01:00 PT';
+const APP_VERSION='6.9';
+const BUILD_STAMP='2026-06-15 09:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1446,8 +1446,21 @@ async function saveChoreEdit(choreId){
     const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
     for(let i=0;i<3;i++){
       const file=_pPhotos[i];if(!file)continue;
-      try{const url=await _uploadChorePhotoBase64(choreId,file,imgCols[i]);if(url)updates[imgCols[i]]=url;}
-      catch(pe){console.warn('Chore photo upload failed:',pe);}
+      showSaveToast('📤 Uploading photo…');
+      try{
+        const url=await _uploadChorePhotoBase64(choreId,file,imgCols[i]);
+        if(url){
+          updates[imgCols[i]]=url;
+          // Update local DATA immediately
+          const choreRow=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+          if(choreRow)choreRow[imgCols[i]]=url;
+          localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+          showSaveToast('✓ Photo uploaded');
+        }
+      }catch(pe){
+        showSaveToast('⚠ Photo upload failed — '+pe.message);
+        console.warn('Chore photo upload failed:',pe);
+      }
     }
     if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
     const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
@@ -2410,9 +2423,16 @@ async function saveSiteEdit(siteKey){
   const tv=gv('ef-Type');if(tv!==null)updates['Type']=tv;
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
   const sch=gv('ef-Schedule');if(sch!==null)updates['Schedule']=sch;
-  const mi=gv('ef-MainImg');if(mi!==null)updates['Main Image']=mi;
-  const hi1=gv('ef-HelpImg1');if(hi1!==null)updates['Helpful Image 1']=hi1;
-  const hi2=gv('ef-HelpImg2');if(hi2!==null)updates['Helpful Image 2']=hi2;
+  // Only include image fields if they have a real value (prevents blank from
+  // overwriting a freshly-uploaded photo). Pending uploads fill in the URL themselves.
+  const mi=gv('ef-MainImg');if(mi)updates['Main Image']=mi;
+  const hi1=gv('ef-HelpImg1');if(hi1)updates['Helpful Image 1']=hi1;
+  const hi2=gv('ef-HelpImg2');if(hi2)updates['Helpful Image 2']=hi2;
+  // If a photo was fire-and-forget cleared, explicitly write '' to override old value
+  const _cl=window._sitePhotosCleared||{};
+  if(_cl['ef-MainImg'])updates['Main Image']='';
+  if(_cl['ef-HelpImg1'])updates['Helpful Image 1']='';
+  if(_cl['ef-HelpImg2'])updates['Helpful Image 2']='';
   const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;if(r1v)updates['Ranger 1 Name']=hn(r1v);}
   const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;if(r2v)updates['Ranger 2 Name']=hn(r2v);}
   const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;if(gkv)updates['Garden Keeper Name']=hn(gkv);}
@@ -2434,13 +2454,26 @@ async function saveSiteEdit(siteKey){
   switchTab('schools');
   // Save everything in the background
   (async()=>{
-    // Upload any pending site photos first
+    // Upload any pending site photos first — sequentially so each one lands before the next
     const inputMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2'};
-    for(const[key,file]of Object.entries(_pPhotos)){
+    const photoEntries=Object.entries(_pPhotos);
+    for(const[key,file]of photoEntries){
+      const colName=inputMap[key]||key;
+      showSaveToast('📤 Uploading photo…');
       try{
         const url=await _uploadSitePhoto(siteKey,key,file);
-        if(url)updates[inputMap[key]||key]=url;
-      }catch(pe){console.warn('Site photo upload failed:',pe);}
+        if(url){
+          updates[colName]=url;
+          // Update local DATA immediately so it's correct even if saveToSheet fails
+          const siteRow=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+          if(siteRow)siteRow[colName]=url;
+          localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+          showSaveToast('✓ Photo uploaded');
+        }
+      }catch(pe){
+        showSaveToast('⚠ Photo upload failed — '+pe.message);
+        console.warn('Site photo upload failed:',pe);
+      }
     }
     // Handle video
     if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
@@ -2448,9 +2481,15 @@ async function saveSiteEdit(siteKey){
     if(videoUrl)updates['Schedule Video']=videoUrl;
     window._pendingSiteVideoUrl=null;
     try{
-      await saveToSheet('Sites',siteKey,updates);
+      // Strip image cols that GAS already wrote during upload — avoids double-write race
+      const nonImgUpdates={...updates};
+      const uploadedKeys=photoEntries.map(([k])=>inputMap[k]||k).filter(c=>updates[c]&&!updates[c].startsWith('Sites_'));
+      uploadedKeys.forEach(c=>delete nonImgUpdates[c]);
+      await saveToSheet('Sites',siteKey,nonImgUpdates);
+      // Merge ALL updates (including image URLs) into local DATA
       const site=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
       if(site)Object.assign(site,updates);
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
       renderAll();
       showSaveToast('✓ '+siteName+' saved');
     }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
