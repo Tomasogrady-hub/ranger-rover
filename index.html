@@ -674,8 +674,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='6.5';
-const BUILD_STAMP='2026-06-14 22:00 PT';
+const APP_VERSION='6.7';
+const BUILD_STAMP='2026-06-15 00:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1282,20 +1282,44 @@ function chorePhotoSlotHtml(existingSrc, slotIdx, prefix){
 
 function _deleteChorePhotoSlot(slotIdx,prefix){
   if(!confirm('Remove this photo?'))return;
+  // Cancel any pending upload for this slot
   if(window._pendingChorePhotos)delete window._pendingChorePhotos[slotIdx];
+  // Clear the UI slot immediately
   const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
   if(slot){
     slot.style.border='1.5px dashed var(--mist)';
     slot.innerHTML='<span style="font-size:26px;color:var(--silver)">+</span>';
     const btn=slot.nextElementSibling;
     if(btn){btn.style.background='var(--fog)';btn.style.color='var(--ink)';btn.style.borderColor='var(--mist)';btn.textContent='📷 Add';}
-    // Also null out delete btn
     const delBtn=btn?btn.nextElementSibling:null;
     if(delBtn)delBtn.style.display='none';
   }
-  // Mark the column for deletion on save
-  if(!window._deleteChorePhotos)window._deleteChorePhotos={};
-  window._deleteChorePhotos[slotIdx]=true;
+  // ── Fire-and-forget background clear ─────────────────────────────────────
+  // Clear the sheet cell right now — don't wait for Save button
+  const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
+  const colName=imgCols[slotIdx];
+  const chore=window._currentChore;
+  if(chore&&colName&&CFG.URL){
+    const choreId=chore.ID||chore.id;
+    const choreSite=chore.Site||chore.site||'';
+    // Clear locally so re-renders don't flash the old image
+    if(chore[colName]!==undefined)chore[colName]='';
+    // Update DATA cache
+    const row=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+    if(row)row[colName]='';
+    // Track so saveChoreEdit skips this column
+    if(!window._chorePhotosCleared)window._chorePhotosCleared={};
+    window._chorePhotosCleared[slotIdx]=true;
+    (async()=>{
+      try{
+        await gasPost({action:'updateChore',choreId,updates:{[colName]:''},actor:SESSION?SESSION.email:''});
+        localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+        showSaveToast('🗑 Photo removed from chore');
+      }catch(e){
+        showSaveToast('⚠ Could not remove photo — '+e.message);
+      }
+    })();
+  }
 }
 
 function _previewChoreSlot(file, slotIdx, prefix){
@@ -1414,7 +1438,7 @@ async function saveChoreEdit(choreId){
   const _pVidPromise=window._pendingVideoPromise;
   const _preUploadedVideoUrl=window._pendingVideoUrl||'';
   const _vidInputVal=(document.getElementById('ce-VideoLink')||{}).value?.trim()||'';
-  window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
+  window._pendingChorePhotos={};window._chorePhotosCleared={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
   _playChime();
   closeDetailImmediate();
   switchTab('chores');
@@ -1625,7 +1649,7 @@ async function saveNewChore(){
   const photos={...window._pendingChorePhotos||{}};
   const vidPromise=window._pendingVideoPromise;
   const vidInputVal=(document.getElementById('nc-VideoLink')||{value:''}).value.trim();
-  window._pendingChorePhotos={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
+  window._pendingChorePhotos={};window._chorePhotosCleared={};window._pendingVideoUrl=null;window._pendingVideoPromise=null;
   // Instant close + chime + navigate
   _playChime();closeDetailImmediate();switchTab('chores');
   await _execSaveNewChore(choreData,photos,vidPromise,vidInputVal);
@@ -2325,9 +2349,10 @@ function renderSchoolDetail(site,editMode){
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingSitePhotos={};
+    window._sitePhotosCleared={};
     window._pendingSiteVideoUrl=null;
     window._pendingSiteVideoPromise=null;
-    window._currentEditSaveFn=()=>saveSiteEdit(name);
+    window._currentEditSaveFn=()=>saveSiteEdit(window._currentSite.Key||window._currentSite.key||sf(window._currentSite,'Name','name'));
     window._currentEditContext='sites';
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
@@ -3525,12 +3550,42 @@ async function saveNotes(){
 /* ═══ MEDIA DELETE HELPERS ═══ */
 function _clearSitePhoto(previewId,inputId){
   if(!confirm('Remove this photo?'))return;
+  // Clear preview immediately
   const img=document.getElementById(previewId);if(img){img.src='';img.style.display='none';}
   const inp=document.getElementById(inputId);if(inp)inp.value='';
-  // Remove from pending uploads if not yet saved
+  // Remove from pending uploads if not yet saved (cancels any queued upload)
   if(window._pendingSitePhotos){
     const keyMap={'ef-preview-MainImage':'MainImage','ef-preview-HelpImg1':'HelpImg1','ef-preview-HelpImg2':'HelpImg2'};
     delete window._pendingSitePhotos[keyMap[previewId]||previewId];
+  }
+  // ── Fire-and-forget background clear ────────────────────────────────────────
+  // Don't wait for the main Save button — clear the sheet cell right now so the
+  // user sees instant feedback and doesn't get a "Save failed" if they close.
+  const colMap={'ef-MainImg':'Main Image','ef-HelpImg1':'Helpful Image 1','ef-HelpImg2':'Helpful Image 2'};
+  const colName=colMap[inputId];
+  const site=window._currentSite;
+  if(site&&colName&&CFG.URL){
+    const siteKey=site.Key||site.key||sf(site,'Name','name');
+    const siteName=sf(site,'Name','name');
+    // Mark locally right away so re-renders don't flash the old image
+    if(site[colName]!==undefined)site[colName]='';
+    if(site['Main Image']!==undefined&&colName==='Main Image')site['Main Image']='';
+    // Track that this field is already cleared so saveSiteEdit skips it
+    if(!window._sitePhotosCleared)window._sitePhotosCleared={};
+    window._sitePhotosCleared[inputId]=true;
+    // Background GAS call
+    (async()=>{
+      try{
+        await gasPost({sheet:'Sites',key:siteKey,updates:{[colName]:''}});
+        // Also update local DATA so cache is correct
+        const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+        if(row)row[colName]='';
+        localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+        showSaveToast('🗑 Photo removed from '+siteName);
+      }catch(e){
+        showSaveToast('⚠ Could not remove photo — '+e.message);
+      }
+    })();
   }
 }
 function _clearSiteVideo(inputId,statusId){
