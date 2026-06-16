@@ -674,7 +674,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='7.5';
+const APP_VERSION='7.6';
 const BUILD_STAMP='2026-06-15 13:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -1462,19 +1462,9 @@ async function saveChoreEdit(choreId){
         console.warn('Chore photo upload failed:',pe);
       }
     }
-    // Await video upload — get URL from promise return value, not global (which was cleared)
-    let videoUrl=_preUploadedVideoUrl||_vidInputVal||'';
-    if(_pVidPromise){
-      showSaveToast('⏳ Finishing video upload…');
-      try{
-        const resolvedUrl=await _pVidPromise;
-        if(resolvedUrl)videoUrl=resolvedUrl;
-        else if(window._pendingVideoUrl)videoUrl=window._pendingVideoUrl;
-        showSaveToast('✓ Video uploaded');
-      }catch(e){
-        showSaveToast('⚠ Video upload failed — '+e.message+'. Chore saved without video.');
-      }
-    }
+    // Video URL: if _doVideoUpload already set it in global, use it;
+    // otherwise fall back to the hidden input (existing video or direct URL entry)
+    const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal||'';
     if(videoUrl)updates['Helpful Video']=videoUrl;
     window._pendingVideoUrl=null;
     try{
@@ -2502,20 +2492,9 @@ async function saveSiteEdit(siteKey){
         console.warn('Site photo upload failed:',pe);
       }
     }
-    // Handle video — await promise and capture URL from return value
-    let videoUrl=_preUploadedVideoUrl||_vidInputVal||'';
-    if(_pVidPromise){
-      showSaveToast('⏳ Finishing video upload…');
-      try{
-        const resolvedUrl=await _pVidPromise;
-        if(resolvedUrl)videoUrl=resolvedUrl;
-        else if(window._pendingSiteVideoUrl)videoUrl=window._pendingSiteVideoUrl;
-        showSaveToast('✓ Video uploaded');
-      }catch(e){
-        showSaveToast('⚠ Video upload failed — '+e.message+'. Site saved without video.');
-      }
-    }
-    if(videoUrl)updates['Helpful Video 1']=videoUrl; // correct Sites column
+    // Video URL: set by _doVideoUpload dataUpdater before saveFn is called
+    const videoUrl=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal||'';
+    if(videoUrl)updates['Helpful Video 1']=videoUrl;
     window._pendingSiteVideoUrl=null;
     try{
       // Strip image cols that GAS already wrote during upload — avoids double-write race
@@ -3347,75 +3326,176 @@ function _checkVideoDuration(file){
   });
 }
 
-/* ─── Cloudinary upload ─── */
-async function _uploadToCloudinary(file, statusElId){
-  const st=statusElId?document.getElementById(statusElId):null;
-  // 1. Size check
-  const maxBytes=(CFG.VIDEO_MAX_MB||150)*1024*1024;
-  if(file.size>maxBytes)throw new Error(`Video too large (max ${CFG.VIDEO_MAX_MB}MB). This clip is ${Math.round(file.size/1024/1024)}MB — try a shorter recording.`);
-  // 2. Duration check
-  if(st)st.textContent='Checking length…';
-  const dur=await _checkVideoDuration(file);
-  const maxSecs=CFG.VIDEO_MAX_SECS||180;
-  if(dur>maxSecs){
-    const m=Math.floor(maxSecs/60),s=maxSecs%60;
-    throw new Error(`Video too long (max ${m}m${s?s+'s':''}). This clip is ${Math.round(dur)}s — please trim or record a shorter clip.`);
-  }
-  // 3. Upload
-  if(st)st.textContent='Uploading…';
-  const fd=new FormData();
-  fd.append('file',file);
-  fd.append('upload_preset',CFG.CLOUDINARY_PRESET);
-  fd.append('resource_type','video'); // explicit — some presets default to image
-  const res=await fetch(`https://api.cloudinary.com/v1_1/${CFG.CLOUDINARY_CLOUD}/video/upload`,{method:'POST',body:fd});
-  if(!res.ok)throw new Error('Upload failed — check your connection and try again.');
-  const data=await res.json();
-  if(!data.secure_url)throw new Error(data.error?.message||'Upload failed');
-  if(st){st.style.color='var(--sage)';st.textContent='✓ Video uploaded';}
-  return data.secure_url;
+/* ─── Video upload overlay (full-screen, with progress bar) ─── */
+function _showVideoOverlay(){
+  document.getElementById('video-upload-overlay')?.remove();
+  const el=document.createElement('div');
+  el.id='video-upload-overlay';
+  el.style=`position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:99999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px;box-sizing:border-box`;
+  el.innerHTML=`
+    <div style="font-size:52px;margin-bottom:18px">🎥</div>
+    <div id="vuo-title" style="font-family:var(--font-d);font-size:28px;font-style:italic;
+      color:white;margin-bottom:8px;text-align:center">Uploading video…</div>
+    <div id="vuo-sub" style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:28px;
+      text-align:center;line-height:1.5">Please keep the app open</div>
+    <div style="width:100%;max-width:320px;background:rgba(255,255,255,.2);
+      border-radius:99px;height:10px;overflow:hidden;margin-bottom:12px">
+      <div id="vuo-bar" style="height:100%;width:0%;background:var(--sage);
+        border-radius:99px;transition:width .3s ease"></div>
+    </div>
+    <div id="vuo-pct" style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:28px">0%</div>
+    <div id="vuo-actions" style="display:none;flex-direction:column;gap:12px;width:100%;max-width:320px">
+      <button id="vuo-retry" style="padding:16px;background:var(--grove);color:white;border:none;
+        border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:600;cursor:pointer">
+        ↺ Retry Upload
+      </button>
+      <button id="vuo-cancel" style="padding:14px;background:transparent;color:rgba(255,255,255,.6);
+        border:1px solid rgba(255,255,255,.3);border-radius:var(--r-sm);font-family:var(--font-b);
+        font-size:15px;cursor:pointer">
+        Cancel — save without video
+      </button>
+    </div>`;
+  document.body.appendChild(el);
+  return el;
 }
 
-/* ─── Upload handler — receives the file directly from showChoreMediaOptions ─── */
+function _updateVideoOverlay(pct, title, sub){
+  const bar=document.getElementById('vuo-bar');
+  const pctEl=document.getElementById('vuo-pct');
+  const titleEl=document.getElementById('vuo-title');
+  const subEl=document.getElementById('vuo-sub');
+  if(bar)bar.style.width=pct+'%';
+  if(pctEl)pctEl.textContent=pct+'%';
+  if(title&&titleEl)titleEl.textContent=title;
+  if(sub&&subEl)subEl.textContent=sub;
+}
+
+/* ─── Cloudinary XHR upload with real progress ─── */
+function _uploadToCloudinaryXHR(file){
+  return new Promise(async(resolve,reject)=>{
+    // 1. Size check
+    const maxBytes=(CFG.VIDEO_MAX_MB||150)*1024*1024;
+    if(file.size>maxBytes){
+      return reject(new Error(`Video too large (max ${CFG.VIDEO_MAX_MB||150}MB). This clip is ${Math.round(file.size/1024/1024)}MB.`));
+    }
+    // 2. Duration check
+    _updateVideoOverlay(0,'Checking video…','');
+    const dur=await _checkVideoDuration(file);
+    const maxSecs=CFG.VIDEO_MAX_SECS||180;
+    if(dur>maxSecs){
+      const m=Math.floor(maxSecs/60),s=maxSecs%60;
+      return reject(new Error(`Video too long (max ${m}m${s?s+'s':''}). This clip is ${Math.round(dur)}s.`));
+    }
+    // 3. XHR upload with progress
+    _updateVideoOverlay(0,'Uploading video…','Please keep the app open');
+    const fd=new FormData();
+    fd.append('file',file);
+    fd.append('upload_preset',CFG.CLOUDINARY_PRESET);
+    fd.append('resource_type','video');
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST',`https://api.cloudinary.com/v1_1/${CFG.CLOUDINARY_CLOUD}/video/upload`);
+    xhr.upload.onprogress=e=>{
+      if(e.lengthComputable){
+        const pct=Math.round((e.loaded/e.total)*100);
+        _updateVideoOverlay(pct,'Uploading video…',`${Math.round(e.loaded/1024/1024)}MB of ${Math.round(e.total/1024/1024)}MB`);
+      }
+    };
+    xhr.onload=()=>{
+      try{
+        const data=JSON.parse(xhr.responseText);
+        if(data.secure_url)resolve(data.secure_url);
+        else reject(new Error(data.error?.message||'Upload failed — no URL returned'));
+      }catch(e){reject(new Error('Upload failed — bad response from server'));}
+    };
+    xhr.onerror=()=>reject(new Error('Network error — check your connection'));
+    xhr.ontimeout=()=>reject(new Error('Upload timed out — try a shorter video'));
+    xhr.timeout=300000; // 5 min max
+    xhr.send(fd);
+  });
+}
+
+/* ─── Main video upload entry point — called by uploadVideoForChore/Site ─── */
+async function _doVideoUpload(file, saveFn, colName, dataUpdater){
+  const overlay=_showVideoOverlay();
+  // Disable save button if still visible
+  let lastFile=file;
+  const attempt=async(f)=>{
+    try{
+      _updateVideoOverlay(0,'Uploading video…','Please keep the app open');
+      document.getElementById('vuo-actions').style.display='none';
+      const url=await _uploadToCloudinaryXHR(f);
+      // Success
+      _updateVideoOverlay(100,'✓ Video uploaded!','Saving…');
+      dataUpdater(url);
+      await saveFn();
+      overlay.remove();
+      showSaveToast('✓ Saved with video');
+    }catch(e){
+      // Failure — show retry/cancel
+      const titleEl=document.getElementById('vuo-title');
+      const subEl=document.getElementById('vuo-sub');
+      const bar=document.getElementById('vuo-bar');
+      if(titleEl)titleEl.textContent='Upload failed';
+      if(subEl)subEl.textContent=e.message;
+      if(bar)bar.style.background='var(--danger)';
+      const acts=document.getElementById('vuo-actions');
+      if(acts)acts.style.display='flex';
+      document.getElementById('vuo-retry').onclick=()=>attempt(lastFile);
+      document.getElementById('vuo-cancel').onclick=()=>{
+        overlay.remove();
+        // Save without video
+        Promise.resolve().then(async()=>{
+          try{await saveFn();}catch(err){showSaveToast('⚠ Save failed — '+err.message);}
+        });
+        showSaveToast('Saved without video');
+      };
+    }
+  };
+  await attempt(file);
+}
+
+/* ─── Upload handler — chore video ─── */
 function uploadVideoForChore(file, inputId, statusId){
-  const st=document.getElementById(statusId);
-  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video…';}
-  window._pendingVideoUrl=null;
-  // Store promise that resolves to the URL so saveChoreEdit can await it
-  window._pendingVideoPromise=_uploadToCloudinary(file,null)
-    .then(url=>{
-      // Store URL in global AND in the hidden input
-      window._pendingVideoUrl=url;
-      const inp=document.getElementById(inputId);
-      if(inp)inp.value=url;
-      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready — tap Save & Close';}
-      return url; // ← critical: promise resolves to url
-    })
-    .catch(e=>{
-      window._pendingVideoUrl=null;
-      if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
-      throw e; // re-throw so saveChoreEdit can catch it
-    });
-  showUploadPrompt('video');
+  // Snapshot save function and context NOW before any navigation
+  const saveFn=window._currentEditSaveFn;
+  const choreId=(window._currentChore?.ID||window._currentChore?.id||'');
+  // Close the edit form immediately — overlay takes over
+  _playChime();
+  closeDetailImmediate();
+  switchTab('chores');
+  // dataUpdater sets the URL on the chore when upload succeeds
+  const dataUpdater=(url)=>{
+    window._pendingVideoUrl=url;
+    const inp=document.getElementById(inputId);
+    if(inp)inp.value=url;
+    const row=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+    if(row)row['Helpful Video']=url;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  };
+  const _choreSaveFn=saveFn||(async()=>{});
+  _doVideoUpload(file, _choreSaveFn, 'Helpful Video', dataUpdater);
 }
 
 function uploadVideoForSite(file, inputId, statusId){
-  const st=document.getElementById(statusId);
-  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video…';}
-  window._pendingSiteVideoUrl=null;
-  window._pendingSiteVideoPromise=_uploadToCloudinary(file,null)
-    .then(url=>{
-      window._pendingSiteVideoUrl=url;
-      const inp=document.getElementById(inputId);
-      if(inp)inp.value=url;
-      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready — tap Save & Close';}
-      return url; // ← critical: promise resolves to url
-    })
-    .catch(e=>{
-      window._pendingSiteVideoUrl=null;
-      if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
-      throw e;
-    });
-  showUploadPrompt('video');
+  const saveFn=window._currentEditSaveFn;
+  const site=window._currentSite;
+  const siteKey=site?(site.Key||site.key||''):'' ;
+  _playChime();
+  closeDetailImmediate();
+  switchTab('schools');
+  const dataUpdater=(url)=>{
+    window._pendingSiteVideoUrl=url;
+    const inp=document.getElementById(inputId);
+    if(inp)inp.value=url;
+    if(site)site['Helpful Video 1']=url;
+    const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+    if(row)row['Helpful Video 1']=url;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  };
+  const _siteSaveFn=saveFn||(async()=>{});
+  _doVideoUpload(file, _siteSaveFn, 'Helpful Video 1', dataUpdater);
 }
 
 /* ═══ VIDEO SETTINGS ═══ */
