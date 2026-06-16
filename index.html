@@ -674,7 +674,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='7.3';
+const APP_VERSION='7.5';
 const BUILD_STAMP='2026-06-15 13:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
@@ -1462,10 +1462,20 @@ async function saveChoreEdit(choreId){
         console.warn('Chore photo upload failed:',pe);
       }
     }
-    if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-    const videoUrl=window._pendingVideoUrl||_preUploadedVideoUrl||_vidInputVal;
-    if(videoUrl){updates['Helpful Video']=videoUrl;}
-    else if(_pVidPromise||_preUploadedVideoUrl){showSaveToast('⚠ Video upload failed — chore saved without video');}
+    // Await video upload — get URL from promise return value, not global (which was cleared)
+    let videoUrl=_preUploadedVideoUrl||_vidInputVal||'';
+    if(_pVidPromise){
+      showSaveToast('⏳ Finishing video upload…');
+      try{
+        const resolvedUrl=await _pVidPromise;
+        if(resolvedUrl)videoUrl=resolvedUrl;
+        else if(window._pendingVideoUrl)videoUrl=window._pendingVideoUrl;
+        showSaveToast('✓ Video uploaded');
+      }catch(e){
+        showSaveToast('⚠ Video upload failed — '+e.message+'. Chore saved without video.');
+      }
+    }
+    if(videoUrl)updates['Helpful Video']=videoUrl;
     window._pendingVideoUrl=null;
     try{
       await updateChoreApi(choreId,updates);
@@ -2492,10 +2502,20 @@ async function saveSiteEdit(siteKey){
         console.warn('Site photo upload failed:',pe);
       }
     }
-    // Handle video
-    if(_pVidPromise){try{await _pVidPromise;}catch(e){}}
-    const videoUrl=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal;
-    if(videoUrl)updates['Schedule Video']=videoUrl;
+    // Handle video — await promise and capture URL from return value
+    let videoUrl=_preUploadedVideoUrl||_vidInputVal||'';
+    if(_pVidPromise){
+      showSaveToast('⏳ Finishing video upload…');
+      try{
+        const resolvedUrl=await _pVidPromise;
+        if(resolvedUrl)videoUrl=resolvedUrl;
+        else if(window._pendingSiteVideoUrl)videoUrl=window._pendingSiteVideoUrl;
+        showSaveToast('✓ Video uploaded');
+      }catch(e){
+        showSaveToast('⚠ Video upload failed — '+e.message+'. Site saved without video.');
+      }
+    }
+    if(videoUrl)updates['Helpful Video 1']=videoUrl; // correct Sites column
     window._pendingSiteVideoUrl=null;
     try{
       // Strip image cols that GAS already wrote during upload — avoids double-write race
@@ -2955,7 +2975,7 @@ async function forceRefresh(){
         _updateHdrAvatar();renderAll();setSync(true);
       }).catch(()=>{});
     renderAll();
-    _activityLoaded=false;showSaveToast('✓ Data refreshed');
+    _activityLoaded=false;clearTimeout(_activityTimer);showSaveToast('✓ Data refreshed');
   }catch(e){
     showSaveToast('⚠ Refresh failed — check connection');
   }finally{
@@ -2996,7 +3016,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
     const t=document.getElementById('nearMeToast');if(t)t.classList.remove('visible');
   }
   if(tab==='plants')initPlants();
-  if(tab==='latest')loadActivity(true); // always fresh on tab switch
+  if(tab==='latest'){_activityLoaded=false;loadActivity();}
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
   // Render this tab if it has pending data changes
   if(_tabDirty[tab])_renderDirtyTab(tab);
@@ -3346,6 +3366,7 @@ async function _uploadToCloudinary(file, statusElId){
   const fd=new FormData();
   fd.append('file',file);
   fd.append('upload_preset',CFG.CLOUDINARY_PRESET);
+  fd.append('resource_type','video'); // explicit — some presets default to image
   const res=await fetch(`https://api.cloudinary.com/v1_1/${CFG.CLOUDINARY_CLOUD}/video/upload`,{method:'POST',body:fd});
   if(!res.ok)throw new Error('Upload failed — check your connection and try again.');
   const data=await res.json();
@@ -3357,42 +3378,42 @@ async function _uploadToCloudinary(file, statusElId){
 /* ─── Upload handler — receives the file directly from showChoreMediaOptions ─── */
 function uploadVideoForChore(file, inputId, statusId){
   const st=document.getElementById(statusId);
-  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
+  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video…';}
   window._pendingVideoUrl=null;
+  // Store promise that resolves to the URL so saveChoreEdit can await it
   window._pendingVideoPromise=_uploadToCloudinary(file,null)
     .then(url=>{
+      // Store URL in global AND in the hidden input
       window._pendingVideoUrl=url;
-      window._pendingVideoPromise=null;
       const inp=document.getElementById(inputId);
-      if(inp){inp.value=url;inp.style.background='#f0fff4';inp.dispatchEvent(new Event('input'));}
-      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready';}
-      return url;
+      if(inp)inp.value=url;
+      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready — tap Save & Close';}
+      return url; // ← critical: promise resolves to url
     })
     .catch(e=>{
-      window._pendingVideoPromise=null;
       window._pendingVideoUrl=null;
       if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
+      throw e; // re-throw so saveChoreEdit can catch it
     });
   showUploadPrompt('video');
 }
 
 function uploadVideoForSite(file, inputId, statusId){
   const st=document.getElementById(statusId);
-  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video in background…';}
+  if(st){st.style.color='var(--silver)';st.textContent='⏫ Uploading video…';}
   window._pendingSiteVideoUrl=null;
   window._pendingSiteVideoPromise=_uploadToCloudinary(file,null)
     .then(url=>{
       window._pendingSiteVideoUrl=url;
-      window._pendingSiteVideoPromise=null;
       const inp=document.getElementById(inputId);
-      if(inp){inp.value=url;inp.style.background='#f0fff4';inp.dispatchEvent(new Event('input'));}
-      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready';}
-      return url;
+      if(inp)inp.value=url;
+      if(st){st.style.color='var(--sage)';st.textContent='✓ Video ready — tap Save & Close';}
+      return url; // ← critical: promise resolves to url
     })
     .catch(e=>{
-      window._pendingSiteVideoPromise=null;
       window._pendingSiteVideoUrl=null;
       if(st){st.style.color='var(--danger)';st.textContent='✗ '+e.message;}
+      throw e;
     });
   showUploadPrompt('video');
 }
@@ -3607,7 +3628,10 @@ function showUploadPrompt(mediaType){
       <div style="text-align:center;margin-bottom:22px">
         <div style="font-size:44px;margin-bottom:10px">${isVideo?'🎥':'📷'}</div>
         <div style="font-family:var(--font-d);font-size:33px;font-style:italic;color:var(--ink);margin-bottom:10px">${isVideo?'Video uploading…':'Photo uploading…'}</div>
-        <div style="font-size:17px;color:var(--stone);line-height:1.7;max-width:310px;margin:0 auto">Uploading in the background — you can close now or add more photos and it will finish automatically.</div>
+        <div style="font-size:17px;color:var(--stone);line-height:1.7;max-width:310px;margin:0 auto">${isVideo
+          ?'Video is uploading now. <strong>Wait for the ✓ Video ready message</strong> in the form before tapping Save &amp; Close — this ensures it saves.'
+          :'Photo uploading in the background — you can add more or tap Save &amp; Close and it will finish automatically.'
+        }</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px">
         <button id="upr-save" style="padding:19px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:19px;font-weight:600;cursor:pointer;letter-spacing:.02em">✓ Save &amp; Close</button>
@@ -3870,9 +3894,12 @@ document.getElementById('authPw2').addEventListener('keydown',e=>{if(e.key==='En
 
 /* ═══ ACTIVITY FEED ═══ */
 let _activityLoaded=false;
+let _activityTimer=null;
 async function loadActivity(force=false){
   const list=document.getElementById('activityList');
   if(!list)return;
+  // Always reload when switching to tab (force=false) or on manual refresh (force=true)
+  // Only skip if we just loaded within the last 30 seconds and it wasn't forced
   if(_activityLoaded&&!force)return;
   list.innerHTML='<div class="spinner"></div>';
   try{
@@ -3882,7 +3909,17 @@ async function loadActivity(force=false){
       list.innerHTML='<div class="empty"><div class="empty-glyph">📋</div><h3>No activity yet</h3><p>Actions like adding chores, editing schools, and uploading photos will appear here.</p></div>';
       return;
     }
-    list.innerHTML=res.items.map(item=>activityRowHtml(item)).join('');
+    const now=new Date();
+    const refreshLine=`<div style="text-align:center;font-size:12px;color:var(--silver);padding:10px 0 4px;letter-spacing:.06em;text-transform:uppercase">Updated ${now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>`;
+    list.innerHTML=res.items.map(item=>activityRowHtml(item)).join('')+refreshLine;
+    // Auto-refresh every 60s while on the Latest tab
+    clearTimeout(_activityTimer);
+    _activityTimer=setTimeout(()=>{
+      if(document.getElementById('tab-latest')&&document.getElementById('tab-latest').style.display!=='none'){
+        _activityLoaded=false;
+        loadActivity(false);
+      }
+    },60000);
   }catch(e){
     list.innerHTML='<div class="empty"><div class="empty-glyph">⚠</div><h3>Could not load</h3><p>Check your connection and try again.</p></div>';
   }
@@ -3907,9 +3944,11 @@ function activityRowHtml(item){
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   }
-  const detail=(item.detail||'').replace(/^Site:\s*/i,'').trim();
+  const rawDetail=(item.detail||'').replace(/^Site:\s*/i,'').trim();
+  // Cap detail at 80 chars so long column lists don't dominate the feed
+  const detail=rawDetail.length>80?rawDetail.slice(0,77)+'…':rawDetail;
   const line1=[actorLink,`<span style="color:var(--stone)"> ${item.action} </span>`,subjectLink];
-  if(detail)line1.push(`<span style="color:var(--silver);font-size:15px"> — ${detail}</span>`);
+  if(detail)line1.push(`<span style="color:var(--silver);font-size:14px"> — ${detail}</span>`);
   return `<div style="padding:11px 0;border-bottom:1px solid var(--mist)">
     <div style="font-size:16px;line-height:1.5;color:var(--ink)">${line1.join('')}</div>
     <div style="font-size:13px;color:var(--silver);margin-top:2px">${ts}</div>
