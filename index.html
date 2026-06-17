@@ -330,6 +330,16 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 #pwaSplash .sp-la-wrap{width:100%;display:flex;justify-content:center;overflow:hidden}
 #pwaSplash .sp-la{width:120px;height:120px;border-radius:50%;display:block;transform:translateX(calc(-50vw - 60px)) rotate(0deg);opacity:0;animation:spLaIn 0.8s cubic-bezier(.25,.46,.45,.94) .1s forwards}
 @keyframes spLaIn{0%{transform:translateX(calc(-50vw - 60px)) rotate(0deg);opacity:0}25%{opacity:1}100%{transform:translateX(0) rotate(-720deg);opacity:1}}
+/* ── ACTION TAB ── */
+.action-row{padding:14px 0;border-bottom:1px solid var(--mist);cursor:pointer;transition:background .15s}
+.action-row:active{background:var(--fog)}
+.action-name{font-family:var(--font-b);font-size:17px;font-weight:600;color:var(--ink);margin-bottom:4px}
+.action-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--stone);margin-bottom:6px}
+.action-badges{display:flex;gap:8px;flex-wrap:wrap}
+.action-badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600;font-family:var(--font-b);letter-spacing:.04em}
+.badge-yes{background:#d4fbf5;color:#1e3a1e}
+.badge-no{background:#fdecea;color:#b02020}
+
 </style>
 
 </head>
@@ -576,6 +586,25 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     <div id="activityList" style="padding:0 16px 28px"><div class="spinner"></div></div>
   </div>
 
+
+  <!-- ACTION TAB (access levels 1 & 2) -->
+  <div class="tab-pane" id="tab-action">
+    <div class="page-header">
+      <span class="page-title">Action</span>
+      <span class="page-count" id="actionCount"></span>
+    </div>
+    <div style="padding:10px 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select id="actionFilter" onchange="filterAction()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
+        <option value="all">All Active Sites</option>
+        <option value="grp_started">GRP Started</option>
+        <option value="grp_not_started">GRP Not Started</option>
+        <option value="responded">Responded</option>
+        <option value="no_response">No Response</option>
+      </select>
+    </div>
+    <div class="card-list" id="actionList" style="padding:0 16px 28px"></div>
+  </div>
+
   <!-- SETTINGS -->
   <div class="tab-pane" id="tab-settings">
     <div class="page-header"><span class="page-title">Settings</span></div>
@@ -674,8 +703,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='7.7';
-const BUILD_STAMP='2026-06-15 13:00 PT';
+const APP_VERSION='7.8';
+const BUILD_STAMP='2026-06-16 10:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -692,7 +721,7 @@ let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
 let _activeTab='notes';
-const _tabDirty={schools:false,rangers:false,people:false,chores:false};
+const _tabDirty={schools:false,rangers:false,people:false,chores:false,action:false};
 let _humansLoaded=false;  // true once humans phase-2 fetch completes
 
 /* ── LOCATION STATE ── */
@@ -970,6 +999,7 @@ function buildNav(lvl,plantsOn){
     row2tabs.push(_navBtn('rangers','Rangers'));
     row2tabs.push(_navBtn('people','People'));
     if(plantsOn||lvl===1) row2tabs.push(_navBtn('plants','Plants'));
+    row2tabs.push(_navBtn('action','Action'));
     if(lvl===1) row2tabs.push(_navBtn('settings','Settings'));
     if(lvl===1) row2tabs.push(_navBtn('control','Control'));
     row2.innerHTML=row2tabs.join('');
@@ -2041,6 +2071,7 @@ function _renderDirtyTab(tab){
     }
   }
   else if(tab==='chores'){renderChores();_tabDirty.chores=false;}
+  else if(tab==='action'){renderAction();_tabDirty.action=false;}
 }
 
 /* ═══ MAP ═══ */
@@ -2981,6 +3012,73 @@ async function _refreshAllBackground(){
 }
 
 /* ═══ TABS ═══ */
+
+/* ═══ ACTION TAB ═══ */
+let _actionFilter='all';
+function filterAction(){
+  const sel=document.getElementById('actionFilter');
+  _actionFilter=sel?sel.value:'all';
+  renderAction();
+}
+function renderAction(){
+  const list=document.getElementById('actionList');
+  const cnt=document.getElementById('actionCount');
+  if(!list)return;
+  // Only active ranger program sites
+  let sites=(DATA.sites||[]).filter(s=>{
+    const t=(sf(s,'Type','type')||'').toLowerCase();
+    return t==='active ranger program';
+  });
+  // Apply filter
+  const f=_actionFilter;
+  if(f==='grp_started'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Program Started?','ProgramStarted','programStarted');
+      return v===true||String(v).toLowerCase()==='true';
+    });
+  } else if(f==='grp_not_started'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Program Started?','ProgramStarted','programStarted');
+      return v!==true&&String(v).toLowerCase()!=='true';
+    });
+  } else if(f==='responded'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Any Response?','AnyResponse','anyResponse');
+      return v===true||String(v).toLowerCase()==='true';
+    });
+  } else if(f==='no_response'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Any Response?','AnyResponse','anyResponse');
+      return v!==true&&String(v).toLowerCase()!=='true';
+    });
+  }
+  // Sort alphabetically by name
+  sites=sites.slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
+  if(cnt)cnt.textContent=sites.length+' schools';
+  if(!sites.length){
+    list.innerHTML='<div style="padding:32px 0;text-align:center;color:var(--silver);font-family:var(--font-d);font-size:22px;font-style:italic">No schools match this filter</div>';
+    return;
+  }
+  list.innerHTML=sites.map(s=>{
+    const name=sf(s,'Name','name')||'';
+    const key=sf(s,'Key','key')||'';
+    const dist=sf(s,'District','district')||'';
+    const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||'';
+    const progStarted=sf(s,'Program Started?','ProgramStarted','programStarted');
+    const responded=sf(s,'Any Response?','AnyResponse','anyResponse');
+    const ps=progStarted===true||String(progStarted).toLowerCase()==='true';
+    const rp=responded===true||String(responded).toLowerCase()==='true';
+    return `<div class="action-row" onclick="showSchoolDetailByKey('${ea(key)}')">
+      <div class="action-name">${name}</div>
+      <div class="action-meta">${dist?`<span>${dist}</span>`:''}${r1n?`<span>🌿 ${r1n}</span>`:''}</div>
+      <div class="action-badges">
+        <span class="action-badge ${ps?'badge-yes':'badge-no'}">${ps?'GRP Started':'GRP Not Started'}</span>
+        <span class="action-badge ${rp?'badge-yes':'badge-no'}">${rp?'Responded':'No Response'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function switchTab(tab,initMapFlag=false){const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
@@ -2996,6 +3094,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
     const t=document.getElementById('nearMeToast');if(t)t.classList.remove('visible');
   }
   if(tab==='plants')initPlants();
+  if(tab==='action')renderAction();
   if(tab==='latest'){_activityLoaded=false;loadActivity();}
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
   // Render this tab if it has pending data changes
