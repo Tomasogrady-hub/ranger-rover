@@ -4323,39 +4323,40 @@ function toggleReachPerson(email) {
 
 /* ── REACH ACTION ── */
 async function doReach(mode) {
-  // mode: 'email_individual' | 'email_together' | 'text_individual' | 'text_together'
-  const selected = DATA.humans.filter(h => {
-    const email = h.Email || h.email || '';
-    return _reachSelected.has(email);
-  });
-
-  // If none selected, use all currently visible
+  // Gather selected people, or fall back to all visible
+  const selected = DATA.humans.filter(h => _reachSelected.has(h.Email || h.email || ''));
   const target = selected.length ? selected : DATA.humans.filter(h => {
     const cats = humanRoleCats(h);
     if (!cats.some(c => RANGER_CATS.includes(c))) return false;
     if (_reachFilter !== 'all' && !cats.includes(_reachFilter)) return false;
     return true;
   });
-
   if (!target.length) { showToast('No people selected'); return; }
 
+  // ── TEXT INDIVIDUALLY ───────────────────────────────────────────────────────
+  // Queue all numbers; open them one by one with a small delay so the OS
+  // has time to handle each sms: link before the next fires.
   if (mode === 'text_individual') {
-    // Open SMS for each person one at a time (first one; user goes back)
-    const mobile = target[0]['Mobile'] || target[0]['mobile'] || '';
-    if (mobile) window.open('sms:' + mobile.replace(/\D/g,''), '_blank');
-    else showToast('No mobile number for ' + (fullName(target[0]) || 'this person'));
-    return;
-  }
-
-  if (mode === 'text_together') {
-    // Group SMS — comma-separated numbers
-    const nums = target.map(h => (h.Mobile || h.mobile || '').replace(/\D/g,'')).filter(Boolean);
+    const nums = target
+      .map(h => ({ name: fullName(h) || (h.Email||h.email||''), mobile: (h.Mobile||h.mobile||'').replace(/\D/g,'') }))
+      .filter(x => x.mobile);
     if (!nums.length) { showToast('No mobile numbers found'); return; }
-    window.open('sms:' + nums.join(','), '_blank');
+    showToast('Opening ' + nums.length + ' text' + (nums.length>1?'s':'') + '…');
+    nums.forEach((x, i) => {
+      setTimeout(() => { window.location.href = 'sms:' + x.mobile; }, i * 1200);
+    });
     return;
   }
 
-  // Email modes → open memo compose
+  // ── TEXT TOGETHER ────────────────────────────────────────────────────────────
+  if (mode === 'text_together') {
+    const nums = target.map(h => (h.Mobile||h.mobile||'').replace(/\D/g,'')).filter(Boolean);
+    if (!nums.length) { showToast('No mobile numbers found'); return; }
+    window.location.href = 'sms:' + nums.join(',');
+    return;
+  }
+
+  // ── EMAIL (individual or together) ──────────────────────────────────────────
   openMemoCompose(mode, target);
 }
 
@@ -4427,66 +4428,52 @@ function closeMemoCompose() {
   document.getElementById('memo-overlay').style.display = 'none';
 }
 
-async function sendMemo(mode, toEmails) {
-  const subj    = (document.getElementById('memoSubject')  || {value:''}).value.trim();
-  const msg     = (document.getElementById('memoMessage')  || {value:''}).value.trim();
-  const cc      = (document.getElementById('memoCC')       || {value:''}).value.trim();
-  const bcc     = (document.getElementById('memoBCC')      || {value:''}).value.trim();
-  const cat     = (document.getElementById('memoCategory') || {value:''}).value.trim();
-  const status  = document.getElementById('memoStatus');
+function sendMemo(mode, toEmails) {
+  const subj   = (document.getElementById('memoSubject')  || {value:''}).value.trim();
+  const msg    = (document.getElementById('memoMessage')  || {value:''}).value.trim();
+  const cc     = (document.getElementById('memoCC')       || {value:''}).value.trim();
+  const bcc    = (document.getElementById('memoBCC')      || {value:''}).value.trim();
+  const cat    = (document.getElementById('memoCategory') || {value:''}).value.trim();
+  const status = document.getElementById('memoStatus');
 
   if (!subj) { if(status) status.textContent = '⚠ Subject is required'; return; }
   if (!msg)  { if(status) status.textContent = '⚠ Message is required'; return; }
 
-  if(status) status.textContent = 'Sending…';
-
-  const fromEmail = SESSION ? SESSION.email : '';
-  const now = new Date().toISOString();
+  const fromEmail    = SESSION ? SESSION.email : '';
   const isIndividual = mode === 'email_individual';
 
-  try {
-    const j = await gasPost({
-      action: 'sendMemo',
-      mode,
-      toEmails,
-      fromEmail,
-      subject: subj,
-      message: msg,
-      cc,
-      bcc,
-      category: cat,
-      timestamp: now,
-      memosSheetId: MEMOS_ID
+  // ── 1. Open native email app immediately (always works, no popup blocker) ──
+  if (isIndividual) {
+    // Open each recipient separately, staggered so the OS can handle each one
+    toEmails.forEach((addr, i) => {
+      setTimeout(() => {
+        let url = 'mailto:' + encodeURIComponent(addr)
+          + '?subject=' + encodeURIComponent(subj)
+          + '&body='    + encodeURIComponent(msg);
+        if (cc)  url += '&cc='  + encodeURIComponent(cc);
+        if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
+        window.location.href = url;
+      }, i * 1500);
     });
-    if (j && j.ok) {
-      if(status) status.textContent = '✓ Sent to ' + (isIndividual ? toEmails.length + ' recipient(s)' : toEmails.length + ' recipient(s) together');
-      // Open native mailto as fallback/confirmation
-      const mailTo = isIndividual
-        ? 'mailto:' + encodeURIComponent(toEmails[0]) + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(msg)
-        : 'mailto:' + encodeURIComponent(toEmails.join(',')) + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(msg) + (cc?'&cc='+encodeURIComponent(cc):'') + (bcc?'&bcc='+encodeURIComponent(bcc):'');
-      setTimeout(() => { window.open(mailTo, '_blank'); closeMemoCompose(); }, 800);
-    } else {
-      // GAS failed — fall back to native mailto
-      fallbackMailto(mode, toEmails, subj, msg, cc, bcc);
-      if(status) status.textContent = '⚠ Saved locally. Opening email app…';
-      setTimeout(closeMemoCompose, 1200);
-    }
-  } catch(e) {
-    // No GAS — open native email app
-    fallbackMailto(mode, toEmails, subj, msg, cc, bcc);
-    if(status) status.textContent = '⚠ Opening email app…';
-    setTimeout(closeMemoCompose, 1000);
+  } else {
+    // All together in one To: field
+    let url = 'mailto:' + encodeURIComponent(toEmails.join(','))
+      + '?subject=' + encodeURIComponent(subj)
+      + '&body='    + encodeURIComponent(msg);
+    if (cc)  url += '&cc='  + encodeURIComponent(cc);
+    if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
+    window.location.href = url;
   }
-}
 
-function fallbackMailto(mode, toEmails, subj, msg, cc, bcc) {
-  const to = mode === 'email_individual' ? toEmails[0] : toEmails.join(',');
-  let url = 'mailto:' + encodeURIComponent(to)
-    + '?subject=' + encodeURIComponent(subj)
-    + '&body=' + encodeURIComponent(msg);
-  if (cc)  url += '&cc='  + encodeURIComponent(cc);
-  if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
-  window.open(url, '_blank');
+  // ── 2. Log to Memos sheet in background (fire and forget) ──────────────────
+  gasPost({
+    action: 'sendMemo', mode, toEmails, fromEmail,
+    subject: subj, message: msg, cc, bcc, category: cat,
+    timestamp: new Date().toISOString()
+  }).catch(() => {});  // silent — email already opened above
+
+  if(status) status.textContent = '✓ Opening email app…';
+  setTimeout(closeMemoCompose, 1000);
 }
 
 </script>
