@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- v8.2 | BUILD: 2026-06-21 17:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -39,8 +40,6 @@ html,body{height:100%;overflow:hidden;background:var(--white);color:var(--ink);f
 /* Ensure all button child elements pass clicks through to the button */
 button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.add-chore-btn,.chore-pill,.btn-edit,.btn-exit,.btn-save,.btn-cancel{user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 #app{display:flex;flex-direction:column;height:100dvh;max-width:430px;margin:0 auto;background:var(--white);overflow:hidden;position:relative}
-
-/* v8.1 | BUILD: 2026-06-21 14:00 PT | Ranger Rover PWA */
 
 /* ── AUTH ── */
 #authScreen{position:absolute;inset:0;background:var(--paper);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;padding-top:calc(40px + var(--safe-top))}
@@ -786,8 +785,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='8.1';
-const BUILD_STAMP='2026-06-21 14:00 PT';
+const APP_VERSION='8.2';
+const BUILD_STAMP='2026-06-21 17:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4432,7 +4431,7 @@ function _sendReach() {
   if (isEmail && !subj) { if(statusEl) statusEl.textContent = '⚠ Subject is required'; return; }
   if (!msg)              { if(statusEl) statusEl.textContent = '⚠ Message is required';  return; }
 
-  // Log to Memos sheet in background — fire and forget
+  // Log to Memos sheet in background — fire and forget, non-blocking
   if (isEmail) {
     gasPost({
       action:'sendMemo', mode,
@@ -4443,86 +4442,109 @@ function _sendReach() {
     }).catch(()=>{});
   }
 
-  // Close compose overlay before opening external app
+  // Build step-through queue BEFORE closing compose (values still in DOM)
+  // Key fix: mailto: addresses must NOT be encodeURIComponent'd —
+  // only subject/body/cc/bcc values get encoded.
+  const isSms = !isEmail;
+  const isAndroid = !/iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  let stepQueue;
+  if (isTog) {
+    stepQueue = null; // together = single fire, no queue needed
+  } else {
+    stepQueue = isEmail
+      ? _reachTarget.filter(r=>r.email).map(r=>({
+          label: r.name,
+          info:  r.email,
+          // email addresses go unencoded in mailto: recipient field
+          href:  'mailto:' + r.email
+               + '?subject=' + encodeURIComponent(subj)
+               + '&body='    + encodeURIComponent(msg)
+               + (cc  ? '&cc='  + encodeURIComponent(cc)  : '')
+               + (bcc ? '&bcc=' + encodeURIComponent(bcc) : '')
+        }))
+      : _reachTarget.filter(r=>r.mobile).map(r=>({
+          label: r.name,
+          info:  r.mobile,
+          href:  'sms:' + r.mobile + (isAndroid ? '?' : '&') + 'body=' + encodeURIComponent(msg)
+        }));
+  }
+
+  // Close compose overlay — values already captured above
   closeReachCompose();
 
   if (isTog) {
-    // ── TOGETHER: single url fired on this direct tap ──────────────────────
     if (isEmail) {
+      // addresses unencoded, only query params encoded
       const toStr = _reachTarget.map(r=>r.email).filter(Boolean).join(',');
-      let url = 'mailto:' + encodeURIComponent(toStr)
+      let url = 'mailto:' + toStr
               + '?subject=' + encodeURIComponent(subj)
               + '&body='    + encodeURIComponent(msg);
       if (cc)  url += '&cc='  + encodeURIComponent(cc);
       if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
       window.location.href = url;
     } else {
-      // SMS together — numbers comma-separated, body in &body param
       const nums = _reachTarget.map(r=>r.mobile).filter(Boolean).join(',');
       if (!nums) { showToast('No mobile numbers found'); return; }
-      // Android: sms:num1,num2?body=  iOS: sms:num1,num2&body=
-      const sep = /iphone|ipad|ipod/i.test(navigator.userAgent) ? '&' : '?';
-      window.location.href = 'sms:' + nums + sep + 'body=' + encodeURIComponent(msg);
+      window.location.href = 'sms:' + nums + (isAndroid ? '?' : '&') + 'body=' + encodeURIComponent(msg);
     }
   } else {
-    // ── INDIVIDUALLY: step-through modal ──────────────────────────────────
-    const queue = isEmail
-      ? _reachTarget.filter(r=>r.email).map(r=>({
-          label:   r.name,
-          info:    r.email,
-          href:    'mailto:' + encodeURIComponent(r.email)
-                 + '?subject=' + encodeURIComponent(subj)
-                 + '&body='    + encodeURIComponent(msg)
-                 + (cc  ? '&cc='  + encodeURIComponent(cc)  : '')
-                 + (bcc ? '&bcc=' + encodeURIComponent(bcc) : '')
-        }))
-      : _reachTarget.filter(r=>r.mobile).map(r=>({
-          label: r.name,
-          info:  r.mobile,
-          href:  'sms:' + r.mobile
-               + (/iphone|ipad|ipod/i.test(navigator.userAgent)?'&':'?')
-               + 'body=' + encodeURIComponent(msg)
-        }));
-
-    if (!queue.length) { showToast('No ' + (isEmail?'email addresses':'mobile numbers') + ' found'); return; }
-    _showStepModal(queue, 0, isEmail ? '✉' : '💬');
+    if (!stepQueue || !stepQueue.length) {
+      showToast('No ' + (isEmail ? 'email addresses' : 'mobile numbers') + ' found');
+      return;
+    }
+    // Store queue in module variable — never serialise into onclick strings
+    _reachStepQueue = stepQueue;
+    _reachStepIcon  = isEmail ? '✉' : '💬';
+    _showStepModal(0);
   }
 }
 
 // ── step-through modal ────────────────────────────────────────────────────────
-// queue = [{label, info, href}]
-// The "Open" element is an <a href> — a real link tap, always a direct gesture.
-// Its onclick advances the counter and swaps in the next card without rebuilding
-// the whole modal, so the user never loses their gesture context.
-function _showStepModal(queue, idx, icon) {
-  // Remove any existing modal
+// Queue stored in module vars — no JSON in onclick attributes.
+// "Open" is an <a href> so each tap is a direct user gesture (never blocked).
+// After tapping, onclick calls _showStepModal(idx+1) to advance the card.
+// The <a> navigates to the href AND the onclick fires — both happen on one tap.
+let _reachStepQueue = [];
+let _reachStepIcon  = '✉';
+
+function _showStepModal(idx) {
   const old = document.getElementById('reachStepModal');
   if (old) old.remove();
+  if (idx >= _reachStepQueue.length) { showToast('All done ✓'); return; }
 
-  if (idx >= queue.length) { showToast('All done ✓'); return; }
-
-  const item  = queue[idx];
-  const total = queue.length;
+  const item   = _reachStepQueue[idx];
+  const total  = _reachStepQueue.length;
   const isLast = idx === total - 1;
+  const icon   = _reachStepIcon;
 
   const div = document.createElement('div');
   div.className = 'reach-step-modal';
   div.id = 'reachStepModal';
+
+  // Build the <a> separately so href never touches innerHTML interpolation
   div.innerHTML = `
     <div class="reach-step-box">
-      <div class="reach-step-counter">${idx+1} of ${total}</div>
+      <div class="reach-step-counter">${idx + 1} of ${total}</div>
       <div class="reach-step-name">${item.label}</div>
       <div class="reach-step-info">${item.info}</div>
       <div class="reach-step-row">
         <button class="reach-step-btn" style="background:var(--mist);color:var(--ink)"
           onclick="document.getElementById('reachStepModal').remove()">Cancel</button>
-        <a class="reach-step-btn" style="background:var(--enrich-dark);color:#fff;text-decoration:none"
-          href="${item.href}"
-          onclick="event.stopPropagation();setTimeout(()=>_showStepModal(${JSON.stringify(queue).replace(/"/g,'&quot;')},${idx+1},'${icon}'),600)">
+        <a id="reachStepLink" class="reach-step-btn"
+          style="background:var(--enrich-dark);color:#fff;text-decoration:none">
           ${icon} ${isLast ? 'Open' : 'Open &amp; Next'}
         </a>
       </div>
     </div>`;
+
+  // Set href safely via JS property — never via innerHTML
+  const link = div.querySelector('#reachStepLink');
+  link.href = item.href;
+  link.addEventListener('click', () => {
+    setTimeout(() => _showStepModal(idx + 1), 500);
+  });
+
   document.body.appendChild(div);
 }
 
