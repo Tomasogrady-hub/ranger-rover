@@ -117,6 +117,18 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .tab-pane{display:none}.tab-pane.active{display:block}
 .filter-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--mist)}
+.memo-field-group{margin-bottom:14px}
+.memo-label{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--stone);margin-bottom:4px}
+.memo-input{width:100%;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;-webkit-appearance:none}
+.memo-input:focus{border-color:var(--sage)}
+.reach-menu-btn{display:block;width:100%;padding:18px 20px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-md);font-family:var(--font-b);font-size:18px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;transition:background .15s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.reach-menu-btn:active{background:var(--mist)}
+.reach-action-btn{flex:1;min-width:140px;padding:11px 10px;background:var(--enrich-dark);color:#fff;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:700;letter-spacing:.04em;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:opacity .15s}
+.reach-action-btn:active{opacity:.75}
+.reach-person-card{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--mist);cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.reach-person-card.selected{background:var(--mint)}
+.reach-check{width:24px;height:24px;border:2px solid var(--mist);border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;transition:background .15s,border-color .15s}
+.reach-person-card.selected .reach-check{background:var(--sage);border-color:var(--sage);color:#fff}
 .chip{flex-shrink:0;padding:6px 11px;border:1px solid var(--mist);border-radius:99px;background:var(--fog);font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--stone);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
 .chip.active{background:var(--enrich-teal);border-color:var(--enrich-teal);color:var(--enrich-dark)}
 .page-header{padding:20px 20px 12px;display:flex;align-items:baseline;justify-content:space-between}
@@ -699,12 +711,14 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <div class="nav-row" id="navRow1"></div>
   <!-- Row 2: extra tabs for levels 1-2 (hidden for level 3) -->
   <div class="nav-row" id="navRow2" style="display:none"></div>
+  <!-- Row 3: Reach row for levels 1-2 -->
+  <div class="nav-row" id="navRow3" style="display:none"></div>
 </div>
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='7.8';
-const BUILD_STAMP='2026-06-16 10:00 PT';
+const APP_VERSION='7.9';
+const BUILD_STAMP='2026-06-20 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -721,7 +735,7 @@ let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
 let _activeTab='notes';
-const _tabDirty={schools:false,rangers:false,people:false,chores:false,action:false};
+const _tabDirty={schools:false,rangers:false,people:false,chores:false,action:false,reach:false};
 let _humansLoaded=false;  // true once humans phase-2 fetch completes
 
 /* ── LOCATION STATE ── */
@@ -1004,6 +1018,13 @@ function buildNav(lvl,plantsOn){
     if(lvl===1) row2tabs.push(_navBtn('control','Control'));
     row2.innerHTML=row2tabs.join('');
     row2.style.display='flex';
+    // Row 3: Reach row (always 7 buttons: Reach + 6 empty)
+    const row3=document.getElementById('navRow3');
+    if(row3){
+      row3.innerHTML=_navBtn('reach','Reach')+
+        '<button class="nav-btn" data-tab="reach-empty" style="opacity:.45;cursor:default">Empty</button>'.repeat(6);
+      row3.style.display='flex';
+    }
   }
   // re-apply active state
   const active=document.querySelector('#nav .nav-btn.active');
@@ -1100,7 +1121,7 @@ async function _loadHumansBackground(){
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
       localStorage.setItem(CFG.TK,n);syncTS(n);
       // Mark rangers/people tabs dirty; render immediately if one is active
-      _tabDirty.rangers=true;_tabDirty.people=true;
+      _tabDirty.rangers=true;_tabDirty.people=true;_tabDirty.reach=true;
       if(_activeTab==='rangers'||_activeTab==='people')_renderDirtyTab(_activeTab);
       if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
     }
@@ -2072,6 +2093,7 @@ function _renderDirtyTab(tab){
   }
   else if(tab==='chores'){renderChores();_tabDirty.chores=false;}
   else if(tab==='action'){renderAction();_tabDirty.action=false;}
+  else if(tab==='reach'){/* reach renders on demand */;_tabDirty.reach=false;}
 }
 
 /* ═══ MAP ═══ */
@@ -3083,7 +3105,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  document.getElementById('searchbar').style.display=tab==='notes'?'none':'block';
+  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach')?'none':'block';
   if(tab==='map'||initMapFlag){
     setTimeout(()=>{
       initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();
@@ -3094,6 +3116,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
     const t=document.getElementById('nearMeToast');if(t)t.classList.remove('visible');
   }
   if(tab==='plants')initPlants();
+  if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
   if(tab==='action')renderAction();
   if(tab==='latest'){_activityLoaded=false;loadActivity();}
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
@@ -4160,6 +4183,250 @@ if(_saved){try{SESSION=JSON.parse(_saved);showApp();}catch(e){localStorage.remov
   // Dismiss after walk animation completes (3.8s anim + 0.3s delay + 0.6s pause)
   setTimeout(()=>{sp.classList.add('fade-out');setTimeout(()=>sp.remove(),400);},2200);
 })();
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   REACH MODULE
+   ══════════════════════════════════════════════════════════════════*/
+const MEMOS_ID = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
+let _reachCurrentPage = 'menu';
+let _reachFilter = 'all';
+let _reachSelected = new Set(); // emails of selected people
+
+/* Show one of: 'menu' | 'rangers' | 'schools' | 'misc' */
+function showReachPage(page) {
+  _reachCurrentPage = page;
+  // Hide all sub-pages
+  ['menu','rangers','schools','misc'].forEach(p => {
+    const el = document.getElementById('reach-' + p);
+    if (el) el.style.display = 'none';
+  });
+  const target = document.getElementById('reach-' + (page === 'menu' ? 'menu' : page));
+  if (target) target.style.display = 'block';
+
+  if (page === 'rangers') {
+    _reachSelected.clear();
+    renderReachRangers();
+  }
+}
+
+/* Filter chips on Reach > Rangers */
+function filterReach(f) {
+  _reachFilter = f;
+  document.querySelectorAll('#reachRangerFilters .chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.filter === f));
+  renderReachRangers();
+}
+
+/* Build the selectable ranger list */
+function renderReachRangers() {
+  const list = document.getElementById('reachRangerList');
+  if (!list) return;
+  const f = _reachFilter;
+  const people = DATA.humans.filter(h => {
+    const cats = humanRoleCats(h);
+    if (!cats.some(c => RANGER_CATS.includes(c))) return false;
+    if (f !== 'all' && !cats.includes(f)) return false;
+    return true;
+  });
+  document.getElementById('reachRangerCount').textContent = people.length + ' people';
+  if (!people.length) { list.innerHTML = empty('—', 'No results', ''); return; }
+  list.innerHTML = people.map(h => {
+    const email = h.Email || h.email || '';
+    const name  = fullName(h) || email;
+    const role  = h.Role || h.role || '';
+    const sel   = _reachSelected.has(email);
+    return `<div class="reach-person-card${sel ? ' selected' : ''}" data-email="${ea(email)}" onclick="toggleReachPerson('${ea(email)}')">
+      <div class="reach-check">${sel ? '✓' : ''}</div>
+      ${avatarHtml(h)}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+        <div style="font-size:13px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${role}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleReachPerson(email) {
+  if (_reachSelected.has(email)) _reachSelected.delete(email);
+  else _reachSelected.add(email);
+  // Re-render just the toggled card for speed
+  const card = document.querySelector(`.reach-person-card[data-email="${CSS.escape(email)}"]`);
+  if (card) {
+    const sel = _reachSelected.has(email);
+    card.classList.toggle('selected', sel);
+    card.querySelector('.reach-check').textContent = sel ? '✓' : '';
+  }
+}
+
+/* ── REACH ACTION ── */
+async function doReach(mode) {
+  // mode: 'email_individual' | 'email_together' | 'text_individual' | 'text_together'
+  const selected = DATA.humans.filter(h => {
+    const email = h.Email || h.email || '';
+    return _reachSelected.has(email);
+  });
+
+  // If none selected, use all currently visible
+  const target = selected.length ? selected : DATA.humans.filter(h => {
+    const cats = humanRoleCats(h);
+    if (!cats.some(c => RANGER_CATS.includes(c))) return false;
+    if (_reachFilter !== 'all' && !cats.includes(_reachFilter)) return false;
+    return true;
+  });
+
+  if (!target.length) { showToast('No people selected'); return; }
+
+  if (mode === 'text_individual') {
+    // Open SMS for each person one at a time (first one; user goes back)
+    const mobile = target[0]['Mobile'] || target[0]['mobile'] || '';
+    if (mobile) window.open('sms:' + mobile.replace(/\D/g,''), '_blank');
+    else showToast('No mobile number for ' + (fullName(target[0]) || 'this person'));
+    return;
+  }
+
+  if (mode === 'text_together') {
+    // Group SMS — comma-separated numbers
+    const nums = target.map(h => (h.Mobile || h.mobile || '').replace(/\D/g,'')).filter(Boolean);
+    if (!nums.length) { showToast('No mobile numbers found'); return; }
+    window.open('sms:' + nums.join(','), '_blank');
+    return;
+  }
+
+  // Email modes → open memo compose
+  openMemoCompose(mode, target);
+}
+
+/* ── MEMO COMPOSE ── */
+function openMemoCompose(mode, recipients) {
+  const isIndividual = mode === 'email_individual';
+  const toEmails = recipients.map(h => h.Email || h.email || '').filter(Boolean);
+  const toDisplay = recipients.map(h => fullName(h) || h.Email || h.email || '').join(', ');
+  const fromEmail = SESSION ? SESSION.email : '';
+  const fromName  = SESSION ? SESSION.name : '';
+
+  const overlay = document.getElementById('memo-overlay');
+  const mc = document.getElementById('memo-content');
+  overlay.style.display = 'block';
+
+  mc.innerHTML = `
+  <div style="padding:0 0 80px 0">
+    <div class="page-header" style="display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--mist)">
+      <button onclick="closeMemoCompose()" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px 0 10px;color:var(--stone)">‹</button>
+      <span class="page-title" style="font-size:17px">${isIndividual ? 'Email Individually' : 'Email Together'}</span>
+    </div>
+    <div style="padding:18px 18px 0">
+
+      ${isIndividual ? `<div style="background:var(--fog);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--stone)">
+        <strong style="color:var(--ink)">${recipients.length} recipient${recipients.length>1?'s':''}</strong> — a separate email will be sent to each person
+      </div>` : ''}
+
+      <div class="memo-field-group">
+        <label class="memo-label">To</label>
+        <div style="font-size:14px;color:var(--stone);padding:8px 0;border-bottom:1px solid var(--mist)">${toDisplay}</div>
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">From</label>
+        <div style="font-size:14px;color:var(--stone);padding:8px 0;border-bottom:1px solid var(--mist)">${fromName} &lt;${fromEmail}&gt;</div>
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">CC</label>
+        <input id="memoCC" class="memo-input" type="email" placeholder="cc@example.com" multiple>
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">BCC</label>
+        <input id="memoBCC" class="memo-input" type="email" placeholder="bcc@example.com" multiple>
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">Subject</label>
+        <input id="memoSubject" class="memo-input" type="text" placeholder="Subject…">
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">Category</label>
+        <input id="memoCategory" class="memo-input" type="text" placeholder="e.g. General, Training…">
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">Message</label>
+        <textarea id="memoMessage" class="memo-input" rows="7" placeholder="Write your message…" style="resize:vertical"></textarea>
+      </div>
+
+      <div id="memoStatus" style="font-size:14px;color:var(--stone);min-height:20px;margin-bottom:8px"></div>
+
+      <div style="display:flex;gap:10px">
+        <button onclick="closeMemoCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink)">Cancel</button>
+        <button onclick="sendMemo('${mode}',${JSON.stringify(toEmails)
+          .replace(/</g,'\u003c').replace(/>/g,'\u003e').replace(/&/g,'\u0026')})" class="reach-action-btn" style="flex:2">Send ✉</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function closeMemoCompose() {
+  document.getElementById('memo-overlay').style.display = 'none';
+}
+
+async function sendMemo(mode, toEmails) {
+  const subj    = (document.getElementById('memoSubject')  || {value:''}).value.trim();
+  const msg     = (document.getElementById('memoMessage')  || {value:''}).value.trim();
+  const cc      = (document.getElementById('memoCC')       || {value:''}).value.trim();
+  const bcc     = (document.getElementById('memoBCC')      || {value:''}).value.trim();
+  const cat     = (document.getElementById('memoCategory') || {value:''}).value.trim();
+  const status  = document.getElementById('memoStatus');
+
+  if (!subj) { if(status) status.textContent = '⚠ Subject is required'; return; }
+  if (!msg)  { if(status) status.textContent = '⚠ Message is required'; return; }
+
+  if(status) status.textContent = 'Sending…';
+
+  const fromEmail = SESSION ? SESSION.email : '';
+  const now = new Date().toISOString();
+  const isIndividual = mode === 'email_individual';
+
+  try {
+    const j = await gasPost({
+      action: 'sendMemo',
+      mode,
+      toEmails,
+      fromEmail,
+      subject: subj,
+      message: msg,
+      cc,
+      bcc,
+      category: cat,
+      timestamp: now,
+      memosSheetId: MEMOS_ID
+    });
+    if (j && j.ok) {
+      if(status) status.textContent = '✓ Sent to ' + (isIndividual ? toEmails.length + ' recipient(s)' : toEmails.length + ' recipient(s) together');
+      // Open native mailto as fallback/confirmation
+      const mailTo = isIndividual
+        ? 'mailto:' + encodeURIComponent(toEmails[0]) + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(msg)
+        : 'mailto:' + encodeURIComponent(toEmails.join(',')) + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(msg) + (cc?'&cc='+encodeURIComponent(cc):'') + (bcc?'&bcc='+encodeURIComponent(bcc):'');
+      setTimeout(() => { window.open(mailTo, '_blank'); closeMemoCompose(); }, 800);
+    } else {
+      // GAS failed — fall back to native mailto
+      fallbackMailto(mode, toEmails, subj, msg, cc, bcc);
+      if(status) status.textContent = '⚠ Saved locally. Opening email app…';
+      setTimeout(closeMemoCompose, 1200);
+    }
+  } catch(e) {
+    // No GAS — open native email app
+    fallbackMailto(mode, toEmails, subj, msg, cc, bcc);
+    if(status) status.textContent = '⚠ Opening email app…';
+    setTimeout(closeMemoCompose, 1000);
+  }
+}
+
+function fallbackMailto(mode, toEmails, subj, msg, cc, bcc) {
+  const to = mode === 'email_individual' ? toEmails[0] : toEmails.join(',');
+  let url = 'mailto:' + encodeURIComponent(to)
+    + '?subject=' + encodeURIComponent(subj)
+    + '&body=' + encodeURIComponent(msg);
+  if (cc)  url += '&cc='  + encodeURIComponent(cc);
+  if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
+  window.open(url, '_blank');
+}
+
 </script>
 </body>
 </html>
