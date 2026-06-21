@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.2 | BUILD: 2026-06-21 17:00 PT | Ranger Rover PWA -->
+<!-- v8.3 | BUILD: 2026-06-21 18:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -785,8 +785,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='8.2';
-const BUILD_STAMP='2026-06-21 17:00 PT';
+const APP_VERSION='8.3';
+const BUILD_STAMP='2026-06-21 18:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4470,23 +4470,31 @@ function _sendReach() {
         }));
   }
 
-  // Close compose overlay — values already captured above
-  closeReachCompose();
-
   if (isTog) {
     if (isEmail) {
-      // addresses unencoded, only query params encoded
+      // Fire mailto: FIRST on this direct tap, then close overlay
       const toStr = _reachTarget.map(r=>r.email).filter(Boolean).join(',');
       let url = 'mailto:' + toStr
               + '?subject=' + encodeURIComponent(subj)
               + '&body='    + encodeURIComponent(msg);
       if (cc)  url += '&cc='  + encodeURIComponent(cc);
       if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
-      window.location.href = url;
+      // Use <a> click trick — most reliable cross-platform mailto trigger
+      const a = document.createElement('a');
+      a.href = url;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); closeReachCompose(); }, 200);
     } else {
       const nums = _reachTarget.map(r=>r.mobile).filter(Boolean).join(',');
       if (!nums) { showToast('No mobile numbers found'); return; }
-      window.location.href = 'sms:' + nums + (isAndroid ? '?' : '&') + 'body=' + encodeURIComponent(msg);
+      const a = document.createElement('a');
+      a.href = 'sms:' + nums + (isAndroid ? '?' : '&') + 'body=' + encodeURIComponent(msg);
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); closeReachCompose(); }, 200);
     }
   } else {
     if (!stepQueue || !stepQueue.length) {
@@ -4541,8 +4549,9 @@ function _showStepModal(idx) {
   // Set href safely via JS property — never via innerHTML
   const link = div.querySelector('#reachStepLink');
   link.href = item.href;
-  link.addEventListener('click', () => {
-    setTimeout(() => _showStepModal(idx + 1), 500);
+  link.addEventListener('click', (e) => {
+    // Let the href navigate naturally, then advance the modal
+    setTimeout(() => _showStepModal(idx + 1), 600);
   });
 
   document.body.appendChild(div);
