@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.3 | BUILD: 2026-06-21 18:00 PT | Ranger Rover PWA -->
+<!-- v8.4 | BUILD: 2026-06-21 19:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -785,8 +785,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='8.3';
-const BUILD_STAMP='2026-06-21 18:00 PT';
+const APP_VERSION='8.4';
+const BUILD_STAMP='2026-06-21 19:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4357,10 +4357,10 @@ function doReach(mode) {
 
 // ── compose sheet (shared for email + text) ───────────────────────────────────
 function openReachCompose(mode) {
-  const isEmail = mode.startsWith('email');
+  const isEmail   = mode.startsWith('email');
   const isTogether = mode.endsWith('together');
-  const overlay = document.getElementById('memo-overlay');
-  const mc      = document.getElementById('memo-content');
+  const overlay   = document.getElementById('memo-overlay');
+  const mc        = document.getElementById('memo-content');
   overlay.style.display = 'block';
 
   const toDisplay = _reachTarget.map(r => r.name).join(', ');
@@ -4369,6 +4369,9 @@ function openReachCompose(mode) {
     ? (isTogether ? 'Email Together' : 'Email Individually')
     : (isTogether ? 'Text Together'  : 'Text Individually');
 
+  // The Send button is a real <a> tag — its href is set by _prepReach()
+  // on touchstart (before the tap registers) so the navigation is
+  // user-initiated. This is the only reliable way on Android PWA.
   mc.innerHTML = `
   <div style="padding:0 0 100px 0">
     <div class="page-header" style="display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--mist)">
@@ -4400,12 +4403,17 @@ function openReachCompose(mode) {
       <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
       <div style="display:flex;gap:10px">
         <button onclick="closeReachCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink);flex:1">Cancel</button>
-        <button id="reachSendBtn" onclick="_sendReach()" class="reach-action-btn" style="flex:2">${isEmail?'✉ Send':'💬 Send'}</button>
+        <a id="reachSendBtn" href="#"
+          class="reach-action-btn"
+          style="flex:2;text-decoration:none;text-align:center;display:flex;align-items:center;justify-content:center"
+          ontouchstart="_prepReach(this)"
+          onclick="return _prepReach(this)">
+          ${isEmail ? '✉ Send' : '💬 Send'}
+        </a>
       </div>
     </div>
   </div>`;
 
-  // Auto-focus message
   setTimeout(() => { const el = document.getElementById('reachMessage'); if(el) el.focus(); }, 150);
 }
 
@@ -4413,100 +4421,105 @@ function closeReachCompose() {
   document.getElementById('memo-overlay').style.display = 'none';
 }
 
-// ── send ──────────────────────────────────────────────────────────────────────
-// _sendReach() is called from a button tap — direct user gesture.
-// For "together" modes it fires ONE url immediately (still a direct tap).
-// For "individual" modes it builds the step-through queue and shows
-// the first card; each subsequent card is opened by another direct tap.
-function _sendReach() {
+// Called on touchstart AND onclick of the Send <a>.
+// Validates fields, builds the URL, sets it as the href, logs to GAS.
+// Returns true to allow the native navigation to proceed.
+function _prepReach(el) {
   const mode     = _reachMode;
   const isEmail  = mode.startsWith('email');
   const isTog    = mode.endsWith('together');
+  const isAndroid = !/iphone|ipad|ipod/i.test(navigator.userAgent);
   const msg      = (document.getElementById('reachMessage') || {value:''}).value.trim();
   const subj     = isEmail ? (document.getElementById('reachSubject') || {value:''}).value.trim() : '';
   const cc       = isEmail ? (document.getElementById('reachCC')      || {value:''}).value.trim() : '';
   const bcc      = isEmail ? (document.getElementById('reachBCC')     || {value:''}).value.trim() : '';
   const statusEl = document.getElementById('reachComposeStatus');
 
-  if (isEmail && !subj) { if(statusEl) statusEl.textContent = '⚠ Subject is required'; return; }
-  if (!msg)              { if(statusEl) statusEl.textContent = '⚠ Message is required';  return; }
-
-  // Log to Memos sheet in background — fire and forget, non-blocking
-  if (isEmail) {
-    gasPost({
-      action:'sendMemo', mode,
-      toEmails: _reachTarget.map(r => r.email).filter(Boolean),
-      fromEmail: SESSION ? SESSION.email : '',
-      subject:subj, message:msg, cc, bcc, category:'',
-      timestamp: new Date().toISOString()
-    }).catch(()=>{});
+  if (isEmail && !subj) {
+    if (statusEl) statusEl.textContent = '⚠ Subject is required';
+    if (el) el.href = '#';
+    return false;
+  }
+  if (!msg) {
+    if (statusEl) statusEl.textContent = '⚠ Message is required';
+    if (el) el.href = '#';
+    return false;
   }
 
-  // Build step-through queue BEFORE closing compose (values still in DOM)
-  // Key fix: mailto: addresses must NOT be encodeURIComponent'd —
-  // only subject/body/cc/bcc values get encoded.
-  const isSms = !isEmail;
-  const isAndroid = !/iphone|ipad|ipod/i.test(navigator.userAgent);
+  let url = '#';
 
-  let stepQueue;
   if (isTog) {
-    stepQueue = null; // together = single fire, no queue needed
+    if (isEmail) {
+      const toStr = _reachTarget.map(r => r.email).filter(Boolean).join(',');
+      url = 'mailto:' + toStr
+          + '?subject=' + encodeURIComponent(subj)
+          + '&body='    + encodeURIComponent(msg);
+      if (cc)  url += '&cc='  + encodeURIComponent(cc);
+      if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
+    } else {
+      const nums = _reachTarget.map(r => r.mobile).filter(Boolean).join(',');
+      if (!nums) { if(statusEl) statusEl.textContent = '⚠ No mobile numbers found'; if(el) el.href='#'; return false; }
+      url = 'sms:' + nums + (isAndroid ? '?' : '&') + 'body=' + encodeURIComponent(msg);
+    }
+    // Set href so the native tap navigates to it
+    if (el) el.href = url;
+
+    // Log + close after a short delay (navigation already triggered)
+    setTimeout(() => {
+      closeReachCompose();
+      if (isEmail) {
+        gasPost({
+          action:'sendMemo', mode,
+          toEmails: _reachTarget.map(r => r.email).filter(Boolean),
+          fromEmail: SESSION ? SESSION.email : '',
+          subject: subj, message: msg, cc, bcc, category: '',
+          timestamp: new Date().toISOString()
+        }).catch(() => {});
+      }
+    }, 300);
+    return true; // allow href navigation
+
   } else {
-    stepQueue = isEmail
-      ? _reachTarget.filter(r=>r.email).map(r=>({
-          label: r.name,
-          info:  r.email,
-          // email addresses go unencoded in mailto: recipient field
+    // Individually — build step queue, show modal, suppress href navigation
+    if (el) el.href = '#';
+    const stepQueue = isEmail
+      ? _reachTarget.filter(r => r.email).map(r => ({
+          label: r.name, info: r.email,
           href:  'mailto:' + r.email
                + '?subject=' + encodeURIComponent(subj)
                + '&body='    + encodeURIComponent(msg)
                + (cc  ? '&cc='  + encodeURIComponent(cc)  : '')
                + (bcc ? '&bcc=' + encodeURIComponent(bcc) : '')
         }))
-      : _reachTarget.filter(r=>r.mobile).map(r=>({
-          label: r.name,
-          info:  r.mobile,
+      : _reachTarget.filter(r => r.mobile).map(r => ({
+          label: r.name, info: r.mobile,
           href:  'sms:' + r.mobile + (isAndroid ? '?' : '&') + 'body=' + encodeURIComponent(msg)
         }));
-  }
 
-  if (isTog) {
+    if (!stepQueue.length) {
+      if (statusEl) statusEl.textContent = '⚠ No ' + (isEmail ? 'email addresses' : 'mobile numbers') + ' found';
+      return false;
+    }
+
     if (isEmail) {
-      // Fire mailto: FIRST on this direct tap, then close overlay
-      const toStr = _reachTarget.map(r=>r.email).filter(Boolean).join(',');
-      let url = 'mailto:' + toStr
-              + '?subject=' + encodeURIComponent(subj)
-              + '&body='    + encodeURIComponent(msg);
-      if (cc)  url += '&cc='  + encodeURIComponent(cc);
-      if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
-      // Use <a> click trick — most reliable cross-platform mailto trigger
-      const a = document.createElement('a');
-      a.href = url;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { a.remove(); closeReachCompose(); }, 200);
-    } else {
-      const nums = _reachTarget.map(r=>r.mobile).filter(Boolean).join(',');
-      if (!nums) { showToast('No mobile numbers found'); return; }
-      const a = document.createElement('a');
-      a.href = 'sms:' + nums + (isAndroid ? '?' : '&') + 'body=' + encodeURIComponent(msg);
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { a.remove(); closeReachCompose(); }, 200);
+      gasPost({
+        action:'sendMemo', mode,
+        toEmails: _reachTarget.map(r => r.email).filter(Boolean),
+        fromEmail: SESSION ? SESSION.email : '',
+        subject: subj, message: msg, cc, bcc, category: '',
+        timestamp: new Date().toISOString()
+      }).catch(() => {});
     }
-  } else {
-    if (!stepQueue || !stepQueue.length) {
-      showToast('No ' + (isEmail ? 'email addresses' : 'mobile numbers') + ' found');
-      return;
-    }
-    // Store queue in module variable — never serialise into onclick strings
+
+    closeReachCompose();
     _reachStepQueue = stepQueue;
     _reachStepIcon  = isEmail ? '✉' : '💬';
     _showStepModal(0);
+    return false; // suppress href navigation
   }
 }
+
+// ── send ──────────────────────────────────────────────────────────────────────
 
 // ── step-through modal ────────────────────────────────────────────────────────
 // Queue stored in module vars — no JSON in onclick attributes.
