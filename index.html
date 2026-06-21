@@ -617,6 +617,68 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     <div class="card-list" id="actionList" style="padding:0 16px 28px"></div>
   </div>
 
+
+  <!-- REACH -->
+  <div class="tab-pane" id="tab-reach">
+    <!-- Sub-page: Reach menu -->
+    <div id="reach-menu" style="display:block">
+      <div class="page-header"><span class="page-title">Reach</span></div>
+      <div style="padding:28px 20px 12px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:17px;font-weight:600;color:var(--stone);letter-spacing:.04em;text-align:center;margin-bottom:8px">Reach?</div>
+        <button class="reach-menu-btn" onclick="showReachPage('schools')">🏫 Schools</button>
+        <button class="reach-menu-btn" onclick="showReachPage('rangers')">🌿 Rangers</button>
+        <button class="reach-menu-btn" onclick="showReachPage('misc')">📋 Misc</button>
+      </div>
+    </div>
+
+    <!-- Sub-page: Rangers Reach -->
+    <div id="reach-rangers" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showReachPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Rangers</span>
+        <span class="page-count" id="reachRangerCount"></span>
+      </div>
+      <div class="filter-row" id="reachRangerFilters">
+        <button class="chip active" data-filter="all"              onclick="filterReach('all')">All</button>
+        <button class="chip"        data-filter="ranger"           onclick="filterReach('ranger')">Ranger</button>
+        <button class="chip"        data-filter="master_ranger"    onclick="filterReach('master_ranger')">Master Ranger</button>
+        <button class="chip"        data-filter="garden_keeper"    onclick="filterReach('garden_keeper')">Garden Keeper</button>
+        <button class="chip"        data-filter="ranger_applicant" onclick="filterReach('ranger_applicant')">Ranger Applicant</button>
+        <button class="chip"        data-filter="ranger_past"      onclick="filterReach('ranger_past')">Ranger Past</button>
+      </div>
+      <div class="card-list" id="reachRangerList"></div>
+      <div id="reachActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
+        <button class="reach-action-btn" onclick="doReach('email_individual')">&#9993; Email Individually</button>
+        <button class="reach-action-btn" onclick="doReach('email_together')">&#9993; Email Together</button>
+        <button class="reach-action-btn" onclick="doReach('text_individual')">&#128172; Text Individually</button>
+        <button class="reach-action-btn" onclick="doReach('text_together')">&#128172; Text Together</button>
+      </div>
+    </div>
+
+    <!-- Sub-page: Schools Reach (placeholder) -->
+    <div id="reach-schools" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showReachPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Schools</span>
+      </div>
+      <div style="padding:40px 24px;text-align:center;color:var(--silver)">Coming soon</div>
+    </div>
+
+    <!-- Sub-page: Misc Reach (placeholder) -->
+    <div id="reach-misc" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showReachPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Misc</span>
+      </div>
+      <div style="padding:40px 24px;text-align:center;color:var(--silver)">Coming soon</div>
+    </div>
+  </div>
+
+  <!-- MEMO COMPOSE (full-screen overlay) -->
+  <div id="memo-overlay" style="display:none;position:fixed;inset:0;z-index:600;background:var(--paper);overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,0px)">
+    <div id="memo-content"></div>
+  </div>
+
   <!-- SETTINGS -->
   <div class="tab-pane" id="tab-settings">
     <div class="page-header"><span class="page-title">Settings</span></div>
