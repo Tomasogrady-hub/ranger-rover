@@ -117,6 +117,13 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .tab-pane{display:none}.tab-pane.active{display:block}
 .filter-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--mist)}
+.reach-step-modal{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+.reach-step-box{background:var(--paper);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:24px 20px 36px;width:100%;max-width:520px;text-align:center}
+.reach-step-name{font-size:20px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.reach-step-info{font-size:14px;color:var(--stone);margin-bottom:20px}
+.reach-step-counter{font-size:12px;color:var(--silver);margin-bottom:16px;letter-spacing:.06em;text-transform:uppercase}
+.reach-step-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.reach-step-btn{padding:13px 22px;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:700;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .memo-field-group{margin-bottom:14px}
 .memo-label{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--stone);margin-bottom:4px}
 .memo-input{width:100%;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;-webkit-appearance:none}
@@ -779,8 +786,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='7.9';
-const BUILD_STAMP='2026-06-20 12:00 PT';
+const APP_VERSION='8.0';
+const BUILD_STAMP='2026-06-21 09:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4322,8 +4329,20 @@ function toggleReachPerson(email) {
 }
 
 /* ── REACH ACTION ── */
-async function doReach(mode) {
-  // Gather selected people, or fall back to all visible
+// ── REACH ACTIONS ─────────────────────────────────────────────────────────────
+// Each action that opens an external app (sms:/mailto:) MUST be triggered by a
+// direct user tap — never from setTimeout — or Android will block it.
+// "Together" modes fire immediately on tap. "Individually" modes show a step-
+// through modal so each person is opened by a fresh tap.
+let _reachQueue = [];   // [{name, contact}] for step-through
+let _reachQueueMode = ''; // 'sms' | 'email'
+let _reachQueueSubj = '';
+let _reachQueueMsg  = '';
+let _reachQueueCC   = '';
+let _reachQueueBCC  = '';
+
+function doReach(mode) {
+  // Gather selected people, or fall back to all visible filtered people
   const selected = DATA.humans.filter(h => _reachSelected.has(h.Email || h.email || ''));
   const target = selected.length ? selected : DATA.humans.filter(h => {
     const cats = humanRoleCats(h);
@@ -4333,22 +4352,7 @@ async function doReach(mode) {
   });
   if (!target.length) { showToast('No people selected'); return; }
 
-  // ── TEXT INDIVIDUALLY ───────────────────────────────────────────────────────
-  // Queue all numbers; open them one by one with a small delay so the OS
-  // has time to handle each sms: link before the next fires.
-  if (mode === 'text_individual') {
-    const nums = target
-      .map(h => ({ name: fullName(h) || (h.Email||h.email||''), mobile: (h.Mobile||h.mobile||'').replace(/\D/g,'') }))
-      .filter(x => x.mobile);
-    if (!nums.length) { showToast('No mobile numbers found'); return; }
-    showToast('Opening ' + nums.length + ' text' + (nums.length>1?'s':'') + '…');
-    nums.forEach((x, i) => {
-      setTimeout(() => { window.location.href = 'sms:' + x.mobile; }, i * 1200);
-    });
-    return;
-  }
-
-  // ── TEXT TOGETHER ────────────────────────────────────────────────────────────
+  // ── TEXT TOGETHER ── direct tap → fires immediately ─────────────────────────
   if (mode === 'text_together') {
     const nums = target.map(h => (h.Mobile||h.mobile||'').replace(/\D/g,'')).filter(Boolean);
     if (!nums.length) { showToast('No mobile numbers found'); return; }
@@ -4356,8 +4360,64 @@ async function doReach(mode) {
     return;
   }
 
-  // ── EMAIL (individual or together) ──────────────────────────────────────────
+  // ── TEXT INDIVIDUALLY ── step-through modal ──────────────────────────────────
+  if (mode === 'text_individual') {
+    _reachQueue = target
+      .map(h => ({ name: fullName(h)||h.Email||h.email||'?', contact: (h.Mobile||h.mobile||'').replace(/\D/g,'') }))
+      .filter(x => x.contact);
+    if (!_reachQueue.length) { showToast('No mobile numbers found'); return; }
+    _reachQueueMode = 'sms';
+    showReachStepModal(0);
+    return;
+  }
+
+  // ── EMAIL TOGETHER or INDIVIDUALLY ── show compose form first ───────────────
   openMemoCompose(mode, target);
+}
+
+// Step-through modal — each "Open" tap is a direct user gesture, never blocked
+function showReachStepModal(idx) {
+  removeReachStepModal();
+  if (idx >= _reachQueue.length) {
+    showToast('All done ✓');
+    return;
+  }
+  const item  = _reachQueue[idx];
+  const total = _reachQueue.length;
+  const isSms = _reachQueueMode === 'sms';
+
+  const div = document.createElement('div');
+  div.className = 'reach-step-modal';
+  div.id = 'reachStepModal';
+
+  const href = isSms
+    ? 'sms:' + item.contact
+    : 'mailto:' + encodeURIComponent(item.contact)
+        + '?subject=' + encodeURIComponent(_reachQueueSubj)
+        + '&body='    + encodeURIComponent(_reachQueueMsg)
+        + (_reachQueueCC  ? '&cc='  + encodeURIComponent(_reachQueueCC)  : '')
+        + (_reachQueueBCC ? '&bcc=' + encodeURIComponent(_reachQueueBCC) : '');
+
+  const isLast = idx === total - 1;
+  div.innerHTML = `<div class="reach-step-box">
+    <div class="reach-step-counter">${idx+1} of ${total}</div>
+    <div class="reach-step-name">${item.name}</div>
+    <div class="reach-step-info">${item.contact}</div>
+    <div class="reach-step-row">
+      <button class="reach-step-btn" style="background:var(--mist);color:var(--ink)"
+        onclick="removeReachStepModal()">Cancel all</button>
+      <a class="reach-step-btn" style="background:var(--enrich-dark);color:#fff;text-decoration:none"
+        href="${href}" onclick="setTimeout(()=>showReachStepModal(${idx+1}),400)">
+        ${isSms?'📱':'✉'} Open${isLast?'':' &amp; Next'}
+      </a>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+}
+
+function removeReachStepModal() {
+  const el = document.getElementById('reachStepModal');
+  if (el) el.remove();
 }
 
 /* ── MEMO COMPOSE ── */
@@ -4442,21 +4502,26 @@ function sendMemo(mode, toEmails) {
   const fromEmail    = SESSION ? SESSION.email : '';
   const isIndividual = mode === 'email_individual';
 
-  // ── 1. Open native email app immediately (always works, no popup blocker) ──
+  // Log to Memos sheet in background (fire and forget — email opens regardless)
+  gasPost({
+    action:'sendMemo', mode, toEmails, fromEmail,
+    subject:subj, message:msg, cc, bcc, category:cat,
+    timestamp: new Date().toISOString()
+  }).catch(()=>{});
+
+  closeMemoCompose();
+
   if (isIndividual) {
-    // Open each recipient separately, staggered so the OS can handle each one
-    toEmails.forEach((addr, i) => {
-      setTimeout(() => {
-        let url = 'mailto:' + encodeURIComponent(addr)
-          + '?subject=' + encodeURIComponent(subj)
-          + '&body='    + encodeURIComponent(msg);
-        if (cc)  url += '&cc='  + encodeURIComponent(cc);
-        if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
-        window.location.href = url;
-      }, i * 1500);
-    });
+    // Populate the step-through queue — each email opened by a fresh direct tap
+    _reachQueue     = toEmails.map(addr => ({ name: addr, contact: addr }));
+    _reachQueueMode = 'email';
+    _reachQueueSubj = subj;
+    _reachQueueMsg  = msg;
+    _reachQueueCC   = cc;
+    _reachQueueBCC  = bcc;
+    showReachStepModal(0);
   } else {
-    // All together in one To: field
+    // Email together — one mailto: fired on this direct tap
     let url = 'mailto:' + encodeURIComponent(toEmails.join(','))
       + '?subject=' + encodeURIComponent(subj)
       + '&body='    + encodeURIComponent(msg);
@@ -4464,16 +4529,6 @@ function sendMemo(mode, toEmails) {
     if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
     window.location.href = url;
   }
-
-  // ── 2. Log to Memos sheet in background (fire and forget) ──────────────────
-  gasPost({
-    action: 'sendMemo', mode, toEmails, fromEmail,
-    subject: subj, message: msg, cc, bcc, category: cat,
-    timestamp: new Date().toISOString()
-  }).catch(() => {});  // silent — email already opened above
-
-  if(status) status.textContent = '✓ Opening email app…';
-  setTimeout(closeMemoCompose, 1000);
 }
 
 </script>
