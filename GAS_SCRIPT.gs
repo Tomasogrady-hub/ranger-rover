@@ -714,7 +714,7 @@ function handleSaveNotes(p) {
 function handleGetAppSettings() {
   try {
     var raw      = PropertiesService.getScriptProperties().getProperty('app_settings');
-    var settings = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '' };
+    var settings = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '', navVisibility: {} };
     var gasUrl   = PropertiesService.getScriptProperties().getProperty('gas_url') || '';
     return { ok: true, settings: settings, gasUrl: gasUrl };
   } catch(e) {
@@ -725,9 +725,23 @@ function handleGetAppSettings() {
 function handleSaveAppSettings(p) {
   try {
     var settings = p.settings || {};
+    // Sanitise navVisibility: keys 1-9, values = arrays of known tab strings
+    var KNOWN_TABS = ['notes','schools','map','chores','latest','rangers','people',
+                      'plants','action','reach','settings','control'];
+    var navVis = {};
+    var rawVis = settings.navVisibility || {};
+    for (var i = 1; i <= 9; i++) {
+      var key = String(i);
+      if (Array.isArray(rawVis[key])) {
+        navVis[key] = rawVis[key].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
+      } else if (Array.isArray(rawVis[i])) {
+        navVis[key] = rawVis[i].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
+      }
+    }
     var safe = {
       plantsEnabled: settings.plantsEnabled !== false,
-      broadcast: String(settings.broadcast || '').slice(0, 500)
+      broadcast: String(settings.broadcast || '').slice(0, 500),
+      navVisibility: navVis
     };
     PropertiesService.getScriptProperties().setProperty('app_settings', JSON.stringify(safe));
     if (p.gasUrl) {
