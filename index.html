@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.8 | BUILD: 2026-06-23 12:00 PT | Ranger Rover PWA -->
+<!-- v8.9 | BUILD: 2026-06-23 14:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -825,10 +825,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v8.8';
+const APP_VERSION='v8.9';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-23 12:00 PT';
+const BUILD_STAMP='2026-06-23 14:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1169,7 +1169,7 @@ function showApp(){
   const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   _updateHdrAvatar();
   const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=APP_VERSION;
-  const bs2=document.getElementById('buildStampLabel');if(bs2&&SESSION&&SESSION.accessLevel===1){bs2.style.display='block';bs2.textContent='Built: '+BUILD_STAMP;}
+
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=lvl===1?'block':'none';
   if(bs)bs.textContent='Built: '+BUILD_STAMP;
   switchTab('notes');
@@ -3249,6 +3249,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
   }
   if(tab==='plants')initPlants();
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
+  if(tab==='control'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='action')renderAction();
   if(tab==='latest'){_activityLoaded=false;loadActivity();}
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
@@ -4172,7 +4173,7 @@ function _applyAppSettings(){
   // Re-apply active state to current tab
   if(_activeTab){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===_activeTab));}
   // Update control panel toggle button
-  renderNavVisibilityPanel();
+  setTimeout(renderNavVisibilityPanel, 50);
   const tb=document.getElementById('plantsToggleBtn');
   if(tb){
     tb.textContent=plantsOn?'ON':'OFF';
