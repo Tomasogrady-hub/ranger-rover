@@ -738,6 +738,20 @@ function handleSaveAppSettings(p) {
         navVis[key] = rawVis[i].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
       }
     }
+    // Sanitise row3Slots: array of {label, tab, visibleLevels}
+    var rawSlots = Array.isArray(rawVis.row3Slots) ? rawVis.row3Slots : [];
+    var safeSlots = [];
+    for (var si = 0; si < 6; si++) {
+      var rs = rawSlots[si] || {};
+      safeSlots.push({
+        label: String(rs.label || '').slice(0, 30),
+        tab: String(rs.tab || '').replace(/[^a-z0-9_-]/g, '').slice(0, 30),
+        visibleLevels: Array.isArray(rs.visibleLevels)
+          ? rs.visibleLevels.filter(function(lv){ return lv >= 1 && lv <= 9; })
+          : []
+      });
+    }
+    navVis.row3Slots = safeSlots;
     var safe = {
       plantsEnabled: settings.plantsEnabled !== false,
       broadcast: String(settings.broadcast || '').slice(0, 500),
