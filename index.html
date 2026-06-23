@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.6 | BUILD: 2026-06-22 14:00 PT | Ranger Rover PWA -->
+<!-- v8.7 | BUILD: 2026-06-23 10:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -358,6 +358,20 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .badge-yes{background:#d4fbf5;color:#1e3a1e}
 .badge-no{background:#fdecea;color:#b02020}
 
+
+/* ── Nav Visibility Control ── */
+.nv-level-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.nv-level-tab{padding:7px 14px;border-radius:99px;border:2px solid var(--mist);background:var(--fog);font-family:var(--font-b);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.nv-level-tab.active{background:var(--grove);border-color:var(--grove);color:#fff}
+.nv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.nv-tile{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--r-sm);background:var(--fog);border:1px solid var(--mist);font-family:var(--font-b);font-size:13px;font-weight:600;gap:6px}
+.nv-tile .nv-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nv-toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+.nv-toggle input{opacity:0;width:0;height:0}
+.nv-slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:99px;transition:.2s}
+.nv-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+.nv-toggle input:checked+.nv-slider{background:var(--grove)}
+.nv-toggle input:checked+.nv-slider:before{transform:translateX(16px)}
 </style>
 
 </head>
@@ -750,6 +764,19 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
       </div>
 
+
+      <!-- Nav Visibility by Access Level -->
+      <div class="dl" style="margin-bottom:8px;margin-top:4px">🧭 Nav Visibility by Access Level</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-note" style="margin-bottom:12px">Choose an access level, then toggle which nav squares are visible for users at that level. Changes save immediately.</div>
+          <div class="nv-level-tabs" id="nvLevelTabs"></div>
+          <div class="nv-grid" id="nvGrid"></div>
+          <button class="settings-btn" onclick="saveNavVisibility()">Save Nav Visibility</button>
+          <div id="nvSaveStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:20px"></div>
+        </div>
+      </div>
+
       <!-- Broadcast message -->
       <div class="dl" style="margin-bottom:8px;margin-top:4px">📢 Broadcast Message</div>
       <div class="settings-group">
@@ -785,8 +812,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='8.6';
-const BUILD_STAMP='2026-06-22 14:00 PT';
+const APP_VERSION='v8.7';
+const BUILD_STAMP='2026-06-23 10:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1046,37 +1073,39 @@ function buildNav(lvl,plantsOn){
   const row1=document.getElementById('navRow1');
   const row2=document.getElementById('navRow2');
   if(!row1||!row2)return;
+  // Helper: only emit nav button if allowed by navVisibility setting
+  const _nb=(tab,label,extraId='')=>_navTabAllowed(tab,lvl)?_navBtn(tab,label,extraId):'';
   // Level 3: one row of 4 — Notes instead of Latest
   if(lvl>=3){
-    row1.innerHTML=
-      _navBtn('notes','Notes')+
-      _navBtn('schools','Schools')+
-      _navBtn('map','Map')+
-      _navBtn('chores','Chores');
+    row1.innerHTML=[
+      _nb('notes','Notes'),
+      _nb('schools','Schools'),
+      _nb('map','Map'),
+      _nb('chores','Chores')].filter(Boolean).join('')||'';
     row2.style.display='none';
   } else {
     // Level 1 or 2: two rows
     // Row 1: Notes, Schools, Map, Chores
-    row1.innerHTML=
-      _navBtn('latest','Latest')+
-      _navBtn('schools','Schools')+
-      _navBtn('map','Map')+
-      _navBtn('chores','Chores');
+    row1.innerHTML=[
+      _nb('latest','Latest'),
+      _nb('schools','Schools'),
+      _nb('map','Map'),
+      _nb('chores','Chores')].filter(Boolean).join('')||'';
     // Row 2: Notes, Rangers, People, Plants(if on), Settings(lvl1), Control(lvl1)
     let row2tabs=[];
-    row2tabs.push(_navBtn('notes','Notes'));
-    row2tabs.push(_navBtn('rangers','Rangers'));
-    row2tabs.push(_navBtn('people','People'));
-    if(plantsOn||lvl===1) row2tabs.push(_navBtn('plants','Plants'));
-    row2tabs.push(_navBtn('action','Action'));
-    if(lvl===1) row2tabs.push(_navBtn('settings','Settings'));
-    if(lvl===1) row2tabs.push(_navBtn('control','Control'));
+    if(_navTabAllowed('notes',lvl))    row2tabs.push(_navBtn('notes','Notes'));
+    if(_navTabAllowed('rangers',lvl))  row2tabs.push(_navBtn('rangers','Rangers'));
+    if(_navTabAllowed('people',lvl))   row2tabs.push(_navBtn('people','People'));
+    if((plantsOn||lvl===1)&&_navTabAllowed('plants',lvl)) row2tabs.push(_navBtn('plants','Plants'));
+    if(_navTabAllowed('action',lvl))   row2tabs.push(_navBtn('action','Action'));
+    if(lvl===1&&_navTabAllowed('settings',lvl)) row2tabs.push(_navBtn('settings','Settings'));
+    if(lvl===1&&_navTabAllowed('control',lvl))  row2tabs.push(_navBtn('control','Control'));
     row2.innerHTML=row2tabs.join('');
     row2.style.display='flex';
     // Row 3: Reach row (always 7 buttons: Reach + 6 empty)
     const row3=document.getElementById('navRow3');
     if(row3){
-      row3.innerHTML=_navBtn('reach','Reach')+
+      row3.innerHTML=(_navTabAllowed('reach',lvl)?_navBtn('reach','Reach'):'')+
         '<button class="nav-btn" data-tab="reach-empty" style="opacity:.45;cursor:default">Empty</button>'.repeat(6);
       row3.style.display='flex';
     }
@@ -2154,6 +2183,7 @@ function _renderDirtyTab(tab){
   }
   else if(tab==='chores'){renderChores();_tabDirty.chores=false;}
   else if(tab==='action'){renderAction();_tabDirty.action=false;}
+  else if(tab==='control'){renderNavVisibilityPanel();}
   else if(tab==='reach'){/* reach renders on demand */;_tabDirty.reach=false;}
 }
 
@@ -4066,7 +4096,7 @@ function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CF
 /* ═══ CONTROL PANEL ═══ */
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
-let _appSettings={plantsEnabled:true,broadcast:''};
+let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{}};
 
 async function loadAppSettings(){
   // Apply cached settings immediately for instant render
@@ -4101,6 +4131,7 @@ function _applyAppSettings(){
   // Re-apply active state to current tab
   if(_activeTab){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===_activeTab));}
   // Update control panel toggle button
+  renderNavVisibilityPanel();
   const tb=document.getElementById('plantsToggleBtn');
   if(tb){
     tb.textContent=plantsOn?'ON':'OFF';
@@ -4566,6 +4597,97 @@ function _showStepModal(idx) {
   });
 
   document.body.appendChild(div);
+}
+
+
+// ── Nav Visibility Control ─────────────────────────────────────────────────
+const NAV_ALL_TABS = [
+  {key:'notes',    label:'📋 Notes'},
+  {key:'schools',  label:'🏫 Schools'},
+  {key:'map',      label:'🗺 Map'},
+  {key:'chores',   label:'✅ Chores'},
+  {key:'latest',   label:'🕐 Latest'},
+  {key:'rangers',  label:'🌿 Rangers'},
+  {key:'people',   label:'👥 People'},
+  {key:'plants',   label:'🪴 Plants'},
+  {key:'action',   label:'⚡ Action'},
+  {key:'reach',    label:'📡 Reach'},
+  {key:'settings', label:'⚙️ Settings'},
+  {key:'control',  label:'🎛 Control'},
+];
+
+// Default: all tabs visible for every level
+function _nvDefaults(){
+  const d={};
+  for(let i=1;i<=9;i++){d[i]=NAV_ALL_TABS.map(t=>t.key);}
+  return d;
+}
+
+let _nvCurrentLevel=1; // which level tab is being edited
+
+function renderNavVisibilityPanel(){
+  const tabsEl=document.getElementById('nvLevelTabs');
+  const gridEl=document.getElementById('nvGrid');
+  if(!tabsEl||!gridEl)return;
+
+  // Level selector tabs 1-9
+  tabsEl.innerHTML='';
+  for(let i=1;i<=9;i++){
+    const btn=document.createElement('button');
+    btn.className='nv-level-tab'+(i===_nvCurrentLevel?' active':'');
+    btn.textContent='Level '+i;
+    btn.onclick=(()=>{const lvl=i;return()=>{_nvCurrentLevel=lvl;renderNavVisibilityPanel();}})();
+    tabsEl.appendChild(btn);
+  }
+
+  // Get current visibility for selected level
+  const vis=_appSettings.navVisibility||{};
+  const defaults=_nvDefaults();
+  const levelVis=vis[_nvCurrentLevel]||(defaults[_nvCurrentLevel]);
+
+  // Build grid of toggle tiles
+  gridEl.innerHTML='';
+  NAV_ALL_TABS.forEach(t=>{
+    const on=levelVis.includes(t.key);
+    const tile=document.createElement('div');
+    tile.className='nv-tile';
+    tile.innerHTML=`<span class="nv-label">${t.label}</span>
+      <label class="nv-toggle">
+        <input type="checkbox" data-tab="${t.key}" ${on?'checked':''}>
+        <span class="nv-slider"></span>
+      </label>`;
+    gridEl.appendChild(tile);
+  });
+}
+
+async function saveNavVisibility(){
+  const gridEl=document.getElementById('nvGrid');
+  if(!gridEl)return;
+  const checks=gridEl.querySelectorAll('input[type=checkbox]');
+  const visible=[];
+  checks.forEach(c=>{if(c.checked)visible.push(c.dataset.tab);});
+
+  if(!_appSettings.navVisibility)_appSettings.navVisibility={};
+  _appSettings.navVisibility[_nvCurrentLevel]=visible;
+
+  // Persist
+  localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
+  const statusEl=document.getElementById('nvSaveStatus');
+  if(statusEl)statusEl.textContent='Saving…';
+  try{
+    await gasPost({action:'saveAppSettings',settings:_appSettings});
+    if(statusEl)statusEl.textContent='✅ Saved for Level '+_nvCurrentLevel;
+    setTimeout(()=>{if(statusEl)statusEl.textContent='';},2500);
+  }catch(e){
+    if(statusEl)statusEl.textContent='❌ Error saving';
+  }
+}
+
+// Returns true if a tab key should be shown for a given access level
+function _navTabAllowed(tabKey, lvl){
+  const vis=_appSettings.navVisibility;
+  if(!vis||!vis[lvl])return true; // no config = show all
+  return vis[lvl].includes(tabKey);
 }
 
 </script>
