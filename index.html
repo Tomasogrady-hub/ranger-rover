@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.5 | BUILD: 2026-06-22 10:00 PT | Ranger Rover PWA -->
+<!-- v8.6 | BUILD: 2026-06-22 14:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -201,7 +201,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .chore-card{background:var(--fog);border-radius:var(--r-sm);padding:14px 16px;margin-top:9px;cursor:pointer;transition:background .12s;border:1px solid var(--mist)}
 .chore-card:active{background:var(--mist)}
 .chore-card.urgent{border-top:2px solid var(--enrich-red)}
-.chore-title{font-size:17px;font-weight:500;color:var(--ink);margin-bottom:5px;line-height:1.4}
+.chore-title{font-size:17px;font-weight:500;color:var(--enrich-teal);text-decoration:underline;text-underline-offset:3px;margin-bottom:4px;line-height:1.4}
 .chore-meta{font-size:15px;color:var(--stone);display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:5px}
 .chore-badge-pill{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600}
 .urgency-asap{background:#fff0f0;color:var(--danger)}
@@ -785,8 +785,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='8.5';
-const BUILD_STAMP='2026-06-22 10:00 PT';
+const APP_VERSION='8.6';
+const BUILD_STAMP='2026-06-22 14:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -965,27 +965,14 @@ function openChoresForHuman(email){
 function choreCardHtml(c,showSite=false){
   const task=c.Task||c.task||'(no description)';
   const urgency=c.Urgency||c.urgency||'';
-  const assignedTo=c['Assigned to']||c.AssignedTo||'';
-  const askedBy=c['Asked by']||c.AskedBy||'';
   const id=c.ID||c.id||'';
+  const site=c.Site||c.site||'';
   const isUrgent=urgency.toLowerCase().includes('asap')||urgency.toLowerCase()==='urgent';
-  const isUrgentFlash=urgency.toLowerCase()==='urgent'; /* flash only for URGENT */
-  const urgCls=urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
-  const dateStr=fmtDate(c.Timestamp);
-
+  // Two-line card: school name (top, muted) + chore name (teal, underlined)
+  const siteLine=site?`<div style="font-size:14px;color:var(--stone);margin-bottom:3px;font-weight:500">${site}</div>`:'';
   return `<div class="chore-card ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')">
-    <div class="chore-title">${showSite&&(c.Site||'')?`<button class="contact-tap" style="font-weight:600;font-size:inherit" onclick="event.stopPropagation();showSchoolDetailByName('${esc(c.Site||'')}')">${c.Site}</button><span style="color:var(--stone)"> — </span>`:''}<span>${task}</span></div>
-    ${c['Additional Comments']?`<div style="font-size:15px;color:var(--stone);margin-top:3px;line-height:1.4">${c['Additional Comments']}</div>`:''}
-    <div class="chore-meta">
-      <span class="chore-badge-pill ${urgCls} ${isUrgentFlash?'flash-urgent':''}">${urgency||'Normal'}</span>
-      ${dateStr?`<span style="color:var(--silver)">${dateStr}</span>`:''}
-      ${askedBy?`<span>By: ${hn(askedBy)||askedBy}</span>`:''}
-      ${assignedTo?`<span>→ ${hn(assignedTo)||assignedTo}</span>`:''}
-    </div>
-    ${canEdit()&&id?`<div style="display:flex;gap:6px;margin-top:9px" onclick="event.stopPropagation()">
-      <button class="chore-reassign" onclick="showReassignChore('${ea(id)}','${ea(c.Site||'')}')">↩ Reassign</button>
-    <button class="chore-close-btn" onclick="closeChore('${ea(id)}','${ea(c.Site||c.task||'')}')">✓ Mark as Closed</button>
-    </div>`:''}
+    ${siteLine}
+    <div class="chore-title">${task}</div>
   </div>`;
 }
 
@@ -1676,8 +1663,9 @@ function showAddChore(preSiteName){
         </div>
       </div>
     </div>
-    <div class="edit-wrap"><div class="edit-label">Task *</div>
-      <textarea class="edit-textarea" id="nc-Task" placeholder="Describe the task…"></textarea></div>
+    <div class="edit-wrap"><div class="edit-label">Task * <span id="nc-Task-count" style="font-size:12px;color:var(--silver);font-weight:400">0/30</span></div>
+      <textarea class="edit-textarea" id="nc-Task" maxlength="30" placeholder="Keep it short (30 chars max)…" oninput="(function(t){var l=t.value.length;var el=document.getElementById('nc-Task-count');if(el){el.textContent=l+'/30';el.style.color=l>=28?'var(--danger)':'var(--silver)';}if(l>=30){var h=document.getElementById('nc-task-hint');if(h)h.style.display='block';}})(this)"></textarea>
+      <div id="nc-task-hint" style="display:none;font-size:13px;color:var(--danger);margin-top:4px">✂ 30 characters max — abbreviate or cut to what's essential. Details go in Comments below.</div></div>
     <div class="edit-wrap"><div class="edit-label">Additional Comments</div>
       <textarea class="edit-textarea" id="nc-Comments" style="min-height:70px" placeholder="Any extra notes…"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
@@ -1764,6 +1752,11 @@ async function saveNewChore(){
   }
   if(!task){
     if(m){m.className='save-msg err';m.textContent='⚠ Task description is required.';}
+    document.getElementById('nc-Task')&&document.getElementById('nc-Task').focus();
+    return;
+  }
+  if(task.length>30){
+    if(m){m.className='save-msg err';m.textContent=`⚠ Task name is ${task.length} chars — please shorten to 30 or fewer. Use Comments for extra detail.`;}
     document.getElementById('nc-Task')&&document.getElementById('nc-Task').focus();
     return;
   }
