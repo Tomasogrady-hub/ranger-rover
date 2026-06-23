@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.7 | BUILD: 2026-06-23 10:00 PT | Ranger Rover PWA -->
+<!-- v8.8 | BUILD: 2026-06-23 12:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -372,6 +372,15 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nv-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
 .nv-toggle input:checked+.nv-slider{background:var(--grove)}
 .nv-toggle input:checked+.nv-slider:before{transform:translateX(16px)}
+
+/* ── Row 3 Slot Editor ── */
+.r3-slot{background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px}
+.r3-slot-title{font-family:var(--font-b);font-size:12px;font-weight:700;color:var(--silver);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.r3-slot-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.r3-slot-input{flex:1;min-width:90px;padding:7px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;color:var(--ink);background:#fff;outline:none}
+.r3-level-check{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.r3-lc{display:flex;align-items:center;gap:3px;font-family:var(--font-b);font-size:12px;font-weight:600;cursor:pointer}
+.r3-lc input{width:14px;height:14px;cursor:pointer}
 </style>
 
 </head>
@@ -772,6 +781,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <div class="settings-note" style="margin-bottom:12px">Choose an access level, then toggle which nav squares are visible for users at that level. Changes save immediately.</div>
           <div class="nv-level-tabs" id="nvLevelTabs"></div>
           <div class="nv-grid" id="nvGrid"></div>
+          <!-- Row 3 Future Slots -->
+          <div class="dl" style="margin-top:14px;margin-bottom:8px">🔲 Row 3 Future Slots (Levels 1 &amp; 2 only)</div>
+          <div class="settings-note" style="margin-bottom:10px">Define up to 6 future nav squares in row 3. Give each a label, a tab key (e.g. <em>reports</em>), and choose which access levels can see it.</div>
+          <div id="nvRow3Slots"></div>
           <button class="settings-btn" onclick="saveNavVisibility()">Save Nav Visibility</button>
           <div id="nvSaveStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:20px"></div>
         </div>
@@ -812,8 +825,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v8.7';
-const BUILD_STAMP='2026-06-23 10:00 PT';
+const APP_VERSION='v8.8';
+// Show version immediately on load
+document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
+const BUILD_STAMP='2026-06-23 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1105,17 +1120,42 @@ function buildNav(lvl,plantsOn){
     // Row 3: Reach row (always 7 buttons: Reach + 6 empty)
     const row3=document.getElementById('navRow3');
     if(row3){
-      row3.innerHTML=(_navTabAllowed('reach',lvl)?_navBtn('reach','Reach'):'')+
-        '<button class="nav-btn" data-tab="reach-empty" style="opacity:.45;cursor:default">Empty</button>'.repeat(6);
-      row3.style.display='flex';
+      // Build row3 dynamically: Reach + up to 6 configurable future slots
+      const slots = (_appSettings.navVisibility && _appSettings.navVisibility.row3Slots) || [];
+      let r3html = _navTabAllowed('reach',lvl) ? _navBtn('reach','Reach') : '';
+      let slotCount = 0;
+      for(let si=0; si<6; si++){
+        const slot = slots[si] || {};
+        const slotKey = slot.tab || '';
+        const slotLabel = slot.label || '';
+        const slotVisible = slot.visibleLevels ? slot.visibleLevels.includes(lvl) : false;
+        if(slotKey && slotLabel && slotVisible){
+          r3html += _navBtn(slotKey, slotLabel);
+          slotCount++;
+        }
+      }
+      // Show row3 only if Reach is visible or at least one slot is active
+      const reachVisible = _navTabAllowed('reach',lvl);
+      if(reachVisible || slotCount > 0){
+        row3.innerHTML = r3html;
+        row3.style.display = 'flex';
+        // Update nav height to 3 rows
+        document.documentElement.style.setProperty('--nav-h','156px');
+      } else {
+        row3.style.display = 'none';
+      }
     }
   }
   // re-apply active state
   const active=document.querySelector('#nav .nav-btn.active');
   if(!active){const first=row1.querySelector('.nav-btn');if(first)first.classList.add('active');}
   // Update nav height CSS var for toast positioning
-  const rows=lvl>=3?1:2;
-  document.documentElement.style.setProperty('--nav-h',(rows*52)+'px');
+  if(lvl>=3){
+    document.documentElement.style.setProperty('--nav-h','52px');
+  } else {
+    // row3 sets its own height above if visible; default to 2-row height
+    document.documentElement.style.setProperty('--nav-h','104px');
+  }
 }
 function showApp(){
   document.getElementById('authScreen').style.display='none';
@@ -1128,7 +1168,8 @@ function showApp(){
   document.getElementById('searchInput').placeholder='Search…';
   const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   _updateHdrAvatar();
-  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent='v'+APP_VERSION;
+  const vl=document.getElementById('appVersionLabel');if(vl)vl.textContent=APP_VERSION;
+  const bs2=document.getElementById('buildStampLabel');if(bs2&&SESSION&&SESSION.accessLevel===1){bs2.style.display='block';bs2.textContent='Built: '+BUILD_STAMP;}
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=lvl===1?'block':'none';
   if(bs)bs.textContent='Built: '+BUILD_STAMP;
   switchTab('notes');
@@ -4658,6 +4699,29 @@ function renderNavVisibilityPanel(){
       </label>`;
     gridEl.appendChild(tile);
   });
+
+  // Row 3 slot editor
+  const slotsEl = document.getElementById('nvRow3Slots');
+  if(slotsEl){
+    const slots = (_appSettings.navVisibility && _appSettings.navVisibility.row3Slots) || [];
+    let sh = '';
+    for(let si=0; si<6; si++){
+      const sl = slots[si] || {};
+      const levChecks = [1,2,3,4,5,6,7,8,9].map(lv=>{
+        const chk = sl.visibleLevels && sl.visibleLevels.includes(lv) ? 'checked' : '';
+        return `<label class="r3-lc"><input type="checkbox" data-slot="${si}" data-lv="${lv}" class="r3lv-chk" ${chk}>${lv}</label>`;
+      }).join('');
+      sh += `<div class="r3-slot">
+        <div class="r3-slot-title">Slot ${si+1}</div>
+        <div class="r3-slot-row">
+          <input class="r3-slot-input" data-slot="${si}" data-field="label" placeholder="Label (e.g. Reports)" value="${sl.label||''}">
+          <input class="r3-slot-input" data-slot="${si}" data-field="tab" placeholder="Tab key (e.g. reports)" value="${sl.tab||''}">
+        </div>
+        <div class="r3-level-check">${levChecks}</div>
+      </div>`;
+    }
+    slotsEl.innerHTML = sh;
+  }
 }
 
 async function saveNavVisibility(){
@@ -4669,6 +4733,22 @@ async function saveNavVisibility(){
 
   if(!_appSettings.navVisibility)_appSettings.navVisibility={};
   _appSettings.navVisibility[_nvCurrentLevel]=visible;
+
+  // Collect row3 slot data
+  const slots=[];
+  for(let si=0;si<6;si++){
+    const labelEl=document.querySelector(`.r3-slot-input[data-slot="${si}"][data-field="label"]`);
+    const tabEl=document.querySelector(`.r3-slot-input[data-slot="${si}"][data-field="tab"]`);
+    const lvChks=document.querySelectorAll(`.r3lv-chk[data-slot="${si}"]`);
+    const visibleLevels=[];
+    lvChks.forEach(c=>{if(c.checked)visibleLevels.push(parseInt(c.dataset.lv));});
+    slots.push({
+      label:(labelEl?labelEl.value.trim():''),
+      tab:(tabEl?tabEl.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,''):''),
+      visibleLevels
+    });
+  }
+  _appSettings.navVisibility.row3Slots=slots;
 
   // Persist
   localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
