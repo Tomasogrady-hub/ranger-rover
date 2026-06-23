@@ -667,8 +667,14 @@ function handleSaveEdit(p) {
     var editedCols = Object.keys(p.updates)
       .filter(function(c){ return imgCols.indexOf(c) === -1; }).join(', ');
     var subjType = (p.sheet === 'Humans') ? 'person' : 'site';
+    // For sites, log the display Name (col B) not the Key ID (col A)
+    var logSubject = String(p.key||'');
+    if (p.sheet !== 'Humans') {
+      var ni2 = headers.indexOf('Name');
+      if (ni2 > -1 && String(data[r][ni2]||'').trim()) logSubject = String(data[r][ni2]).trim();
+    }
     logActivity(p.actor||'', 'edited ' + p.sheet.toLowerCase(),
-      String(p.key||''), subjType, editedCols);
+      logSubject, subjType, editedCols);
     return { ok: true };
   }
   return { ok: false, error: 'Row not found' };
