@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.4 | BUILD: 2026-06-21 19:00 PT | Ranger Rover PWA -->
+<!-- v8.5 | BUILD: 2026-06-22 10:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -785,8 +785,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='8.4';
-const BUILD_STAMP='2026-06-21 19:00 PT';
+const APP_VERSION='8.5';
+const BUILD_STAMP='2026-06-22 10:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4209,7 +4209,12 @@ function activityRowHtml(item){
     if(chore)subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showChoreDetail('${ea(chore.ID||chore.id||'')}')">${item.subject}</button>`;
     else subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   } else if(item.subjectType==='site'){
-    subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByName('${ea(item.subject||'')}')">${item.subject||''}</button>`;
+    // subject may be stored as Key (7-char ID) or Name — find the site either way
+    const _siteBySubj=DATA.sites.find(s=>(s.Key||s.key||'')===item.subject||(s.Name||s.name||'').toLowerCase()===(item.subject||'').toLowerCase());
+    const _siteKey=_siteBySubj?(s=>s.Key||s.key||'')(_siteBySubj):'';
+    const _siteName=_siteBySubj?(s=>s.Name||s.name||item.subject)(_siteBySubj):item.subject;
+    if(_siteKey){subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_siteKey)}')">${_siteName}</button>`;}
+    else{subjectLink=`<span style="font-weight:500">${_siteName||''}</span>`;}
   } else if(item.subjectType==='person'){
     subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
   } else {
