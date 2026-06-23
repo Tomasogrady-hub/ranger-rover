@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v8.9 | BUILD: 2026-06-23 14:00 PT | Ranger Rover PWA -->
+<!-- v9.0 | BUILD: 2026-06-23 16:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -825,10 +825,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v8.9';
+const APP_VERSION='v9.0';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-23 14:00 PT';
+const BUILD_STAMP='2026-06-23 16:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4139,11 +4139,19 @@ function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CF
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
 let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{}};
+// Migration: clean up any empty navVisibility arrays saved by earlier buggy versions
+function _sanitizeNavVisibility(){
+  const v=_appSettings.navVisibility;
+  if(!v)return;
+  Object.keys(v).forEach(k=>{
+    if(Array.isArray(v[k])&&v[k].length===0)delete v[k];
+  });
+}
 
 async function loadAppSettings(){
   // Apply cached settings immediately for instant render
   const cached=localStorage.getItem('rr_app_settings');
-  if(cached){try{_appSettings=JSON.parse(cached);}catch(e){}}
+  if(cached){try{_appSettings=JSON.parse(cached);_sanitizeNavVisibility();}catch(e){}}
   _applyAppSettings();
   // Then fetch fresh from GAS in background
   if(!CFG.URL)return;
@@ -4151,6 +4159,7 @@ async function loadAppSettings(){
     const r=await gasPost({action:'getAppSettings'});
     if(r.ok&&r.settings){
       _appSettings=r.settings;
+      _sanitizeNavVisibility();
       localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
       _applyAppSettings();
     }
@@ -4767,8 +4776,12 @@ async function saveNavVisibility(){
 // Returns true if a tab key should be shown for a given access level
 function _navTabAllowed(tabKey, lvl){
   const vis=_appSettings.navVisibility;
-  if(!vis||!vis[lvl])return true; // no config = show all
-  return vis[lvl].includes(tabKey);
+  if(!vis)return true;
+  // Keys may be stored as strings ("1") or numbers (1) - check both
+  const entry = vis[lvl] !== undefined ? vis[lvl] : vis[String(lvl)];
+  // No entry, or empty array = not yet configured = show all
+  if(!entry || !Array.isArray(entry) || entry.length===0)return true;
+  return entry.includes(tabKey);
 }
 
 </script>
