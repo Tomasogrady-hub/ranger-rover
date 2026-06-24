@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.3 | BUILD: 2026-06-24 15:00 PT | Ranger Rover PWA -->
+<!-- v9.4 | BUILD: 2026-06-24 18:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -825,10 +825,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.3';
+const APP_VERSION='v9.4';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-24 15:00 PT';
+const BUILD_STAMP='2026-06-24 18:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1486,13 +1486,9 @@ function _deleteChorePhotoSlot(slotIdx,prefix){
       await gasPost({action:'updateChore',choreId,updates:{[colName]:''},actor:SESSION?SESSION.email:''});
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
-    ()=>{
-      // Clear slot UI after confirmed delete
-      if(slot){slot.style.border='1.5px dashed var(--mist)';slot.innerHTML='<span style="font-size:26px;color:var(--silver)">+</span>';const btn=slot.nextElementSibling;if(btn){btn.style.background='var(--fog)';btn.style.color='var(--ink)';btn.style.borderColor='var(--mist)';btn.textContent='📷 Add';}const delBtn=btn?btn.nextElementSibling:null;if(delBtn)delBtn.style.display='none';}
-    }
+    ()=>{ _refreshAndViewChore(choreId); }
   );
 }
-
 function _previewChoreSlot(file, slotIdx, prefix){
   if(!window._pendingChorePhotos)window._pendingChorePhotos={};
   const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
@@ -1538,7 +1534,17 @@ function _previewChoreSlot(file, slotIdx, prefix){
       slot.style.border='1.5px solid var(--grove)';
       const img=slot.querySelector('img');if(img)img.style.opacity='1';
       const btn=slot.nextElementSibling;
-      if(btn){btn.style.background='var(--grove)';btn.style.color='white';btn.style.borderColor='var(--grove)';btn.textContent='Replace';}
+      if(btn){btn.style.background='var(--grove)';btn.style.color='white';btn.style.borderColor='var(--grove)';btn.textContent='↺ Replace';}
+      const delBtn=btn?btn.nextElementSibling:null;
+      if(delBtn)delBtn.style.display='';
+      else if(btn){
+        const db=document.createElement('button');
+        db.type='button';
+        db.onclick=()=>_deleteChorePhotoSlot(slotIdx,prefix);
+        db.style='padding:6px 2px;background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:11px;font-weight:500;cursor:pointer;text-align:center';
+        db.textContent='🗑 Remove';
+        btn.insertAdjacentElement('afterend',db);
+      }
     }
   },()=>{
     window._pendingChorePhotos[slotIdx]=file;
@@ -3224,6 +3230,42 @@ function _observeLazy(container){
 
 function playSuccessSound(){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(.18,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.25);o.start(ctx.currentTime);o.stop(ctx.currentTime+.25);}catch(e){}}
 
+/* ═══ SMART REFRESH — pull fresh data then show a specific card ═══ */
+async function _refreshAndViewSite(siteKey){
+  try{
+    showSaveToast('↻ Refreshing…');
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const j=await r.json();
+    if(j.sites&&j.sites.length)DATA.sites=j.sites;
+    if(j.chores&&j.chores.length)DATA.chores=j.chores;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  }catch(e){}
+  const site=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey)||window._currentSite;
+  if(site){
+    window._currentSite=site;
+    renderSchoolDetail(site,false);
+    const o=document.getElementById('detail-overlay');
+    if(o&&o.style.display==='none')openDetail();
+  }
+}
+async function _refreshAndViewChore(choreId){
+  try{
+    showSaveToast('↻ Refreshing…');
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const j=await r.json();
+    if(j.sites&&j.sites.length)DATA.sites=j.sites;
+    if(j.chores&&j.chores.length)DATA.chores=j.chores;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+  }catch(e){}
+  const chore=DATA.chores.find(x=>(x.ID||x.id)===choreId)||window._currentChore;
+  if(chore){
+    window._currentChore=chore;
+    renderChoreDetail(chore,false);
+    const o=document.getElementById('detail-overlay');
+    if(o&&o.style.display==='none')openDetail();
+  }
+}
+
 /* ═══ FORCE REFRESH (↺ button) ═══
    All edits already save to GAS immediately in the background, so
    forceRefresh just pulls the latest data back from the sheets.
@@ -3930,10 +3972,22 @@ function previewSitePhotoFile(file,previewId,fieldKey){
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     const img=document.getElementById(previewId);
     if(img)img.style.opacity='1';
+    _updateSitePhotoButtons(fieldKey,previewId);
   },()=>{
     if(!window._pendingSitePhotos)window._pendingSitePhotos={};
     window._pendingSitePhotos[fieldKey]=file;
   });
+}
+function _updateSitePhotoButtons(fieldKey,previewId){
+  const inputIdMap={MainImage:'ef-MainImg',HelpImg1:'ef-HelpImg1',HelpImg2:'ef-HelpImg2'};
+  const inputId=inputIdMap[fieldKey];
+  const img=document.getElementById(previewId);
+  if(!img)return;
+  const wrap=img.parentElement;
+  if(!wrap)return;
+  const btnRow=wrap.querySelector('div[style*="display:flex"]');
+  if(!btnRow)return;
+  btnRow.innerHTML=`<button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'${previewId}','${fieldKey}'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">📷 Replace Photo</button> <button type="button" onclick="_clearSitePhoto('${previewId}','${inputId}')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`;
 }
 function previewSelfPhotoFile(file){
   if(!file)return;
@@ -4129,17 +4183,16 @@ async function _doPhotoUploadWithOverlay(file,context,onSuccess,onCancel){
         overlay.remove();
         if(onSuccess)onSuccess(url);
       };
-      document.getElementById('puo-go-back').onclick=()=>{
+      document.getElementById('puo-go-back').onclick=async()=>{
         overlay.remove();
         if(onSuccess)onSuccess(url);
         _playChime();
-        if(context.type==='site'&&window._currentSite){
-          const site=window._currentSite;
-          // Stay in detail overlay — switch back to view mode so user sees photo
-          renderSchoolDetail(site,false);
-        }else if(context.type==='chore'&&window._currentChore){
-          const chore=window._currentChore;
-          renderChoreDetail(chore,false);
+        if(context.type==='site'){
+          const siteKey=context.siteKey||(window._currentSite&&(window._currentSite.Key||window._currentSite.key))||sf(window._currentSite,'Name','name');
+          await _refreshAndViewSite(siteKey);
+        }else if(context.type==='chore'){
+          const choreId=context.choreId||(window._currentChore&&(window._currentChore.ID||window._currentChore.id));
+          if(choreId)await _refreshAndViewChore(choreId);
         }
       };
     }catch(err){
@@ -4364,9 +4417,7 @@ function _clearSitePhoto(previewId,inputId){
       if(row)row[colName]='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
-    ()=>{
-      if(img){img.src='';img.style.display='none';img.style.opacity='1';}
-    }
+    ()=>{ _refreshAndViewSite(siteKey); }
   );
 }
 function _clearSiteVideo(inputId,statusId){
@@ -4379,22 +4430,17 @@ function _clearSiteVideo(inputId,statusId){
     return;
   }
   const siteKey=site.Key||site.key||sf(site,'Name','name');
-  // Dim input immediately
   const inp=document.getElementById(inputId);if(inp)inp.value='';
   const st=document.getElementById(statusId);if(st)st.textContent='Removing…';
-  // Clear locally
-  if(site['Video Link']!==undefined)site['Video Link']='';
-  if(site['Helpful Video']!==undefined)site['Helpful Video']='';
+  if(site['Helpful Video 1']!==undefined)site['Helpful Video 1']='';
   _doDeleteWithOverlay('Removing video…',
     async()=>{
-      await gasPost({sheet:'Sites',key:siteKey,updates:{'Video Link':'','Helpful Video':''}});
+      await gasPost({sheet:'Sites',key:siteKey,updates:{'Helpful Video 1':''}});
       const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
-      if(row){row['Video Link']='';row['Helpful Video']='';}
+      if(row)row['Helpful Video 1']='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
-    ()=>{
-      if(st)st.textContent='';
-    }
+    ()=>{ _refreshAndViewSite(siteKey); }
   );
 }
 function _clearChoreVideo(inputId){
@@ -4407,9 +4453,7 @@ function _clearChoreVideo(inputId){
   }
   const choreId=chore.ID||chore.id;
   const inp=document.getElementById(inputId);if(inp)inp.value='';
-  // Clear locally
   if(chore['Helpful Video']!==undefined)chore['Helpful Video']='';
-  if(chore['VideoLink']!==undefined)chore['VideoLink']='';
   _doDeleteWithOverlay('Removing video…',
     async()=>{
       await gasPost({action:'updateChore',choreId,updates:{'Helpful Video':''},actor:SESSION?SESSION.email:''});
@@ -4417,7 +4461,7 @@ function _clearChoreVideo(inputId){
       if(row){row['Helpful Video']='';row['VideoLink']='';}
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
-    ()=>{}
+    ()=>{ _refreshAndViewChore(choreId); }
   );
 }
 async function saveGasUrl(){
