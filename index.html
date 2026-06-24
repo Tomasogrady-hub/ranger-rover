@@ -1422,9 +1422,9 @@ function renderChoreDetail(c,editMode){
       ${assigned?`<div class="ds"><div class="dl">Assigned To</div><div class="dv"><button class="contact-tap" onclick="showPersonDetail('${ea(assigned)}')">${hn(assigned)||assigned}</button></div></div>`:''}
       ${(img1Src||img2Src||img3Src)?`<div class="ds"><div class="dl">Photos</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-          ${img1Src?`<img src="${img1Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
-          ${img2Src?`<div style="margin-top:6px"><button onclick="var w=this.nextElementSibling;w.style.display='block';this.style.display='none';var i=w.querySelector('img');if(i&&i.dataset.lazy){i.src=i.dataset.lazy;delete i.dataset.lazy;i.style.opacity='0';i.onload=function(){i.style.transition='opacity .3s';i.style.opacity='1';}}" style="padding:8px 14px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;color:var(--stone);width:100%">Show Photo 2</button><div style="display:none"><img data-lazy="${img2Src}" src="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'"></div></div>` :''}
-          ${img3Src?`<div style="margin-top:6px"><button onclick="var w=this.nextElementSibling;w.style.display='block';this.style.display='none';var i=w.querySelector('img');if(i&&i.dataset.lazy){i.src=i.dataset.lazy;delete i.dataset.lazy;i.style.opacity='0';i.onload=function(){i.style.transition='opacity .3s';i.style.opacity='1';}}" style="padding:8px 14px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;color:var(--stone);width:100%">Show Photo 3</button><div style="display:none"><img data-lazy="${img3Src}" src="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'"></div></div>` :''}
+          ${img1Src?`<img src="${img1Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);cursor:zoom-in" onclick="openImgLightbox(this.src)" onerror="this.style.display='none'">` :''}
+          ${img2Src?`<div style="margin-top:6px"><button onclick="var w=this.nextElementSibling;w.style.display='block';this.style.display='none';var i=w.querySelector('img');if(i&&i.dataset.lazy){i.src=i.dataset.lazy;delete i.dataset.lazy;i.style.opacity='0';i.onload=function(){i.style.transition='opacity .3s';i.style.opacity='1';}}" style="padding:8px 14px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;color:var(--stone);width:100%">Show Photo 2</button><div style="display:none"><img data-lazy="${img2Src}" src="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.style.display='none'"></div></div>` :''}
+          ${img3Src?`<div style="margin-top:6px"><button onclick="var w=this.nextElementSibling;w.style.display='block';this.style.display='none';var i=w.querySelector('img');if(i&&i.dataset.lazy){i.src=i.dataset.lazy;delete i.dataset.lazy;i.style.opacity='0';i.onload=function(){i.style.transition='opacity .3s';i.style.opacity='1';}}" style="padding:8px 14px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;color:var(--stone);width:100%">Show Photo 3</button><div style="display:none"><img data-lazy="${img3Src}" src="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.style.display='none'"></div></div>` :''}
         </div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       <div class="detail-ctas">
@@ -2622,8 +2622,8 @@ function renderSchoolDetail(site,editMode){
     const keeperHtml=gke?crow('Garden Keeper',gke):'';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
-      ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s" onerror="this.parentElement.style.display='none'"></div>`:''}
-      ${(helpImg1||helpImg2)?`<div style="padding:8px 20px 0"><div class="img-gallery">${helpImg1?`<img data-lazy="${helpImg1}" class="img-thumb" style="opacity:0;transition:opacity .3s" onerror="this.style.display='none'">`:''}${helpImg2?`<img data-lazy="${helpImg2}" class="img-thumb" style="opacity:0;transition:opacity .3s" onerror="this.style.display='none'">`:''}</div></div>`:''}
+      ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"></div>`:''}
+      ${(helpImg1||helpImg2)?`<div style="padding:8px 20px 0"><div class="img-gallery">${helpImg1?`<img data-lazy="${helpImg1}" class="img-thumb" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.style.display='none'">`:''}${helpImg2?`<img data-lazy="${helpImg2}" class="img-thumb" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.style.display='none'">`:''}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
@@ -5132,4 +5132,13 @@ function _navTabAllowed(tabKey, lvl){
   return entry.includes(tabKey);
 }
 
+
+function openImgLightbox(src){if(!src)return;var lb=document.getElementById('img-lightbox');var img=document.getElementById('img-lightbox-img');if(!lb||!img)return;img.src=src;lb.classList.add('open');document.body.style.overflow='hidden';}
+function closeImgLightbox(){var lb=document.getElementById('img-lightbox');if(lb)lb.classList.remove('open');document.body.style.overflow='';var img=document.getElementById('img-lightbox-img');if(img)setTimeout(function(){img.src='';},300);}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeImgLightbox();});
 </script>
+
+<div id="img-lightbox" onclick="closeImgLightbox()">
+  <button id="img-lightbox-close" onclick="closeImgLightbox();event.stopPropagation()" aria-label="Close">&#xD7;</button>
+  <img id="img-lightbox-img" src="" alt="">
+</div>
