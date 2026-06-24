@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.1 | BUILD: 2026-06-23 17:30 PT | Ranger Rover PWA -->
+<!-- v9.2 | BUILD: 2026-06-24 12:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -825,10 +825,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.1';
+const APP_VERSION='v9.2';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-23 17:30 PT';
+const BUILD_STAMP='2026-06-24 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1423,8 +1423,8 @@ function renderChoreDetail(c,editMode){
       ${(img1Src||img2Src||img3Src)?`<div class="ds"><div class="dl">Photos</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
           ${img1Src?`<img src="${img1Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
-          ${img2Src?`<img src="${img2Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
-          ${img3Src?`<img src="${img3Src}" loading="lazy" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'">` :''}
+          ${img2Src?`<div style="margin-top:6px"><button onclick="var w=this.nextElementSibling;w.style.display='block';this.style.display='none';var i=w.querySelector('img');if(i&&i.dataset.lazy){i.src=i.dataset.lazy;delete i.dataset.lazy;i.style.opacity='0';i.onload=function(){i.style.transition='opacity .3s';i.style.opacity='1';}}" style="padding:8px 14px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;color:var(--stone);width:100%">Show Photo 2</button><div style="display:none"><img data-lazy="${img2Src}" src="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'"></div></div>` :''}
+          ${img3Src?`<div style="margin-top:6px"><button onclick="var w=this.nextElementSibling;w.style.display='block';this.style.display='none';var i=w.querySelector('img');if(i&&i.dataset.lazy){i.src=i.dataset.lazy;delete i.dataset.lazy;i.style.opacity='0';i.onload=function(){i.style.transition='opacity .3s';i.style.opacity='1';}}" style="padding:8px 14px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;color:var(--stone);width:100%">Show Photo 3</button><div style="display:none"><img data-lazy="${img3Src}" src="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'"></div></div>` :''}
         </div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
       <div class="detail-ctas">
@@ -1503,19 +1503,60 @@ function _deleteChorePhotoSlot(slotIdx,prefix){
 
 function _previewChoreSlot(file, slotIdx, prefix){
   if(!window._pendingChorePhotos)window._pendingChorePhotos={};
-  window._pendingChorePhotos[slotIdx]=file;
+  const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
+  const imageCol=imgCols[slotIdx]||'Helpful Image 1';
+  const chore=window._currentChore;
+  const choreId=chore?(chore.ID||chore.id):null;
   const reader=new FileReader();
   reader.onload=e=>{
     const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
     if(slot){
-      slot.style.border='1.5px solid var(--grove)';
-      slot.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+      slot.style.border='1.5px dashed var(--mist)';
+      slot.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;opacity:.4">`;
       const btn=slot.nextElementSibling;
-      if(btn){btn.style.background='var(--grove)';btn.style.color='white';btn.style.borderColor='var(--grove)';btn.textContent='↺ Replace';}
+      if(btn){btn.style.background='var(--fog)';btn.style.color='var(--stone)';btn.textContent='Uploading...';}
     }
-    showUploadPrompt('photo');
   };
   reader.readAsDataURL(file);
+  if(!choreId||!CFG.URL){
+    window._pendingChorePhotos[slotIdx]=file;
+    const r2=new FileReader();
+    r2.onload=e=>{
+      const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
+      if(slot){
+        slot.style.border='1.5px solid var(--grove)';
+        slot.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+        const btn=slot.nextElementSibling;
+        if(btn){btn.style.background='var(--grove)';btn.style.color='white';btn.style.borderColor='var(--grove)';btn.textContent='Replace';}
+      }
+    };
+    r2.readAsDataURL(file);
+    return;
+  }
+  const context={type:'chore',choreId,imageCol,editContext:'chores'};
+  _doPhotoUploadWithOverlay(file,context,(url)=>{
+    if(chore&&imageCol)chore[imageCol]=url;
+    const row=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+    if(row&&imageCol)row[imageCol]=url;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    gasPost({action:'updateChore',choreId,updates:{[imageCol]:url},actor:SESSION?SESSION.email:''}).catch(()=>{});
+    delete window._pendingChorePhotos[slotIdx];
+    const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
+    if(slot){
+      slot.style.border='1.5px solid var(--grove)';
+      const img=slot.querySelector('img');if(img)img.style.opacity='1';
+      const btn=slot.nextElementSibling;
+      if(btn){btn.style.background='var(--grove)';btn.style.color='white';btn.style.borderColor='var(--grove)';btn.textContent='Replace';}
+    }
+  },()=>{
+    window._pendingChorePhotos[slotIdx]=file;
+    const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
+    if(slot){
+      const img=slot.querySelector('img');if(img)img.style.opacity='0.7';
+      const btn=slot.nextElementSibling;
+      if(btn){btn.textContent='Add (pending)';}
+    }
+  });
 }
 
 /* Video-only action sheet (no photo option — used in video section) */
@@ -2752,7 +2793,7 @@ function renderPD(h,edit){
       <hr class="section-divider">
       <div class="edit-wrap">
         <div class="edit-label">Profile Image URL</div>
-        ${imgUrl?`<div class="img-preview"><img src="${imgUrl}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`:`<div class="img-preview"><div class="img-placeholder-text">${inits(name)}</div></div>`}
+        ${imgUrl?`<div class="img-preview"><img data-lazy="${imgUrl}" src="" loading="lazy" style="opacity:0;width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'"></div>`:`<div class="img-preview"><div class="img-placeholder-text">${inits(name)}</div></div>`}
         <input class="edit-input" id="ef-Img" value="${ea(h['Main Image']||h.MainImage||'')}" placeholder="Paste Google Drive or image URL…" style="margin-top:8px">
       </div>
       <div class="edit-actions">
@@ -3117,6 +3158,78 @@ function showSaveToast(msg){
   t.textContent=msg;t.style.opacity='1';clearTimeout(t._tid);
   t._tid=setTimeout(()=>{t.style.opacity='0';},2800);
 }
+/* ─── Photo upload sound effects ─── */
+function _playUploadStart(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator();const g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    o.type='sine';o.frequency.value=440;
+    g.gain.setValueAtTime(0.001,ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.15,ctx.currentTime+0.03);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.22);
+    o.start(ctx.currentTime);o.stop(ctx.currentTime+0.25);
+  }catch(e){}
+}
+function _playUploadSuccess(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const master=ctx.createGain();master.gain.value=0.2;master.connect(ctx.destination);
+    [[523,0],[659,0.12],[784,0.24],[1047,0.36]].forEach(([freq,delay])=>{
+      const o=ctx.createOscillator();const g=ctx.createGain();
+      o.type='sine';o.frequency.value=freq;
+      o.connect(g);g.connect(master);
+      g.gain.setValueAtTime(0.001,ctx.currentTime+delay);
+      g.gain.linearRampToValueAtTime(1,ctx.currentTime+delay+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.35);
+      o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.4);
+    });
+  }catch(e){}
+}
+function _playUploadError(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const master=ctx.createGain();master.gain.value=0.2;master.connect(ctx.destination);
+    [[280,0],[220,0.2]].forEach(([freq,delay])=>{
+      const o=ctx.createOscillator();const g=ctx.createGain();
+      o.type='sawtooth';o.frequency.value=freq;
+      o.connect(g);g.connect(master);
+      g.gain.setValueAtTime(0.001,ctx.currentTime+delay);
+      g.gain.linearRampToValueAtTime(1,ctx.currentTime+delay+0.03);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.3);
+      o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.35);
+    });
+  }catch(e){}
+}
+
+/* ─── Intersection Observer lazy-loading ─── */
+let _lazyObserver=null;
+function _initLazyObserver(){
+  if(_lazyObserver)return _lazyObserver;
+  if(!('IntersectionObserver' in window))return null;
+  _lazyObserver=new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(!entry.isIntersecting)return;
+      const img=entry.target;
+      if(img.dataset.lazy){
+        img.src=img.dataset.lazy;
+        delete img.dataset.lazy;
+        img.style.opacity='0';
+        img.onload=()=>{img.style.transition='opacity .3s';img.style.opacity='1';};
+        img.onerror=()=>{img.style.display='none';};
+        _lazyObserver.unobserve(img);
+      }
+    });
+  },{rootMargin:'120px'});
+  return _lazyObserver;
+}
+function _observeLazy(container){
+  const obs=_initLazyObserver();
+  if(!obs)return;
+  const root=container||document;
+  root.querySelectorAll('img[data-lazy]').forEach(img=>obs.observe(img));
+}
+
 function playSuccessSound(){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(.18,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.25);o.start(ctx.currentTime);o.stop(ctx.currentTime+.25);}catch(e){}}
 
 /* ═══ FORCE REFRESH (↺ button) ═══
@@ -3795,75 +3908,40 @@ function previewNewChorePhotoFile(file){
 }
 function previewSitePhotoFile(file,previewId,fieldKey){
   if(!file)return;
-  // Map fieldKey → hidden input id and column name
   const inputIdMap={MainImage:'ef-MainImg',HelpImg1:'ef-HelpImg1',HelpImg2:'ef-HelpImg2'};
   const colMap={MainImage:'Main Image',HelpImg1:'Helpful Image 1',HelpImg2:'Helpful Image 2'};
   const inputId=inputIdMap[fieldKey];
   const colName=colMap[fieldKey];
-  // Show local preview immediately
+  // Show dimmed local preview immediately
   const reader=new FileReader();
   reader.onload=e=>{
     const img=document.getElementById(previewId);
-    if(img){
-      img.src=e.target.result;
-      img.style.display='block';
-      img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px;opacity:.7';
-      // Show uploading badge on the preview
-      const badge=document.createElement('div');
-      badge.id='upload-badge-'+fieldKey;
-      badge.style='position:absolute;top:6px;left:6px;background:rgba(0,0,0,.6);color:white;font-size:12px;font-family:var(--font-b);padding:3px 8px;border-radius:20px;pointer-events:none';
-      badge.textContent='⬆ Uploading…';
-      // Wrap in relative container if not already
-      const wrap=img.parentElement;
-      if(wrap){wrap.style.position='relative';wrap.appendChild(badge);}
-    }
-    showUploadPrompt('photo');
+    if(img){img.src=e.target.result;img.style.display='block';img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px;opacity:.4';}
   };
   reader.readAsDataURL(file);
-  // ── START UPLOAD IMMEDIATELY ──────────────────────────────────────────────
-  if(!window._pendingSiteUploadPromises)window._pendingSiteUploadPromises={};
-  if(!window._pendingSitePhotoUrls)window._pendingSitePhotoUrls={};
   const site=window._currentSite;
   if(!site||!CFG.URL){
-    // No site context yet (shouldn't happen) — fall back to old file-queue approach
     if(!window._pendingSitePhotos)window._pendingSitePhotos={};
     window._pendingSitePhotos[fieldKey]=file;
     return;
   }
   const siteKey=site.Key||site.key||sf(site,'Name','name');
-  const siteName=sf(site,'Name','name');
-  const promise=(async()=>{
-    try{
-      const url=await _uploadSitePhoto(siteKey,fieldKey,file);
-      if(url){
-        // Store URL so saveSiteEdit can use it
-        window._pendingSitePhotoUrls[fieldKey]=url;
-        // Update hidden input so gv() picks it up in saveSiteEdit
-        const inp=document.getElementById(inputId);
-        if(inp)inp.value=url;
-        // Update local DATA immediately
-        if(site&&colName)site[colName]=url;
-        const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
-        if(row&&colName)row[colName]=url;
-        localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-        // Update preview: full opacity + green badge
-        const img=document.getElementById(previewId);
-        if(img)img.style.opacity='1';
-        const badge=document.getElementById('upload-badge-'+fieldKey);
-        if(badge){badge.textContent='✓ Uploaded';badge.style.background='rgba(34,139,34,.85)';setTimeout(()=>badge.remove(),2500);}
-      }
-    }catch(err){
-      // Upload failed — fall back to queuing the file for retry on Save
-      if(!window._pendingSitePhotos)window._pendingSitePhotos={};
-      window._pendingSitePhotos[fieldKey]=file;
-      const badge=document.getElementById('upload-badge-'+fieldKey);
-      if(badge){badge.textContent='⚠ Will retry on Save';badge.style.background='rgba(180,60,0,.85)';}
-      const img=document.getElementById(previewId);
-      if(img)img.style.opacity='1';
-      console.warn('Eager site photo upload failed, will retry on save:',err);
-    }
-  })();
-  window._pendingSiteUploadPromises[fieldKey]=promise;
+  const context={type:'site',siteKey,fieldKey,editContext:'sites',previewId};
+  _doPhotoUploadWithOverlay(file,context,(url)=>{
+    if(!window._pendingSitePhotoUrls)window._pendingSitePhotoUrls={};
+    window._pendingSitePhotoUrls[fieldKey]=url;
+    const inp=document.getElementById(inputId);
+    if(inp)inp.value=url;
+    if(site&&colName)site[colName]=url;
+    const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+    if(row&&colName)row[colName]=url;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    const img=document.getElementById(previewId);
+    if(img)img.style.opacity='1';
+  },()=>{
+    if(!window._pendingSitePhotos)window._pendingSitePhotos={};
+    window._pendingSitePhotos[fieldKey]=file;
+  });
 }
 function previewSelfPhotoFile(file){
   if(!file)return;
@@ -3898,6 +3976,144 @@ function previewSelfPhoto(input){
     if(wrap)wrap.innerHTML=`<img id="self-img-preview" src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
   };
   reader.readAsDataURL(file);
+}
+
+/* ─── Photo Upload Overlay — full-screen forced-wait experience ─── */
+function _showPhotoOverlay(label){
+  document.getElementById('photo-upload-overlay')?.remove();
+  const el=document.createElement('div');
+  el.id='photo-upload-overlay';
+  el.style='position:fixed;inset:0;background:rgba(0,0,0,.87);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;box-sizing:border-box';
+  el.innerHTML=`
+    <div id="puo-icon" style="font-size:52px;margin-bottom:18px">📷</div>
+    <div id="puo-title" style="font-family:var(--font-d);font-size:28px;font-style:italic;color:white;margin-bottom:8px;text-align:center">${label||'Uploading photo\u2026'}</div>
+    <div id="puo-sub" style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:28px;text-align:center;line-height:1.5">Please keep the app open</div>
+    <div style="width:100%;max-width:320px;background:rgba(255,255,255,.2);border-radius:99px;height:10px;overflow:hidden;margin-bottom:12px">
+      <div id="puo-bar" style="height:100%;width:0%;background:var(--sage);border-radius:99px;transition:width .25s ease"></div>
+    </div>
+    <div id="puo-pct" style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:28px">0%</div>
+    <div id="puo-actions" style="display:none;flex-direction:column;gap:12px;width:100%;max-width:320px">
+      <button id="puo-retry" style="padding:16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:600;cursor:pointer">\u21ba Retry Upload</button>
+      <button id="puo-cancel" style="padding:14px;background:transparent;color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.3);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer">Cancel \u2014 skip this photo</button>
+    </div>
+    <div id="puo-success" style="display:none;flex-direction:column;gap:12px;width:100%;max-width:320px">
+      <button id="puo-continue-edit" style="padding:19px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">\u270f\ufe0f Continue Editing</button>
+      <button id="puo-go-back" style="padding:19px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:19px;font-weight:600;cursor:pointer">\u2713 Done \u2014 View Card</button>
+    </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+function _updatePhotoOverlay(pct,title,sub){
+  const bar=document.getElementById('puo-bar');
+  const pctEl=document.getElementById('puo-pct');
+  const titleEl=document.getElementById('puo-title');
+  const subEl=document.getElementById('puo-sub');
+  if(bar)bar.style.width=pct+'%';
+  if(pctEl)pctEl.textContent=pct+'%';
+  if(title&&titleEl)titleEl.textContent=title;
+  if(sub&&subEl)subEl.innerHTML=sub;
+}
+function _uploadPhotoXHR(file,gasPayload){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    let pct=2;
+    _updatePhotoOverlay(pct,'Reading photo\u2026','');
+    reader.onprogress=e=>{
+      if(e.lengthComputable){
+        pct=Math.round(2+(e.loaded/e.total)*25);
+        _updatePhotoOverlay(pct,'Reading photo\u2026',Math.round(e.loaded/1024)+'KB of '+Math.round(e.total/1024)+'KB');
+      }
+    };
+    reader.onload=e=>{
+      const base64=e.target.result.split(',')[1];
+      gasPayload.base64=base64;
+      gasPayload.mimeType=file.type;
+      gasPayload.filename=file.name;
+      if(SESSION&&!gasPayload.actor)gasPayload.actor=SESSION.email;
+      pct=30;
+      _updatePhotoOverlay(pct,'Uploading photo\u2026','Sending to server\u2026');
+      const ticker=setInterval(()=>{
+        pct=Math.min(pct+3,92);
+        _updatePhotoOverlay(pct,'Uploading photo\u2026','Saving to Drive\u2026');
+      },400);
+      fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(gasPayload)})
+        .then(r=>r.json())
+        .then(j=>{clearInterval(ticker);if(j.ok)resolve(j.url);else reject(new Error(j.error||'Upload failed'));})
+        .catch(err=>{clearInterval(ticker);reject(err);});
+    };
+    reader.onerror=()=>reject(new Error('File read error'));
+    reader.readAsDataURL(file);
+  });
+}
+async function _doPhotoUploadWithOverlay(file,context,onSuccess,onCancel){
+  _playUploadStart();
+  const overlay=_showPhotoOverlay('Uploading photo\u2026');
+  _updatePhotoOverlay(2,'Reading photo\u2026','Please keep the app open');
+  const buildPayload=()=>{
+    if(context.type==='site'){
+      return {action:'uploadSiteImage',siteKey:context.siteKey,siteName:context.siteKey,fieldKey:context.fieldKey};
+    }else{
+      return {action:'uploadChoreImage',choreId:context.choreId,imageCol:context.imageCol};
+    }
+  };
+  const attempt=async(f)=>{
+    try{
+      document.getElementById('puo-actions').style.display='none';
+      document.getElementById('puo-success').style.display='none';
+      const payload=buildPayload();
+      const url=await _uploadPhotoXHR(f,payload);
+      _updatePhotoOverlay(100,'\u2713 Photo uploaded!','Your photo is saved');
+      const bar=document.getElementById('puo-bar');
+      if(bar)bar.style.background='#4caf50';
+      const titleEl=document.getElementById('puo-title');
+      if(titleEl)titleEl.style.color='#a8f0c6';
+      const pctEl=document.getElementById('puo-pct');
+      if(pctEl)pctEl.style.display='none';
+      const iconEl=document.getElementById('puo-icon');
+      if(iconEl)iconEl.textContent='\u2705';
+      _playUploadSuccess();
+      const successDiv=document.getElementById('puo-success');
+      if(successDiv)successDiv.style.display='flex';
+      document.getElementById('puo-continue-edit').onclick=()=>{
+        overlay.remove();
+        if(onSuccess)onSuccess(url);
+      };
+      document.getElementById('puo-go-back').onclick=()=>{
+        overlay.remove();
+        if(onSuccess)onSuccess(url);
+        _playChime();
+        const ctx=context.editContext||'chores';
+        const tab=(ctx==='sites')?'schools':'chores';
+        closeDetailImmediate();
+        switchTab(tab);
+        if(context.type==='site'&&window._currentSite){
+          const site=window._currentSite;
+          setTimeout(()=>openSiteDetail(site),350);
+        }else if(context.type==='chore'&&window._currentChore){
+          const chore=window._currentChore;
+          setTimeout(()=>openChoreDetail(chore),350);
+        }
+      };
+    }catch(err){
+      _playUploadError();
+      const titleEl=document.getElementById('puo-title');
+      const subEl=document.getElementById('puo-sub');
+      const bar=document.getElementById('puo-bar');
+      if(titleEl)titleEl.textContent='Upload failed';
+      if(subEl)subEl.textContent=err.message;
+      if(bar)bar.style.background='var(--danger)';
+      const iconEl=document.getElementById('puo-icon');
+      if(iconEl)iconEl.textContent='\u274c';
+      const acts=document.getElementById('puo-actions');
+      if(acts)acts.style.display='flex';
+      document.getElementById('puo-retry').onclick=()=>attempt(f);
+      document.getElementById('puo-cancel').onclick=()=>{
+        overlay.remove();
+        if(onCancel)onCancel();
+      };
+    }
+  };
+  await attempt(file);
 }
 
 async function _uploadSitePhoto(siteKeyOrName,fieldKey,file){
