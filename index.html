@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.4 | BUILD: 2026-06-24 18:00 PT | Ranger Rover PWA -->
+<!-- v9.6 | BUILD: 2026-06-24 22:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -301,6 +301,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .plant-badges{display:flex;gap:5px;flex-wrap:wrap}
 .plant-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;font-size:13px;font-weight:500;background:var(--fog);color:var(--stone);border:1px solid var(--mist);white-space:nowrap}
 .plant-detail-img{width:100%;height:220px;object-fit:cover;background:var(--fog)}
+#img-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:99998;display:none;flex-direction:column;align-items:center;justify-content:center;padding:0;cursor:zoom-out}
+#img-lightbox.open{display:flex}
+#img-lightbox img{max-width:100vw;max-height:100vh;object-fit:contain;display:block}
+#img-lightbox-close{position:fixed;top:12px;right:14px;font-size:32px;color:white;background:rgba(0,0,0,.5);border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;line-height:44px;text-align:center;font-family:var(--font-b);z-index:99999}
 .plant-detail-grid{padding:14px 20px 0;display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
 .plant-grid-item{}
 .plant-grid-label{font-size:12px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--silver);margin-bottom:3px}
@@ -825,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.4';
+const APP_VERSION='v9.6';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-24 18:00 PT';
+const BUILD_STAMP='2026-06-24 22:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -3233,7 +3237,7 @@ function playSuccessSound(){try{const ctx=new(window.AudioContext||window.webkit
 /* ═══ SMART REFRESH — pull fresh data then show a specific card ═══ */
 async function _refreshAndViewSite(siteKey){
   try{
-    showSaveToast('↻ Refreshing…');
+    showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
     const j=await r.json();
     if(j.sites&&j.sites.length)DATA.sites=j.sites;
@@ -3246,11 +3250,12 @@ async function _refreshAndViewSite(siteKey){
     renderSchoolDetail(site,false);
     const o=document.getElementById('detail-overlay');
     if(o&&o.style.display==='none')openDetail();
+    setTimeout(function(){_lazyObs=null;_initLazyImages();},200);
   }
 }
 async function _refreshAndViewChore(choreId){
   try{
-    showSaveToast('↻ Refreshing…');
+    showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
     const j=await r.json();
     if(j.sites&&j.sites.length)DATA.sites=j.sites;
@@ -3263,6 +3268,7 @@ async function _refreshAndViewChore(choreId){
     renderChoreDetail(chore,false);
     const o=document.getElementById('detail-overlay');
     if(o&&o.style.display==='none')openDetail();
+    setTimeout(function(){_lazyObs=null;_initLazyImages();},200);
   }
 }
 
@@ -3276,7 +3282,7 @@ async function forceRefresh(){
   if(ico){ico.style.display='inline-block';ico.style.transform='rotate(360deg)';ico.style.transition='transform .6s ease';}
   if(btn)btn.disabled=true;
   setSync(false);
-  showSaveToast('Refreshing…');
+  showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
   try{
     // Phase 1 — sites + chores
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
@@ -5136,9 +5142,17 @@ function _navTabAllowed(tabKey, lvl){
 function openImgLightbox(src){if(!src)return;var lb=document.getElementById('img-lightbox');var img=document.getElementById('img-lightbox-img');if(!lb||!img)return;img.src=src;lb.classList.add('open');document.body.style.overflow='hidden';}
 function closeImgLightbox(){var lb=document.getElementById('img-lightbox');if(lb)lb.classList.remove('open');document.body.style.overflow='';var img=document.getElementById('img-lightbox-img');if(img)setTimeout(function(){img.src='';},300);}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeImgLightbox();});
+
+function openImgLightbox(src){if(!src||src===window.location.href)return;var lb=document.getElementById('img-lightbox');var img=document.getElementById('img-lightbox-img');if(!lb||!img)return;img.src=src;lb.classList.add('open');document.body.style.overflow='hidden';}
+function closeImgLightbox(){var lb=document.getElementById('img-lightbox');if(lb)lb.classList.remove('open');document.body.style.overflow='';var img=document.getElementById('img-lightbox-img');if(img)setTimeout(function(){img.src='';},300);}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeImgLightbox();});
 </script>
 
 <div id="img-lightbox" onclick="closeImgLightbox()">
   <button id="img-lightbox-close" onclick="closeImgLightbox();event.stopPropagation()" aria-label="Close">&#xD7;</button>
   <img id="img-lightbox-img" src="" alt="">
+</div>
+<div id="img-lightbox" onclick="closeImgLightbox()">
+  <button id="img-lightbox-close" onclick="closeImgLightbox();event.stopPropagation()" aria-label="Close">×</button>
+  <img id="img-lightbox-img" src="" alt="" onclick="event.stopPropagation()">
 </div>
