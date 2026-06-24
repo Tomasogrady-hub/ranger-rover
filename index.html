@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.2 | BUILD: 2026-06-24 12:00 PT | Ranger Rover PWA -->
+<!-- v9.3 | BUILD: 2026-06-24 15:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -825,10 +825,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.2';
+const APP_VERSION='v9.3';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-24 12:00 PT';
+const BUILD_STAMP='2026-06-24 15:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1461,44 +1461,36 @@ function chorePhotoSlotHtml(existingSrc, slotIdx, prefix){
 
 function _deleteChorePhotoSlot(slotIdx,prefix){
   if(!confirm('Remove this photo?'))return;
-  // Cancel any pending upload for this slot
   if(window._pendingChorePhotos)delete window._pendingChorePhotos[slotIdx];
-  // Clear the UI slot immediately
-  const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
-  if(slot){
-    slot.style.border='1.5px dashed var(--mist)';
-    slot.innerHTML='<span style="font-size:26px;color:var(--silver)">+</span>';
-    const btn=slot.nextElementSibling;
-    if(btn){btn.style.background='var(--fog)';btn.style.color='var(--ink)';btn.style.borderColor='var(--mist)';btn.textContent='📷 Add';}
-    const delBtn=btn?btn.nextElementSibling:null;
-    if(delBtn)delBtn.style.display='none';
-  }
-  // ── Fire-and-forget background clear ─────────────────────────────────────
-  // Clear the sheet cell right now — don't wait for Save button
   const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
   const colName=imgCols[slotIdx];
   const chore=window._currentChore;
-  if(chore&&colName&&CFG.URL){
-    const choreId=chore.ID||chore.id;
-    const choreSite=chore.Site||chore.site||'';
-    // Clear locally so re-renders don't flash the old image
-    if(chore[colName]!==undefined)chore[colName]='';
-    // Update DATA cache
-    const row=DATA.chores.find(x=>(x.ID||x.id)===choreId);
-    if(row)row[colName]='';
-    // Track so saveChoreEdit skips this column
-    if(!window._chorePhotosCleared)window._chorePhotosCleared={};
-    window._chorePhotosCleared[slotIdx]=true;
-    (async()=>{
-      try{
-        await gasPost({action:'updateChore',choreId,updates:{[colName]:''},actor:SESSION?SESSION.email:''});
-        localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-        showSaveToast('🗑 Photo removed from chore');
-      }catch(e){
-        showSaveToast('⚠ Could not remove photo — '+e.message);
-      }
-    })();
+  if(!chore||!colName||!CFG.URL){
+    // No server context — just clear UI
+    const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
+    if(slot){slot.style.border='1.5px dashed var(--mist)';slot.innerHTML='<span style="font-size:26px;color:var(--silver)">+</span>';const btn=slot.nextElementSibling;if(btn){btn.style.background='var(--fog)';btn.style.color='var(--ink)';btn.style.borderColor='var(--mist)';btn.textContent='📷 Add';}const delBtn=btn?btn.nextElementSibling:null;if(delBtn)delBtn.style.display='none';}
+    return;
   }
+  const choreId=chore.ID||chore.id;
+  // Dim the slot immediately so user sees action
+  const slot=document.getElementById(`${prefix}-photo-slot-${slotIdx}`);
+  if(slot){const img=slot.querySelector('img');if(img)img.style.opacity='.2';}
+  // Clear locally right away
+  if(chore[colName]!==undefined)chore[colName]='';
+  const row=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+  if(row)row[colName]='';
+  if(!window._chorePhotosCleared)window._chorePhotosCleared={};
+  window._chorePhotosCleared[slotIdx]=true;
+  _doDeleteWithOverlay('Removing photo…',
+    async()=>{
+      await gasPost({action:'updateChore',choreId,updates:{[colName]:''},actor:SESSION?SESSION.email:''});
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    },
+    ()=>{
+      // Clear slot UI after confirmed delete
+      if(slot){slot.style.border='1.5px dashed var(--mist)';slot.innerHTML='<span style="font-size:26px;color:var(--silver)">+</span>';const btn=slot.nextElementSibling;if(btn){btn.style.background='var(--fog)';btn.style.color='var(--ink)';btn.style.borderColor='var(--mist)';btn.textContent='📷 Add';}const delBtn=btn?btn.nextElementSibling:null;if(delBtn)delBtn.style.display='none';}
+    }
+  );
 }
 
 function _previewChoreSlot(file, slotIdx, prefix){
@@ -3978,6 +3970,65 @@ function previewSelfPhoto(input){
   reader.readAsDataURL(file);
 }
 
+/* ─── Delete / Remove Overlay — full-screen progress for photo & video removal ─── */
+function _showDeleteOverlay(label){
+  document.getElementById('delete-overlay')?.remove();
+  const el=document.createElement('div');
+  el.id='delete-overlay';
+  el.style='position:fixed;inset:0;background:rgba(0,0,0,.87);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;box-sizing:border-box';
+  el.innerHTML=`
+    <div id="del-icon" style="font-size:52px;margin-bottom:18px">🗑️</div>
+    <div id="del-title" style="font-family:var(--font-d);font-size:28px;font-style:italic;color:white;margin-bottom:8px;text-align:center">${label||'Removing…'}</div>
+    <div id="del-sub" style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:28px;text-align:center;line-height:1.5">Please wait</div>
+    <div style="width:100%;max-width:320px;background:rgba(255,255,255,.2);border-radius:99px;height:10px;overflow:hidden;margin-bottom:12px">
+      <div id="del-bar" style="height:100%;width:0%;background:#e57373;border-radius:99px;transition:width .3s ease"></div>
+    </div>
+    <div id="del-pct" style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:28px">0%</div>
+    <div id="del-done" style="display:none;font-size:15px;color:rgba(255,255,255,.85);text-align:center;margin-bottom:16px"></div>`;
+  document.body.appendChild(el);
+  return el;
+}
+async function _doDeleteWithOverlay(label, gasFn, onDone){
+  const overlay=_showDeleteOverlay(label);
+  // Animated progress (GAS call doesn't expose real progress)
+  let pct=5;
+  const bar=document.getElementById('del-bar');
+  const pctEl=document.getElementById('del-pct');
+  const ticker=setInterval(()=>{
+    pct=Math.min(pct+8,88);
+    if(bar)bar.style.width=pct+'%';
+    if(pctEl)pctEl.textContent=pct+'%';
+  },300);
+  try{
+    await gasFn();
+    clearInterval(ticker);
+    if(bar){bar.style.width='100%';bar.style.background='#4caf50';}
+    if(pctEl)pctEl.textContent='100%';
+    const titleEl=document.getElementById('del-title');
+    if(titleEl){titleEl.textContent='✓ Removed';titleEl.style.color='#a8f0c6';}
+    const subEl=document.getElementById('del-sub');
+    if(subEl)subEl.textContent='Successfully deleted';
+    const iconEl=document.getElementById('del-icon');
+    if(iconEl)iconEl.textContent='✅';
+    _playUploadSuccess();
+    await new Promise(r=>setTimeout(r,900));
+    overlay.remove();
+    if(onDone)onDone();
+  }catch(err){
+    clearInterval(ticker);
+    if(bar){bar.style.width='100%';bar.style.background='var(--danger)';}
+    const titleEl=document.getElementById('del-title');
+    if(titleEl)titleEl.textContent='Failed to remove';
+    const subEl=document.getElementById('del-sub');
+    if(subEl)subEl.textContent=err.message;
+    const iconEl=document.getElementById('del-icon');
+    if(iconEl)iconEl.textContent='❌';
+    await new Promise(r=>setTimeout(r,2200));
+    overlay.remove();
+    showSaveToast('⚠ Could not remove — '+err.message);
+  }
+}
+
 /* ─── Photo Upload Overlay — full-screen forced-wait experience ─── */
 function _showPhotoOverlay(label){
   document.getElementById('photo-upload-overlay')?.remove();
@@ -4082,16 +4133,13 @@ async function _doPhotoUploadWithOverlay(file,context,onSuccess,onCancel){
         overlay.remove();
         if(onSuccess)onSuccess(url);
         _playChime();
-        const ctx=context.editContext||'chores';
-        const tab=(ctx==='sites')?'schools':'chores';
-        closeDetailImmediate();
-        switchTab(tab);
         if(context.type==='site'&&window._currentSite){
           const site=window._currentSite;
-          setTimeout(()=>openSiteDetail(site),350);
+          // Stay in detail overlay — switch back to view mode so user sees photo
+          renderSchoolDetail(site,false);
         }else if(context.type==='chore'&&window._currentChore){
           const chore=window._currentChore;
-          setTimeout(()=>openChoreDetail(chore),350);
+          renderChoreDetail(chore,false);
         }
       };
     }catch(err){
@@ -4286,54 +4334,91 @@ async function saveNotes(){
 /* ═══ MEDIA DELETE HELPERS ═══ */
 function _clearSitePhoto(previewId,inputId){
   if(!confirm('Remove this photo?'))return;
-  // Clear preview immediately
-  const img=document.getElementById(previewId);if(img){img.src='';img.style.display='none';}
-  const inp=document.getElementById(inputId);if(inp)inp.value='';
-  // Remove from pending uploads if not yet saved (cancels any queued upload)
+  // Cancel any pending upload
   if(window._pendingSitePhotos){
     const keyMap={'ef-preview-MainImage':'MainImage','ef-preview-HelpImg1':'HelpImg1','ef-preview-HelpImg2':'HelpImg2'};
     delete window._pendingSitePhotos[keyMap[previewId]||previewId];
   }
-  // ── Fire-and-forget background clear ────────────────────────────────────────
-  // Don't wait for the main Save button — clear the sheet cell right now so the
-  // user sees instant feedback and doesn't get a "Save failed" if they close.
   const colMap={'ef-MainImg':'Main Image','ef-HelpImg1':'Helpful Image 1','ef-HelpImg2':'Helpful Image 2'};
   const colName=colMap[inputId];
   const site=window._currentSite;
-  if(site&&colName&&CFG.URL){
-    const siteKey=site.Key||site.key||sf(site,'Name','name');
-    const siteName=sf(site,'Name','name');
-    // Mark locally right away so re-renders don't flash the old image
-    if(site[colName]!==undefined)site[colName]='';
-    if(site['Main Image']!==undefined&&colName==='Main Image')site['Main Image']='';
-    // Track that this field is already cleared so saveSiteEdit skips it
-    if(!window._sitePhotosCleared)window._sitePhotosCleared={};
-    window._sitePhotosCleared[inputId]=true;
-    // Background GAS call
-    (async()=>{
-      try{
-        await gasPost({sheet:'Sites',key:siteKey,updates:{[colName]:''}});
-        // Also update local DATA so cache is correct
-        const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
-        if(row)row[colName]='';
-        localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-        showSaveToast('🗑 Photo removed from '+siteName);
-      }catch(e){
-        showSaveToast('⚠ Could not remove photo — '+e.message);
-      }
-    })();
+  if(!site||!colName||!CFG.URL){
+    const img=document.getElementById(previewId);if(img){img.src='';img.style.display='none';}
+    const inp=document.getElementById(inputId);if(inp)inp.value='';
+    return;
   }
+  const siteKey=site.Key||site.key||sf(site,'Name','name');
+  const siteName=sf(site,'Name','name');
+  // Dim preview immediately
+  const img=document.getElementById(previewId);if(img)img.style.opacity='.2';
+  // Clear locally right away
+  if(site[colName]!==undefined)site[colName]='';
+  if(site['Main Image']!==undefined&&colName==='Main Image')site['Main Image']='';
+  if(!window._sitePhotosCleared)window._sitePhotosCleared={};
+  window._sitePhotosCleared[inputId]=true;
+  const inp=document.getElementById(inputId);if(inp)inp.value='';
+  _doDeleteWithOverlay('Removing photo…',
+    async()=>{
+      await gasPost({sheet:'Sites',key:siteKey,updates:{[colName]:''}});
+      const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+      if(row)row[colName]='';
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    },
+    ()=>{
+      if(img){img.src='';img.style.display='none';img.style.opacity='1';}
+    }
+  );
 }
 function _clearSiteVideo(inputId,statusId){
   if(!confirm('Remove this video?'))return;
-  const inp=document.getElementById(inputId);if(inp)inp.value='';
-  const st=document.getElementById(statusId);if(st)st.textContent='';
   window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
+  const site=window._currentSite;
+  if(!site||!CFG.URL){
+    const inp=document.getElementById(inputId);if(inp)inp.value='';
+    const st=document.getElementById(statusId);if(st)st.textContent='';
+    return;
+  }
+  const siteKey=site.Key||site.key||sf(site,'Name','name');
+  // Dim input immediately
+  const inp=document.getElementById(inputId);if(inp)inp.value='';
+  const st=document.getElementById(statusId);if(st)st.textContent='Removing…';
+  // Clear locally
+  if(site['Video Link']!==undefined)site['Video Link']='';
+  if(site['Helpful Video']!==undefined)site['Helpful Video']='';
+  _doDeleteWithOverlay('Removing video…',
+    async()=>{
+      await gasPost({sheet:'Sites',key:siteKey,updates:{'Video Link':'','Helpful Video':''}});
+      const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+      if(row){row['Video Link']='';row['Helpful Video']='';}
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    },
+    ()=>{
+      if(st)st.textContent='';
+    }
+  );
 }
 function _clearChoreVideo(inputId){
   if(!confirm('Remove this video?'))return;
-  const inp=document.getElementById(inputId);if(inp)inp.value='';
   window._pendingVideoUrl=null;window._pendingVideoPromise=null;
+  const chore=window._currentChore;
+  if(!chore||!CFG.URL){
+    const inp=document.getElementById(inputId);if(inp)inp.value='';
+    return;
+  }
+  const choreId=chore.ID||chore.id;
+  const inp=document.getElementById(inputId);if(inp)inp.value='';
+  // Clear locally
+  if(chore['Helpful Video']!==undefined)chore['Helpful Video']='';
+  if(chore['VideoLink']!==undefined)chore['VideoLink']='';
+  _doDeleteWithOverlay('Removing video…',
+    async()=>{
+      await gasPost({action:'updateChore',choreId,updates:{'Helpful Video':''},actor:SESSION?SESSION.email:''});
+      const row=DATA.chores.find(x=>(x.ID||x.id)===choreId);
+      if(row){row['Helpful Video']='';row['VideoLink']='';}
+      localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    },
+    ()=>{}
+  );
 }
 async function saveGasUrl(){
   const u=document.getElementById('gasUrlInput').value.trim();
