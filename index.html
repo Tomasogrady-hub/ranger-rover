@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.0 | BUILD: 2026-06-23 16:00 PT | Ranger Rover PWA -->
+<!-- v9.1 | BUILD: 2026-06-23 17:30 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -825,10 +825,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.0';
+const APP_VERSION='v9.1';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-23 16:00 PT';
+const BUILD_STAMP='2026-06-23 17:30 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1090,14 +1090,17 @@ function buildNav(lvl,plantsOn){
   if(!row1||!row2)return;
   // Helper: only emit nav button if allowed by navVisibility setting
   const _nb=(tab,label,extraId='')=>_navTabAllowed(tab,lvl)?_navBtn(tab,label,extraId):'';
-  // Level 3: one row of 4 — Notes instead of Latest
+  // Level 3: two rows — Latest/Schools/Map/Chores on row1, Notes on row2
   if(lvl>=3){
     row1.innerHTML=[
-      _nb('notes','Notes'),
+      _nb('latest','Latest'),
       _nb('schools','Schools'),
       _nb('map','Map'),
       _nb('chores','Chores')].filter(Boolean).join('')||'';
-    row2.style.display='none';
+    const row2l3tabs=[];
+    if(_navTabAllowed('notes',lvl)) row2l3tabs.push(_navBtn('notes','Notes'));
+    if(row2l3tabs.length){row2.innerHTML=row2l3tabs.join('');row2.style.display='flex';}
+    else row2.style.display='none';
   } else {
     // Level 1 or 2: two rows
     // Row 1: Notes, Schools, Map, Chores
@@ -1151,7 +1154,7 @@ function buildNav(lvl,plantsOn){
   if(!active){const first=row1.querySelector('.nav-btn');if(first)first.classList.add('active');}
   // Update nav height CSS var for toast positioning
   if(lvl>=3){
-    document.documentElement.style.setProperty('--nav-h','52px');
+    document.documentElement.style.setProperty('--nav-h','104px');
   } else {
     // row3 sets its own height above if visible; default to 2-row height
     document.documentElement.style.setProperty('--nav-h','104px');
