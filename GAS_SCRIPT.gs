@@ -315,9 +315,10 @@ function handleSetPassword(p) {
     if (d.data[r][pi] !== '' && d.data[r][pi] != null)
       return { ok: false, error: 'Password already set' };
     d.sheet.getRange(r + 1, pi + 1).setValue(p.passwordHash);
-    return { ok: true,
-             name: (String(d.data[r][fi]) + ' ' + String(d.data[r][li])).trim(),
-             accessLevel: parseInt(d.data[r][ai]) || 3 };
+    var _spName = (String(d.data[r][fi]) + ' ' + String(d.data[r][li])).trim();
+    var _spLvl  = parseInt(d.data[r][ai]) || 3;
+    logActivity(p.email, 'first sign-in', _spName, 'person', 'Level ' + _spLvl);
+    return { ok: true, name: _spName, accessLevel: _spLvl };
   }
   return { ok: false, error: 'Email not found' };
 }
