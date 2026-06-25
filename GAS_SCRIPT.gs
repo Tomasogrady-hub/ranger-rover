@@ -659,6 +659,7 @@ function handleSaveEdit(p) {
   var sheet   = SpreadsheetApp.openById(id).getSheetByName(tab);
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
+  Logger.log('handleSaveEdit: sheet='+p.sheet+' key='+JSON.stringify(p.key)+' updates_keys='+JSON.stringify(Object.keys(p.updates||{}))+'  headers[0..4]='+JSON.stringify(headers.slice(0,5)));
 
   // Multi-strategy row finder -- robust against empty key from iOS WKWebView
   var ki   = headers.indexOf('Key');
@@ -699,7 +700,9 @@ function handleSaveEdit(p) {
       logSubject, subjType, editedCols);
     return { ok: true };
   }
-  return { ok: false, error: 'Row not found' };
+  Logger.log('handleSaveEdit MISS: sheet='+p.sheet+' key='+JSON.stringify(pKey)+' name='+JSON.stringify(pName)+' headers='+JSON.stringify(headers.slice(0,5))+' rows='+data.length);
+  return { ok: false, error: 'Row not found. Sent key=['+pKey+'] name=['+pName+'] headers='+JSON.stringify(headers.slice(0,5)) };
+
 }
 
 
