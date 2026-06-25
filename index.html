@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.7 | BUILD: 2026-06-24 23:30 PT | Ranger Rover PWA -->
+<!-- v9.8 | BUILD: 2026-06-25 01:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -829,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.7';
+const APP_VERSION='v9.8';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-24 23:30 PT';
+const BUILD_STAMP='2026-06-25 01:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4124,25 +4124,30 @@ function _updatePhotoOverlay(pct,title,sub){
   if(title&&titleEl)titleEl.textContent=title;
   if(sub&&subEl)subEl.innerHTML=sub;
 }
-/* Re-encode any image to JPEG via canvas - fixes HEIC/HEIF from iPhone camera */
+/* Re-encode any image to JPEG via canvas.
+ * Uses toDataURL (synchronous) not toBlob - works in iOS WKWebView/PWA.
+ * Falls back gracefully if canvas fails. */
 function _reencodeToJpeg(file,quality){
   return new Promise(function(resolve){
     var img=new Image();
     var objUrl=URL.createObjectURL(file);
     img.onload=function(){
       URL.revokeObjectURL(objUrl);
-      var canvas=document.createElement('canvas');
-      var maxDim=2048,w=img.naturalWidth,h=img.naturalHeight;
-      if(w>maxDim||h>maxDim){var sc=maxDim/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc);}
-      canvas.width=w;canvas.height=h;
-      var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,w,h);
-      canvas.toBlob(function(blob){
-        if(!blob){resolve(null);return;}
-        var r2=new FileReader();
-        r2.onload=function(ev){resolve(ev.target.result);};
-        r2.onerror=function(){resolve(null);};
-        r2.readAsDataURL(blob);
-      },'image/jpeg',quality||0.88);
+      try{
+        var canvas=document.createElement('canvas');
+        // Cap at 1600px on longest side - safer for iOS memory limits
+        var maxDim=1600,w=img.naturalWidth,h=img.naturalHeight;
+        if(!w||!h){resolve(null);return;}
+        if(w>maxDim||h>maxDim){var sc=maxDim/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc);}
+        canvas.width=w;canvas.height=h;
+        var ctx=canvas.getContext('2d');
+        if(!ctx){resolve(null);return;}
+        ctx.drawImage(img,0,0,w,h);
+        // toDataURL is synchronous and reliable in iOS WKWebView
+        var dataUrl=canvas.toDataURL('image/jpeg',quality||0.85);
+        if(!dataUrl||dataUrl==='data:,'){resolve(null);return;}
+        resolve(dataUrl);
+      }catch(e){resolve(null);}
     };
     img.onerror=function(){URL.revokeObjectURL(objUrl);resolve(null);};
     img.src=objUrl;
@@ -4162,8 +4167,10 @@ function _uploadPhotoXHR(file,gasPayload){
     reader.onload=e=>{
       const base64=e.target.result.split(',')[1];
       gasPayload.base64=base64;
-      gasPayload.mimeType=file.type;
-      gasPayload.filename=file.name;
+      // Force jpeg MIME - lh3 CDN cannot serve HEIC; canvas output is always JPEG
+      gasPayload.mimeType=(file.type&&file.type!=='application/octet-stream'&&!/heic|heif/i.test(file.type))?file.type:'image/jpeg';
+      // Ensure filename has .jpg extension so Drive stores with correct type
+      gasPayload.filename=(file.name||'photo.jpg').replace(/\.(heic|heif|HEIC|HEIF)$/,'.jpg');
       if(SESSION&&!gasPayload.actor)gasPayload.actor=SESSION.email;
       pct=30;
       _updatePhotoOverlay(pct,'Uploading photo\u2026','Sending to server\u2026');
@@ -4196,19 +4203,29 @@ async function _doPhotoUploadWithOverlay(file,context,onSuccess,onCancel){
       document.getElementById('puo-actions').style.display='none';
       document.getElementById('puo-success').style.display='none';
       const payload=buildPayload();
-      // Re-encode to JPEG on iOS (fixes HEIC from iPhone camera) and caps size
+      // Always re-encode on iOS (fixes HEIC, EXIF orientation, memory issues)
+      // Also re-encode HEIC/HEIF anywhere, and large files on any platform
+      const _isiOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
       const _heic=!f.type||/heic|heif|octet-stream/i.test(f.type);
+      const _big=f.size>4*1024*1024;
       let _uf=f;
-      if(_heic||f.size>5*1024*1024){
+      if(_isiOS||_heic||_big){
         _updatePhotoOverlay(8,'Converting photo…','Optimising for upload…');
-        const _rd=await _reencodeToJpeg(f,0.88);
-        if(_rd){
-          const _a=_rd.split(',');const _bs=atob(_a[1]);
+        const _rd=await _reencodeToJpeg(f,0.85);
+        if(_rd&&_rd.startsWith('data:image/jpeg')){
+          // _rd is a data URL - extract base64 directly (no FileReader round-trip)
+          const _b64=_rd.split(',')[1];
+          const _fn=(f.name||'photo').replace(/\.[^.]+$/,'')+'.jpg';
+          // Build File from atob bytes
+          const _bs=atob(_b64);
           const _by=new Uint8Array(_bs.length);
           for(let _i=0;_i<_bs.length;_i++)_by[_i]=_bs.charCodeAt(_i);
-          const _bl=new Blob([_by],{type:'image/jpeg'});
-          const _fn=(f.name||'photo').replace(/\.[^.]+$/,'')+'.jpg';
-          _uf=new File([_bl],_fn,{type:'image/jpeg'});
+          _uf=new File([_by],_fn,{type:'image/jpeg'});
+        }else if(_rd===null&&!_heic){
+          // Canvas failed but file is a known-good type - proceed with original
+        }else if(_rd===null&&_heic){
+          // Canvas failed AND file is HEIC - cannot upload, throw error
+          throw new Error('Could not convert HEIC photo. Please try: Settings > Camera > Formats > Most Compatible (JPEG)');
         }
       }
       const url=await _uploadPhotoXHR(_uf,payload);
