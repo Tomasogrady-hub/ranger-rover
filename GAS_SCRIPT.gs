@@ -655,16 +655,32 @@ function handleCascadeEmail(p) {
 function handleSaveEdit(p) {
   var id     = p.sheet === 'Humans' ? HUMANS_ID : SITES_ID;
   var tab    = p.sheet === 'Humans' ? 'Humans'  : 'Sites';
-  var keyCol = p.sheet === 'Humans' ? 'Email'   : 'Key';
 
   var sheet   = SpreadsheetApp.openById(id).getSheetByName(tab);
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
-  var ki      = headers.indexOf(keyCol);
-  if (ki === -1 && p.sheet !== 'Humans') ki = headers.indexOf('Name');
+
+  // Multi-strategy row finder -- robust against empty key from iOS WKWebView
+  var ki   = headers.indexOf('Key');
+  var ni   = headers.indexOf('Name');
+  var ei   = headers.indexOf('Email');
+  var pKey  = String(p.key  || '').trim();
+  var pName = String((p.updates && p.updates['_siteName']) || '').trim();
+  if (p.updates) delete p.updates['_siteName']; // remove helper field
+
+  function rowMatches(r) {
+    var rowKey  = ki > -1 ? String(data[r][ki] || '').trim() : '';
+    var rowName = ni > -1 ? String(data[r][ni] || '').trim() : '';
+    var rowEmail = ei > -1 ? String(data[r][ei] || '').trim().toLowerCase() : '';
+    if (pKey  && rowKey.length  > 0 && rowKey  === pKey)  return true;
+    if (pKey  && rowName.length > 0 && rowName === pKey)  return true;
+    if (pName && rowName.length > 0 && rowName === pName) return true;
+    if (pKey  && rowEmail.length > 0 && rowEmail === pKey.toLowerCase()) return true;
+    return false;
+  }
 
   for (var r = 1; r < data.length; r++) {
-    if (String(data[r][ki]).trim() !== String(p.key).trim()) continue;
+    if (!rowMatches(r)) continue;
     Object.keys(p.updates).forEach(function(col) {
       var ci = headers.indexOf(col);
       if (ci > -1) sheet.getRange(r + 1, ci + 1).setValue(p.updates[col]);
