@@ -659,24 +659,35 @@ function handleSaveEdit(p) {
   var sheet   = SpreadsheetApp.openById(id).getSheetByName(tab);
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
-  Logger.log('handleSaveEdit: sheet='+p.sheet+' key='+JSON.stringify(p.key)+' updates_keys='+JSON.stringify(Object.keys(p.updates||{}))+'  headers[0..4]='+JSON.stringify(headers.slice(0,5)));
+  Logger.log('handleSaveEdit: sheet='+p.sheet+' key='+JSON.stringify(p.key)+' name='+JSON.stringify((p.updates||{})['_siteName'])+' headers[0..4]='+JSON.stringify(headers.slice(0,5)));
 
-  // Multi-strategy row finder -- robust against empty key from iOS WKWebView
-  var ki   = headers.indexOf('Key');
+  // Multi-strategy row finder
+  // IMPORTANT: Sites sheet col A header is '' (empty cell), not 'Key'
+  // So headers.indexOf('Key') = -1. We must fall back to col 0 directly.
+  var ki   = headers.indexOf('Key');   // -1 if col A header is empty
+  var ki0  = 0;                         // col A is ALWAYS the key column for Sites
   var ni   = headers.indexOf('Name');
   var ei   = headers.indexOf('Email');
   var pKey  = String(p.key  || '').trim();
   var pName = String((p.updates && p.updates['_siteName']) || '').trim();
-  if (p.updates) delete p.updates['_siteName']; // remove helper field
+  if (p.updates) delete p.updates['_siteName'];
 
   function rowMatches(r) {
-    var rowKey  = ki > -1 ? String(data[r][ki] || '').trim() : '';
+    // Strategy 1: match col A directly (works whether header is 'Key' or '')
+    var colA  = String(data[r][ki0] || '').trim();
+    if (pKey && colA.length > 0 && colA === pKey) return true;
+    // Strategy 2: named 'Key' column if it exists
+    var rowKey = ki > -1 ? String(data[r][ki] || '').trim() : '';
+    if (pKey && rowKey.length > 0 && rowKey === pKey) return true;
+    // Strategy 3: match by Name column (fallback)
     var rowName = ni > -1 ? String(data[r][ni] || '').trim() : '';
-    var rowEmail = ei > -1 ? String(data[r][ei] || '').trim().toLowerCase() : '';
-    if (pKey  && rowKey.length  > 0 && rowKey  === pKey)  return true;
-    if (pKey  && rowName.length > 0 && rowName === pKey)  return true;
     if (pName && rowName.length > 0 && rowName === pName) return true;
-    if (pKey  && rowEmail.length > 0 && rowEmail === pKey.toLowerCase()) return true;
+    // Strategy 4: Name starts-with match (handles truncated names)
+    if (pName && rowName.length > 0 && pName.length > 4 && rowName.indexOf(pName) === 0) return true;
+    if (pName && rowName.length > 0 && pName.length > 4 && pName.indexOf(rowName) === 0) return true;
+    // Strategy 5: Email match for Humans sheet
+    var rowEmail = ei > -1 ? String(data[r][ei] || '').trim().toLowerCase() : '';
+    if (pKey && rowEmail.length > 0 && rowEmail === pKey.toLowerCase()) return true;
     return false;
   }
 
@@ -700,8 +711,8 @@ function handleSaveEdit(p) {
       logSubject, subjType, editedCols);
     return { ok: true };
   }
-  Logger.log('handleSaveEdit MISS: sheet='+p.sheet+' key='+JSON.stringify(pKey)+' name='+JSON.stringify(pName)+' headers='+JSON.stringify(headers.slice(0,5))+' rows='+data.length);
-  return { ok: false, error: 'Row not found. Sent key=['+pKey+'] name=['+pName+'] headers='+JSON.stringify(headers.slice(0,5)) };
+  Logger.log('handleSaveEdit MISS: key='+pKey+' name='+pName+' colA[1]='+String(data.length>1?data[1][0]:''));
+  return { ok: false, error: 'Row not found. key=['+pKey+'] name=['+pName+']' };
 
 }
 
