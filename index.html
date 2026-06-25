@@ -3250,7 +3250,7 @@ function _observeLazy(container){
 function playSuccessSound(){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(.18,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.25);o.start(ctx.currentTime);o.stop(ctx.currentTime+.25);}catch(e){}}
 
 /* ═══ SMART REFRESH — pull fresh data then show a specific card ═══ */
-async function _refreshAndViewSite(siteKey){
+async function _refreshAndViewSite(siteKey,siteName){
   try{
     showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
@@ -3259,7 +3259,9 @@ async function _refreshAndViewSite(siteKey){
     if(j.chores&&j.chores.length)DATA.chores=j.chores;
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
   }catch(e){}
-  const site=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey)||window._currentSite;
+  const site=DATA.sites.find(s=>siteName&&sf(s,'Name','name')===siteName)
+    ||DATA.sites.find(s=>(s.Key||s.key||'')===siteKey)
+    ||window._currentSite;
   if(site){
     window._currentSite=site;
     renderSchoolDetail(site,false);
@@ -4266,7 +4268,7 @@ async function _doPhotoUploadWithOverlay(file,context,onSuccess,onCancel){
         _playChime();
         if(context.type==='site'){
           const siteKey=context.siteKey||(window._currentSite&&(window._currentSite.Key||window._currentSite.key))||sf(window._currentSite,'Name','name');
-          await _refreshAndViewSite(siteKey);
+          await _refreshAndViewSite(siteKey,_sName);
         }else if(context.type==='chore'){
           const choreId=context.choreId||(window._currentChore&&(window._currentChore.ID||window._currentChore.id));
           if(choreId)await _refreshAndViewChore(choreId);
@@ -4494,7 +4496,7 @@ function _clearSitePhoto(previewId,inputId){
       if(row)row[colName]='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
-    ()=>{ _refreshAndViewSite(siteKey); }
+    ()=>{ _refreshAndViewSite(siteKey,sf(window._currentSite,'Name','name')); }
   );
 }
 function _clearSiteVideo(inputId,statusId){
@@ -4517,7 +4519,7 @@ function _clearSiteVideo(inputId,statusId){
       if(row)row['Helpful Video 1']='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
-    ()=>{ _refreshAndViewSite(siteKey); }
+    ()=>{ _refreshAndViewSite(siteKey,sf(window._currentSite,'Name','name')); }
   );
 }
 function _clearChoreVideo(inputId){
