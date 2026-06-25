@@ -463,8 +463,11 @@ function handleAddChore(p) {
 
 function handleUploadChoreImage(p) {
   try {
-    var decoded = Utilities.base64Decode(p.base64);
-    var blob    = Utilities.newBlob(decoded, p.mimeType || 'image/jpeg', p.filename || 'chore.jpg');
+    var decoded  = Utilities.base64Decode(p.base64);
+    // Normalise MIME: lh3 cannot serve HEIC; force JPEG if needed
+    var safeMime = (p.mimeType && !/heic|heif/i.test(p.mimeType) && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'image/jpeg';
+    var safeName = (p.filename || 'chore.jpg').replace(/\.(heic|heif)$/i, '.jpg');
+    var blob     = Utilities.newBlob(decoded, safeMime, safeName);
     var folder  = DriveApp.getFolderById(CHORES_IMG_FOLDER);
     var file    = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -542,8 +545,10 @@ function handleGetSelfProfile(p) {
 
 function handleUploadSiteImage(p) {
   try {
-    var decoded = Utilities.base64Decode(p.base64);
-    var blob    = Utilities.newBlob(decoded, p.mimeType || 'image/jpeg', p.filename || 'site.jpg');
+    var decoded  = Utilities.base64Decode(p.base64);
+    var safeMime = (p.mimeType && !/heic|heif/i.test(p.mimeType) && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'image/jpeg';
+    var safeName = (p.filename || 'site.jpg').replace(/\.(heic|heif)$/i, '.jpg');
+    var blob     = Utilities.newBlob(decoded, safeMime, safeName);
     var folder  = DriveApp.getFolderById(SITES_IMG_FOLDER);
     var file    = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
