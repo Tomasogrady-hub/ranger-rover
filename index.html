@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.9 | BUILD: 2026-06-25 08:00 PT | Ranger Rover PWA -->
+<!-- v9.10 | BUILD: 2026-06-25 10:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -829,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.9';
+const APP_VERSION='v9.10';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-25 08:00 PT';
+const BUILD_STAMP='2026-06-25 10:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2754,7 +2754,7 @@ async function saveSiteEdit(siteKey){
     }catch(e){
       const _sb2=document.querySelector('.btn-save');
       if(_sb2){_sb2.disabled=false;_sb2.textContent='✓ Finished — Save & Close';}
-      showSaveToast('⚠ Save failed — '+e.message);
+      showSaveToast('⚠ Save failed: '+e.message+' | key=['+siteKey+'] name=['+_saveSiteName+']');
     }
   })();
 }
