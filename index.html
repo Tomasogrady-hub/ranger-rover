@@ -829,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.13';
+const APP_VERSION='v9.14';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-25 13:00 PT';
+const BUILD_STAMP='2026-06-26 12:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -3005,6 +3005,7 @@ function showAddContact(){
         <div class="dropdown-panel" id="nc-role-dd">
           <div class="dropdown-search"><input placeholder="Search roles…" oninput="filterDropdownItems('nc-role-dd',this.value)"></div>
           <div class="dropdown-list">${DATA.roles.map(r=>`<div class="dropdown-item" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'nc-role-btn','nc-role-dd')">${r.name}</div>`).join('')}</div>
+          <div class="dropdown-add" onclick="addNewRoleNc()">+ Add new role…</div>
         </div>
       </div>
     </div>
@@ -3019,6 +3020,14 @@ async function saveNewContact(){
   const email=document.getElementById('nc-Email').value.trim();
   const m=document.getElementById('saveMsg');
   if(!email){m.className='save-msg err';m.textContent='Email is required.';return;}
+  // ── Duplicate email check ──────────────────────────────────────────────────
+  const dup=DATA.humans&&DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase());
+  if(dup){
+    m.className='save-msg err';
+    const dupName=((dup['First Name']||dup.firstName||'').trim()+' '+(dup['Last Name']||dup.lastName||'').trim()).trim()||email;
+    m.textContent='⚠ That email already exists ('+dupName+'). Use a different email or find them in the People list.';
+    return;
+  }
   const roleBtn=document.getElementById('nc-role-btn');
   const data={'First Name':document.getElementById('nc-FirstName').value.trim(),'Last Name':document.getElementById('nc-LastName').value.trim(),Email:email,Mobile:document.getElementById('nc-Mobile').value.trim(),Role:roleBtn?roleBtn.dataset.value||'':''};
   _playChime();
@@ -3069,15 +3078,33 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
   },80);
 }
 
-function addNewRoleAcfs(){
+async function addNewRoleNc(){
   const role=prompt('Enter new role name:');
   if(!role||!role.trim())return;
   const r=role.trim();
-  if(!DATA.roles.some(x=>x.name===r))DATA.roles.push({name:r,description:'',category:''});
-  const list=document.querySelector('#acfs-role-dd .dropdown-list');
-  if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'acfs-role-btn','acfs-role-dd');};list.appendChild(item);}
-  const btn=document.getElementById('acfs-role-btn');if(btn){btn.textContent=r;btn.dataset.value=r;}
-  document.getElementById('acfs-role-dd')?.classList.remove('open');
+  if(DATA.roles.some(x=>x.name===r)){alert('Role "'+r+'" already exists.');return;}
+  try{
+    await addRoleToSheet(r);
+    const list=document.querySelector('#nc-role-dd .dropdown-list');
+    if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'nc-role-btn','nc-role-dd');};list.appendChild(item);}
+    document.getElementById('nc-role-btn').textContent=r;
+    document.getElementById('nc-role-btn').dataset.value=r;
+    document.getElementById('nc-role-dd')?.classList.remove('open');
+  }catch(e){alert('Could not save role: '+e.message);}
+}
+
+async function addNewRoleAcfs(){
+  const role=prompt('Enter new role name:');
+  if(!role||!role.trim())return;
+  const r=role.trim();
+  if(DATA.roles.some(x=>x.name===r)){alert('Role "'+r+'" already exists.');return;}
+  try{
+    await addRoleToSheet(r);
+    const list=document.querySelector('#acfs-role-dd .dropdown-list');
+    if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'acfs-role-btn','acfs-role-dd');};list.appendChild(item);}
+    const btn=document.getElementById('acfs-role-btn');if(btn){btn.textContent=r;btn.dataset.value=r;}
+    document.getElementById('acfs-role-dd')?.classList.remove('open');
+  }catch(e){alert('Could not save role: '+e.message);}
 }
 
 async function saveNewContactForSite(returnBtnId){
@@ -3085,6 +3112,14 @@ async function saveNewContactForSite(returnBtnId){
   m.className='save-msg';m.textContent='Saving…';
   const email=document.getElementById('acfs-Email').value.trim();
   if(!email){m.className='save-msg err';m.textContent='Email is required.';return;}
+  // ── Duplicate email check ──────────────────────────────────────────────────
+  const dup=DATA.humans&&DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase());
+  if(dup){
+    const dupName=((dup['First Name']||dup.firstName||'').trim()+' '+(dup['Last Name']||dup.lastName||'').trim()).trim()||email;
+    m.className='save-msg err';
+    m.textContent='⚠ '+email+' already exists as "'+dupName+'". You can assign them using the people picker instead.';
+    return;
+  }
   const roleBtn=document.getElementById('acfs-role-btn');
   const fn=(document.getElementById('acfs-FirstName').value||'').trim();
   const ln=(document.getElementById('acfs-LastName').value||'').trim();
