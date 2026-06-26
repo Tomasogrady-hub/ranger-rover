@@ -829,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.14';
+const APP_VERSION='v9.15';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-26 12:00 PT';
+const BUILD_STAMP='2026-06-26 14:30 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4747,17 +4747,21 @@ function activityRowHtml(item){
     else subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   } else if(item.subjectType==='site'){
     // subject may be stored as Key (7-char ID) or Name — find the site either way
-    const _siteBySubj=DATA.sites.find(s=>(s.Key||s.key||'')===item.subject||(s.Name||s.name||'').toLowerCase()===(item.subject||'').toLowerCase());
-    const _siteKey=_siteBySubj?(s=>s.Key||s.key||'')(_siteBySubj):'';
-    const _siteName=_siteBySubj?(s=>s.Name||s.name||item.subject)(_siteBySubj):item.subject;
+    const _siteBySubj=(DATA.sites||[]).find(s=>(s.Key||s.key||'')===item.subject||(s.Name||s.name||'').toLowerCase()===(item.subject||'').toLowerCase());
+    const _siteKey=_siteBySubj?(_siteBySubj.Key||_siteBySubj.key||''):'';
+    // If subject looks like a raw 7-char key and we didn't find it, show it as-is (fallback)
+    const _siteName=_siteBySubj?(_siteBySubj.Name||_siteBySubj.name||item.subject):item.subject;
     if(_siteKey){subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_siteKey)}')">${_siteName}</button>`;}
-    else{subjectLink=`<span style="font-weight:500">${_siteName||''}</span>`;}
+    else if(_siteName){subjectLink=`<span style="font-weight:500">${_siteName}</span>`;}
+    else{subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;}
   } else if(item.subjectType==='person'){
     subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   }
-  const rawDetail=(item.detail||'').replace(/^Site:\s*/i,'').trim();
+  // Strip noisy column names from detail (site edit field lists)
+  const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update)\b,?\s*/gi;
+  const rawDetail=(item.detail||'').replace(/^Site:\s*/i,'').replace(_NOISY_COLS,'').replace(/,\s*,/g,',').replace(/^,+|,+$/g,'').trim();
   // Cap detail at 80 chars so long column lists don't dominate the feed
   const detail=rawDetail.length>80?rawDetail.slice(0,77)+'…':rawDetail;
   const line1=[actorLink,`<span style="color:var(--stone)"> ${item.action} </span>`,subjectLink];
@@ -4773,11 +4777,18 @@ function _fmtActivityTs(iso){
     const d=new Date(iso);
     const now=new Date();
     const diff=now-d;
+    const timeStr=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
     if(diff<60000)return 'just now';
     if(diff<3600000)return Math.floor(diff/60000)+'m ago';
-    if(diff<86400000)return Math.floor(diff/3600000)+'h ago';
-    if(diff<604800000)return Math.floor(diff/86400000)+'d ago';
-    return d.toLocaleDateString([],{month:'short',day:'numeric'});
+    // Same calendar day
+    if(d.toDateString()===now.toDateString())return timeStr;
+    // Yesterday
+    const yesterday=new Date(now);yesterday.setDate(now.getDate()-1);
+    if(d.toDateString()===yesterday.toDateString())return 'Yesterday at '+timeStr;
+    // Within 6 days: show day name
+    if(diff<6*86400000)return d.toLocaleDateString([],{weekday:'short'})+' at '+timeStr;
+    // Older: show date
+    return d.toLocaleDateString([],{month:'short',day:'numeric'})+' at '+timeStr;
   }catch(e){return '';}
 }
 
