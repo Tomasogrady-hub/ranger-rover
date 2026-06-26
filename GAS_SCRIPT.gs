@@ -362,7 +362,18 @@ function handleForgotPassword(p) {
 
 function handleAddHuman(p) {
   var sheet   = getHumansSheet();
-  var headers = sheet.getDataRange().getValues()[0];
+  var allData = sheet.getDataRange().getValues();
+  var headers = allData[0];
+  var emailIdx = headers.indexOf('Email');
+  // Server-side duplicate guard
+  if (emailIdx !== -1 && p.data['Email']) {
+    var incomingEmail = String(p.data['Email']).toLowerCase().trim();
+    for (var r = 1; r < allData.length; r++) {
+      if (String(allData[r][emailIdx]).toLowerCase().trim() === incomingEmail) {
+        return { ok: false, duplicate: true, error: 'Email already exists: ' + p.data['Email'] };
+      }
+    }
+  }
   sheet.appendRow(headers.map(function(h) { return p.data[h] || ''; }));
   logActivity(p.actor||p.data['Email']||'', 'added person',
     String(p.data['Name']||p.data['Email']||''), 'person', String(p.data['Role']||''));
