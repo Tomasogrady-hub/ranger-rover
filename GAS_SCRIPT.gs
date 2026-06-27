@@ -715,12 +715,8 @@ function handleSaveEdit(p) {
       var ni2 = headers.indexOf('Name');
       if (ni2 > -1 && String(data[r][ni2]||'').trim()) logSubject = String(data[r][ni2]).trim();
     }
-    // Only log inline if client didn't send a separate logActivity ping
-    // (client sets clientWillLog:true and fires _logActivity() separately for iOS reliability)
-    if (!p.clientWillLog) {
-      logActivity(p.actor||'', 'edited ' + p.sheet.toLowerCase(),
-        logSubject, subjType, editedCols);
-    }
+    logActivity(p.actor||'', 'edited',
+      logSubject, subjType, editedCols);
     return { ok: true };
   }
   Logger.log('handleSaveEdit MISS: pKey='+pKey+' siteKey='+siteKey);
