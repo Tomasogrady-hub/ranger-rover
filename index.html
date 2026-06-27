@@ -829,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.15';
+const APP_VERSION='v9.16';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-26 14:30 PT';
+const BUILD_STAMP='2026-06-26 16:45 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1258,6 +1258,17 @@ async function _loadHumansBackground(){
       if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
     }
   }catch(e){setSync(false);}
+}
+
+// Fire-and-forget activity log — ensures iOS saves always appear in Latest tab
+// even if the inline GAS logActivity fails during handleSaveEdit
+function _logActivity(action, subject, subjectType, detail){
+  if(!CFG.URL||!SESSION)return;
+  const payload={action:'logActivity',actor:SESSION.email,logAction:action,subject:subject,subjectType:subjectType,detail:detail||''};
+  // Use sendBeacon for iOS reliability (doesn't get cancelled on navigation)
+  const blob=new Blob([JSON.stringify(payload)],{type:'text/plain'});
+  if(navigator.sendBeacon){navigator.sendBeacon(CFG.URL,blob);}
+  else{fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload),keepalive:true}).catch(()=>{});}
 }
 
 async function saveToSheet(sheet,key,updates){
@@ -2742,6 +2753,9 @@ async function saveSiteEdit(siteKey){
       // Send Name as lookup key (original GAS contract) + 7-char Key as backup
       nonImgUpdates['_siteKey']=siteKey;
       await saveToSheet('Sites',_saveSiteName,nonImgUpdates);
+      // Explicit activity log ping — ensures iOS logs even if inline GAS logActivity missed
+      const _editedCols=Object.keys(nonImgUpdates).filter(c=>!['_siteKey','Main Image','Helpful Image 1','Helpful Image 2','Helpful Image 3'].includes(c)).join(', ');
+      _logActivity('edited',_saveSiteName,'site',_editedCols);
       // Merge ALL updates (including image URLs) into local DATA
       const site=DATA.sites.find(s=>sf(s,'Name','name')===_saveSiteName||(s.Key||s.key||'')===siteKey);
       if(site)Object.assign(site,updates);
@@ -2946,6 +2960,8 @@ async function savePerson(orig){
         await gasPost({action:'cascadeEmail',oldEmail:orig,newEmail:newEmail,actor:SESSION?SESSION.email:''});
       }
       const displayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail;
+      // Explicit activity log — ensures iOS records the edit
+      _logActivity('edited',displayName,'person','');
       showSaveToast('✓ '+displayName+' saved'+(emailChanged?' (email updated everywhere)':''));
     }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
   })();
@@ -4526,8 +4542,11 @@ function _clearSitePhoto(previewId,inputId){
   const inp=document.getElementById(inputId);if(inp)inp.value='';
   _doDeleteWithOverlay('Removing photo…',
     async()=>{
-      await gasPost({sheet:'Sites',key:siteKey,updates:{[colName]:''}});
-      const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+      // Use siteName as primary key (GAS rowMatches does Name-first lookup)
+      // Send 7-char Key as _siteKey backup in updates
+      const _delUpdates={[colName]:'',_siteKey:siteKey};
+      await gasPost({sheet:'Sites',key:siteName,updates:_delUpdates,actor:SESSION?SESSION.email:''});
+      const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey||(s.Name||s.name||'')===(siteName));
       if(row)row[colName]='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
@@ -4760,11 +4779,13 @@ function activityRowHtml(item){
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   }
   // Strip noisy column names from detail (site edit field lists)
-  const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update)\b,?\s*/gi;
+  const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update|Type|Principal|School Administrative Assistant|Main Contact 1|Main Contact 2|Main Contact 3|Plant Manager|Telephone|City|State|Street Address|District)\b,?\s*/gi;
   const rawDetail=(item.detail||'').replace(/^Site:\s*/i,'').replace(_NOISY_COLS,'').replace(/,\s*,/g,',').replace(/^,+|,+$/g,'').trim();
   // Cap detail at 80 chars so long column lists don't dominate the feed
   const detail=rawDetail.length>80?rawDetail.slice(0,77)+'…':rawDetail;
-  const line1=[actorLink,`<span style="color:var(--stone)"> ${item.action} </span>`,subjectLink];
+  // Clean action text: remove 'sites'/'humans' label (self-evident from context)
+  const _cleanAction=(item.action||'').replace(/\b(sites|humans)\b/gi,'').replace(/\s{2,}/g,' ').trim();
+  const line1=[actorLink,`<span style="color:var(--stone)"> ${_cleanAction} </span>`,subjectLink];
   if(detail)line1.push(`<span style="color:var(--silver);font-size:14px"> — ${detail}</span>`);
   return `<div style="padding:11px 0;border-bottom:1px solid var(--mist)">
     <div style="font-size:16px;line-height:1.5;color:var(--ink)">${line1.join('')}</div>
