@@ -833,10 +833,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.19';
+const APP_VERSION='v9.20';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-26 22:30 PT';
+const BUILD_STAMP='2026-06-27 00:15 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1191,7 +1191,7 @@ function showApp(){
 }
 
 /* ═══ API ═══ */
-async function gasPost(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;if(payload.action!=='logActivity')_flushActivityQueue().catch(()=>{});const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
+async function gasPost(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
 
 async function loadData(force=false){
   // ── Cache hit: render immediately then return ──────────────────────────────
@@ -1264,46 +1264,13 @@ async function _loadHumansBackground(){
   }catch(e){setSync(false);}
 }
 
-// ── Activity log queue ──────────────────────────────────────────────────────
-// Saves log entries to localStorage BEFORE navigation (synchronous = survives iOS nav).
-// Flushed to GAS at the start of the next gasPost call (any action).
-// This is the only 100%-reliable approach on iOS WKWebView where fetches
-// fired near navigation are silently dropped even with keepalive:true.
-const _ACT_Q_KEY='rr_act_queue';
-function _logActivity(action, subject, subjectType, detail){
-  if(!SESSION)return;
-  try{
-    const entry={actor:SESSION.email,logAction:action,subject:subject,
-            subjectType:subjectType,detail:detail||'',ts:new Date().toISOString()};
-    const q=JSON.parse(localStorage.getItem(_ACT_Q_KEY)||'[]');
-    q.push(entry);
-    localStorage.setItem(_ACT_Q_KEY,JSON.stringify(q));
-    console.log('[Activity] Queued:',JSON.stringify(entry),'Queue size:',q.length);
-  }catch(e){console.warn('[Activity] Queue write failed:',e);}
-}
-async function _flushActivityQueue(){
-  if(!CFG.URL||!SESSION)return;
-  let q;
-  try{q=JSON.parse(localStorage.getItem(_ACT_Q_KEY)||'[]');}catch(e){q=[];}
-  if(!q.length)return;
-  console.log('[Activity] Flushing',q.length,'queued entries');
-  localStorage.removeItem(_ACT_Q_KEY);
-  for(const entry of q){
-    try{
-      const r=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-        body:JSON.stringify({action:'logActivity',actor:entry.actor,
-          logAction:entry.logAction,subject:entry.subject,
-          subjectType:entry.subjectType,detail:entry.detail})});
-      const j=await r.json();
-      console.log('[Activity] Flush result:',JSON.stringify(j));
-    }catch(e){console.warn('[Activity] Flush failed:',e);}
-  }
-}
+// Activity logging is piggybacked onto saveToSheet GAS calls via _log* fields in updates.
+// GAS handleSaveEdit strips them before writing and uses them to log to the Activity sheet.
+// This works with the existing GAS deployment and survives iOS navigation reliably.
 
 async function saveToSheet(sheet,key,updates){
   if(!CFG.URL)throw new Error('No API URL');
-  // clientWillLog:true tells GAS to skip its inline logActivity (client fires _logActivity separately)
-  const j=await gasPost({sheet,key,updates,actor:SESSION?SESSION.email:'',clientWillLog:true});
+  const j=await gasPost({sheet,key,updates,actor:SESSION?SESSION.email:''});
   if(!j.ok)throw new Error(j.error||'Save failed');
   const arr=sheet==='Humans'?DATA.humans:DATA.sites;
   // Sites are keyed by 'Key' column; Humans by 'Email'
@@ -2782,10 +2749,13 @@ async function saveSiteEdit(siteKey){
       uploadedKeys.forEach(c=>delete nonImgUpdates[c]);
       // Send Name as lookup key (original GAS contract) + 7-char Key as backup
       nonImgUpdates['_siteKey']=siteKey;
-      // Queue activity log NOW (sync localStorage write) — before any await/navigation
-      // _flushActivityQueue() will send it on the next gasPost call, guaranteed on iOS
-      const _editedCols=Object.keys(nonImgUpdates).filter(c=>!['_siteKey','Main Image','Helpful Image 1','Helpful Image 2','Helpful Image 3'].includes(c)).join(', ');
-      _logActivity('edited',_saveSiteName,'site',_editedCols);
+      // Piggyback log fields into the same GAS call — works with existing deployment, no redirect issues
+      const _editedCols=Object.keys(nonImgUpdates).filter(c=>!c.startsWith('_')&&!['Main Image','Helpful Image 1','Helpful Image 2','Helpful Image 3','Image 2','Image 3'].includes(c)).join(', ');
+      nonImgUpdates['_logActor']   = SESSION?SESSION.email:'';
+      nonImgUpdates['_logAction']  = 'edited';
+      nonImgUpdates['_logSubject'] = _saveSiteName;
+      nonImgUpdates['_logSubjType']= 'site';
+      nonImgUpdates['_logDetail']  = _editedCols;
       await saveToSheet('Sites',_saveSiteName,nonImgUpdates);
       // Merge ALL updates (including image URLs) into local DATA
       const site=DATA.sites.find(s=>sf(s,'Name','name')===_saveSiteName||(s.Key||s.key||'')===siteKey);
@@ -2977,9 +2947,7 @@ async function savePerson(orig){
   const hRec=DATA.humans.find(h=>(h.Email||h.email||'')===orig);
   if(hRec){Object.keys(updates).forEach(k=>{hRec[k]=updates[k];});if(emailChanged)hRec.Email=newEmail;}
   if(emailChanged)cascadeEmailInData(orig,newEmail);
-  // Queue activity log BEFORE navigation (sync localStorage write, flushed on next gasPost)
   const _personDisplayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail||orig;
-  _logActivity('edited',_personDisplayName,'person','');
   // Instant: chime → close → go to people list
   _playChime();
   closeDetailImmediate();
@@ -2988,6 +2956,12 @@ async function savePerson(orig){
   // Save in background
   (async()=>{
     try{
+      // Piggyback log fields into the same GAS call — works with existing deployment
+      updates['_logActor']   = SESSION?SESSION.email:'';
+      updates['_logAction']  = 'edited';
+      updates['_logSubject'] = _personDisplayName;
+      updates['_logSubjType']= 'person';
+      updates['_logDetail']  = '';
       await saveToSheet('Humans',orig,updates);
       if(emailChanged){
         // Ask GAS to cascade the email change in Sites + Chores sheets
@@ -4763,20 +4737,29 @@ let _activityLoaded=false;
 let _activityTimer=null;
 async function _activityDebugTest(){
   const res=document.getElementById('actDebugResult');
-  if(res){res.style.display='block';res.textContent='Sending test log to GAS...';}
+  if(res){res.style.display='block';res.textContent='Testing piggyback log via saveToSheet...';}
   const t=Date.now();
   try{
-    const r=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({action:'logActivity',actor:SESSION?SESSION.email:'test@test.com',
-        logAction:'debug-test',subject:'DEBUG-'+new Date().toISOString(),
-        subjectType:'site',detail:'iPhone test from '+navigator.userAgent.slice(0,80)})});
-    const j=await r.json();
+    // Test using the EXACT same path as real site saves (piggybacked _log* fields)
+    const testUpdates={
+      '_logActor':SESSION?SESSION.email:'unknown',
+      '_logAction':'debug-test',
+      '_logSubject':'iPhone Debug '+new Date().toLocaleTimeString(),
+      '_logSubjType':'site',
+      '_logDetail':navigator.userAgent.slice(0,60)
+    };
+    // Use a real site name to ensure row match succeeds
+    const testSite=DATA.sites&&DATA.sites[0];
+    const testName=testSite?(testSite.Name||testSite.name||'Test'):'Test';
+    const testKey=testSite?(testSite.Key||testSite.key||''):'';
+    testUpdates['_siteKey']=testKey;
+    const j=await gasPost({sheet:'Sites',key:testName,updates:testUpdates,actor:SESSION?SESSION.email:''});
     const ms=Date.now()-t;
-    if(res)res.textContent='✓ GAS responded in '+ms+'ms: '+JSON.stringify(j)+' | Queue: '+localStorage.getItem('rr_act_queue');
+    if(res)res.textContent=(j.ok?'✓':'✗')+' '+ms+'ms: '+JSON.stringify(j);
   }catch(e){
-    if(res)res.textContent='✗ FAILED: '+e.message+' | Queue: '+localStorage.getItem('rr_act_queue');
+    if(res)res.textContent='✗ FAILED: '+e.message;
   }
-  loadActivity(true);
+  setTimeout(()=>loadActivity(true),1500);
 }
 
 async function loadActivity(force=false){
