@@ -626,8 +626,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <div class="tab-pane" id="tab-latest">
     <div class="page-header" style="padding-bottom:6px">
       <span class="page-title">Latest</span>
-      <button onclick="loadActivity(true)" style="padding:7px 13px;background:transparent;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:500;cursor:pointer;color:var(--stone);letter-spacing:.06em;text-transform:uppercase">↺ Refresh</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="loadActivity(true)" style="padding:7px 13px;background:transparent;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:500;cursor:pointer;color:var(--stone);letter-spacing:.06em;text-transform:uppercase">↺ Refresh</button>
+        <button id="actDebugBtn" onclick="_activityDebugTest()" style="display:none;padding:7px 13px;background:#fff3cd;border:1px solid #ffc107;border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:500;cursor:pointer;color:#856404;letter-spacing:.06em;text-transform:uppercase">⚡ Test</button>
+      </div>
     </div>
+    <div id="actDebugResult" style="display:none;margin:8px 16px;padding:10px 12px;background:#f8f9fa;border-radius:8px;font-size:13px;font-family:monospace;word-break:break-all;color:#333"></div>
     <div id="activityList" style="padding:0 16px 28px"><div class="spinner"></div></div>
   </div>
 
@@ -829,10 +833,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.18';
+const APP_VERSION='v9.19';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-26 21:00 PT';
+const BUILD_STAMP='2026-06-26 22:30 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1269,25 +1273,30 @@ const _ACT_Q_KEY='rr_act_queue';
 function _logActivity(action, subject, subjectType, detail){
   if(!SESSION)return;
   try{
+    const entry={actor:SESSION.email,logAction:action,subject:subject,
+            subjectType:subjectType,detail:detail||'',ts:new Date().toISOString()};
     const q=JSON.parse(localStorage.getItem(_ACT_Q_KEY)||'[]');
-    q.push({actor:SESSION.email,logAction:action,subject:subject,
-            subjectType:subjectType,detail:detail||'',ts:new Date().toISOString()});
+    q.push(entry);
     localStorage.setItem(_ACT_Q_KEY,JSON.stringify(q));
-  }catch(e){/* non-critical */}
+    console.log('[Activity] Queued:',JSON.stringify(entry),'Queue size:',q.length);
+  }catch(e){console.warn('[Activity] Queue write failed:',e);}
 }
 async function _flushActivityQueue(){
   if(!CFG.URL||!SESSION)return;
   let q;
   try{q=JSON.parse(localStorage.getItem(_ACT_Q_KEY)||'[]');}catch(e){q=[];}
   if(!q.length)return;
-  localStorage.removeItem(_ACT_Q_KEY); // clear before sending to avoid dupes on retry
+  console.log('[Activity] Flushing',q.length,'queued entries');
+  localStorage.removeItem(_ACT_Q_KEY);
   for(const entry of q){
     try{
-      await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      const r=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
         body:JSON.stringify({action:'logActivity',actor:entry.actor,
           logAction:entry.logAction,subject:entry.subject,
           subjectType:entry.subjectType,detail:entry.detail})});
-    }catch(e){/* non-critical */}
+      const j=await r.json();
+      console.log('[Activity] Flush result:',JSON.stringify(j));
+    }catch(e){console.warn('[Activity] Flush failed:',e);}
   }
 }
 
@@ -3498,7 +3507,12 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
   if(tab==='control'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='action')renderAction();
-  if(tab==='latest'){_activityLoaded=false;loadActivity();}
+  if(tab==='latest'){
+    _activityLoaded=false;loadActivity();
+    // Show debug test button only for admin (level 1)
+    const _db=document.getElementById('actDebugBtn');
+    if(_db)_db.style.display=(SESSION&&SESSION.accessLevel===1)?'':'none';
+  }
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
   // Render this tab if it has pending data changes
   if(_tabDirty[tab])_renderDirtyTab(tab);
@@ -4747,6 +4761,24 @@ document.getElementById('authPw2').addEventListener('keydown',e=>{if(e.key==='En
 /* ═══ ACTIVITY FEED ═══ */
 let _activityLoaded=false;
 let _activityTimer=null;
+async function _activityDebugTest(){
+  const res=document.getElementById('actDebugResult');
+  if(res){res.style.display='block';res.textContent='Sending test log to GAS...';}
+  const t=Date.now();
+  try{
+    const r=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'logActivity',actor:SESSION?SESSION.email:'test@test.com',
+        logAction:'debug-test',subject:'DEBUG-'+new Date().toISOString(),
+        subjectType:'site',detail:'iPhone test from '+navigator.userAgent.slice(0,80)})});
+    const j=await r.json();
+    const ms=Date.now()-t;
+    if(res)res.textContent='✓ GAS responded in '+ms+'ms: '+JSON.stringify(j)+' | Queue: '+localStorage.getItem('rr_act_queue');
+  }catch(e){
+    if(res)res.textContent='✗ FAILED: '+e.message+' | Queue: '+localStorage.getItem('rr_act_queue');
+  }
+  loadActivity(true);
+}
+
 async function loadActivity(force=false){
   const list=document.getElementById('activityList');
   if(!list)return;
