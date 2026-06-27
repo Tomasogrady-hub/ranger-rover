@@ -833,10 +833,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.20';
+const APP_VERSION='v9.21';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-27 00:15 PT';
+const BUILD_STAMP='2026-06-27 01:30 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4737,29 +4737,33 @@ let _activityLoaded=false;
 let _activityTimer=null;
 async function _activityDebugTest(){
   const res=document.getElementById('actDebugResult');
-  if(res){res.style.display='block';res.textContent='Testing piggyback log via saveToSheet...';}
+  if(!res)return;
+  res.style.display='block';
+  // STEP 1: Write a test entry via piggyback
+  res.textContent='Step 1: Writing test entry...';
   const t=Date.now();
+  let writeResult='';
   try{
-    // Test using the EXACT same path as real site saves (piggybacked _log* fields)
-    const testUpdates={
-      '_logActor':SESSION?SESSION.email:'unknown',
-      '_logAction':'debug-test',
-      '_logSubject':'iPhone Debug '+new Date().toLocaleTimeString(),
-      '_logSubjType':'site',
-      '_logDetail':navigator.userAgent.slice(0,60)
-    };
-    // Use a real site name to ensure row match succeeds
     const testSite=DATA.sites&&DATA.sites[0];
     const testName=testSite?(testSite.Name||testSite.name||'Test'):'Test';
     const testKey=testSite?(testSite.Key||testSite.key||''):'';
-    testUpdates['_siteKey']=testKey;
-    const j=await gasPost({sheet:'Sites',key:testName,updates:testUpdates,actor:SESSION?SESSION.email:''});
-    const ms=Date.now()-t;
-    if(res)res.textContent=(j.ok?'✓':'✗')+' '+ms+'ms: '+JSON.stringify(j);
+    const testLabel='DBG-'+Date.now();
+    const j=await gasPost({sheet:'Sites',key:testName,updates:{
+      '_siteKey':testKey,'_logActor':SESSION?SESSION.email:'?',
+      '_logAction':testLabel,'_logSubject':testName,
+      '_logSubjType':'site','_logDetail':'debug'
+    },actor:SESSION?SESSION.email:''});
+    writeResult='Write: '+(j.ok?'✓ ok:true':'✗ '+JSON.stringify(j))+' ('+( Date.now()-t)+'ms) | ';
+    // STEP 2: Read back immediately
+    res.textContent=writeResult+'Step 2: Reading feed...';
+    await new Promise(r=>setTimeout(r,1000));
+    const g=await gasPost({action:'getActivity'});
+    const count=g.items?g.items.length:0;
+    const top3=(g.items||[]).slice(0,3).map(x=>x.action+'|'+x.actor.split('@')[0]).join(' / ');
+    res.textContent=writeResult+'Read: '+count+' items. Top3: ['+top3+'] | ok:'+g.ok;
   }catch(e){
-    if(res)res.textContent='✗ FAILED: '+e.message;
+    res.textContent=writeResult+'ERROR: '+e.message;
   }
-  setTimeout(()=>loadActivity(true),1500);
 }
 
 async function loadActivity(force=false){
