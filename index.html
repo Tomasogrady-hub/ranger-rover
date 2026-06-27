@@ -829,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.16';
+const APP_VERSION='v9.17';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-26 16:45 PT';
+const BUILD_STAMP='2026-06-26 19:15 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1261,19 +1261,21 @@ async function _loadHumansBackground(){
 }
 
 // Fire-and-forget activity log — ensures iOS saves always appear in Latest tab
-// even if the inline GAS logActivity fails during handleSaveEdit
-function _logActivity(action, subject, subjectType, detail){
+// Uses keepalive:true fetch so iOS WKWebView doesn't cancel it on navigation
+// NOTE: call this BEFORE closeDetailImmediate()/switchTab() so fetch isn't killed
+async function _logActivity(action, subject, subjectType, detail){
   if(!CFG.URL||!SESSION)return;
   const payload={action:'logActivity',actor:SESSION.email,logAction:action,subject:subject,subjectType:subjectType,detail:detail||''};
-  // Use sendBeacon for iOS reliability (doesn't get cancelled on navigation)
-  const blob=new Blob([JSON.stringify(payload)],{type:'text/plain'});
-  if(navigator.sendBeacon){navigator.sendBeacon(CFG.URL,blob);}
-  else{fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload),keepalive:true}).catch(()=>{});}
+  try{
+    await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify(payload),keepalive:true});
+  }catch(e){/* non-critical, ignore */}
 }
 
 async function saveToSheet(sheet,key,updates){
   if(!CFG.URL)throw new Error('No API URL');
-  const j=await gasPost({sheet,key,updates,actor:SESSION?SESSION.email:''});
+  // clientWillLog:true tells GAS to skip its inline logActivity (client fires _logActivity separately)
+  const j=await gasPost({sheet,key,updates,actor:SESSION?SESSION.email:'',clientWillLog:true});
   if(!j.ok)throw new Error(j.error||'Save failed');
   const arr=sheet==='Humans'?DATA.humans:DATA.sites;
   // Sites are keyed by 'Key' column; Humans by 'Email'
@@ -2753,9 +2755,9 @@ async function saveSiteEdit(siteKey){
       // Send Name as lookup key (original GAS contract) + 7-char Key as backup
       nonImgUpdates['_siteKey']=siteKey;
       await saveToSheet('Sites',_saveSiteName,nonImgUpdates);
-      // Explicit activity log ping — ensures iOS logs even if inline GAS logActivity missed
+      // Explicit activity log — await before navigation so iOS keepalive fetch completes
       const _editedCols=Object.keys(nonImgUpdates).filter(c=>!['_siteKey','Main Image','Helpful Image 1','Helpful Image 2','Helpful Image 3'].includes(c)).join(', ');
-      _logActivity('edited',_saveSiteName,'site',_editedCols);
+      await _logActivity('edited',_saveSiteName,'site',_editedCols);
       // Merge ALL updates (including image URLs) into local DATA
       const site=DATA.sites.find(s=>sf(s,'Name','name')===_saveSiteName||(s.Key||s.key||'')===siteKey);
       if(site)Object.assign(site,updates);
@@ -2960,8 +2962,8 @@ async function savePerson(orig){
         await gasPost({action:'cascadeEmail',oldEmail:orig,newEmail:newEmail,actor:SESSION?SESSION.email:''});
       }
       const displayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail;
-      // Explicit activity log — ensures iOS records the edit
-      _logActivity('edited',displayName,'person','');
+      // Explicit activity log — await before toast so keepalive fetch completes on iOS
+      await _logActivity('edited',displayName,'person','');
       showSaveToast('✓ '+displayName+' saved'+(emailChanged?' (email updated everywhere)':''));
     }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
   })();
@@ -4566,10 +4568,12 @@ function _clearSiteVideo(inputId,statusId){
   const inp=document.getElementById(inputId);if(inp)inp.value='';
   const st=document.getElementById(statusId);if(st)st.textContent='Removing…';
   if(site['Helpful Video 1']!==undefined)site['Helpful Video 1']='';
+  const siteName=sf(site,'Name','name')||siteKey;
   _doDeleteWithOverlay('Removing video…',
     async()=>{
-      await gasPost({sheet:'Sites',key:siteKey,updates:{'Helpful Video 1':''}});
-      const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
+      // Use siteName as primary key (GAS Name-first lookup) + 7-char Key as backup
+      await gasPost({sheet:'Sites',key:siteName,updates:{'Helpful Video 1':'',_siteKey:siteKey},actor:SESSION?SESSION.email:''});
+      const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey||(s.Name||s.name||'')===siteName);
       if(row)row['Helpful Video 1']='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     },
