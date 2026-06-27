@@ -108,6 +108,7 @@ function doPost(e) {
 
       // ── ACTIVITY FEED ────────────────────────────────────────────────────────
       case 'getActivity': return respond(handleGetActivity());
+      case 'logActivity':  return respond(handleLogActivity(p));
 
       // ── NOTES ────────────────────────────────────────────────────────────────
       case 'getNotes':  return respond(handleGetNotes(p));
@@ -1108,6 +1109,21 @@ function logActivity(actor, action, subject, subjectType, detail) {
     if (total > 301) sheet.deleteRows(2, total - 301);
   } catch(e) {
     Logger.log('logActivity error: ' + e.message);
+  }
+}
+
+function handleLogActivity(p) {
+  try {
+    logActivity(
+      String(p.actor      || ''),
+      String(p.logAction  || p.action || ''),
+      String(p.subject    || ''),
+      String(p.subjectType|| ''),
+      String(p.detail     || '')
+    );
+    return { ok: true };
+  } catch(e) {
+    return { ok: false, error: e.message };
   }
 }
 
