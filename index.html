@@ -829,10 +829,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.17';
+const APP_VERSION='v9.18';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-26 19:15 PT';
+const BUILD_STAMP='2026-06-26 21:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbw8gvnub3oK6k3NL98NkKjt_8-zynxjdQh03VzrwYWsV7uNHE_rhj5Nrw7gTaa2bjnO/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1187,7 +1187,7 @@ function showApp(){
 }
 
 /* ═══ API ═══ */
-async function gasPost(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
+async function gasPost(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;if(payload.action!=='logActivity')_flushActivityQueue().catch(()=>{});const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
 
 async function loadData(force=false){
   // ── Cache hit: render immediately then return ──────────────────────────────
@@ -1260,16 +1260,35 @@ async function _loadHumansBackground(){
   }catch(e){setSync(false);}
 }
 
-// Fire-and-forget activity log — ensures iOS saves always appear in Latest tab
-// Uses keepalive:true fetch so iOS WKWebView doesn't cancel it on navigation
-// NOTE: call this BEFORE closeDetailImmediate()/switchTab() so fetch isn't killed
-async function _logActivity(action, subject, subjectType, detail){
-  if(!CFG.URL||!SESSION)return;
-  const payload={action:'logActivity',actor:SESSION.email,logAction:action,subject:subject,subjectType:subjectType,detail:detail||''};
+// ── Activity log queue ──────────────────────────────────────────────────────
+// Saves log entries to localStorage BEFORE navigation (synchronous = survives iOS nav).
+// Flushed to GAS at the start of the next gasPost call (any action).
+// This is the only 100%-reliable approach on iOS WKWebView where fetches
+// fired near navigation are silently dropped even with keepalive:true.
+const _ACT_Q_KEY='rr_act_queue';
+function _logActivity(action, subject, subjectType, detail){
+  if(!SESSION)return;
   try{
-    await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify(payload),keepalive:true});
-  }catch(e){/* non-critical, ignore */}
+    const q=JSON.parse(localStorage.getItem(_ACT_Q_KEY)||'[]');
+    q.push({actor:SESSION.email,logAction:action,subject:subject,
+            subjectType:subjectType,detail:detail||'',ts:new Date().toISOString()});
+    localStorage.setItem(_ACT_Q_KEY,JSON.stringify(q));
+  }catch(e){/* non-critical */}
+}
+async function _flushActivityQueue(){
+  if(!CFG.URL||!SESSION)return;
+  let q;
+  try{q=JSON.parse(localStorage.getItem(_ACT_Q_KEY)||'[]');}catch(e){q=[];}
+  if(!q.length)return;
+  localStorage.removeItem(_ACT_Q_KEY); // clear before sending to avoid dupes on retry
+  for(const entry of q){
+    try{
+      await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({action:'logActivity',actor:entry.actor,
+          logAction:entry.logAction,subject:entry.subject,
+          subjectType:entry.subjectType,detail:entry.detail})});
+    }catch(e){/* non-critical */}
+  }
 }
 
 async function saveToSheet(sheet,key,updates){
@@ -2754,10 +2773,11 @@ async function saveSiteEdit(siteKey){
       uploadedKeys.forEach(c=>delete nonImgUpdates[c]);
       // Send Name as lookup key (original GAS contract) + 7-char Key as backup
       nonImgUpdates['_siteKey']=siteKey;
-      await saveToSheet('Sites',_saveSiteName,nonImgUpdates);
-      // Explicit activity log — await before navigation so iOS keepalive fetch completes
+      // Queue activity log NOW (sync localStorage write) — before any await/navigation
+      // _flushActivityQueue() will send it on the next gasPost call, guaranteed on iOS
       const _editedCols=Object.keys(nonImgUpdates).filter(c=>!['_siteKey','Main Image','Helpful Image 1','Helpful Image 2','Helpful Image 3'].includes(c)).join(', ');
-      await _logActivity('edited',_saveSiteName,'site',_editedCols);
+      _logActivity('edited',_saveSiteName,'site',_editedCols);
+      await saveToSheet('Sites',_saveSiteName,nonImgUpdates);
       // Merge ALL updates (including image URLs) into local DATA
       const site=DATA.sites.find(s=>sf(s,'Name','name')===_saveSiteName||(s.Key||s.key||'')===siteKey);
       if(site)Object.assign(site,updates);
@@ -2948,6 +2968,9 @@ async function savePerson(orig){
   const hRec=DATA.humans.find(h=>(h.Email||h.email||'')===orig);
   if(hRec){Object.keys(updates).forEach(k=>{hRec[k]=updates[k];});if(emailChanged)hRec.Email=newEmail;}
   if(emailChanged)cascadeEmailInData(orig,newEmail);
+  // Queue activity log BEFORE navigation (sync localStorage write, flushed on next gasPost)
+  const _personDisplayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail||orig;
+  _logActivity('edited',_personDisplayName,'person','');
   // Instant: chime → close → go to people list
   _playChime();
   closeDetailImmediate();
@@ -2961,9 +2984,7 @@ async function savePerson(orig){
         // Ask GAS to cascade the email change in Sites + Chores sheets
         await gasPost({action:'cascadeEmail',oldEmail:orig,newEmail:newEmail,actor:SESSION?SESSION.email:''});
       }
-      const displayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail;
-      // Explicit activity log — await before toast so keepalive fetch completes on iOS
-      await _logActivity('edited',displayName,'person','');
+      const displayName=_personDisplayName;
       showSaveToast('✓ '+displayName+' saved'+(emailChanged?' (email updated everywhere)':''));
     }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
   })();
