@@ -676,9 +676,21 @@ function handleSaveEdit(p) {
   var ni      = headers.indexOf('Name');
   var ki      = headers.indexOf('Key');
   var ei      = headers.indexOf('Email');
-  var pKey    = String(p.key || '').trim();
-  var siteKey = String((p.updates && p.updates['_siteKey']) || '').trim();
-  if (p.updates) delete p.updates['_siteKey'];
+  var pKey        = String(p.key || '').trim();
+  var siteKey     = String((p.updates && p.updates['_siteKey'])      || '').trim();
+  var piggyActor  = String((p.updates && p.updates['_logActor'])     || p.actor || '').trim();
+  var piggyAction = String((p.updates && p.updates['_logAction'])    || '').trim();
+  var piggySubj   = String((p.updates && p.updates['_logSubject'])   || '').trim();
+  var piggySType  = String((p.updates && p.updates['_logSubjType'])  || '').trim();
+  var piggyDetail = String((p.updates && p.updates['_logDetail'])    || '').trim();
+  if (p.updates) {
+    delete p.updates['_siteKey'];
+    delete p.updates['_logActor'];
+    delete p.updates['_logAction'];
+    delete p.updates['_logSubject'];
+    delete p.updates['_logSubjType'];
+    delete p.updates['_logDetail'];
+  }
   Logger.log('handleSaveEdit: pKey='+pKey+' siteKey='+siteKey+' ni='+ni+' ki='+ki);
 
   function rowMatches(r) {
@@ -715,8 +727,13 @@ function handleSaveEdit(p) {
       var ni2 = headers.indexOf('Name');
       if (ni2 > -1 && String(data[r][ni2]||'').trim()) logSubject = String(data[r][ni2]).trim();
     }
-    logActivity(p.actor||'', 'edited',
-      logSubject, subjType, editedCols);
+    // Use piggybacked log fields from client if present, otherwise compute from row
+    var finalActor  = piggyActor  || p.actor || '';
+    var finalAction = piggyAction || 'edited';
+    var finalSubj   = piggySubj   || logSubject;
+    var finalSType  = piggySType  || subjType;
+    var finalDetail = piggyDetail || editedCols;
+    logActivity(finalActor, finalAction, finalSubj, finalSType, finalDetail);
     return { ok: true };
   }
   Logger.log('handleSaveEdit MISS: pKey='+pKey+' siteKey='+siteKey);
