@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.31';
+const APP_VERSION='v9.32';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-28 Site Key guard in addChore';
+const BUILD_STAMP='2026-06-28 Robust site name match';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4892,9 +4892,10 @@ function activityRowHtml(item){
       subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showTab('chores');setTimeout(()=>{var _sb=document.getElementById('searchbar');if(_sb){_sb.value='${_st}';_sb.dispatchEvent(new Event('input'));}},150)">${_choreLabel}</button>`;
     }
   } else if(item.subjectType==='site'){
-    // subject is now stored as site Key; backward-compat: also try Name match
-    const _siteByKey=(DATA.sites||[]).find(s=>(s.Key||s.key||'')===item.subject);
-    const _siteByName=!_siteByKey?(DATA.sites||[]).find(s=>(s.Name||s.name||'').toLowerCase()===(item.subject||'').toLowerCase()):null;
+    // subject stored as site Key (new) or Name (old logs) — try both
+    const _subjNorm=(item.subject||'').trim().toLowerCase().replace(/\s+/g,' ');
+    const _siteByKey=(DATA.sites||[]).find(s=>(s.Key||s.key||'').trim()===item.subject.trim());
+    const _siteByName=!_siteByKey?(DATA.sites||[]).find(s=>(s.Name||s.name||'').trim().toLowerCase().replace(/\s+/g,' ')===_subjNorm):null;
     const _siteRow=_siteByKey||_siteByName;
     const _siteKey=_siteRow?(_siteRow.Key||_siteRow.key||''):'';
     const _siteName=_siteRow?(_siteRow.Name||_siteRow.name||item.subject):item.subject;
