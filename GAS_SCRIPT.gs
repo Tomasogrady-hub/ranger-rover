@@ -539,6 +539,29 @@ function handleAddChore(p) {
     Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,
       String(Date.now()) + String(Math.random()))
   ).substring(0, 8).replace(/[+/=]/g, 'x');
+
+  // Guard: ensure Site column stores a Key, not a Name.
+  // If the client sent a name (longer than 9 chars or not found in allKeys), resolve it.
+  var siteVal = String(p.data['Site'] || '').trim();
+  if (siteVal) {
+    var sitesSheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+    var sd = sitesSheet.getDataRange().getValues(), sh = sd[0];
+    var ski = sh.indexOf('Key'), sni = sh.indexOf('Name');
+    var allKeys = {}, nameToKey = {};
+    for (var sr = 1; sr < sd.length; sr++) {
+      var k = ski > -1 ? String(sd[sr][ski] || '').trim() : '';
+      var n = sni > -1 ? String(sd[sr][sni] || '').trim() : '';
+      if (k) allKeys[k] = true;
+      if (k && n) nameToKey[n.toLowerCase()] = k;
+    }
+    if (!allKeys[siteVal]) {
+      // Not a known Key — try to resolve as a Name
+      var resolved = nameToKey[siteVal.toLowerCase()];
+      if (resolved) p.data['Site'] = resolved;
+      // If still unresolvable, leave as-is (best effort)
+    }
+  }
+
   var row = headers.map(function(h) {
     if (h === 'Timestamp') return new Date();
     if (h === 'ID')        return newId;
