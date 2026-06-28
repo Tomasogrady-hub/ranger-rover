@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.28';
+const APP_VERSION='v9.29';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-28 Confidential Notes + Edit guard';
+const BUILD_STAMP='2026-06-28 Level 3 can edit own card';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2904,21 +2904,21 @@ function renderPD(h,edit){
       <div class="edit-wrap"><div class="edit-label">First Name</div><input class="edit-input" id="ef-FirstName" value="${ea(h['First Name']||h.FirstName||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Last Name</div><input class="edit-input" id="ef-LastName" value="${ea(h['Last Name']||h.LastName||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Mobile</div><input class="edit-input" id="ef-Mobile" type="tel" value="${ea(mobile)}"></div>
-      <div class="edit-wrap"><div class="edit-label">Email (key — edit carefully)</div><input class="edit-input" id="ef-Email" type="email" value="${ea(email)}"></div>
+      <div class="edit-wrap"><div class="edit-label">Email</div>${SESSION&&SESSION.accessLevel<=2?`<input class="edit-input" id="ef-Email" type="email" value="${ea(email)}">`:`<div style="padding:10px 0;color:var(--stone);font-size:15px">${email}<input type="hidden" id="ef-Email" value="${ea(email)}"></div>`}</div>
       <div class="edit-wrap" style="position:relative;z-index:50">
         <div class="edit-label">Role</div>
-        <div class="custom-select">
+        ${SESSION&&SESSION.accessLevel<=2?`<div class="custom-select">
           <button type="button" class="custom-select-btn" id="role-select-btn" onclick="toggleDropdown('role-dd')" data-value="${ea(role)}">${role||'— Select role —'}</button>
           <div class="dropdown-panel" id="role-dd">
             <div class="dropdown-search"><input placeholder="Search roles…" oninput="filterDropdownItems('role-dd',this.value)"></div>
             <div class="dropdown-list">${roleOptions}</div>
             <div class="dropdown-add" onclick="addNewRole()">+ Add new role…</div>
           </div>
-        </div>
+        </div>`:`<div style="padding:10px 0;color:var(--stone);font-size:15px">${role||'—'}<input type="hidden" id="role-select-btn" data-value="${ea(role)}"></div>`}
       </div>
       <div class="edit-wrap" style="position:relative;z-index:40">
         <div class="edit-label">Role Additional</div>
-        <div class="custom-select">
+        ${SESSION&&SESSION.accessLevel<=2?`<div class="custom-select">
           <button type="button" class="custom-select-btn" id="ra-select-btn" onclick="toggleDropdown('ra-dd')" data-value="${ea(h['Role Additional']||h.RoleAdditional||'')}">
             ${h['Role Additional']||h.RoleAdditional||'— None —'}
           </button>
@@ -2931,7 +2931,7 @@ function renderPD(h,edit){
             <div class="dropdown-add" onclick="addNewRoleAdditional()">+ Add custom…</div>
           </div>
         </div>
-        <input type="hidden" id="ef-RoleAdditional" value="${ea(h['Role Additional']||h.RoleAdditional||'')}">
+        <input type="hidden" id="ef-RoleAdditional" value="${ea(h['Role Additional']||h.RoleAdditional||'')}">`:`<div style="padding:10px 0;color:var(--stone);font-size:15px">${h['Role Additional']||h.RoleAdditional||'—'}<input type="hidden" id="ef-RoleAdditional" value="${ea(h['Role Additional']||h.RoleAdditional||'')}"></div>`}
       </div>
       <hr class="section-divider">
       <div class="edit-wrap">
@@ -2966,7 +2966,7 @@ function renderPD(h,edit){
         ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
       </div>
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
-      ${canEdit()?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
+      ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
       ${canEdit()?`<button class="btn-danger" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
   }
