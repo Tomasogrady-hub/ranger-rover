@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.29';
+const APP_VERSION='v9.30';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-28 Nav+Latest fixes';
+const BUILD_STAMP='2026-06-28 ID-keyed activity log';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4873,19 +4873,32 @@ function activityRowHtml(item){
     :`<strong style="font-weight:600">${actorName}</strong>`;
   let subjectLink='';
   if(item.subjectType==='chore'){
-    const chore=DATA.chores.find(c=>(c.Task||'').toLowerCase()===(item.subject||'').toLowerCase()||(c.ID||c.id||'')===(item.subject||''));
-    if(chore)subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showChoreDetail('${ea(chore.ID||chore.id||'')}')">${item.subject}</button>`;
-    else{const _st=ea(item.subject||'');subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showTab('chores');setTimeout(()=>{var _sb=document.getElementById('searchbar');if(_sb){_sb.value='${_st}';_sb.dispatchEvent(new Event('input'));}},150)">${item.subject||''}</button>`;}
+    // subject is now stored as chore ID; detail contains "Task — Site"
+    // Backward-compat: if subject looks like a task name (not an 8-char ID), search by name too
+    const _isChoreId = /^[A-Za-z0-9]{7,9}$/.test(item.subject||'');
+    const chore = _isChoreId
+      ? DATA.chores.find(c=>(c.ID||c.id||'')===item.subject)
+      : DATA.chores.find(c=>(c.Task||'').toLowerCase()===(item.subject||'').toLowerCase());
+    // Display label: prefer task from resolved chore, then from detail prefix, then subject itself
+    const _choreLabel = chore ? (chore.Task||item.subject) : ((item.detail||'').split(' — ')[0]||item.subject||'');
+    if(chore){
+      subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showChoreDetail('${ea(chore.ID||chore.id||'')}')">${_choreLabel}</button>`;
+    } else {
+      // Chore not in open DATA (may be closed) — link to chores tab search by task name
+      const _st=ea(_choreLabel);
+      subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showTab('chores');setTimeout(()=>{var _sb=document.getElementById('searchbar');if(_sb){_sb.value='${_st}';_sb.dispatchEvent(new Event('input'));}},150)">${_choreLabel}</button>`;
+    }
   } else if(item.subjectType==='site'){
-    // subject may be stored as Key (7-char ID) or Name — find the site either way
-    const _siteBySubj=(DATA.sites||[]).find(s=>(s.Key||s.key||'')===item.subject||(s.Name||s.name||'').toLowerCase()===(item.subject||'').toLowerCase());
-    const _siteKey=_siteBySubj?(_siteBySubj.Key||_siteBySubj.key||''):'';
-    // If subject looks like a raw 7-char key and we didn't find it, show it as-is (fallback)
-    const _siteName=_siteBySubj?(_siteBySubj.Name||_siteBySubj.name||item.subject):item.subject;
+    // subject is now stored as site Key; backward-compat: also try Name match
+    const _siteByKey=(DATA.sites||[]).find(s=>(s.Key||s.key||'')===item.subject);
+    const _siteByName=!_siteByKey?(DATA.sites||[]).find(s=>(s.Name||s.name||'').toLowerCase()===(item.subject||'').toLowerCase()):null;
+    const _siteRow=_siteByKey||_siteByName;
+    const _siteKey=_siteRow?(_siteRow.Key||_siteRow.key||''):'';
+    const _siteName=_siteRow?(_siteRow.Name||_siteRow.name||item.subject):item.subject;
     if(_siteKey){subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_siteKey)}')">${_siteName}</button>`;}
-    else if(_siteName){subjectLink=`<span style="font-weight:500">${_siteName}</span>`;}
-    else{subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;}
+    else{subjectLink=`<span style="font-weight:500">${_siteName||item.subject||''}</span>`;}
   } else if(item.subjectType==='person'){
+    // subject is display name; actor is the email key
     subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
