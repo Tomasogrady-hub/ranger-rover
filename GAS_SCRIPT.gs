@@ -25,7 +25,10 @@ const IMG_PREFIX_MAP = {
 };
 
 // ── BLOCKED COLUMNS ───────────────────────────────────────────────────────────
-const BLOCKED_H = ['Comments', 'Rating 1', 'Rating 2', 'Rating 3', 'Password'];
+// For level 1 & 2: only block Password
+const BLOCKED_H = ['Password'];
+// For level 3 (field rangers): also block Comments and Ratings
+const BLOCKED_H_SENSITIVE = ['Comments', 'Rating 1', 'Rating 2', 'Rating 3', 'Password'];
 const BLOCKED_S = ['Comments'];
 
 // ── PLANT FIELD CONFIG ────────────────────────────────────────────────────────
@@ -132,8 +135,10 @@ function doGet(e) {
   }
 
   if (type === 'humans') {
+    var accessLevel = parseInt((e && e.parameter && e.parameter.al) || '3');
+    var hBlockList  = (accessLevel <= 2) ? BLOCKED_H : BLOCKED_H_SENSITIVE;
     var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
-    var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap);
+    var humans = readSheet(HUMANS_ID, 'Humans', hBlockList, HUMANS_IMG_COLS, humansMap);
     var roles  = getRoles();
     return respond({ humans: humans, roles: roles });
   }
@@ -143,7 +148,9 @@ function doGet(e) {
   var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
   var choresMap = getFolderIndex(CHORES_IMG_FOLDER);
   var sites  = readSheet(SITES_ID,  'Sites',  BLOCKED_S, SITES_IMG_COLS,  sitesMap);
-  var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap);
+  var accessLevelAll = parseInt((e && e.parameter && e.parameter.al) || '3');
+  var hBlockListAll   = (accessLevelAll <= 2) ? BLOCKED_H : BLOCKED_H_SENSITIVE;
+  var humans = readSheet(HUMANS_ID, 'Humans', hBlockListAll, HUMANS_IMG_COLS, humansMap);
   var roles  = getRoles();
   var chores = getOpenChores(choresMap);
   return respond({ sites: sites, humans: humans, roles: roles, chores: chores });
