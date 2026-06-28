@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.28';
+const APP_VERSION='v9.29';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-28 Twilio API Keys';
+const BUILD_STAMP='2026-06-28 Nav+Latest fixes';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1149,6 +1149,10 @@ function buildNav(lvl,plantsOn){
     if(_navTabAllowed('notes',lvl)) row2l3tabs.push(_navBtn('notes','Notes'));
     if(row2l3tabs.length){row2.innerHTML=row2l3tabs.join('');row2.style.display='flex';}
     else row2.style.display='none';
+    // Level 3 never gets Row 3 (Reach) — always hide it explicitly
+    const row3l3=document.getElementById('navRow3');
+    if(row3l3){row3l3.innerHTML='';row3l3.style.display='none';}
+    document.documentElement.style.setProperty('--nav-h','104px');
   } else {
     // Level 1 or 2: two rows
     // Row 1: Notes, Schools, Map, Chores
@@ -4871,7 +4875,7 @@ function activityRowHtml(item){
   if(item.subjectType==='chore'){
     const chore=DATA.chores.find(c=>(c.Task||'').toLowerCase()===(item.subject||'').toLowerCase()||(c.ID||c.id||'')===(item.subject||''));
     if(chore)subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showChoreDetail('${ea(chore.ID||chore.id||'')}')">${item.subject}</button>`;
-    else subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
+    else{const _st=ea(item.subject||'');subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showTab('chores');setTimeout(()=>{var _sb=document.getElementById('searchbar');if(_sb){_sb.value='${_st}';_sb.dispatchEvent(new Event('input'));}},150)">${item.subject||''}</button>`;}
   } else if(item.subjectType==='site'){
     // subject may be stored as Key (7-char ID) or Name — find the site either way
     const _siteBySubj=(DATA.sites||[]).find(s=>(s.Key||s.key||'')===item.subject||(s.Name||s.name||'').toLowerCase()===(item.subject||'').toLowerCase());
