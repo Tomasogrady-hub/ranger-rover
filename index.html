@@ -765,19 +765,26 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <!-- Twilio SMS Settings -->
       <div class="dl" style="margin-bottom:8px;margin-top:18px">💬 Twilio SMS Settings</div>
       <div class="settings-group">
-        <div class="settings-note" style="margin-bottom:10px">Used by Reach tab to send bulk SMS directly — no device SMS app needed. Get these from your <a href="https://console.twilio.com" target="_blank" style="color:var(--sage)">Twilio Console</a>.</div>
+        <div class="settings-note" style="margin-bottom:10px">Used by the Reach tab to send bulk SMS — no device SMS app needed. Use an <strong>API Key</strong> (safer than the Auth Token — can be revoked independently). Create one at <a href="https://console.twilio.com/us1/account/keys-credentials/api-keys" target="_blank" style="color:var(--sage)">Twilio Console → API Keys</a>.</div>
         <div class="settings-row">
           <div class="dl" style="margin-bottom:4px">Account SID</div>
+          <div class="settings-note" style="margin-bottom:4px">Starts with AC — on your Twilio Console dashboard</div>
           <input id="twilioSidInput" class="settings-input" type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
         </div>
         <div class="settings-row">
-          <div class="dl" style="margin-bottom:4px">Auth Token</div>
-          <input id="twilioTokenInput" class="settings-input" type="password" placeholder="your auth token" autocomplete="off">
+          <div class="dl" style="margin-bottom:4px">API Key SID</div>
+          <div class="settings-note" style="margin-bottom:4px">Starts with SK — create one under API Keys in the Console</div>
+          <input id="twilioKeySidInput" class="settings-input" type="text" placeholder="SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        </div>
+        <div class="settings-row">
+          <div class="dl" style="margin-bottom:4px">API Key Secret</div>
+          <div class="settings-note" style="margin-bottom:4px">Shown once when you create the key — copy it immediately</div>
+          <input id="twilioKeySecretInput" class="settings-input" type="password" placeholder="key secret" autocomplete="off">
         </div>
         <div class="settings-row">
           <div class="dl" style="margin-bottom:4px">From Number</div>
+          <div class="settings-note" style="margin-bottom:4px">Your Twilio number in E.164 format, e.g. +13105550100</div>
           <input id="twilioFromInput" class="settings-input" type="tel" placeholder="+1xxxxxxxxxx">
-          <div class="settings-note" style="margin-top:4px">Must be a Twilio number in E.164 format, e.g. +13105550100</div>
         </div>
         <div class="settings-row">
           <button class="settings-btn" onclick="saveTwilioSettings()">Save Twilio Settings</button>
@@ -856,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.27';
+const APP_VERSION='v9.28';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-27 Twilio SMS';
+const BUILD_STAMP='2026-06-28 Twilio API Keys';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4674,7 +4681,7 @@ function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CF
 /* ═══ CONTROL PANEL ═══ */
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
-let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{},twilioSid:'',twilioToken:'',twilioFrom:''};
+let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{},twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:''};
 // Migration: clean up any empty navVisibility arrays saved by earlier buggy versions
 function _sanitizeNavVisibility(){
   const v=_appSettings.navVisibility;
@@ -4727,9 +4734,10 @@ function _applyAppSettings(){
   }
   // Update broadcast textarea if on control panel
   const bi=document.getElementById('broadcastInput');if(bi)bi.value=_appSettings.broadcast||'';
-  const _tSid2=document.getElementById('twilioSidInput');   if(_tSid2)_tSid2.value=_appSettings.twilioSid||'';
-  const _tTok2=document.getElementById('twilioTokenInput'); if(_tTok2)_tTok2.value=_appSettings.twilioToken||'';
-  const _tFrom2=document.getElementById('twilioFromInput'); if(_tFrom2)_tFrom2.value=_appSettings.twilioFrom||'';
+  const _tSid2=document.getElementById('twilioSidInput');        if(_tSid2)_tSid2.value=_appSettings.twilioSid||'';
+  const _tKSid2=document.getElementById('twilioKeySidInput');    if(_tKSid2)_tKSid2.value=_appSettings.twilioKeySid||'';
+  const _tKSec2=document.getElementById('twilioKeySecretInput'); if(_tKSec2)_tKSec2.value=_appSettings.twilioKeySecret||'';
+  const _tFrom2=document.getElementById('twilioFromInput');      if(_tFrom2)_tFrom2.value=_appSettings.twilioFrom||'';
   // Show/hide broadcast banner on notes tab
   const bb=document.getElementById('broadcastBanner');
   const bt=document.getElementById('broadcastText');
@@ -4767,9 +4775,10 @@ async function saveBroadcast(){
 }
 window.addEventListener('DOMContentLoaded',()=>{
   if(CFG.URL&&document.getElementById('gasUrlInput'))document.getElementById('gasUrlInput').value=CFG.URL;
-  const _tSid=document.getElementById('twilioSidInput');   if(_tSid)_tSid.value=_appSettings.twilioSid||'';
-  const _tTok=document.getElementById('twilioTokenInput'); if(_tTok)_tTok.value=_appSettings.twilioToken||'';
-  const _tFrom=document.getElementById('twilioFromInput'); if(_tFrom)_tFrom.value=_appSettings.twilioFrom||'';
+  const _tSid=document.getElementById('twilioSidInput');        if(_tSid)_tSid.value=_appSettings.twilioSid||'';
+  const _tKSid=document.getElementById('twilioKeySidInput');    if(_tKSid)_tKSid.value=_appSettings.twilioKeySid||'';
+  const _tKSec=document.getElementById('twilioKeySecretInput'); if(_tKSec)_tKSec.value=_appSettings.twilioKeySecret||'';
+  const _tFrom=document.getElementById('twilioFromInput');      if(_tFrom)_tFrom.value=_appSettings.twilioFrom||'';
   const vMb=document.getElementById('videoMaxMbInput');if(vMb)vMb.value=CFG.VIDEO_MAX_MB||150;
   const vSecs=document.getElementById('videoMaxSecsInput');if(vSecs)vSecs.value=CFG.VIDEO_MAX_SECS||180;
   const vDays=document.getElementById('videoDeleteDaysInput');if(vDays)vDays.value=CFG.VIDEO_DELETE_DAYS||90;
@@ -5024,14 +5033,16 @@ function _buildTarget() {
 
 // ── Twilio credentials helpers ────────────────────────────────────────────────
 async function saveTwilioSettings(){
-  const sid  = (document.getElementById('twilioSidInput')||{value:''}).value.trim();
-  const tok  = (document.getElementById('twilioTokenInput')||{value:''}).value.trim();
-  const from = (document.getElementById('twilioFromInput')||{value:''}).value.trim();
-  const st   = document.getElementById('twilioSaveStatus');
-  if(!sid||!tok||!from){if(st)st.textContent='⚠ All three fields required';return;}
-  _appSettings.twilioSid   = sid;
-  _appSettings.twilioToken = tok;
-  _appSettings.twilioFrom  = from;
+  const sid    = (document.getElementById('twilioSidInput')||{value:''}).value.trim();
+  const keySid = (document.getElementById('twilioKeySidInput')||{value:''}).value.trim();
+  const keySec = (document.getElementById('twilioKeySecretInput')||{value:''}).value.trim();
+  const from   = (document.getElementById('twilioFromInput')||{value:''}).value.trim();
+  const st     = document.getElementById('twilioSaveStatus');
+  if(!sid||!keySid||!keySec||!from){if(st)st.textContent='⚠ All four fields required';return;}
+  _appSettings.twilioSid       = sid;
+  _appSettings.twilioKeySid    = keySid;
+  _appSettings.twilioKeySecret = keySec;
+  _appSettings.twilioFrom      = from;
   localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
   if(st)st.textContent='Saving…';
   try{
@@ -5047,11 +5058,12 @@ async function saveTwilioSettings(){
 async function _sendViaTwilio(together){
   const rawMsg = (document.getElementById('reachMessage')||{value:''}).value.trim();
   const sid    = _appSettings.twilioSid||'';
-  const token  = _appSettings.twilioToken||'';
+  const keySid = _appSettings.twilioKeySid||'';
+  const keySec = _appSettings.twilioKeySecret||'';
   const from   = _appSettings.twilioFrom||'';
   const st     = document.getElementById('reachComposeStatus');
   if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
-  if(!sid||!token||!from){
+  if(!sid||!keySid||!keySec||!from){
     if(st)st.textContent='⚠ Twilio credentials missing — go to Settings → Twilio SMS';
     return;
   }
@@ -5073,7 +5085,7 @@ async function _sendViaTwilio(together){
         return {to:r.mobile, body};
       });
   try{
-    const res = await gasPost({action:'sendTwilioSms',sid,token,from,messages,actor:SESSION?SESSION.email:''});
+    const res = await gasPost({action:'sendTwilioSms',sid,keySid,keySecret:keySec,from,messages,actor:SESSION?SESSION.email:''});
     const sent=res.sent||0, failed=res.failed||0;
     closeReachCompose();
     showToast('✓ '+sent+' message'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
