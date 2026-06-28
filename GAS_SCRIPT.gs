@@ -671,8 +671,7 @@ function handleSaveEdit(p) {
   var sheet   = SpreadsheetApp.openById(id).getSheetByName(tab);
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
-  // p.key = site Name (primary for Sites) or Email (for Humans)
-  // p.updates._siteKey = 7-char Key column value (Sites backup)
+  // p.key = 7-char Key (col A) for Sites, Email for Humans
   var ni      = headers.indexOf('Name');
   var ki      = headers.indexOf('Key');
   var ei      = headers.indexOf('Email');
@@ -694,20 +693,12 @@ function handleSaveEdit(p) {
   Logger.log('handleSaveEdit: pKey='+pKey+' siteKey='+siteKey+' ni='+ni+' ki='+ki);
 
   function rowMatches(r) {
-    var rowName  = ni > -1 ? String(data[r][ni]  || '').trim() : '';
     var rowKey   = ki > -1 ? String(data[r][ki]  || '').trim() : '';
-    var rowColA  =           String(data[r][0]   || '').trim();
     var rowEmail = ei > -1 ? String(data[r][ei]  || '').trim().toLowerCase() : '';
-    // 1. Name match (primary for Sites)
-    if (pKey && rowName && rowName === pKey) return true;
-    // 2. Email match (primary for Humans)
-    if (pKey && rowEmail && rowEmail === pKey.toLowerCase()) return true;
-    // 3. Key column match
-    if (siteKey && rowKey && rowKey === siteKey) return true;
-    // 4. Col A direct match
-    if (siteKey && rowColA && rowColA === siteKey) return true;
-    // 5. Partial name match
-    if (pKey && rowName && pKey.length > 6 && (rowName.indexOf(pKey) === 0 || pKey.indexOf(rowName) === 0)) return true;
+    // Sites: match on Key column (col A) — single reliable lookup, every row has a 7-char Key
+    if (p.sheet !== 'Humans' && pKey && rowKey && rowKey === pKey) return true;
+    // Humans: match on Email
+    if (p.sheet === 'Humans' && pKey && rowEmail && rowEmail === pKey.toLowerCase()) return true;
     return false;
   }
 
