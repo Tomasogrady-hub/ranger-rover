@@ -500,7 +500,8 @@ function handleCloseChore(p) {
     sheet.getRange(r + 1, si + 1).setValue('Closed');
     if (di > -1) sheet.getRange(r + 1, di + 1).setValue(new Date());
     logActivity(p.actor||'', 'closed chore',
-      String(data[r][h.indexOf('Task')]||''), 'chore', String(data[r][h.indexOf('Site')]||''));
+      String(data[r][ii]||''), 'chore',
+      String(data[r][h.indexOf('Task')]||'') + ' — ' + String(data[r][h.indexOf('Site')]||''));
     return { ok: true };
   }
   return { ok: false, error: 'Chore not found' };
@@ -525,7 +526,7 @@ function handleUpdateChore(p) {
     var imgCols2 = ['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
     var updatedCols = Object.keys(p.updates)
       .filter(function(c){ return imgCols2.indexOf(c) === -1; }).join(', ');
-    if (updatedCols) logActivity(p.actor||'', 'updated chore', task_uc, 'chore', site_uc + ' — ' + updatedCols);
+    if (updatedCols) logActivity(p.actor||'', 'updated chore', String(data[r][ii]||''), 'chore', task_uc + ' — ' + site_uc + ' — ' + updatedCols);
     return { ok: true };
   }
   return { ok: false, error: 'Chore not found' };
@@ -546,7 +547,8 @@ function handleAddChore(p) {
   });
   sheet.appendRow(row);
   logActivity(p.actor||p.data['Asked by']||'', 'added chore',
-    String(p.data['Task']||''), 'chore', String(p.data['Site']||''));
+    String(newId||''), 'chore',
+    String(p.data['Task']||'') + ' — ' + String(p.data['Site']||''));
   return { ok: true, id: newId };
 }
 
@@ -607,7 +609,7 @@ function handleDeleteChore(p) {
       var task_dc = String(data[r][h.indexOf('Task')]||'');
       var site_dc = String(data[r][h.indexOf('Site')]||'');
       sheet.deleteRow(r + 1);
-      logActivity(p.actor||'', 'deleted chore', task_dc, 'chore', site_dc);
+      logActivity(p.actor||'', 'deleted chore', String(p.choreId||''), 'chore', task_dc + ' — ' + site_dc);
       return { ok: true };
     }
   }
@@ -654,7 +656,7 @@ function handleUploadSiteImage(p) {
         var rowName = ni  > -1 ? String(data[r][ni]).trim()  : '';
         if ((rowKey === String(lookupVal).trim() || rowName === String(lookupVal).trim()) && ci > -1) {
           sheet.getRange(r + 1, ci + 1).setValue(url);
-          logActivity(p.actor||'', 'uploaded photo', rowName||lookupVal, 'site', colName);
+          logActivity(p.actor||'', 'uploaded photo', rowKey||lookupVal, 'site', rowName + ' — ' + colName);
           break;
         }
       }
@@ -790,10 +792,12 @@ function handleSaveEdit(p) {
       .filter(function(c){ return imgCols.indexOf(c) === -1; }).join(', ');
     var subjType = (p.sheet === 'Humans') ? 'person' : 'site';
     // For sites, log the display Name (col B) not the Key ID (col A)
+    // For sites: log Key as subject (stable ID); for Humans: log Email
     var logSubject = String(p.key||'');
     if (p.sheet !== 'Humans') {
-      var ni2 = headers.indexOf('Name');
-      if (ni2 > -1 && String(data[r][ni2]||'').trim()) logSubject = String(data[r][ni2]).trim();
+      // Ensure we store the Key (col A), not the Name
+      var ki3 = headers.indexOf('Key');
+      if (ki3 > -1 && String(data[r][ki3]||'').trim()) logSubject = String(data[r][ki3]).trim();
     }
     // Use piggybacked log fields from client if present, otherwise compute from row
     var finalActor  = piggyActor  || p.actor || '';
