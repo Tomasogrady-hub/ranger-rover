@@ -25,10 +25,7 @@ const IMG_PREFIX_MAP = {
 };
 
 // ── BLOCKED COLUMNS ───────────────────────────────────────────────────────────
-// For level 1 & 2: only block Password
-const BLOCKED_H = ['Password'];
-// For level 3 (field rangers): also block Comments and Ratings
-const BLOCKED_H_SENSITIVE = ['Comments', 'Rating 1', 'Rating 2', 'Rating 3', 'Password'];
+const BLOCKED_H = ['Comments', 'Rating 1', 'Rating 2', 'Rating 3', 'Password'];
 const BLOCKED_S = ['Comments'];
 
 // ── PLANT FIELD CONFIG ────────────────────────────────────────────────────────
@@ -135,10 +132,8 @@ function doGet(e) {
   }
 
   if (type === 'humans') {
-    var accessLevel = parseInt((e && e.parameter && e.parameter.al) || '3');
-    var hBlockList  = (accessLevel <= 2) ? BLOCKED_H : BLOCKED_H_SENSITIVE;
     var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
-    var humans = readSheet(HUMANS_ID, 'Humans', hBlockList, HUMANS_IMG_COLS, humansMap);
+    var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap);
     var roles  = getRoles();
     return respond({ humans: humans, roles: roles });
   }
@@ -148,9 +143,7 @@ function doGet(e) {
   var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
   var choresMap = getFolderIndex(CHORES_IMG_FOLDER);
   var sites  = readSheet(SITES_ID,  'Sites',  BLOCKED_S, SITES_IMG_COLS,  sitesMap);
-  var accessLevelAll = parseInt((e && e.parameter && e.parameter.al) || '3');
-  var hBlockListAll   = (accessLevelAll <= 2) ? BLOCKED_H : BLOCKED_H_SENSITIVE;
-  var humans = readSheet(HUMANS_ID, 'Humans', hBlockListAll, HUMANS_IMG_COLS, humansMap);
+  var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap);
   var roles  = getRoles();
   var chores = getOpenChores(choresMap);
   return respond({ sites: sites, humans: humans, roles: roles, chores: chores });
@@ -203,7 +196,9 @@ function doPost(e) {
       case 'saveAppSettings': return respond(handleSaveAppSettings(p));
 
       // ── DELETE HUMAN ─────────────────────────────────────────────────────────
-      case 'deleteHuman': return respond(handleDeleteHuman(p));
+      case 'deleteHuman':   return respond(handleDeleteHuman(p));
+      case 'getComments':   return respond(handleGetComments(p));
+      case 'saveComments':  return respond(handleSaveComments(p));
 
       // ── CASCADE EMAIL CHANGE ─────────────────────────────────────────────────
       case 'cascadeEmail': return respond(handleCascadeEmail(p));
@@ -843,6 +838,47 @@ function handleSaveEdit(p) {
 
 }
 
+
+// ── COMMENTS HANDLERS (level 1 & 2 only) ────────────────────────────────────
+function handleGetComments(p) {
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (accessLevel > 2) return { ok: false, error: 'Not authorized' };
+  var email = (p.email || '').toLowerCase().trim();
+  if (!email) return { ok: false, error: 'No email provided' };
+  var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+  var data  = sheet.getDataRange().getValues();
+  var hdr   = data[0];
+  var emailIdx    = hdr.indexOf('Email');
+  var commentsIdx = hdr.indexOf('Comments');
+  if (emailIdx === -1 || commentsIdx === -1) return { ok: false, error: 'Column not found' };
+  for (var i = 1; i < data.length; i++) {
+    if ((data[i][emailIdx] || '').toLowerCase().trim() === email) {
+      return { ok: true, comments: data[i][commentsIdx] || '' };
+    }
+  }
+  return { ok: false, error: 'Person not found' };
+}
+
+function handleSaveComments(p) {
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (accessLevel > 2) return { ok: false, error: 'Not authorized' };
+  var email = (p.email || '').toLowerCase().trim();
+  if (!email) return { ok: false, error: 'No email provided' };
+  var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+  var data  = sheet.getDataRange().getValues();
+  var hdr   = data[0];
+  var emailIdx    = hdr.indexOf('Email');
+  var commentsIdx = hdr.indexOf('Comments');
+  if (emailIdx === -1 || commentsIdx === -1) return { ok: false, error: 'Column not found' };
+  for (var i = 1; i < data.length; i++) {
+    if ((data[i][emailIdx] || '').toLowerCase().trim() === email) {
+      sheet.getRange(i + 1, commentsIdx + 1).setValue(p.comments || '');
+      logActivity(p.actor || '', 'edited comments', p.email, 'person', '');
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'Person not found' };
+}
 
 // ── NOTES HANDLERS ────────────────────────────────────────────────────────────
 
