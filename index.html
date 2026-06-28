@@ -761,6 +761,29 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <button class="settings-btn" id="saveVideoSettingsBtn" onclick="saveVideoSettings()">Save Video Settings</button>
         </div>
       </div>
+
+      <!-- Twilio SMS Settings -->
+      <div class="dl" style="margin-bottom:8px;margin-top:18px">💬 Twilio SMS Settings</div>
+      <div class="settings-group">
+        <div class="settings-note" style="margin-bottom:10px">Used by Reach tab to send bulk SMS directly — no device SMS app needed. Get these from your <a href="https://console.twilio.com" target="_blank" style="color:var(--sage)">Twilio Console</a>.</div>
+        <div class="settings-row">
+          <div class="dl" style="margin-bottom:4px">Account SID</div>
+          <input id="twilioSidInput" class="settings-input" type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        </div>
+        <div class="settings-row">
+          <div class="dl" style="margin-bottom:4px">Auth Token</div>
+          <input id="twilioTokenInput" class="settings-input" type="password" placeholder="your auth token" autocomplete="off">
+        </div>
+        <div class="settings-row">
+          <div class="dl" style="margin-bottom:4px">From Number</div>
+          <input id="twilioFromInput" class="settings-input" type="tel" placeholder="+1xxxxxxxxxx">
+          <div class="settings-note" style="margin-top:4px">Must be a Twilio number in E.164 format, e.g. +13105550100</div>
+        </div>
+        <div class="settings-row">
+          <button class="settings-btn" onclick="saveTwilioSettings()">Save Twilio Settings</button>
+          <div id="twilioSaveStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:18px"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -833,10 +856,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.26';
+const APP_VERSION='v9.27';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-27 13:00 PT';
+const BUILD_STAMP='2026-06-27 Twilio SMS';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4651,7 +4674,7 @@ function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CF
 /* ═══ CONTROL PANEL ═══ */
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
-let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{}};
+let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{},twilioSid:'',twilioToken:'',twilioFrom:''};
 // Migration: clean up any empty navVisibility arrays saved by earlier buggy versions
 function _sanitizeNavVisibility(){
   const v=_appSettings.navVisibility;
@@ -4704,6 +4727,9 @@ function _applyAppSettings(){
   }
   // Update broadcast textarea if on control panel
   const bi=document.getElementById('broadcastInput');if(bi)bi.value=_appSettings.broadcast||'';
+  const _tSid2=document.getElementById('twilioSidInput');   if(_tSid2)_tSid2.value=_appSettings.twilioSid||'';
+  const _tTok2=document.getElementById('twilioTokenInput'); if(_tTok2)_tTok2.value=_appSettings.twilioToken||'';
+  const _tFrom2=document.getElementById('twilioFromInput'); if(_tFrom2)_tFrom2.value=_appSettings.twilioFrom||'';
   // Show/hide broadcast banner on notes tab
   const bb=document.getElementById('broadcastBanner');
   const bt=document.getElementById('broadcastText');
@@ -4741,6 +4767,9 @@ async function saveBroadcast(){
 }
 window.addEventListener('DOMContentLoaded',()=>{
   if(CFG.URL&&document.getElementById('gasUrlInput'))document.getElementById('gasUrlInput').value=CFG.URL;
+  const _tSid=document.getElementById('twilioSidInput');   if(_tSid)_tSid.value=_appSettings.twilioSid||'';
+  const _tTok=document.getElementById('twilioTokenInput'); if(_tTok)_tTok.value=_appSettings.twilioToken||'';
+  const _tFrom=document.getElementById('twilioFromInput'); if(_tFrom)_tFrom.value=_appSettings.twilioFrom||'';
   const vMb=document.getElementById('videoMaxMbInput');if(vMb)vMb.value=CFG.VIDEO_MAX_MB||150;
   const vSecs=document.getElementById('videoMaxSecsInput');if(vSecs)vSecs.value=CFG.VIDEO_MAX_SECS||180;
   const vDays=document.getElementById('videoDeleteDaysInput');if(vDays)vDays.value=CFG.VIDEO_DELETE_DAYS||90;
@@ -4984,10 +5013,75 @@ function _buildTarget() {
     if (_reachFilter !== 'all' && !cats.includes(_reachFilter)) return false;
     return true;
   })).map(h => ({
-    name:   fullName(h) || h.Email || h.email || '?',
-    email:  h.Email  || h.email  || '',
-    mobile: (h.Mobile || h.mobile || '').replace(/\D/g,'')
+    name:      fullName(h) || h.Email || h.email || '?',
+    firstName: h['First Name'] || h.firstName || (fullName(h)||'').split(' ')[0] || '',
+    email:     h.Email  || h.email  || '',
+    mobile:    (h.Mobile || h.mobile || '').replace(/\D/g,''),
+    school:    h.School || h.school || '',
+    role:      h.Role   || h.role   || ''
   }));
+}
+
+// ── Twilio credentials helpers ────────────────────────────────────────────────
+async function saveTwilioSettings(){
+  const sid  = (document.getElementById('twilioSidInput')||{value:''}).value.trim();
+  const tok  = (document.getElementById('twilioTokenInput')||{value:''}).value.trim();
+  const from = (document.getElementById('twilioFromInput')||{value:''}).value.trim();
+  const st   = document.getElementById('twilioSaveStatus');
+  if(!sid||!tok||!from){if(st)st.textContent='⚠ All three fields required';return;}
+  _appSettings.twilioSid   = sid;
+  _appSettings.twilioToken = tok;
+  _appSettings.twilioFrom  = from;
+  localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
+  if(st)st.textContent='Saving…';
+  try{
+    await gasPost({action:'saveAppSettings',settings:_appSettings});
+    if(st){st.textContent='✓ Twilio settings saved';setTimeout(()=>{if(st)st.textContent='';},3000);}
+  }catch(e){
+    if(st)st.textContent='✓ Saved locally (server unreachable)';
+  }
+}
+
+// ── Send SMS via Twilio through GAS ─────────────────────────────────────────
+// Supports {{FirstName}} {{FullName}} {{School}} {{Role}} tokens in message.
+async function _sendViaTwilio(together){
+  const rawMsg = (document.getElementById('reachMessage')||{value:''}).value.trim();
+  const sid    = _appSettings.twilioSid||'';
+  const token  = _appSettings.twilioToken||'';
+  const from   = _appSettings.twilioFrom||'';
+  const st     = document.getElementById('reachComposeStatus');
+  if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
+  if(!sid||!token||!from){
+    if(st)st.textContent='⚠ Twilio credentials missing — go to Settings → Twilio SMS';
+    return;
+  }
+  const recipients = _reachTarget.filter(r=>r.mobile);
+  if(!recipients.length){if(st)st.textContent='⚠ No mobile numbers in selection';return;}
+  const btn = document.getElementById('reachTwilioBtn');
+  if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
+  if(st)st.textContent='';
+  // Build per-recipient messages (personalised), or shared body
+  const messages = together
+    ? recipients.map(r=>({to:r.mobile, body:rawMsg}))
+    : recipients.map(r=>{
+        const fname = r.firstName||(r.name||'').split(' ')[0]||'';
+        const body  = rawMsg
+          .replace(/\{\{FirstName\}\}/gi, fname)
+          .replace(/\{\{FullName\}\}/gi,  r.name||'')
+          .replace(/\{\{School\}\}/gi,    r.school||'')
+          .replace(/\{\{Role\}\}/gi,      r.role||'');
+        return {to:r.mobile, body};
+      });
+  try{
+    const res = await gasPost({action:'sendTwilioSms',sid,token,from,messages,actor:SESSION?SESSION.email:''});
+    const sent=res.sent||0, failed=res.failed||0;
+    closeReachCompose();
+    showToast('✓ '+sent+' message'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
+    if(res.errors&&res.errors.length) console.warn('Twilio errors:',res.errors);
+  }catch(e){
+    if(btn){btn.textContent='💬 Send via Twilio';btn.style.pointerEvents='';}
+    if(st)st.textContent='⚠ '+e.message;
+  }
 }
 
 // ── action buttons ────────────────────────────────────────────────────────────
@@ -5044,15 +5138,24 @@ function openReachCompose(mode) {
         <label class="memo-label">Message</label>
         <textarea id="reachMessage" class="memo-input" rows="8" placeholder="Write your message…" style="resize:vertical"></textarea>
       </div>
+      ${!isEmail ? `<div style="font-size:12px;color:var(--stone);background:var(--fog);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:10px;line-height:1.7">
+        <strong>Personalise your message:</strong><br>
+        <code>{{FirstName}}</code> · <code>{{FullName}}</code> · <code>{{School}}</code> · <code>{{Role}}</code>
+      </div>` : ''}
       <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
-      <div style="display:flex;gap:10px">
-        <button onclick="closeReachCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink);flex:1">Cancel</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="closeReachCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink);flex:1;min-width:70px">Cancel</button>
+        ${!isEmail ? `<button id="reachTwilioBtn" class="reach-action-btn"
+          style="flex:2;min-width:130px;background:var(--enrich-dark);color:#fff"
+          onclick="_sendViaTwilio(${isTogether})">
+          💬 Send via Twilio
+        </button>` : ''}
         <a id="reachSendBtn" href="#"
           class="reach-action-btn"
-          style="flex:2;text-decoration:none;text-align:center;display:flex;align-items:center;justify-content:center"
+          style="flex:1;min-width:90px;text-decoration:none;text-align:center;display:flex;align-items:center;justify-content:center${isEmail?'':';background:var(--fog);color:var(--stone);font-size:13px'}"
           ontouchstart="_prepReach(this)"
           onclick="return _prepReach(this)">
-          ${isEmail ? '✉ Send' : '💬 Send'}
+          ${isEmail ? '✉ Send Email' : '📱 Device SMS'}
         </a>
       </div>
     </div>
