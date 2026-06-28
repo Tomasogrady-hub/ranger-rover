@@ -833,10 +833,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.23';
+const APP_VERSION='v9.24';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-27 02:30 PT';
+const BUILD_STAMP='2026-06-27 10:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2756,7 +2756,7 @@ async function saveSiteEdit(siteKey){
       nonImgUpdates['_logSubject'] = _saveSiteName;
       nonImgUpdates['_logSubjType']= 'site';
       nonImgUpdates['_logDetail']  = _editedCols;
-      await saveToSheet('Sites',_saveSiteName,nonImgUpdates);
+      await saveToSheet('Sites',siteKey,nonImgUpdates);  // Key (col A) is the lookup — reliable on all platforms
       // Merge ALL updates (including image URLs) into local DATA
       const site=DATA.sites.find(s=>sf(s,'Name','name')===_saveSiteName||(s.Key||s.key||'')===siteKey);
       if(site)Object.assign(site,updates);
@@ -3183,9 +3183,9 @@ async function saveNewContactForSite(returnBtnId){
       if(siteCol==='Ranger 2')      siteUpdates['Ranger 2 Name']=displayName;
       if(siteCol==='Garden Keeper') siteUpdates['Garden Keeper Name']=displayName;
       try{
-        const _siteForKey=DATA.sites.find(x=>sf(x,'Name','name')===siteName);
-        const _siteKeyVal=_siteForKey?(sf(_siteForKey,'Key','key')||siteName):siteName;
-        await saveToSheet('Sites', _siteKeyVal, siteUpdates);
+        const _siteForKey=DATA.sites.find(x=>sf(x,'Name','name')===siteName||sf(x,'Key','key')===siteName);
+        const _siteKeyVal=_siteForKey?(sf(_siteForKey,'Key','key')||''):siteName;
+        await saveToSheet('Sites', _siteKeyVal, siteUpdates);  // Key (col A) lookup
         // Patch in-memory cache so the site card/detail reflects the change immediately
         const site=DATA.sites.find(s=>sf(s,'Name','name')===siteName||sf(s,'Key','key')===siteName);
         if(site)Object.assign(site, siteUpdates);
@@ -4556,7 +4556,7 @@ function _clearSitePhoto(previewId,inputId){
       // Use siteName as primary key (GAS rowMatches does Name-first lookup)
       // Send 7-char Key as _siteKey backup in updates
       const _delUpdates={[colName]:'',_siteKey:siteKey};
-      await gasPost({sheet:'Sites',key:siteName,updates:_delUpdates,actor:SESSION?SESSION.email:''});
+      await gasPost({sheet:'Sites',key:siteKey,updates:_delUpdates,actor:SESSION?SESSION.email:''});  // Key lookup
       const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey||(s.Name||s.name||'')===(siteName));
       if(row)row[colName]='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
@@ -4581,7 +4581,7 @@ function _clearSiteVideo(inputId,statusId){
   _doDeleteWithOverlay('Removing video…',
     async()=>{
       // Use siteName as primary key (GAS Name-first lookup) + 7-char Key as backup
-      await gasPost({sheet:'Sites',key:siteName,updates:{'Helpful Video 1':'',_siteKey:siteKey},actor:SESSION?SESSION.email:''});
+      await gasPost({sheet:'Sites',key:siteKey,updates:{'Helpful Video 1':''},actor:SESSION?SESSION.email:''});  // Key lookup
       const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey||(s.Name||s.name||'')===siteName);
       if(row)row['Helpful Video 1']='';
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
