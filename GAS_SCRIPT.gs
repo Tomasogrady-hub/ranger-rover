@@ -39,8 +39,85 @@ const PLANT_SEARCH_FIELDS = [
 ];
 
 
+
+// ── ONE-TIME MIGRATION: Site Names → Site Keys in Chores and Humans sheets ──
+// Runs on every doGet until the Script Property 'migration_site_keys_v1' = 'done'.
+// Safe to re-run (idempotent): already-converted Keys are left unchanged.
+function migrateSiteNamesToKeys() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('migration_site_keys_v1') === 'done') return;
+
+  try {
+    // Build Name → Key map from Sites sheet
+    var sitesData = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues();
+    var sh = sitesData[0];
+    var ski = sh.indexOf('Key');   // col A
+    var sni = sh.indexOf('Name');  // col B
+    if (ski === -1 || sni === -1) return;
+
+    var nameToKey = {};
+    var allKeys   = {};
+    for (var r = 1; r < sitesData.length; r++) {
+      var k = String(sitesData[r][ski] || '').trim();
+      var n = String(sitesData[r][sni] || '').trim();
+      if (k) allKeys[k] = true;
+      if (k && n) nameToKey[n.toLowerCase()] = k;
+    }
+
+    // ── Migrate Chores sheet: Site column ────────────────────────────────────
+    var choresSheet = SpreadsheetApp.openById(CHORES_ID).getSheetByName('Chores');
+    var choresData  = choresSheet.getDataRange().getValues();
+    var ch = choresData[0];
+    var csi = ch.indexOf('Site');
+    if (csi > -1) {
+      for (var cr = 1; cr < choresData.length; cr++) {
+        var val = String(choresData[cr][csi] || '').trim();
+        if (!val) continue;
+        if (allKeys[val]) continue; // already a Key — skip
+        var resolved = nameToKey[val.toLowerCase()];
+        if (resolved) {
+          choresSheet.getRange(cr + 1, csi + 1).setValue(resolved);
+          Logger.log('Chores migration: row ' + (cr+1) + ' "' + val + '" → "' + resolved + '"');
+        }
+      }
+    }
+
+    // ── Migrate Humans sheet: School column ──────────────────────────────────
+    var humansSheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+    var humansData  = humansSheet.getDataRange().getValues();
+    var hh = humansData[0];
+    var hsi = hh.indexOf('School');
+    if (hsi > -1) {
+      for (var hr = 1; hr < humansData.length; hr++) {
+        var hval = String(humansData[hr][hsi] || '').trim();
+        if (!hval) continue;
+        // School can hold multiple comma-separated names — handle each part
+        var parts   = hval.split(/[,\n]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+        var updated = parts.map(function(p) {
+          if (allKeys[p]) return p; // already a Key
+          return nameToKey[p.toLowerCase()] || p; // resolve or leave as-is
+        });
+        var newVal = updated.join(', ');
+        if (newVal !== hval) {
+          humansSheet.getRange(hr + 1, hsi + 1).setValue(newVal);
+          Logger.log('Humans migration: row ' + (hr+1) + ' "' + hval + '" → "' + newVal + '"');
+        }
+      }
+    }
+
+    props.setProperty('migration_site_keys_v1', 'done');
+    Logger.log('Migration migration_site_keys_v1 complete.');
+  } catch(e) {
+    Logger.log('Migration error: ' + e.message);
+    // Do NOT set 'done' — will retry next load
+  }
+}
+
 // ── doGet ─────────────────────────────────────────────────────────────────────
 function doGet(e) {
+  // One-time migration: convert Site Names → Keys in Chores + Humans sheets
+  migrateSiteNamesToKeys();
+
   // type=core   → Sites + Chores only  (fast first paint)
   // type=humans → Humans + Roles only  (loaded in background)
   // (default)   → everything           (backward-compatible / cache warm-up)
