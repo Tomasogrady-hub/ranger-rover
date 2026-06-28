@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.32';
+const APP_VERSION='v9.26';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-28 Robust site name match';
+const BUILD_STAMP='2026-06-28 Comments for L1/2';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1290,7 +1290,8 @@ async function loadData(force=false){
 async function _loadHumansBackground(){
   if(!CFG.URL)return;
   try{
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
+    const _al=SESSION?SESSION.accessLevel:3;
+    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans&al='+_al);
     const j=await r.json();
     if(j.humans){
       DATA.humans=j.humans;DATA.roles=j.roles||[];
@@ -2882,6 +2883,7 @@ function renderPD(h,edit){
         ${imgUrl?`<div class="img-preview"><img data-lazy="${imgUrl}" src="" loading="lazy" style="opacity:0;width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'"></div>`:`<div class="img-preview"><div class="img-placeholder-text">${inits(name)}</div></div>`}
         <input class="edit-input" id="ef-Img" value="${ea(h['Main Image']||h.MainImage||'')}" placeholder="Paste Google Drive or image URL…" style="margin-top:8px">
       </div>
+      ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Comments</div><textarea class="edit-textarea" id="ef-Comments" style="min-height:100px">${ea(h.Comments||h.comments||'')}</textarea></div>`:''}
       <div class="edit-actions">
         <button class="btn-save" onclick="savePerson('${ea(email)}')">Save</button>
         <button class="btn-cancel" onclick="showPersonDetail('${ea(email||name)}')">Cancel</button>
@@ -2899,6 +2901,7 @@ function renderPD(h,edit){
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
       ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="mailto:${email}">${email}</a></div></div>`:''}
       ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${cleanPhone(mobile)}">${mobile}</a></div></div>`:''}
+      ${(SESSION&&SESSION.accessLevel<=2&&(h.Comments||h.comments))?`<div class="ds"><div class="dl">Comments</div><div class="dv" style="font-size:15px;color:var(--stone);line-height:1.6;white-space:pre-wrap">${h.Comments||h.comments}</div></div>`:''}
       <div class="detail-ctas">
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
@@ -2986,6 +2989,7 @@ function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||f
 async function savePerson(orig){
   // Snapshot form values immediately before any async work
   const roleBtn=document.getElementById('role-select-btn');
+  const _commentsEl=document.getElementById('ef-Comments');
   const updates={
     'First Name':(document.getElementById('ef-FirstName')||{value:''}).value.trim(),
     'Last Name':(document.getElementById('ef-LastName')||{value:''}).value.trim(),
@@ -2994,6 +2998,7 @@ async function savePerson(orig){
     'Role':roleBtn?roleBtn.dataset.value||roleBtn.textContent:'',
     'Role Additional':(document.getElementById('ef-RoleAdditional')||{value:''}).value.trim(),
   };
+  if(_commentsEl)updates['Comments']=_commentsEl.value;
   const imgEl=document.getElementById('ef-Img');if(imgEl)updates['Main Image']=imgEl.value.trim();
   const newEmail=updates['Email']||orig;
   const emailChanged=orig&&newEmail&&orig.toLowerCase()!==newEmail.toLowerCase();
@@ -3419,7 +3424,7 @@ async function forceRefresh(){
     const j=await r.json();
     if(j.sites){DATA.sites=j.sites;DATA.chores=j.chores||[];}
     // Phase 2 — humans (background, don't block)
-    fetch(CFG.URL+'?t='+Date.now()+'&type=humans')
+    fetch(CFG.URL+'?t='+Date.now()+'&type=humans&al='+(SESSION?SESSION.accessLevel:3))
       .then(r2=>r2.json())
       .then(j2=>{if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;}
         const n=Date.now();localStorage.setItem(CFG.CK,JSON.stringify(DATA));localStorage.setItem(CFG.TK,n);syncTS(n);
@@ -3441,7 +3446,7 @@ async function _refreshAllBackground(){
     if(j.sites){DATA.sites=j.sites;DATA.chores=j.chores||[];}
   }catch(e){return;}
   try{
-    const r2=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
+    const r2=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans&al='+(SESSION?SESSION.accessLevel:3));
     const j2=await r2.json();
     if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;}
   }catch(e){}
