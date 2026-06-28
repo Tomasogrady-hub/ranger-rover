@@ -833,10 +833,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.25';
+const APP_VERSION='v9.26';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-06-27 12:00 PT';
+const BUILD_STAMP='2026-06-27 13:00 PT';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2036,6 +2036,7 @@ function _schoolCardHtml(s,i){
   const gkn=gke?(sf(s,'Garden Keeper Name','GardenKeeperName')||hn(gke)):'';
   const tl=type.toLowerCase();
   const dimmed=csf==='all'&&!tl.includes('active');
+  const siteKey=sf(s,'Key','key')||'';
   const openChores=openChoresForSite(siteKey);
   const canLink=SESSION&&SESSION.accessLevel<=2;
   const rLink=(email,label)=>canLink&&email
@@ -2043,7 +2044,6 @@ function _schoolCardHtml(s,i){
     :`<span style="font-size:15px">${label}</span>`;
   const distM=window._fsDistMap&&window._fsDistMap[name]!=null?window._fsDistMap[name]:null;
   const distBadge=distM!==null?`<span class="dist-badge">${_fmtDist(distM)}</span>`:'';
-  const siteKey=sf(s,'Key','key')||'';
   return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)"${dimmed?' style="opacity:.5"':''}>
     <div class="sdm dm-${dc(dist)}"></div>
     <div class="school-info">
