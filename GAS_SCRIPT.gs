@@ -229,6 +229,12 @@ function handleSendTwilioSms(payload) {
   var from     = payload.from      || '';
   var messages = payload.messages  || [];
 
+  // Fall back to Script Properties if credentials not in payload
+  var props = PropertiesService.getScriptProperties();
+  if (!sid)    sid    = props.getProperty('twilio_sid')        || '';
+  if (!keySid) keySid = props.getProperty('twilio_key_sid')    || '';
+  if (!keySec) keySec = props.getProperty('twilio_key_secret') || '';
+  if (!from)   from   = props.getProperty('twilio_from')       || '';
   if (!sid || !keySid || !keySec || !from)
     return { ok: false, error: 'Missing Twilio credentials' };
   if (!messages.length)
@@ -975,9 +981,15 @@ function handleSaveNotes(p) {
 
 function handleGetAppSettings() {
   try {
-    var raw      = PropertiesService.getScriptProperties().getProperty('app_settings');
+    var props    = PropertiesService.getScriptProperties();
+    var raw      = props.getProperty('app_settings');
     var settings = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '', navVisibility: {} };
-    var gasUrl   = PropertiesService.getScriptProperties().getProperty('gas_url') || '';
+    var gasUrl   = props.getProperty('gas_url') || '';
+    // Merge Twilio credentials back in (stored separately for security)
+    settings.twilioSid       = props.getProperty('twilio_sid')        || '';
+    settings.twilioKeySid    = props.getProperty('twilio_key_sid')    || '';
+    settings.twilioKeySecret = props.getProperty('twilio_key_secret') || '';
+    settings.twilioFrom      = props.getProperty('twilio_from')       || '';
     return { ok: true, settings: settings, gasUrl: gasUrl };
   } catch(e) {
     return { ok: true, settings: { plantsEnabled: true, broadcast: '' }, gasUrl: '' };
@@ -1020,6 +1032,12 @@ function handleSaveAppSettings(p) {
       navVisibility: navVis
     };
     PropertiesService.getScriptProperties().setProperty('app_settings', JSON.stringify(safe));
+    // Store Twilio credentials separately (never bundled into app_settings)
+    var props = PropertiesService.getScriptProperties();
+    if (settings.twilioSid)       props.setProperty('twilio_sid',        String(settings.twilioSid).trim());
+    if (settings.twilioKeySid)    props.setProperty('twilio_key_sid',    String(settings.twilioKeySid).trim());
+    if (settings.twilioKeySecret) props.setProperty('twilio_key_secret', String(settings.twilioKeySecret).trim());
+    if (settings.twilioFrom)      props.setProperty('twilio_from',       String(settings.twilioFrom).trim());
     if (p.gasUrl) {
       PropertiesService.getScriptProperties().setProperty('gas_url', String(p.gasUrl).trim());
     }
