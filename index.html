@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.32';
+const APP_VERSION='v9.33';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-04 Fix mobile type';
+const BUILD_STAMP='2026-07-04 Fix E164 from number';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -5131,7 +5131,7 @@ async function saveTwilioSettings(){
   _appSettings.twilioSid       = sid;
   _appSettings.twilioKeySid    = keySid;
   _appSettings.twilioKeySecret = keySec;
-  _appSettings.twilioFrom      = from;
+  _appSettings.twilioFrom      = from.startsWith('+')?from:'+'+from;
   localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
   if(st)st.textContent='Saving…';
   try{
@@ -5149,7 +5149,8 @@ async function _sendViaTwilio(together){
   const sid    = _appSettings.twilioSid||'';
   const keySid = _appSettings.twilioKeySid||'';
   const keySec = _appSettings.twilioKeySecret||'';
-  const from   = _appSettings.twilioFrom||'';
+  const fromRaw = _appSettings.twilioFrom||'';
+  const from   = fromRaw.startsWith('+')?fromRaw:'+'+fromRaw;
   const st     = document.getElementById('reachComposeStatus');
   if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
   if(!sid||!keySid||!keySec||!from){
