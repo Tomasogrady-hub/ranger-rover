@@ -204,7 +204,8 @@ function doPost(e) {
       case 'cascadeEmail': return respond(handleCascadeEmail(p));
 
       // ── REACH / MEMOS ────────────────────────────────────────────────────────
-      case 'sendMemo': return respond(handleSendMemo(p));
+      case 'sendMemo':      return respond(handleSendMemo(p));
+      case 'sendTwilioSms': return respond(handleSendTwilioSms(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -215,6 +216,68 @@ function doPost(e) {
   }
 }
 
+
+// ── Twilio Bulk SMS ───────────────────────────────────────────────────────────
+// Called by Reach tab "Send via Twilio" button.
+// Payload: { action:'sendTwilioSms', sid, keySid, keySecret, from,
+//            messages:[{to, body}], actor }
+// Auth: Twilio API Key (keySid:keySecret) with Account SID in URL.
+function handleSendTwilioSms(payload) {
+  var sid      = payload.sid       || '';
+  var keySid   = payload.keySid    || '';
+  var keySec   = payload.keySecret || '';
+  var from     = payload.from      || '';
+  var messages = payload.messages  || [];
+
+  if (!sid || !keySid || !keySec || !from)
+    return { ok: false, error: 'Missing Twilio credentials' };
+  if (!messages.length)
+    return { ok: false, error: 'No messages to send' };
+
+  // Basic auth = base64(keySid:keySecret); Account SID goes in the URL
+  var auth   = Utilities.base64Encode(keySid + ':' + keySec);
+  var apiUrl = 'https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json';
+
+  var sent = 0, failed = 0, errors = [];
+
+  messages.forEach(function(m) {
+    var toNumbers = Array.isArray(m.to) ? m.to : [m.to];
+    toNumbers.forEach(function(toNum) {
+      if (!toNum) return;
+      try {
+        var resp = UrlFetchApp.fetch(apiUrl, {
+          method: 'post',
+          headers: { 'Authorization': 'Basic ' + auth },
+          payload: { To: toNum, From: from, Body: m.body },
+          muteHttpExceptions: true
+        });
+        var code = resp.getResponseCode();
+        if (code >= 200 && code < 300) {
+          sent++;
+        } else {
+          failed++;
+          errors.push(toNum + ': HTTP ' + code + ' — ' +
+            resp.getContentText().substring(0, 120));
+        }
+      } catch(e) {
+        failed++;
+        errors.push(toNum + ': ' + e.message);
+      }
+    });
+  });
+
+  // Log to Activity sheet
+  try {
+    logActivity({
+      action: 'sendTwilioSms',
+      actor:  payload.actor || '',
+      detail: 'Sent ' + sent + ' SMS, ' + failed + ' failed. ' +
+              'Recipients: ' + messages.length
+    });
+  } catch(e) {}
+
+  return { ok: true, sent: sent, failed: failed, errors: errors };
+}
 
 // ── IMAGE RESOLUTION ──────────────────────────────────────────────────────────
 
