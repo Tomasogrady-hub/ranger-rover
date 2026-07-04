@@ -235,6 +235,8 @@ function handleSendTwilioSms(payload) {
   if (!keySid) keySid = props.getProperty('twilio_key_sid')    || '';
   if (!keySec) keySec = props.getProperty('twilio_key_secret') || '';
   if (!from)   from   = props.getProperty('twilio_from')       || '';
+  // Ensure E.164 format
+  if (from && from.charAt(0) !== '+') from = '+' + from;
   if (!sid || !keySid || !keySec || !from)
     return { ok: false, error: 'Missing Twilio credentials' };
   if (!messages.length)
