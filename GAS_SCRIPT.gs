@@ -599,7 +599,7 @@ function handleUpdateChore(p) {
     var imgCols2 = ['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
     var updatedCols = Object.keys(p.updates)
       .filter(function(c){ return imgCols2.indexOf(c) === -1; }).join(', ');
-    if (updatedCols) logActivity(p.actor||'', 'updated chore', String(data[r][ii]||''), 'chore', task_uc + ' — ' + site_uc + ' — ' + updatedCols);
+    if (updatedCols) logActivity(p.actor||'', 'updated chore', String(data[r][ii]||''), 'chore', task_uc + ' — ' + site_uc);
     return { ok: true };
   }
   return { ok: false, error: 'Chore not found' };
@@ -644,7 +644,7 @@ function handleAddChore(p) {
   sheet.appendRow(row);
   logActivity(p.actor||p.data['Asked by']||'', 'added chore',
     String(newId||''), 'chore',
-    String(p.data['Site']||''));
+    String(p.data['Task']||'') + ' — ' + String(p.data['Site']||''));
   return { ok: true, id: newId };
 }
 
