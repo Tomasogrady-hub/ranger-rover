@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.34';
+const APP_VERSION='v9.35';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-10 22:46 Activity feed wording + 12s video cap';
+const BUILD_STAMP='2026-07-10 23:02 Clean chore feed all actions + hotlink assigned schools';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2891,9 +2891,15 @@ function hidePersonComments(){
 function renderPD(h,edit){
   const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
   const imgUrl=getImgSrc(h['Main Image']||h.MainImage||'');
-  const schools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email||sf(s,'Garden Keeper','GardenKeeper')===email).map(s=>sf(s,'Name','name')).join(', ');
+  const schools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email||sf(s,'Garden Keeper','GardenKeeper')===email).map(s=>{
+    const _k=sf(s,'Key','key'),_n=sf(s,'Name','name');
+    return _k?`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_k)}')">${_n}</button>`:_n;
+  }).join(', ');
   // h.School stores site Key; resolve to Name for display (falls back to key if not found)
-  const princAt=DATA.sites.filter(s=>sf(s,'Principal','principal')===email).map(s=>sf(s,'Name','name')).join(', ');
+  const princAt=DATA.sites.filter(s=>sf(s,'Principal','principal')===email).map(s=>{
+    const _k=sf(s,'Key','key'),_n=sf(s,'Name','name');
+    return _k?`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_k)}')">${_n}</button>`:_n;
+  }).join(', ');
   const openChores=openChoresForHuman(email);
   if(edit){
     const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r.name===role?' selected':''}" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'role-select-btn','role-dd')">${r.name}</div>`).join('');
@@ -4944,25 +4950,27 @@ function activityRowHtml(item){
   const actorLink=actorH
     ?`<button class="contact-tap" style="font-weight:600;font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${actorName}</button>`
     :`<strong style="font-weight:600">${actorName}</strong>`;
-  // Simplified phrasing for "added chore" and "uploaded photo" (to a chore):
-  // "[user] added a chore [chore] for [site]" / "[user] added a photo to [chore] for [site]"
-  // Only the actor, chore, and site are shown — all hotlinkable — no IDs or extra fields.
-  const _isChoreAdd   = item.subjectType==='chore' && item.action==='added chore';
-  const _isChorePhoto = item.subjectType==='chore' && item.action==='uploaded photo';
-  let subjectLink='';
-  if(item.subjectType==='chore'){
-    // subject is now stored as chore ID; detail holds a site reference (Key preferred)
-    // Backward-compat: if subject looks like a task name (not an 8-char ID), search by name too
+  // Every chore-related activity (added / updated / closed / deleted / photo) gets the
+  // same clean, no-clutter line: "[user] [action] [chore] for [site] [time]" — no chore
+  // IDs, no field lists. Actor, chore, and site are all hotlinkable.
+  const _isChoreType=item.subjectType==='chore';
+  let subjectLink='',_choreLabel='';
+  if(_isChoreType){
+    // subject is a chore ID for most actions, but a Task name for photo uploads.
+    // detail stores "Task — SiteKey" (photo uploads store just "SiteKey").
     const _isChoreId = /^[A-Za-z0-9]{7,9}$/.test(item.subject||'');
     const chore = _isChoreId
       ? DATA.chores.find(c=>(c.ID||c.id||'')===item.subject)
       : DATA.chores.find(c=>(c.Task||'').toLowerCase()===(item.subject||'').toLowerCase());
-    // Display label: prefer task from resolved chore, then from detail prefix (legacy), then subject itself
-    const _choreLabel = chore ? (chore.Task||item.subject) : ((item.detail||'').split(' — ')[0]||item.subject||'');
+    const _detailTask=(item.detail||'').split(' — ')[0]||'';
+    // Label precedence: live chore data first; else, if subject was already a task
+    // name (photo uploads), use it directly; else fall back to the task stored in detail.
+    _choreLabel = chore ? (chore.Task||item.subject)
+      : (_isChoreId ? (_detailTask||item.subject||'') : (item.subject||_detailTask||''));
     if(chore){
       subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showChoreDetail('${ea(chore.ID||chore.id||'')}')">${_choreLabel}</button>`;
     } else {
-      // Chore not in open DATA (may be closed) — link to chores tab search by task name
+      // Chore not in open DATA (closed/deleted) — link to chores tab search by task name
       const _st=ea(_choreLabel);
       subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showTab('chores');setTimeout(()=>{var _sb=document.getElementById('searchbar');if(_sb){_sb.value='${_st}';_sb.dispatchEvent(new Event('input'));}},150)">${_choreLabel}</button>`;
     }
@@ -4982,11 +4990,10 @@ function activityRowHtml(item){
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   }
-  // For chore-add / chore-photo, resolve a "for [site]" hotlink from the detail field
-  // (stores just the site Key). Falls back gracefully on older logged rows that stored
-  // "Task — SiteRef" or "Task — SiteRef — cols".
+  // For any chore action, resolve a "for [site]" hotlink from the last segment of detail
+  // (the site Key). Works whether detail is "SiteKey" alone or legacy "Task — SiteKey".
   let forSiteLink='';
-  if(_isChoreAdd||_isChorePhoto){
+  if(_isChoreType){
     const _siteRef=(item.detail||'').split(' — ').pop().trim();
     if(_siteRef){
       const _s=(DATA.sites||[]).find(s=>(s.Key||s.key||'').trim()===_siteRef)
@@ -4999,14 +5006,14 @@ function activityRowHtml(item){
     }
   }
   // Clean action text: remove 'sites'/'humans' label (self-evident from context);
-  // use plain-language phrasing for chore add / chore photo.
+  // use plain-language phrasing for chore actions.
   let _cleanAction;
-  if(_isChoreAdd)        _cleanAction='added a chore';
-  else if(_isChorePhoto) _cleanAction='added a photo to';
+  if(_isChoreType && item.action==='added chore')        _cleanAction='added a chore';
+  else if(_isChoreType && item.action==='uploaded photo') _cleanAction='added a photo to';
   else _cleanAction=(item.action||'').replace(/\b(sites|humans)\b/gi,'').replace(/\s{2,}/g,' ').trim();
   const line1=[actorLink,`<span style="color:var(--stone)"> ${_cleanAction} </span>`,subjectLink];
-  if(_isChoreAdd||_isChorePhoto){
-    // Simplified line: actor + action + chore + for site — no IDs or extra fields.
+  if(_isChoreType){
+    // Clean line: actor + action + chore + for site — no IDs or extra fields, ever.
     if(forSiteLink)line1.push(forSiteLink);
   } else {
     // Strip noisy column names from detail (site edit field lists)
