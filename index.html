@@ -863,10 +863,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.35';
+const APP_VERSION='v9.36';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-10 23:02 Clean chore feed all actions + hotlink assigned schools';
+const BUILD_STAMP='2026-07-10 23:14 Fix chore-edit site parsing, wording polish';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4994,7 +4994,11 @@ function activityRowHtml(item){
   // (the site Key). Works whether detail is "SiteKey" alone or legacy "Task — SiteKey".
   let forSiteLink='';
   if(_isChoreType){
-    const _siteRef=(item.detail||'').split(' — ').pop().trim();
+    // Detail is "Task — Site" (or "Site" alone for photo uploads), sometimes with a
+    // trailing "— Cols" segment on older/un-redeployed GAS. Site is always the 2nd
+    // segment when there are 2+ segments, never the last — this stays correct either way.
+    const _detailParts=(item.detail||'').split(' — ').map(s=>s.trim()).filter(Boolean);
+    const _siteRef=_detailParts.length>=2?_detailParts[1]:(_detailParts[0]||'');
     if(_siteRef){
       const _s=(DATA.sites||[]).find(s=>(s.Key||s.key||'').trim()===_siteRef)
              ||(DATA.sites||[]).find(s=>(s.Name||s.name||'').trim().toLowerCase()===_siteRef.toLowerCase());
@@ -5010,6 +5014,9 @@ function activityRowHtml(item){
   let _cleanAction;
   if(_isChoreType && item.action==='added chore')        _cleanAction='added a chore';
   else if(_isChoreType && item.action==='uploaded photo') _cleanAction='added a photo to';
+  else if(_isChoreType && item.action==='updated chore')  _cleanAction='updated the chore';
+  else if(_isChoreType && item.action==='closed chore')   _cleanAction='closed the chore';
+  else if(_isChoreType && item.action==='deleted chore')  _cleanAction='deleted the chore';
   else _cleanAction=(item.action||'').replace(/\b(sites|humans)\b/gi,'').replace(/\s{2,}/g,' ').trim();
   const line1=[actorLink,`<span style="color:var(--stone)"> ${_cleanAction} </span>`,subjectLink];
   if(_isChoreType){
