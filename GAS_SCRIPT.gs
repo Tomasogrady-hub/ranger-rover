@@ -644,7 +644,7 @@ function handleAddChore(p) {
   sheet.appendRow(row);
   logActivity(p.actor||p.data['Asked by']||'', 'added chore',
     String(newId||''), 'chore',
-    String(p.data['Task']||'') + ' — ' + String(p.data['Site']||''));
+    String(p.data['Site']||''));
   return { ok: true, id: newId };
 }
 
@@ -663,6 +663,7 @@ function handleUploadChoreImage(p) {
       var sheet      = SpreadsheetApp.openById(CHORES_ID).getSheetByName('Chores');
       var data       = sheet.getDataRange().getValues(), h = data[0];
       var ii         = h.indexOf('ID');
+      var siteColIdx = h.indexOf('Site');
       var imgColName = p.imageCol || 'Helpful Image 1';
       var imgCol     = h.indexOf(imgColName);
       if (imgCol === -1) imgCol = h.indexOf('Helpful Image 1');
@@ -670,7 +671,8 @@ function handleUploadChoreImage(p) {
         if (String(data[r][ii]) === String(p.choreId) && imgCol > -1) {
           sheet.getRange(r + 1, imgCol + 1).setValue(url);
           logActivity(p.actor||'', 'uploaded photo',
-            String(data[r][h.indexOf('Task')]||p.choreId), 'chore', imgColName);
+            String(data[r][h.indexOf('Task')]||p.choreId), 'chore',
+            siteColIdx > -1 ? String(data[r][siteColIdx]||'') : '');
           break;
         }
       }
