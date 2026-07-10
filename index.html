@@ -743,9 +743,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
         <div class="settings-row">
           <div class="dl" style="margin-bottom:4px">Max video length</div>
-          <div class="settings-note">Videos longer than this are rejected before uploading.</div>
+          <div class="settings-note">Videos longer than this are rejected before uploading. Hard-capped at 12 seconds for chore and site videos.</div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-            <input id="videoMaxSecsInput" class="settings-input" type="number" min="10" max="600" style="margin:0;width:90px">
+            <input id="videoMaxSecsInput" class="settings-input" type="number" min="3" max="12" style="margin:0;width:90px">
             <span style="font-size:16px;color:var(--stone)">seconds</span>
           </div>
         </div>
@@ -863,17 +863,17 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.33';
+const APP_VERSION='v9.34';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-06 18:22 Fresh deploy';
+const BUILD_STAMP='2026-07-10 22:46 Activity feed wording + 12s video cap';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
   CLOUDINARY_CLOUD:'dtecnh1il',
   CLOUDINARY_PRESET:'ranger_rover',
   VIDEO_MAX_MB:parseInt(localStorage.getItem('rr_video_max_mb')||'150'),
-  VIDEO_MAX_SECS:parseInt(localStorage.getItem('rr_video_max_secs')||'180'),
+  VIDEO_MAX_SECS:parseInt(localStorage.getItem('rr_video_max_secs')||'12'),
   VIDEO_DELETE_DAYS:parseInt(localStorage.getItem('rr_video_delete_days')||'90')
 };
 let DATA={sites:[],humans:[],roles:[],chores:[]};
@@ -1620,7 +1620,8 @@ function showPhotoOptions_videoOnly(onVideoCb){
   modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
   modal.innerHTML=`
     <div style="background:white;border-radius:26px 26px 0 0;width:100%;padding:20px 20px calc(20px + var(--safe-bottom))">
-      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:16px;text-align:center">Add Video</div>
+      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:6px;text-align:center">Add Video</div>
+      <div style="font-size:13px;color:var(--stone);text-align:center;margin-bottom:16px">Videos must be 12 seconds or less</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <button id="pov-record" style="padding:16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">🎥 Record Video</button>
         <button id="pov-gallery" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">📁 Choose Video from Gallery</button>
@@ -3878,7 +3879,8 @@ function showChoreMediaOptions(onPhotoCb, onVideoCb){
   modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end';
   modal.innerHTML=`
     <div style="background:white;border-radius:26px 26px 0 0;width:100%;padding:20px 20px calc(20px + var(--safe-bottom))">
-      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:16px;text-align:center">Add Media</div>
+      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:6px;text-align:center">Add Media</div>
+      <div style="font-size:13px;color:var(--stone);text-align:center;margin-bottom:16px">Videos must be 12 seconds or less</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <button id="po-camera"  style="padding:16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">📷 Take Photo</button>
         <button id="po-gallery" style="padding:16px;background:var(--fog);color:var(--ink);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;font-weight:500;cursor:pointer">🖼 Photo from Gallery</button>
@@ -3991,7 +3993,7 @@ function _uploadToCloudinaryXHR(file){
     // 2. Duration check
     _updateVideoOverlay(0,'Checking video…','');
     const dur=await _checkVideoDuration(file);
-    const maxSecs=CFG.VIDEO_MAX_SECS||180;
+    const maxSecs=Math.min(CFG.VIDEO_MAX_SECS||12,12); // hard ceiling: chore/site videos capped at 12s
     if(dur>maxSecs){
       const m=Math.floor(maxSecs/60),s=maxSecs%60;
       return reject(new Error(`Video too long (max ${m}m${s?s+'s':''}). This clip is ${Math.round(dur)}s.`));
@@ -4109,7 +4111,7 @@ function uploadVideoForSite(file, inputId, statusId){
 /* ═══ VIDEO SETTINGS ═══ */
 function saveVideoSettings(){
   const mb=parseInt(document.getElementById('videoMaxMbInput').value)||150;
-  const secs=parseInt(document.getElementById('videoMaxSecsInput').value)||180;
+  const secs=Math.min(parseInt(document.getElementById('videoMaxSecsInput').value)||12,12);
   const days=parseInt(document.getElementById('videoDeleteDaysInput').value)||90;
   CFG.VIDEO_MAX_MB=mb;CFG.VIDEO_MAX_SECS=secs;CFG.VIDEO_DELETE_DAYS=days;
   localStorage.setItem('rr_video_max_mb',mb);
@@ -4855,7 +4857,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   const _tKSec=document.getElementById('twilioKeySecretInput'); if(_tKSec)_tKSec.value=_appSettings.twilioKeySecret||'';
   const _tFrom=document.getElementById('twilioFromInput');      if(_tFrom)_tFrom.value=_appSettings.twilioFrom||'';
   const vMb=document.getElementById('videoMaxMbInput');if(vMb)vMb.value=CFG.VIDEO_MAX_MB||150;
-  const vSecs=document.getElementById('videoMaxSecsInput');if(vSecs)vSecs.value=CFG.VIDEO_MAX_SECS||180;
+  const vSecs=document.getElementById('videoMaxSecsInput');if(vSecs)vSecs.value=CFG.VIDEO_MAX_SECS||12;
   const vDays=document.getElementById('videoDeleteDaysInput');if(vDays)vDays.value=CFG.VIDEO_DELETE_DAYS||90;
 });
 
@@ -4942,15 +4944,20 @@ function activityRowHtml(item){
   const actorLink=actorH
     ?`<button class="contact-tap" style="font-weight:600;font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${actorName}</button>`
     :`<strong style="font-weight:600">${actorName}</strong>`;
+  // Simplified phrasing for "added chore" and "uploaded photo" (to a chore):
+  // "[user] added a chore [chore] for [site]" / "[user] added a photo to [chore] for [site]"
+  // Only the actor, chore, and site are shown — all hotlinkable — no IDs or extra fields.
+  const _isChoreAdd   = item.subjectType==='chore' && item.action==='added chore';
+  const _isChorePhoto = item.subjectType==='chore' && item.action==='uploaded photo';
   let subjectLink='';
   if(item.subjectType==='chore'){
-    // subject is now stored as chore ID; detail contains "Task — Site"
+    // subject is now stored as chore ID; detail holds a site reference (Key preferred)
     // Backward-compat: if subject looks like a task name (not an 8-char ID), search by name too
     const _isChoreId = /^[A-Za-z0-9]{7,9}$/.test(item.subject||'');
     const chore = _isChoreId
       ? DATA.chores.find(c=>(c.ID||c.id||'')===item.subject)
       : DATA.chores.find(c=>(c.Task||'').toLowerCase()===(item.subject||'').toLowerCase());
-    // Display label: prefer task from resolved chore, then from detail prefix, then subject itself
+    // Display label: prefer task from resolved chore, then from detail prefix (legacy), then subject itself
     const _choreLabel = chore ? (chore.Task||item.subject) : ((item.detail||'').split(' — ')[0]||item.subject||'');
     if(chore){
       subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showChoreDetail('${ea(chore.ID||chore.id||'')}')">${_choreLabel}</button>`;
@@ -4975,15 +4982,40 @@ function activityRowHtml(item){
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   }
-  // Strip noisy column names from detail (site edit field lists)
-  const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update|Type|Principal|School Administrative Assistant|Main Contact 1|Main Contact 2|Main Contact 3|Plant Manager|Telephone|City|State|Street Address|District)\b,?\s*/gi;
-  const rawDetail=(item.detail||'').replace(/^Site:\s*/i,'').replace(_NOISY_COLS,'').replace(/,\s*,/g,',').replace(/^,+|,+$/g,'').trim();
-  // Cap detail at 80 chars so long column lists don't dominate the feed
-  const detail=rawDetail.length>80?rawDetail.slice(0,77)+'…':rawDetail;
-  // Clean action text: remove 'sites'/'humans' label (self-evident from context)
-  const _cleanAction=(item.action||'').replace(/\b(sites|humans)\b/gi,'').replace(/\s{2,}/g,' ').trim();
+  // For chore-add / chore-photo, resolve a "for [site]" hotlink from the detail field
+  // (stores just the site Key). Falls back gracefully on older logged rows that stored
+  // "Task — SiteRef" or "Task — SiteRef — cols".
+  let forSiteLink='';
+  if(_isChoreAdd||_isChorePhoto){
+    const _siteRef=(item.detail||'').split(' — ').pop().trim();
+    if(_siteRef){
+      const _s=(DATA.sites||[]).find(s=>(s.Key||s.key||'').trim()===_siteRef)
+             ||(DATA.sites||[]).find(s=>(s.Name||s.name||'').trim().toLowerCase()===_siteRef.toLowerCase());
+      const _sName=_s?(_s.Name||_s.name||_siteRef):_siteRef;
+      const _sKey=_s?(_s.Key||_s.key||''):'';
+      forSiteLink=_sKey
+        ?` <span style="color:var(--stone)">for</span> <button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_sKey)}')">${_sName}</button>`
+        :` <span style="color:var(--stone)">for</span> <span style="font-weight:500">${_sName}</span>`;
+    }
+  }
+  // Clean action text: remove 'sites'/'humans' label (self-evident from context);
+  // use plain-language phrasing for chore add / chore photo.
+  let _cleanAction;
+  if(_isChoreAdd)        _cleanAction='added a chore';
+  else if(_isChorePhoto) _cleanAction='added a photo to';
+  else _cleanAction=(item.action||'').replace(/\b(sites|humans)\b/gi,'').replace(/\s{2,}/g,' ').trim();
   const line1=[actorLink,`<span style="color:var(--stone)"> ${_cleanAction} </span>`,subjectLink];
-  if(detail)line1.push(`<span style="color:var(--silver);font-size:14px"> — ${detail}</span>`);
+  if(_isChoreAdd||_isChorePhoto){
+    // Simplified line: actor + action + chore + for site — no IDs or extra fields.
+    if(forSiteLink)line1.push(forSiteLink);
+  } else {
+    // Strip noisy column names from detail (site edit field lists)
+    const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update|Type|Principal|School Administrative Assistant|Main Contact 1|Main Contact 2|Main Contact 3|Plant Manager|Telephone|City|State|Street Address|District)\b,?\s*/gi;
+    const rawDetail=(item.detail||'').replace(/^Site:\s*/i,'').replace(_NOISY_COLS,'').replace(/,\s*,/g,',').replace(/^,+|,+$/g,'').trim();
+    // Cap detail at 80 chars so long column lists don't dominate the feed
+    const detail=rawDetail.length>80?rawDetail.slice(0,77)+'…':rawDetail;
+    if(detail)line1.push(`<span style="color:var(--silver);font-size:14px"> — ${detail}</span>`);
+  }
   return `<div style="padding:11px 0;border-bottom:1px solid var(--mist)">
     <div style="font-size:16px;line-height:1.5;color:var(--ink)">${line1.join('')}</div>
     <div style="font-size:13px;color:var(--silver);margin-top:2px">${ts}</div>
