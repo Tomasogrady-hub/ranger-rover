@@ -865,10 +865,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.37';
+const APP_VERSION='v9.38';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-10 23:18 Added Force App Update button (fixes stuck-on-old-version)';
+const BUILD_STAMP='2026-07-10 23:44 Refresh blocker, Fieldwork default, clean site feed';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1815,7 +1815,7 @@ function showAddChore(preSiteName,preKey){
   const assignableHumans=DATA.humans.filter(_isAssignable);
   const personOpt=h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;};
   const urgOpts=['Urgent','ASAP','Not Urgent but still important'].map(u=>`<option value="${u}"${u==='Not Urgent but still important'?' selected':''}>${u}</option>`).join('');
-  const typeOpts=['Administrative','Fieldwork'].map(t=>`<option value="${t}">${t}</option>`).join('');
+  const typeOpts=['Administrative','Fieldwork'].map(t=>`<option value="${t}"${t==='Fieldwork'?' selected':''}>${t}</option>`).join('');
   // Pre-fill site if provided
   // Resolve pre-filled site name to Key for storage; display Name as label
   // Note: treat empty-string preKey the same as missing (some sites may lack a Key in the sheet)
@@ -2795,6 +2795,7 @@ async function saveSiteEdit(siteKey){
       }
     }
     // Video URL: set by _doVideoUpload dataUpdater before saveFn is called
+    const _justUploadedSiteVideo=!!window._pendingSiteVideoUrl;
     const videoUrl=window._pendingSiteVideoUrl||_preUploadedVideoUrl||_vidInputVal||'';
     if(videoUrl)updates['Helpful Video 1']=videoUrl;
     window._pendingSiteVideoUrl=null;
@@ -2808,7 +2809,9 @@ async function saveSiteEdit(siteKey){
       // Piggyback log fields into the same GAS call — works with existing deployment, no redirect issues
       const _editedCols=Object.keys(nonImgUpdates).filter(c=>!c.startsWith('_')&&!['Main Image','Helpful Image 1','Helpful Image 2','Helpful Image 3','Image 2','Image 3'].includes(c)).join(', ');
       nonImgUpdates['_logActor']   = SESSION?SESSION.email:'';
-      nonImgUpdates['_logAction']  = 'edited';
+      // A fresh video upload gets its own clean "added a video to" activity line,
+      // instead of being bundled into a generic "edited" entry with a column list.
+      nonImgUpdates['_logAction']  = _justUploadedSiteVideo?'uploaded video':'edited';
       nonImgUpdates['_logSubject'] = _saveSiteName;
       nonImgUpdates['_logSubjType']= 'site';
       nonImgUpdates['_logDetail']  = _editedCols;
@@ -3432,8 +3435,26 @@ function _observeLazy(container){
 
 function playSuccessSound(){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(.18,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.25);o.start(ctx.currentTime);o.stop(ctx.currentTime+.25);}catch(e){}}
 
+/* ─── Refresh blocker: dims the screen and blocks taps while data is mid-refresh
+   (after a photo/video upload, delete, replace, or manual refresh) so the user
+   can't act on stale info while "One more second…" is showing. ─── */
+function _showRefreshBlocker(){
+  if(document.getElementById('refresh-blocker'))return;
+  const el=document.createElement('div');
+  el.id='refresh-blocker';
+  el.style='position:fixed;inset:0;z-index:99997;background:rgba(255,255,255,.55);cursor:wait;-webkit-tap-highlight-color:transparent';
+  el.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+  el.addEventListener('click',e=>e.preventDefault());
+  document.body.appendChild(el);
+}
+function _hideRefreshBlocker(){
+  const el=document.getElementById('refresh-blocker');
+  if(el)el.remove();
+}
+
 /* ═══ SMART REFRESH — pull fresh data then show a specific card ═══ */
 async function _refreshAndViewSite(siteKey,siteName){
+  _showRefreshBlocker();
   try{
     showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
@@ -3452,8 +3473,10 @@ async function _refreshAndViewSite(siteKey,siteName){
     if(o&&o.style.display==='none')openDetail();
     setTimeout(function(){_lazyObs=null;_initLazyImages();},200);
   }
+  _hideRefreshBlocker();
 }
 async function _refreshAndViewChore(choreId){
+  _showRefreshBlocker();
   try{
     showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
@@ -3470,6 +3493,7 @@ async function _refreshAndViewChore(choreId){
     if(o&&o.style.display==='none')openDetail();
     setTimeout(function(){_lazyObs=null;_initLazyImages();},200);
   }
+  _hideRefreshBlocker();
 }
 
 /* ═══ FORCE REFRESH (↺ button) ═══
@@ -3482,6 +3506,7 @@ async function forceRefresh(){
   if(ico){ico.style.display='inline-block';ico.style.transform='rotate(360deg)';ico.style.transition='transform .6s ease';}
   if(btn)btn.disabled=true;
   setSync(false);
+  _showRefreshBlocker();
   showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
   try{
     // Phase 1 — sites + chores
@@ -3500,6 +3525,7 @@ async function forceRefresh(){
   }catch(e){
     showSaveToast('⚠ Refresh failed — check connection');
   }finally{
+    _hideRefreshBlocker();
     if(btn){setTimeout(()=>{if(ico){ico.style.transform='';ico.style.transition='';}btn.disabled=false;},700);}
   }
 }
@@ -4977,8 +5003,10 @@ function activityRowHtml(item){
     :`<strong style="font-weight:600">${actorName}</strong>`;
   // Every chore-related activity (added / updated / closed / deleted / photo) gets the
   // same clean, no-clutter line: "[user] [action] [chore] for [site] [time]" — no chore
-  // IDs, no field lists. Actor, chore, and site are all hotlinkable.
+  // IDs, no field lists. Site activity (edited / photo / video) gets the same treatment:
+  // "[user] [action] [site] [time]" — no column lists, ever.
   const _isChoreType=item.subjectType==='chore';
+  const _isSiteType=item.subjectType==='site';
   let subjectLink='',_choreLabel='';
   if(_isChoreType){
     // subject is a chore ID for most actions, but a Task name for photo uploads.
@@ -5035,18 +5063,23 @@ function activityRowHtml(item){
     }
   }
   // Clean action text: remove 'sites'/'humans' label (self-evident from context);
-  // use plain-language phrasing for chore actions.
+  // use plain-language phrasing for chore and site actions.
   let _cleanAction;
   if(_isChoreType && item.action==='added chore')        _cleanAction='added a chore';
   else if(_isChoreType && item.action==='uploaded photo') _cleanAction='added a photo to';
   else if(_isChoreType && item.action==='updated chore')  _cleanAction='updated the chore';
   else if(_isChoreType && item.action==='closed chore')   _cleanAction='closed the chore';
   else if(_isChoreType && item.action==='deleted chore')  _cleanAction='deleted the chore';
+  else if(_isSiteType  && item.action==='uploaded photo') _cleanAction='added a photo to';
+  else if(_isSiteType  && item.action==='uploaded video') _cleanAction='added a video to';
+  else if(_isSiteType  && item.action==='edited')         _cleanAction='updated';
   else _cleanAction=(item.action||'').replace(/\b(sites|humans)\b/gi,'').replace(/\s{2,}/g,' ').trim();
   const line1=[actorLink,`<span style="color:var(--stone)"> ${_cleanAction} </span>`,subjectLink];
   if(_isChoreType){
     // Clean line: actor + action + chore + for site — no IDs or extra fields, ever.
     if(forSiteLink)line1.push(forSiteLink);
+  } else if(_isSiteType){
+    // Clean line: actor + action + site — no column lists, ever. Site itself is the subject.
   } else {
     // Strip noisy column names from detail (site edit field lists)
     const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update|Type|Principal|School Administrative Assistant|Main Contact 1|Main Contact 2|Main Contact 3|Plant Manager|Telephone|City|State|Street Address|District)\b,?\s*/gi;
