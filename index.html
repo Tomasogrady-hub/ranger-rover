@@ -729,6 +729,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">Cache — Last synced: <span id="lastSync">–</span></div>
           <button onclick="clearCache()" style="margin-top:4px;padding:10px 15px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">Clear &amp; Re-fetch</button>
+          <div class="settings-note" style="margin-top:10px">If the version number on the home screen looks out of date after a new release, use this instead — it clears the app shell itself, not just the school/chore data.</div>
+          <button id="forceUpdateBtn" onclick="forceAppUpdate()" style="margin-top:8px;padding:10px 15px;background:transparent;color:var(--danger);border:1px solid var(--danger);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">↻ Force App Update</button>
         </div>
       </div>
       <div class="dl" style="margin-bottom:10px">Video Settings</div>
@@ -863,10 +865,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.36';
+const APP_VERSION='v9.37';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-10 23:14 Fix chore-edit site parsing, wording polish';
+const BUILD_STAMP='2026-07-10 23:18 Added Force App Update button (fixes stuck-on-old-version)';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4753,6 +4755,29 @@ async function saveGasUrl(){
   loadData(true);
 }
 function clearCache(){localStorage.removeItem(CFG.CK);localStorage.removeItem(CFG.TK);loadData(true);}
+
+/* Force App Update — unregisters the service worker and wipes ALL caches (not just
+   data), then hard-reloads. Fixes the "stuck on an old version after a new push"
+   problem, since Clear & Re-fetch above only clears the sites/humans/chores data
+   cache, not the cached app shell (index.html/JS) itself. */
+async function forceAppUpdate(){
+  const btn=document.getElementById('forceUpdateBtn');
+  if(btn){btn.disabled=true;btn.textContent='Updating…';}
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+    if('caches' in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+    localStorage.removeItem(CFG.CK);
+    localStorage.removeItem(CFG.TK);
+  }catch(e){/* proceed to reload regardless */}
+  // Cache-busting reload so the browser HTTP cache can't hand back a stale index.html either
+  location.href=location.pathname+'?_fu='+Date.now();
+}
 
 /* ═══ CONTROL PANEL ═══ */
 // App settings stored server-side via GAS so all users see the same state.
