@@ -698,6 +698,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <button class="chip"        data-filter="ranger_applicant" onclick="filterReach('ranger_applicant')">Ranger Applicant</button>
         <button class="chip"        data-filter="ranger_past"      onclick="filterReach('ranger_past')">Ranger Past</button>
       </div>
+      <div style="display:flex;gap:8px;padding:0 14px 10px">
+        <button class="reach-token-chip" onclick="selectAllReach('reachRangerList')">☑ Select All Shown</button>
+        <button class="reach-token-chip" onclick="clearReachSelection()">Clear Selection</button>
+      </div>
       <div class="card-list" id="reachRangerList"></div>
       <div id="reachActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
         <button class="reach-action-btn" onclick="doReach('email_individual')">&#9993; Email Individually</button>
@@ -713,6 +717,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <button onclick="showReachPage('people')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
         <span class="page-title">Schools</span>
         <span class="page-count" id="reachAllCount"></span>
+      </div>
+      <div style="display:flex;gap:8px;padding:0 14px 10px">
+        <button class="reach-token-chip" onclick="selectAllReach('reachAllList')">☑ Select All Shown</button>
+        <button class="reach-token-chip" onclick="clearReachSelection()">Clear Selection</button>
       </div>
       <div class="card-list" id="reachAllList"></div>
       <div id="reachAllActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
@@ -896,10 +904,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.41';
+const APP_VERSION='v9.42';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 Message template builder: tap-to-insert First/Last/Full Name, School, Role + Greeting shortcut';
+const BUILD_STAMP='2026-07-13 New-contact activity hotlink fix, split Garden Ranger/Keeper schools + chore sections, App/EnrichLA links, Select-All-required sends, School token fix, reuse-past-message picker';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2927,16 +2935,18 @@ function hidePersonComments(){
 function renderPD(h,edit){
   const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
   const imgUrl=getImgSrc(h['Main Image']||h.MainImage||'');
-  const schools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email||sf(s,'Garden Keeper','GardenKeeper')===email).map(s=>{
+  const _siteLink=s=>{
     const _k=sf(s,'Key','key'),_n=sf(s,'Name','name');
     return _k?`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_k)}')">${_n}</button>`:_n;
-  }).join(', ');
-  // h.School stores site Key; resolve to Name for display (falls back to key if not found)
-  const princAt=DATA.sites.filter(s=>sf(s,'Principal','principal')===email).map(s=>{
-    const _k=sf(s,'Key','key'),_n=sf(s,'Name','name');
-    return _k?`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_k)}')">${_n}</button>`:_n;
-  }).join(', ');
-  const openChores=openChoresForHuman(email);
+  };
+  // Garden Ranger schools (Ranger 1 or Ranger 2) and Garden Keeper schools kept
+  // as separate hotlinked lists rather than one merged "Assigned School(s)" line.
+  const rangerSchools=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email).map(_siteLink).join(', ');
+  const gkSchools=DATA.sites.filter(s=>sf(s,'Garden Keeper','GardenKeeper')===email).map(_siteLink).join(', ');
+  const princAt=DATA.sites.filter(s=>sf(s,'Principal','principal')===email).map(_siteLink).join(', ');
+  // Chores kept separate: what this person is assigned to do vs. what they asked for.
+  const assignedChores=DATA.chores.filter(c=>(c['Assigned to']||c.AssignedTo||'').toLowerCase()===email.toLowerCase()&&(c.Status||c.status||'').toLowerCase()==='open');
+  const askedChores=DATA.chores.filter(c=>(c['Asked by']||c.AskedBy||'').toLowerCase()===email.toLowerCase()&&(c.Status||c.status||'').toLowerCase()==='open');
   if(edit){
     const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r.name===role?' selected':''}" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'role-select-btn','role-dd')">${r.name}</div>`).join('');
     document.getElementById('detail-content').innerHTML=`
@@ -2995,7 +3005,8 @@ function renderPD(h,edit){
       </div>
       ${imgUrl?`<div style="padding:14px 20px 0"><img data-lazy="${imgUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;object-position:top center;border-radius:var(--r-sm);opacity:0;transition:opacity .3s;background:var(--fog)" onerror="this.parentElement.style.display='none'"></div>`:''}
       <div class="ds"><div class="dl">Role</div><div class="dv">${role||'—'}</div></div>
-      ${schools?`<div class="ds"><div class="dl">Assigned School(s)</div><div class="dv">${schools}</div></div>`:''}
+      ${rangerSchools?`<div class="ds"><div class="dl">Garden Ranger School(s)</div><div class="dv">${rangerSchools}</div></div>`:''}
+      ${gkSchools?`<div class="ds"><div class="dl">Garden Keeper School(s)</div><div class="dv">${gkSchools}</div></div>`:''}
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
       ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="mailto:${email}">${email}</a></div></div>`:''}
       ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${cleanPhone(mobile)}">${mobile}</a></div></div>`:''}
@@ -3008,7 +3019,12 @@ function renderPD(h,edit){
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
         ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
       </div>
-      ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
+      <div class="detail-ctas">
+        <a class="dcta" href="https://tomasogrady-hub.github.io/ranger-rover/" target="_blank" rel="noopener">📱 Open App</a>
+        <a class="dcta" href="https://www.enrichla.org/" target="_blank" rel="noopener">🌐 EnrichLA Site</a>
+      </div>
+      ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
+      ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
       ${canEdit()?`<button class="btn-danger" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
@@ -5069,8 +5085,21 @@ function activityRowHtml(item){
     if(_siteKey){subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_siteKey)}')">${_siteName}</button>`;}
     else{subjectLink=`<span style="font-weight:500">${_siteName||item.subject||''}</span>`;}
   } else if(item.subjectType==='person'){
-    // subject is display name; actor is the email key
-    subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
+    if(item.action==='added person'){
+      // detail stores "email — role" (role optional) so we can hotlink to the
+      // actual new person instead of the actor who added them.
+      const _parts=(item.detail||'').split(' — ').map(s=>s.trim()).filter(Boolean);
+      const _personEmail=_parts[0]||'';
+      const _personRow=_personEmail?DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===_personEmail.toLowerCase()):null;
+      const _personName=item.subject||(_personRow?fullName(_personRow):'')||_personEmail||'';
+      subjectLink=_personEmail
+        ?`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(_personEmail)}')">${_personName}</button>`
+        :`<span style="font-weight:500">${_personName}</span>`;
+    } else {
+      // subject is display name; actor is the email key (legacy behaviour —
+      // used for entries where the actor IS the subject, e.g. first sign-in)
+      subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
+    }
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
   }
@@ -5111,6 +5140,11 @@ function activityRowHtml(item){
     if(forSiteLink)line1.push(forSiteLink);
   } else if(_isSiteType){
     // Clean line: actor + action + site — no column lists, ever. Site itself is the subject.
+  } else if(item.subjectType==='person' && item.action==='added person'){
+    // detail is "email — role"; only the role is worth showing here (email is
+    // already the hotlink target, not display text).
+    const _role=(item.detail||'').split(' — ')[1]||'';
+    if(_role)line1.push(`<span style="color:var(--silver);font-size:14px"> — ${_role}</span>`);
   } else {
     // Strip noisy column names from detail (site edit field lists)
     const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update|Type|Principal|School Administrative Assistant|Main Contact 1|Main Contact 2|Main Contact 3|Plant Manager|Telephone|City|State|Street Address|District)\b,?\s*/gi;
@@ -5259,26 +5293,62 @@ function toggleReachPerson(email) {
   }
 }
 
+// ── Select All / Clear — selection must be a deliberate, positive choice.
+//    Selects every person currently rendered in the given list (i.e. respects
+//    whatever category filter chip is active), rather than silently
+//    defaulting to "everyone" when nothing is checked.
+function selectAllReach(listId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.querySelectorAll('.reach-person-card').forEach(card => {
+    const email = card.dataset.email;
+    if (!email) return;
+    _reachSelected.add(email);
+    card.classList.add('selected');
+    const chk = card.querySelector('.reach-check');
+    if (chk) chk.textContent = '✓';
+  });
+  showToast('✓ Selected ' + _reachSelected.size + ' ' + (_reachSelected.size===1?'person':'people'));
+}
+
+function clearReachSelection() {
+  _reachSelected.clear();
+  document.querySelectorAll('.reach-person-card.selected').forEach(card => {
+    card.classList.remove('selected');
+    const chk = card.querySelector('.reach-check');
+    if (chk) chk.textContent = '';
+  });
+}
+
 // ── build target list ─────────────────────────────────────────────────────────
+// Selection must be a deliberate, positive choice — either individual
+// checkboxes or "Select All Shown". No silent fallback to "everyone in the
+// current filter" when nothing is checked (see doReach()).
 function _buildTarget() {
   const selected = DATA.humans.filter(h => _reachSelected.has(h.Email||h.email||''));
-  const base = _reachCurrentPage === 'peopleall'
-    ? DATA.humans
-    : DATA.humans.filter(h => {
-        const cats = humanRoleCats(h);
-        if (!cats.some(c => RANGER_CATS.includes(c))) return false;
-        if (_reachFilter !== 'all' && !cats.includes(_reachFilter)) return false;
-        return true;
-      });
-  return (selected.length ? selected : base).map(h => ({
+  return selected.map(h => ({
     name:      fullName(h) || h.Email || h.email || '?',
     firstName: h['First Name'] || h.firstName || (fullName(h)||'').split(' ')[0] || '',
     lastName:  h['Last Name']  || h.lastName  || (fullName(h)||'').split(' ').slice(1).join(' ') || '',
     email:     h.Email  || h.email  || '',
     mobile:    String(h.Mobile || h.mobile || '').replace(/\D/g,''),
-    school:    h.School || h.school || '',
+    // Resolve real school NAME(s) from the Sites sheet relationship (Ranger 1/2,
+    // Garden Keeper) rather than trusting the raw Humans.School free-text column,
+    // which can sometimes hold a site Key instead of a Name.
+    school:    schoolNamesForEmail(h.Email || h.email || '') || h.School || h.school || '',
     role:      h.Role   || h.role   || ''
   }));
+}
+
+// Comma-joined list of school NAMES this person is linked to as Ranger 1, Ranger 2,
+// or Garden Keeper — always resolves to Name, never a bare site Key.
+function schoolNamesForEmail(email) {
+  if (!email) return '';
+  return (DATA.sites || [])
+    .filter(s => sf(s,'Ranger 1','Ranger1')===email || sf(s,'Ranger 2','Ranger2')===email || sf(s,'Garden Keeper','GardenKeeper')===email)
+    .map(s => sf(s,'Name','name'))
+    .filter(Boolean)
+    .join(', ');
 }
 
 // ── Twilio credentials helpers ────────────────────────────────────────────────
@@ -5389,6 +5459,10 @@ async function _sendMailMerge(together){
 
 // ── action buttons ────────────────────────────────────────────────────────────
 function doReach(mode) {
+  if (!_reachSelected.size) {
+    showToast('Select at least one person, or tap "Select All Shown" first');
+    return;
+  }
   _reachTarget = _buildTarget();
   if (!_reachTarget.length) { showToast('No people selected'); return; }
   _reachMode = mode;
@@ -5424,6 +5498,7 @@ function openReachCompose(mode) {
         <strong style="color:var(--ink)">${count} recipient${count>1?'s':''}</strong>${isTogether?' — all in one message':' — one message per person'}<br>
         <span style="font-size:12px">${toDisplay}</span>
       </div>
+      <button type="button" class="reach-token-chip" style="width:100%;text-align:center;padding:9px 12px;margin-bottom:14px" onclick="openReachTemplatePicker()">📋 Reuse a Past Message</button>
       ${isEmail ? `
       <div class="memo-field-group">
         <label class="memo-label">Subject</label>
@@ -5481,6 +5556,59 @@ function openReachCompose(mode) {
 
 function closeReachCompose() {
   document.getElementById('memo-overlay').style.display = 'none';
+}
+
+// ── Reuse a past message: pull recent sends from the Memos sheet and let the
+//    user load one straight into Subject + Message as a starting template ────
+let _reachTemplateCache = [];
+async function openReachTemplatePicker() {
+  let panel = document.getElementById('reachTemplatePanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'reachTemplatePanel';
+    panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;display:flex;align-items:flex-end';
+    panel.innerHTML = `<div style="background:var(--paper);width:100%;max-height:72vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px 16px 24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <strong style="font-size:16px">Reuse a Past Message</strong>
+        <button onclick="closeReachTemplatePicker()" style="background:none;border:none;font-size:20px;color:var(--stone);cursor:pointer">✕</button>
+      </div>
+      <div id="reachTemplateList" style="display:flex;flex-direction:column;gap:8px">Loading…</div>
+    </div>`;
+    document.body.appendChild(panel);
+  }
+  panel.style.display = 'flex';
+  const listEl = document.getElementById('reachTemplateList');
+  listEl.innerHTML = 'Loading…';
+  try {
+    const res = await gasPost({ action: 'listMemos', limit: 25 });
+    const memos = (res && res.memos) || [];
+    _reachTemplateCache = memos;
+    if (!memos.length) {
+      listEl.innerHTML = '<div style="color:var(--silver);padding:20px 0;text-align:center">No past messages yet</div>';
+      return;
+    }
+    listEl.innerHTML = memos.map((m, i) => `
+      <button type="button" onclick="_applyReachTemplate(${i})" style="text-align:left;padding:10px 12px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);cursor:pointer">
+        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.subject || '(no subject)'}</div>
+        <div style="font-size:12px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">${(m.message || '').replace(/\n/g,' ').slice(0,90)}</div>
+        <div style="font-size:11px;color:var(--silver);margin-top:3px">${m.type || ''}${m.timestamp ? ' · ' + new Date(m.timestamp).toLocaleDateString() : ''}</div>
+      </button>`).join('');
+  } catch (e) {
+    listEl.innerHTML = '<div style="color:var(--tomato,#c0392b);padding:20px 0;text-align:center">⚠ Could not load past messages</div>';
+  }
+}
+function _applyReachTemplate(i) {
+  const m = _reachTemplateCache[i];
+  if (!m) return;
+  const subjEl = document.getElementById('reachSubject');
+  const msgEl  = document.getElementById('reachMessage');
+  if (subjEl && m.subject != null) subjEl.value = m.subject;
+  if (msgEl) msgEl.value = m.message || '';
+  closeReachTemplatePicker();
+}
+function closeReachTemplatePicker() {
+  const panel = document.getElementById('reachTemplatePanel');
+  if (panel) panel.style.display = 'none';
 }
 
 // ── Template builder: insert a merge field at the cursor of whichever
