@@ -205,6 +205,7 @@ function doPost(e) {
 
       // ── REACH / MEMOS ────────────────────────────────────────────────────────
       case 'sendMemo':      return respond(handleSendMemo(p));
+      case 'sendMailMerge': return respond(handleSendMailMerge(p));
       case 'sendTwilioSms': return respond(handleSendTwilioSms(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
@@ -1072,7 +1073,6 @@ function handleSendMemo(p) {
   try {
     var mode      = String(p.mode      || 'email_together');
     var toEmails  = Array.isArray(p.toEmails) ? p.toEmails : [String(p.toEmails || '')];
-    var recipients = Array.isArray(p.recipients) ? p.recipients : null; // [{email,firstName,name,school,role}]
     var fromEmail = String(p.fromEmail || '');
     var subject   = String(p.subject   || '(no subject)');
     var message   = String(p.message   || '');
@@ -1094,33 +1094,14 @@ function handleSendMemo(p) {
     var sentCount = 0;
     var errors    = [];
 
-    // Mail-merge token replacement — {{FirstName}} {{FullName}} {{School}} {{Role}}
-    function mergeText(tpl, r) {
-      if (!r) return tpl;
-      var fname = r.firstName || (r.name ? String(r.name).split(' ')[0] : '') || '';
-      return String(tpl)
-        .replace(/\{\{FirstName\}\}/gi, fname)
-        .replace(/\{\{FullName\}\}/gi,  r.name   || '')
-        .replace(/\{\{School\}\}/gi,    r.school || '')
-        .replace(/\{\{Role\}\}/gi,      r.role   || '');
-    }
-
     if (mode === 'email_individual') {
-      // One personalised email per recipient (mail merge)
-      var byEmail = {};
-      if (recipients) recipients.forEach(function(r) {
-        if (r && r.email) byEmail[String(r.email).trim().toLowerCase()] = r;
-      });
-
+      // One email per recipient
       toEmails.forEach(function(toAddr) {
         toAddr = String(toAddr).trim();
         if (!toAddr) return;
-        var r = byEmail[toAddr.toLowerCase()] || null;
-        var personalSubject = mergeText(subject, r);
-        var personalMessage = mergeText(message, r);
         var id = Utilities.getUuid();
         try {
-          GmailApp.sendEmail(toAddr, personalSubject, personalMessage, {
+          GmailApp.sendEmail(toAddr, subject, message, {
             cc:   cc  || undefined,
             bcc:  bcc || undefined,
             name: fromEmail
@@ -1128,7 +1109,7 @@ function handleSendMemo(p) {
         } catch(mailErr) {
           errors.push(toAddr + ': ' + mailErr.message);
         }
-        sheet.appendRow([id, personalSubject, now, toAddr, fromEmail, cc, bcc, personalMessage, category, type]);
+        sheet.appendRow([id, subject, now, toAddr, fromEmail, cc, bcc, message, category, type]);
         sentCount++;
       });
     } else {
@@ -1153,6 +1134,66 @@ function handleSendMemo(p) {
     return { ok: true, sent: sentCount, errors: errors.length ? errors : undefined };
 
   } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+
+// ── MAIL MERGE ────────────────────────────────────────────────────────────────
+//
+// True server-side mail merge — no device mail app involved. Each entry in
+// p.messages already has its own personalised subject + body (tokens like
+// {{FirstName}} are substituted client-side before this call). Sends each
+// email individually via GmailApp and logs every send to the Memos sheet.
+//
+// Payload: { action:'sendMailMerge', messages:[{to,subject,body}], fromEmail,
+//            cc, bcc, category }
+
+function handleSendMailMerge(p) {
+  try {
+    var messages  = Array.isArray(p.messages) ? p.messages : [];
+    var fromEmail = String(p.fromEmail || '');
+    var cc        = String(p.cc        || '');
+    var bcc       = String(p.bcc       || '');
+    var category  = String(p.category  || '');
+    var now       = new Date();
+
+    var ss    = SpreadsheetApp.openById(MEMOS_ID);
+    var sheet = ss.getSheetByName('Memos');
+    if (!sheet) {
+      sheet = ss.insertSheet('Memos');
+      sheet.appendRow(['ID','Subject','Time+Date','To','From','CC','BCC','Message','Category','Type']);
+      sheet.setFrozenRows(1);
+    }
+
+    var sentCount = 0;
+    var errors    = [];
+
+    messages.forEach(function(m) {
+      var to = String((m && m.to) || '').trim();
+      if (!to) return;
+      var subject = String((m && m.subject) || '(no subject)');
+      var body    = String((m && m.body)    || '');
+      var id      = Utilities.getUuid();
+      try {
+        GmailApp.sendEmail(to, subject, body, {
+          cc:   cc  || undefined,
+          bcc:  bcc || undefined,
+          name: fromEmail
+        });
+        sentCount++;
+      } catch (mailErr) {
+        errors.push(to + ': ' + mailErr.message);
+      }
+      sheet.appendRow([id, subject, now, to, fromEmail, cc, bcc, body, category, 'Mail Merge']);
+    });
+
+    logActivity(fromEmail, 'Sent Mail Merge', messages.length + ' emails', 'Mail Merge',
+      'To count: ' + messages.length + (errors.length ? ' · Failed: ' + errors.length : ''));
+
+    return { ok: true, sent: sentCount, failed: errors.length, errors: errors.length ? errors : undefined };
+
+  } catch (e) {
     return { ok: false, error: e.message };
   }
 }
