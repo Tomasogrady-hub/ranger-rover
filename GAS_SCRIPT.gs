@@ -205,6 +205,7 @@ function doPost(e) {
 
       // ── REACH / MEMOS ────────────────────────────────────────────────────────
       case 'sendMemo':      return respond(handleSendMemo(p));
+      case 'listMemos':     return respond(handleListMemos(p));
       case 'sendMailMerge': return respond(handleSendMailMerge(p));
       case 'sendTwilioSms': return respond(handleSendTwilioSms(p));
 
@@ -527,8 +528,17 @@ function handleAddHuman(p) {
     }
   }
   sheet.appendRow(headers.map(function(h) { return p.data[h] || ''; }));
-  logActivity(p.actor||p.data['Email']||'', 'added person',
-    String(p.data['Name']||p.data['Email']||''), 'person', String(p.data['Role']||''));
+  var _displayName = String(
+    p.data['Name'] ||
+    (String(p.data['First Name']||'') + ' ' + String(p.data['Last Name']||'')).trim() ||
+    p.data['Email'] || ''
+  );
+  var _personEmail = String(p.data['Email']||'');
+  var _role = String(p.data['Role']||'');
+  // detail stores "email — role" so the client can hotlink to the NEW person
+  // (not the actor who added them) while still showing their role.
+  logActivity(p.actor||_personEmail||'', 'added person', _displayName, 'person',
+    _personEmail + (_role ? (' — ' + _role) : ''));
   return { ok: true };
 }
 
@@ -1068,6 +1078,44 @@ function handleSaveAppSettings(p) {
 // p.cc           — CC string (comma-separated, may be empty)
 // p.bcc          — BCC string (comma-separated, may be empty)
 // p.category     — optional category label
+
+function handleListMemos(p) {
+  try {
+    var limit = p.limit ? parseInt(p.limit, 10) : 25;
+    var ss    = SpreadsheetApp.openById(MEMOS_ID);
+    var sheet = ss.getSheetByName('Memos');
+    if (!sheet) return { ok: true, memos: [] };
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return { ok: true, memos: [] };
+    var headers = data[0];
+    var idx = {};
+    headers.forEach(function(h, i) { idx[h] = i; });
+    var rows = data.slice(1).reverse(); // newest first (sheet is append-ordered)
+    var seen  = {};
+    var memos = [];
+    for (var i = 0; i < rows.length && memos.length < limit; i++) {
+      var r = rows[i];
+      var subject = String(r[idx['Subject']] || '');
+      var message = String(r[idx['Message']] || '');
+      if (!subject && !message) continue;
+      // Mail merge / individual sends write one row per recipient with the same
+      // template — de-dupe on subject+message so the picker shows unique templates.
+      var key = subject + '||' + message;
+      if (seen[key]) continue;
+      seen[key] = true;
+      memos.push({
+        subject:   subject,
+        message:   message,
+        type:      String(r[idx['Type']] || ''),
+        from:      String(r[idx['From']] || ''),
+        timestamp: r[idx['Time+Date']] ? new Date(r[idx['Time+Date']]).toISOString() : ''
+      });
+    }
+    return { ok: true, memos: memos };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
 
 function handleSendMemo(p) {
   try {
