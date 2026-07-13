@@ -1072,6 +1072,7 @@ function handleSendMemo(p) {
   try {
     var mode      = String(p.mode      || 'email_together');
     var toEmails  = Array.isArray(p.toEmails) ? p.toEmails : [String(p.toEmails || '')];
+    var recipients = Array.isArray(p.recipients) ? p.recipients : null; // [{email,firstName,name,school,role}]
     var fromEmail = String(p.fromEmail || '');
     var subject   = String(p.subject   || '(no subject)');
     var message   = String(p.message   || '');
@@ -1093,14 +1094,33 @@ function handleSendMemo(p) {
     var sentCount = 0;
     var errors    = [];
 
+    // Mail-merge token replacement — {{FirstName}} {{FullName}} {{School}} {{Role}}
+    function mergeText(tpl, r) {
+      if (!r) return tpl;
+      var fname = r.firstName || (r.name ? String(r.name).split(' ')[0] : '') || '';
+      return String(tpl)
+        .replace(/\{\{FirstName\}\}/gi, fname)
+        .replace(/\{\{FullName\}\}/gi,  r.name   || '')
+        .replace(/\{\{School\}\}/gi,    r.school || '')
+        .replace(/\{\{Role\}\}/gi,      r.role   || '');
+    }
+
     if (mode === 'email_individual') {
-      // One email per recipient
+      // One personalised email per recipient (mail merge)
+      var byEmail = {};
+      if (recipients) recipients.forEach(function(r) {
+        if (r && r.email) byEmail[String(r.email).trim().toLowerCase()] = r;
+      });
+
       toEmails.forEach(function(toAddr) {
         toAddr = String(toAddr).trim();
         if (!toAddr) return;
+        var r = byEmail[toAddr.toLowerCase()] || null;
+        var personalSubject = mergeText(subject, r);
+        var personalMessage = mergeText(message, r);
         var id = Utilities.getUuid();
         try {
-          GmailApp.sendEmail(toAddr, subject, message, {
+          GmailApp.sendEmail(toAddr, personalSubject, personalMessage, {
             cc:   cc  || undefined,
             bcc:  bcc || undefined,
             name: fromEmail
@@ -1108,7 +1128,7 @@ function handleSendMemo(p) {
         } catch(mailErr) {
           errors.push(toAddr + ': ' + mailErr.message);
         }
-        sheet.appendRow([id, subject, now, toAddr, fromEmail, cc, bcc, message, category, type]);
+        sheet.appendRow([id, personalSubject, now, toAddr, fromEmail, cc, bcc, personalMessage, category, type]);
         sentCount++;
       });
     } else {
