@@ -1081,6 +1081,7 @@ function handleSendMemo(p) {
     var category  = String(p.category  || '');
     var type      = mode === 'email_individual' ? 'Email Individual' : 'Email Together';
     var now       = new Date();
+    var replyTo   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail) ? fromEmail : undefined;
 
     // Open Memos sheet — auto-create if it doesn't exist yet
     var ss    = SpreadsheetApp.openById(MEMOS_ID);
@@ -1102,9 +1103,10 @@ function handleSendMemo(p) {
         var id = Utilities.getUuid();
         try {
           GmailApp.sendEmail(toAddr, subject, message, {
-            cc:   cc  || undefined,
-            bcc:  bcc || undefined,
-            name: fromEmail
+            cc:      cc  || undefined,
+            bcc:     bcc || undefined,
+            name:    fromEmail,
+            replyTo: replyTo
           });
         } catch(mailErr) {
           errors.push(toAddr + ': ' + mailErr.message);
@@ -1118,9 +1120,10 @@ function handleSendMemo(p) {
       var id    = Utilities.getUuid();
       try {
         GmailApp.sendEmail(toStr, subject, message, {
-          cc:   cc  || undefined,
-          bcc:  bcc || undefined,
-          name: fromEmail
+          cc:      cc  || undefined,
+          bcc:     bcc || undefined,
+          name:    fromEmail,
+          replyTo: replyTo
         });
       } catch(mailErr) {
         errors.push(mailErr.message);
@@ -1157,6 +1160,9 @@ function handleSendMailMerge(p) {
     var bcc       = String(p.bcc       || '');
     var category  = String(p.category  || '');
     var now       = new Date();
+    // Reply-To lets the recipient hit "reply" and land in the actual app
+    // user's inbox, even though the email is sent from the shared account.
+    var replyTo   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail) ? fromEmail : undefined;
 
     var ss    = SpreadsheetApp.openById(MEMOS_ID);
     var sheet = ss.getSheetByName('Memos');
@@ -1177,9 +1183,10 @@ function handleSendMailMerge(p) {
       var id      = Utilities.getUuid();
       try {
         GmailApp.sendEmail(to, subject, body, {
-          cc:   cc  || undefined,
-          bcc:  bcc || undefined,
-          name: fromEmail
+          cc:      cc  || undefined,
+          bcc:     bcc || undefined,
+          name:    fromEmail,
+          replyTo: replyTo
         });
         sentCount++;
       } catch (mailErr) {
