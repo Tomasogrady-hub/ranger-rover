@@ -668,21 +668,21 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </div>
     </div>
 
-    <!-- Sub-page: People Reach (landing) -->
+    <!-- Sub-page: People hub -->
     <div id="reach-people" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
         <button onclick="showReachPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
         <span class="page-title">People</span>
-        <span class="page-count" id="reachPeopleTotalCount"></span>
+        <span class="page-count" id="reachPeopleHubCount"></span>
       </div>
-      <div style="padding:20px 20px 12px;display:flex;flex-direction:column;gap:14px">
-        <button class="reach-menu-btn" onclick="showReachPage('rangers')">🌿 EnrichLA</button>
-        <button class="reach-menu-btn" onclick="showReachPage('people-all')">🏫 Schools</button>
+      <div style="padding:28px 20px 12px;display:flex;flex-direction:column;gap:14px">
+        <button class="reach-menu-btn" onclick="showReachPage('enrichla')">🌿 EnrichLA</button>
+        <button class="reach-menu-btn" onclick="showReachPage('peopleall')">🏫 Schools</button>
       </div>
     </div>
 
-    <!-- Sub-page: EnrichLA Reach (rangers, master rangers, garden keepers, applicants, past) -->
-    <div id="reach-rangers" style="display:none">
+    <!-- Sub-page: EnrichLA Reach (rangers/master rangers/garden keepers/applicants/past — formerly "Rangers") -->
+    <div id="reach-enrichla" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
         <button onclick="showReachPage('people')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
         <span class="page-title">EnrichLA</span>
@@ -705,6 +705,22 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </div>
     </div>
 
+    <!-- Sub-page: People > Schools (everyone, including EnrichLA people) -->
+    <div id="reach-peopleall" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showReachPage('people')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Schools</span>
+        <span class="page-count" id="reachAllCount"></span>
+      </div>
+      <div class="card-list" id="reachAllList"></div>
+      <div id="reachAllActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
+        <button class="reach-action-btn" onclick="doReach('email_individual')">&#9993; Email Individually</button>
+        <button class="reach-action-btn" onclick="doReach('email_together')">&#9993; Email Together</button>
+        <button class="reach-action-btn" onclick="doReach('text_individual')">&#128172; Text Individually</button>
+        <button class="reach-action-btn" onclick="doReach('text_together')">&#128172; Text Together</button>
+      </div>
+    </div>
+
     <!-- Sub-page: Schools Reach (placeholder) -->
     <div id="reach-schools" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
@@ -712,22 +728,6 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <span class="page-title">Schools</span>
       </div>
       <div style="padding:40px 24px;text-align:center;color:var(--silver)">Coming soon</div>
-    </div>
-
-    <!-- Sub-page: People > Schools (everyone, including EnrichLA people) -->
-    <div id="reach-people-all" style="display:none">
-      <div class="page-header" style="display:flex;align-items:center;gap:10px">
-        <button onclick="showReachPage('people')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
-        <span class="page-title">Schools</span>
-        <span class="page-count" id="reachAllPeopleCount"></span>
-      </div>
-      <div class="card-list" id="reachAllPeopleList"></div>
-      <div id="reachAllActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
-        <button class="reach-action-btn" onclick="doReach('email_individual')">&#9993; Email Individually</button>
-        <button class="reach-action-btn" onclick="doReach('email_together')">&#9993; Email Together</button>
-        <button class="reach-action-btn" onclick="doReach('text_individual')">&#128172; Text Individually</button>
-        <button class="reach-action-btn" onclick="doReach('text_together')">&#128172; Text Together</button>
-      </div>
     </div>
 
     <!-- Sub-page: Organizations Reach (placeholder) -->
@@ -897,7 +897,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 const APP_VERSION='v9.39';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 00:00 Reach: People/EnrichLA/Schools reorg + email mail merge';
+const BUILD_STAMP='2026-07-13 18:38 Reach: People/EnrichLA/Organizations restructure + true mail merge email';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -5172,7 +5172,6 @@ const MEMOS_ID = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
 
 // ── module state ──────────────────────────────────────────────────────────────
 let _reachCurrentPage = 'menu';
-let _reachContext     = 'rangers';  // 'rangers' (EnrichLA roles) | 'all' (everyone)
 let _reachFilter      = 'all';
 let _reachSelected    = new Set();   // emails of checked people
 let _reachTarget      = [];          // [{name,email,mobile}] built in doReach()
@@ -5181,46 +5180,24 @@ let _reachMode        = '';          // current action mode
 // ── page routing ──────────────────────────────────────────────────────────────
 function showReachPage(page) {
   _reachCurrentPage = page;
-  ['menu','rangers','schools','organizations','people','people-all'].forEach(p => {
+  ['menu','people','enrichla','peopleall','schools','organizations'].forEach(p => {
     const el = document.getElementById('reach-' + p);
     if (el) el.style.display = 'none';
   });
-  const target = document.getElementById('reach-' + (page==='menu'?'menu':page));
+  const target = document.getElementById('reach-' + page);
   if (target) target.style.display = 'block';
-  if (page === 'people') renderReachPeopleLanding();
-  if (page === 'rangers') { _reachSelected.clear(); _reachContext='rangers'; renderReachRangers(); }
-  if (page === 'people-all') { _reachSelected.clear(); _reachContext='all'; renderReachAllPeople(); }
+  if (page === 'people')    renderReachPeopleHub();
+  if (page === 'enrichla')  { _reachSelected.clear(); renderReachRangers(); }
+  if (page === 'peopleall') { _reachSelected.clear(); renderReachAll(); }
 }
 
-// ── People landing: total row count ───────────────────────────────────────────
-function renderReachPeopleLanding() {
-  const el = document.getElementById('reachPeopleTotalCount');
-  if (el) el.textContent = (DATA.humans ? DATA.humans.length : 0) + ' total';
+// ── People hub — total count of every row in the Humans sheet ──────────────────
+function renderReachPeopleHub() {
+  const countEl = document.getElementById('reachPeopleHubCount');
+  if (countEl) countEl.textContent = (DATA.humans||[]).length + ' people';
 }
 
-// ── all-people list (everyone, including EnrichLA people) ─────────────────────
-function renderReachAllPeople() {
-  const list = document.getElementById('reachAllPeopleList');
-  if (!list) return;
-  const people = DATA.humans || [];
-  const countEl = document.getElementById('reachAllPeopleCount');
-  if (countEl) countEl.textContent = people.length + ' people';
-  if (!people.length) { list.innerHTML = empty('—','No results',''); return; }
-  list.innerHTML = people.map(h => {
-    const email = h.Email || h.email || '';
-    const sel   = _reachSelected.has(email);
-    return `<div class="reach-person-card${sel?' selected':''}" data-email="${ea(email)}" onclick="toggleReachPerson('${ea(email)}')">
-      <div class="reach-check">${sel?'✓':''}</div>
-      ${avatarHtml(h)}
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${fullName(h)||email}</div>
-        <div style="font-size:13px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.Role||h.role||''}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// ── filter chips ──────────────────────────────────────────────────────────────
+// ── filter chips (EnrichLA page) ────────────────────────────────────────────────
 function filterReach(f) {
   _reachFilter = f;
   document.querySelectorAll('#reachRangerFilters .chip')
@@ -5228,7 +5205,21 @@ function filterReach(f) {
   renderReachRangers();
 }
 
-// ── person list ───────────────────────────────────────────────────────────────
+// ── shared person-card markup ───────────────────────────────────────────────────
+function _reachPersonCardHtml(h) {
+  const email = h.Email || h.email || '';
+  const sel   = _reachSelected.has(email);
+  return `<div class="reach-person-card${sel?' selected':''}" data-email="${ea(email)}" onclick="toggleReachPerson('${ea(email)}')">
+      <div class="reach-check">${sel?'✓':''}</div>
+      ${avatarHtml(h)}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${fullName(h)||email}</div>
+        <div style="font-size:13px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.Role||h.role||''}</div>
+      </div>
+    </div>`;
+}
+
+// ── person list: EnrichLA (rangers / master rangers / garden keepers / applicants / past) ──
 function renderReachRangers() {
   const list = document.getElementById('reachRangerList');
   if (!list) return;
@@ -5241,18 +5232,18 @@ function renderReachRangers() {
   const countEl = document.getElementById('reachRangerCount');
   if (countEl) countEl.textContent = people.length + ' people';
   if (!people.length) { list.innerHTML = empty('—','No results',''); return; }
-  list.innerHTML = people.map(h => {
-    const email = h.Email || h.email || '';
-    const sel   = _reachSelected.has(email);
-    return `<div class="reach-person-card${sel?' selected':''}" data-email="${ea(email)}" onclick="toggleReachPerson('${ea(email)}')">
-      <div class="reach-check">${sel?'✓':''}</div>
-      ${avatarHtml(h)}
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${fullName(h)||email}</div>
-        <div style="font-size:13px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.Role||h.role||''}</div>
-      </div>
-    </div>`;
-  }).join('');
+  list.innerHTML = people.map(_reachPersonCardHtml).join('');
+}
+
+// ── person list: Schools (everyone in the Humans sheet, including EnrichLA people) ──
+function renderReachAll() {
+  const list = document.getElementById('reachAllList');
+  if (!list) return;
+  const people = DATA.humans || [];
+  const countEl = document.getElementById('reachAllCount');
+  if (countEl) countEl.textContent = people.length + ' people';
+  if (!people.length) { list.innerHTML = empty('—','No results',''); return; }
+  list.innerHTML = people.map(_reachPersonCardHtml).join('');
 }
 
 function toggleReachPerson(email) {
@@ -5269,13 +5260,15 @@ function toggleReachPerson(email) {
 // ── build target list ─────────────────────────────────────────────────────────
 function _buildTarget() {
   const selected = DATA.humans.filter(h => _reachSelected.has(h.Email||h.email||''));
-  const pool = selected.length ? selected : (_reachContext === 'all' ? DATA.humans : DATA.humans.filter(h => {
-    const cats = humanRoleCats(h);
-    if (!cats.some(c => RANGER_CATS.includes(c))) return false;
-    if (_reachFilter !== 'all' && !cats.includes(_reachFilter)) return false;
-    return true;
-  }));
-  return pool.map(h => ({
+  const base = _reachCurrentPage === 'peopleall'
+    ? DATA.humans
+    : DATA.humans.filter(h => {
+        const cats = humanRoleCats(h);
+        if (!cats.some(c => RANGER_CATS.includes(c))) return false;
+        if (_reachFilter !== 'all' && !cats.includes(_reachFilter)) return false;
+        return true;
+      });
+  return (selected.length ? selected : base).map(h => ({
     name:      fullName(h) || h.Email || h.email || '?',
     firstName: h['First Name'] || h.firstName || (fullName(h)||'').split(' ')[0] || '',
     email:     h.Email  || h.email  || '',
@@ -5351,6 +5344,44 @@ async function _sendViaTwilio(together){
   }
 }
 
+// ── Send Email via GAS/GmailApp — true mail merge (no device mail app) ────────
+// Individually: each recipient gets their own personalised subject+body, sent
+// server-side in one batch. Together: one email, one subject/body, to everyone.
+async function _sendMailMerge(together){
+  const subj   = (document.getElementById('reachSubject')||{value:''}).value.trim();
+  const rawMsg = (document.getElementById('reachMessage')||{value:''}).value.trim();
+  const cc     = (document.getElementById('reachCC')  ||{value:''}).value.trim();
+  const bcc    = (document.getElementById('reachBCC') ||{value:''}).value.trim();
+  const st     = document.getElementById('reachComposeStatus');
+  if(!subj){if(st)st.textContent='⚠ Subject is required';return;}
+  if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
+  const recipients = _reachTarget.filter(r=>r.email);
+  if(!recipients.length){if(st)st.textContent='⚠ No email addresses in selection';return;}
+  const btn = document.getElementById('reachSendBtn');
+  if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
+  if(st)st.textContent='';
+  const _tok = (str,r)=>{
+    const fname = r.firstName || (r.name||'').split(' ')[0] || '';
+    return str.replace(/\{\{FirstName\}\}/gi, fname)
+              .replace(/\{\{FullName\}\}/gi,  r.name||'')
+              .replace(/\{\{School\}\}/gi,    r.school||'')
+              .replace(/\{\{Role\}\}/gi,      r.role||'');
+  };
+  const messages = together
+    ? [{ to: recipients.map(r=>r.email).join(','), subject: subj, body: rawMsg }]
+    : recipients.map(r=>({ to: r.email, subject: _tok(subj,r), body: _tok(rawMsg,r) }));
+  try{
+    const res = await gasPost({action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:''});
+    closeReachCompose();
+    const sent=res.sent||0, failed=res.failed||0;
+    showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
+    if(res.errors&&res.errors.length) console.warn('Mail merge errors:',res.errors);
+  }catch(e){
+    if(btn){btn.textContent='✉ Send Email'+(together?'':' (Mail Merge)');btn.style.pointerEvents='';}
+    if(st)st.textContent='⚠ '+e.message;
+  }
+}
+
 // ── action buttons ────────────────────────────────────────────────────────────
 function doReach(mode) {
   _reachTarget = _buildTarget();
@@ -5406,7 +5437,7 @@ function openReachCompose(mode) {
         <textarea id="reachMessage" class="memo-input" rows="8" placeholder="Write your message…" style="resize:vertical"></textarea>
       </div>
       ${!isTogether ? `<div style="font-size:12px;color:var(--stone);background:var(--fog);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:10px;line-height:1.7">
-        <strong>Personalise your message:</strong><br>
+        <strong>Personalise your message${isEmail?' (and subject)':''}:</strong><br>
         <code>{{FirstName}}</code> · <code>{{FullName}}</code> · <code>{{School}}</code> · <code>{{Role}}</code>
       </div>` : ''}
       <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
@@ -5417,13 +5448,11 @@ function openReachCompose(mode) {
           onclick="_sendViaTwilio(${isTogether})">
           💬 Send via Twilio
         </button>` : ''}
-        ${isEmail ? `
-        <button id="reachSendBtn" class="reach-action-btn"
-          style="flex:1;min-width:90px"
-          onclick="_sendEmailReach(${isTogether})">
-          ✉ Send Email
-        </button>` : `
-        <a id="reachSendBtn" href="#"
+        ${isEmail ? `<button id="reachSendBtn" class="reach-action-btn"
+          style="flex:2;min-width:130px;background:var(--enrich-dark);color:#fff"
+          onclick="_sendMailMerge(${isTogether})">
+          ✉ Send Email${isTogether?'':' (Mail Merge)'}
+        </button>` : `<a id="reachSendBtn" href="#"
           class="reach-action-btn"
           style="flex:1;min-width:90px;text-decoration:none;text-align:center;display:flex;align-items:center;justify-content:center;background:var(--fog);color:var(--stone);font-size:13px"
           ontouchstart="_prepReach(this)"
@@ -5435,41 +5464,6 @@ function openReachCompose(mode) {
   </div>`;
 
   setTimeout(() => { const el = document.getElementById('reachMessage'); if(el) el.focus(); }, 150);
-}
-
-// ── Send email via GAS/GmailApp — true mail merge, no device mail app ─────────
-// Supports {{FirstName}} {{FullName}} {{School}} {{Role}} tokens (individual mode).
-async function _sendEmailReach(together) {
-  const subj   = (document.getElementById('reachSubject') || {value:''}).value.trim();
-  const cc     = (document.getElementById('reachCC')      || {value:''}).value.trim();
-  const bcc    = (document.getElementById('reachBCC')     || {value:''}).value.trim();
-  const rawMsg = (document.getElementById('reachMessage') || {value:''}).value.trim();
-  const st     = document.getElementById('reachComposeStatus');
-  if (!subj)   { if (st) st.textContent = '⚠ Subject is required'; return; }
-  if (!rawMsg) { if (st) st.textContent = '⚠ Message is required'; return; }
-  const recipients = _reachTarget.filter(r => r.email);
-  if (!recipients.length) { if (st) st.textContent = '⚠ No email addresses in selection'; return; }
-  const btn = document.getElementById('reachSendBtn');
-  if (btn) { btn.textContent = 'Sending…'; btn.style.pointerEvents = 'none'; }
-  if (st) st.textContent = '';
-  try {
-    const res = await gasPost({
-      action: 'sendMemo',
-      mode: together ? 'email_together' : 'email_individual',
-      recipients: recipients.map(r => ({email:r.email, firstName:r.firstName, name:r.name, school:r.school, role:r.role})),
-      toEmails: recipients.map(r => r.email),
-      fromEmail: SESSION ? SESSION.email : '',
-      subject: subj, message: rawMsg, cc, bcc, category: '',
-      timestamp: new Date().toISOString()
-    });
-    const sent = res.sent || 0, failed = (res.errors||[]).length;
-    closeReachCompose();
-    showToast('✓ ' + sent + ' email' + (sent===1?'':'s') + ' sent' + (failed ? ' · ' + failed + ' failed' : ''));
-    if (res.errors && res.errors.length) console.warn('Email errors:', res.errors);
-  } catch(e) {
-    if (btn) { btn.textContent = '✉ Send Email'; btn.style.pointerEvents = ''; }
-    if (st) st.textContent = '⚠ ' + e.message;
-  }
 }
 
 function closeReachCompose() {
