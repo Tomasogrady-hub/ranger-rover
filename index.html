@@ -130,6 +130,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .reach-menu-btn{display:block;width:100%;padding:18px 20px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-md);font-family:var(--font-b);font-size:18px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;transition:background .15s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .reach-menu-btn:active{background:var(--mist)}
 .reach-action-btn{flex:1;min-width:140px;padding:11px 10px;background:var(--enrich-dark);color:#fff;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;font-weight:700;letter-spacing:.04em;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:opacity .15s}
+.reach-token-chip{padding:6px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:100px;font-family:var(--font-b);font-size:12px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:background .15s}
+.reach-token-chip:active{background:var(--mint)}
 .reach-action-btn:active{opacity:.75}
 .reach-person-card{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--mist);cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .reach-person-card.selected{background:var(--mint)}
@@ -894,10 +896,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.40';
+const APP_VERSION='v9.41';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 20:10 Reach: People hub finished (EnrichLA + Schools-all pages), mail merge confirmed';
+const BUILD_STAMP='2026-07-13 Message template builder: tap-to-insert First/Last/Full Name, School, Role + Greeting shortcut';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -5271,6 +5273,7 @@ function _buildTarget() {
   return (selected.length ? selected : base).map(h => ({
     name:      fullName(h) || h.Email || h.email || '?',
     firstName: h['First Name'] || h.firstName || (fullName(h)||'').split(' ')[0] || '',
+    lastName:  h['Last Name']  || h.lastName  || (fullName(h)||'').split(' ').slice(1).join(' ') || '',
     email:     h.Email  || h.email  || '',
     mobile:    String(h.Mobile || h.mobile || '').replace(/\D/g,''),
     school:    h.School || h.school || '',
@@ -5301,7 +5304,7 @@ async function saveTwilioSettings(){
 }
 
 // ── Send SMS via Twilio through GAS ─────────────────────────────────────────
-// Supports {{FirstName}} {{FullName}} {{School}} {{Role}} tokens in message.
+// Supports {{FirstName}} {{LastName}} {{FullName}} {{School}} {{Role}} tokens.
 async function _sendViaTwilio(together){
   const rawMsg = (document.getElementById('reachMessage')||{value:''}).value.trim();
   const sid    = _appSettings.twilioSid||'';
@@ -5327,6 +5330,7 @@ async function _sendViaTwilio(together){
         const fname = r.firstName||(r.name||'').split(' ')[0]||'';
         const body  = rawMsg
           .replace(/\{\{FirstName\}\}/gi, fname)
+          .replace(/\{\{LastName\}\}/gi,  r.lastName||'')
           .replace(/\{\{FullName\}\}/gi,  r.name||'')
           .replace(/\{\{School\}\}/gi,    r.school||'')
           .replace(/\{\{Role\}\}/gi,      r.role||'');
@@ -5363,6 +5367,7 @@ async function _sendMailMerge(together){
   const _tok = (str,r)=>{
     const fname = r.firstName || (r.name||'').split(' ')[0] || '';
     return str.replace(/\{\{FirstName\}\}/gi, fname)
+              .replace(/\{\{LastName\}\}/gi,  r.lastName||'')
               .replace(/\{\{FullName\}\}/gi,  r.name||'')
               .replace(/\{\{School\}\}/gi,    r.school||'')
               .replace(/\{\{Role\}\}/gi,      r.role||'');
@@ -5422,7 +5427,7 @@ function openReachCompose(mode) {
       ${isEmail ? `
       <div class="memo-field-group">
         <label class="memo-label">Subject</label>
-        <input id="reachSubject" class="memo-input" type="text" placeholder="Subject…">
+        <input id="reachSubject" class="memo-input" type="text" placeholder="Subject…" onfocus="_reachLastFocusedField=this.id">
       </div>
       <div class="memo-field-group">
         <label class="memo-label">CC</label>
@@ -5434,11 +5439,19 @@ function openReachCompose(mode) {
       </div>` : ''}
       <div class="memo-field-group">
         <label class="memo-label">Message</label>
-        <textarea id="reachMessage" class="memo-input" rows="8" placeholder="Write your message…" style="resize:vertical"></textarea>
+        <textarea id="reachMessage" class="memo-input" rows="8" placeholder="Write your message…" style="resize:vertical" onfocus="_reachLastFocusedField=this.id"></textarea>
       </div>
-      ${!isTogether ? `<div style="font-size:12px;color:var(--stone);background:var(--fog);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:10px;line-height:1.7">
-        <strong>Personalise your message${isEmail?' (and subject)':''}:</strong><br>
-        <code>{{FirstName}}</code> · <code>{{FullName}}</code> · <code>{{School}}</code> · <code>{{Role}}</code>
+      ${!isTogether ? `<div class="memo-field-group">
+        <label class="memo-label">Insert Field</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('Dear {{FirstName}} {{LastName}},')">👋 Greeting</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{FirstName}}')">First Name</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{LastName}}')">Last Name</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{FullName}}')">Full Name</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{School}}')">School</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Role}}')">Role</button>
+        </div>
+        <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor${isEmail?' (works in Subject or Message)':''} — each person gets their own version filled in automatically when sent.</div>
       </div>` : ''}
       <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -5468,6 +5481,21 @@ function openReachCompose(mode) {
 
 function closeReachCompose() {
   document.getElementById('memo-overlay').style.display = 'none';
+}
+
+// ── Template builder: insert a merge field at the cursor of whichever
+//    field (Subject or Message) was last focused ─────────────────────────────
+let _reachLastFocusedField = 'reachMessage';
+function _insertReachToken(token) {
+  const el = document.getElementById(_reachLastFocusedField || 'reachMessage')
+          || document.getElementById('reachMessage');
+  if (!el) return;
+  const start  = el.selectionStart != null ? el.selectionStart : el.value.length;
+  const end    = el.selectionEnd   != null ? el.selectionEnd   : el.value.length;
+  el.value = el.value.slice(0, start) + token + el.value.slice(end);
+  const pos = start + token.length;
+  el.focus();
+  if (el.setSelectionRange) el.setSelectionRange(pos, pos);
 }
 
 // Called on touchstart AND onclick of the Send <a>.
