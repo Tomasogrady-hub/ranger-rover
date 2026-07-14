@@ -679,7 +679,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </div>
       <div style="padding:28px 20px 12px;display:flex;flex-direction:column;gap:14px">
         <button class="reach-menu-btn" onclick="showReachPage('enrichla')">🌿 EnrichLA</button>
-        <button class="reach-menu-btn" onclick="showReachPage('peopleall')">🏫 Schools</button>
+        <button class="reach-menu-btn" onclick="showReachPage('peopleall','ranger')">🌱 Garden Ranger Schools</button>
+        <button class="reach-menu-btn" onclick="showReachPage('peopleall','keeper')">🌻 Garden Keeper Schools</button>
       </div>
     </div>
 
@@ -715,7 +716,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     <div id="reach-peopleall" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
         <button onclick="showReachPage('people')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
-        <span class="page-title">Schools</span>
+        <span class="page-title" id="reachAllTitle">Schools</span>
         <span class="page-count" id="reachAllCount"></span>
       </div>
       <div style="display:flex;gap:8px;padding:0 14px 10px">
@@ -904,10 +905,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.42';
+const APP_VERSION='v9.43';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 New-contact activity hotlink fix, split Garden Ranger/Keeper schools + chore sections, App/EnrichLA links, Select-All-required sends, School token fix, reuse-past-message picker';
+const BUILD_STAMP='2026-07-13 Fix template-picker z-index (was hidden behind compose sheet); Reach People split into Garden Ranger Schools / Garden Keeper Schools buttons';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -5209,12 +5210,13 @@ const MEMOS_ID = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
 // ── module state ──────────────────────────────────────────────────────────────
 let _reachCurrentPage = 'menu';
 let _reachFilter      = 'all';
+let _reachAllMode     = 'ranger'; // for reach-peopleall: 'ranger' | 'keeper'
 let _reachSelected    = new Set();   // emails of checked people
 let _reachTarget      = [];          // [{name,email,mobile}] built in doReach()
 let _reachMode        = '';          // current action mode
 
 // ── page routing ──────────────────────────────────────────────────────────────
-function showReachPage(page) {
+function showReachPage(page, mode) {
   _reachCurrentPage = page;
   ['menu','people','enrichla','peopleall','schools','organizations'].forEach(p => {
     const el = document.getElementById('reach-' + p);
@@ -5224,7 +5226,7 @@ function showReachPage(page) {
   if (target) target.style.display = 'block';
   if (page === 'people')    renderReachPeopleHub();
   if (page === 'enrichla')  { _reachSelected.clear(); renderReachRangers(); }
-  if (page === 'peopleall') { _reachSelected.clear(); renderReachAll(); }
+  if (page === 'peopleall') { _reachSelected.clear(); _reachAllMode = mode || _reachAllMode || 'ranger'; renderReachAll(); }
 }
 
 // ── People hub — total count of every row in the Humans sheet ──────────────────
@@ -5271,11 +5273,19 @@ function renderReachRangers() {
   list.innerHTML = people.map(_reachPersonCardHtml).join('');
 }
 
-// ── person list: Schools (everyone in the Humans sheet, including EnrichLA people) ──
+// ── person list: Garden Ranger Schools (Ranger 1/2) or Garden Keeper Schools ──
 function renderReachAll() {
   const list = document.getElementById('reachAllList');
   if (!list) return;
-  const people = DATA.humans || [];
+  const titleEl = document.getElementById('reachAllTitle');
+  if (titleEl) titleEl.textContent = _reachAllMode === 'keeper' ? 'Garden Keeper Schools' : 'Garden Ranger Schools';
+  const people = (DATA.humans || []).filter(h => {
+    const email = h.Email || h.email || '';
+    if (!email) return false;
+    return (DATA.sites || []).some(s => _reachAllMode === 'keeper'
+      ? sf(s,'Garden Keeper','GardenKeeper') === email
+      : (sf(s,'Ranger 1','Ranger1') === email || sf(s,'Ranger 2','Ranger2') === email));
+  });
   const countEl = document.getElementById('reachAllCount');
   if (countEl) countEl.textContent = people.length + ' people';
   if (!people.length) { list.innerHTML = empty('—','No results',''); return; }
@@ -5566,7 +5576,7 @@ async function openReachTemplatePicker() {
   if (!panel) {
     panel = document.createElement('div');
     panel.id = 'reachTemplatePanel';
-    panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;display:flex;align-items:flex-end';
+    panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:700;display:flex;align-items:flex-end';
     panel.innerHTML = `<div style="background:var(--paper);width:100%;max-height:72vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px 16px 24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <strong style="font-size:16px">Reuse a Past Message</strong>
