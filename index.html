@@ -905,10 +905,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.43';
+const APP_VERSION='v9.44';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 Fix template-picker z-index (was hidden behind compose sheet); Reach People split into Garden Ranger Schools / Garden Keeper Schools buttons';
+const BUILD_STAMP='2026-07-13 School names in mail-merge emails are now real clickable links (deep-link #school=KEY opens that school in the app); HTML email body';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1161,7 +1161,7 @@ async function handleForgotPassword(){
   try{const res=await gasPost({action:'forgotPassword',email});if(res.ok){ok.textContent='Done! Check your email — sign in and set a new password.';setTimeout(()=>goToStep('stepEmail'),3000);}else err.textContent=res.error||'Could not send reset email.';}
   catch(e){err.textContent='Connection error.';}
 }
-function startSession(email,name,accessLevel){SESSION={email,name,accessLevel:parseInt(accessLevel)||3};localStorage.setItem(CFG.SK,JSON.stringify(SESSION));showApp();}
+function startSession(email,name,accessLevel){SESSION={email,name,accessLevel:parseInt(accessLevel)||3};localStorage.setItem(CFG.SK,JSON.stringify(SESSION));showApp();_tryDeepLink(25);}
 function logout(){SESSION=null;localStorage.removeItem(CFG.SK);['header','searchbar','content','nav'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('authScreen').style.display='flex';goToStep('stepEmail');document.getElementById('authEmail').value='';document.getElementById('emailErr').textContent='';}
 function setGreeting(){
   const el=document.getElementById('notesGreeting');
@@ -5183,7 +5183,23 @@ function _fmtActivityTs(iso){
 /* ═══ BOOT ═══ */
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);
 const _saved=localStorage.getItem(CFG.SK);
-if(_saved){try{SESSION=JSON.parse(_saved);showApp();}catch(e){localStorage.removeItem(CFG.SK);}}
+if(_saved){try{SESSION=JSON.parse(_saved);showApp();_tryDeepLink(25);}catch(e){localStorage.removeItem(CFG.SK);}}
+
+// Deep link: a URL like .../ranger-rover/#school=ABC1234 (used in mail-merge
+// emails so a school name is a real clickable link) opens straight to that
+// school's detail once Sites data has loaded, instead of just the home tab.
+function _tryDeepLink(retries){
+  const m=/[#&]school=([^&]+)/.exec(location.hash);
+  if(!m)return;
+  const key=decodeURIComponent(m[1]);
+  if(DATA.sites&&DATA.sites.length){
+    switchTab('schools');
+    showSchoolDetailByKey(key);
+    try{history.replaceState(null,'',location.pathname);}catch(e){}
+  }else if(retries>0){
+    setTimeout(()=>_tryDeepLink(retries-1),400);
+  }
+}
 
 /* ═══ PWA SPLASH DISMISS ═══ */
 (function(){
@@ -5345,8 +5361,9 @@ function _buildTarget() {
     // Resolve real school NAME(s) from the Sites sheet relationship (Ranger 1/2,
     // Garden Keeper) rather than trusting the raw Humans.School free-text column,
     // which can sometimes hold a site Key instead of a Name.
-    school:    schoolNamesForEmail(h.Email || h.email || '') || h.School || h.school || '',
-    role:      h.Role   || h.role   || ''
+    school:      schoolNamesForEmail(h.Email || h.email || '') || h.School || h.school || '',
+    schoolLinks: schoolLinksForEmail(h.Email || h.email || ''),
+    role:        h.Role   || h.role   || ''
   }));
 }
 
@@ -5359,6 +5376,16 @@ function schoolNamesForEmail(email) {
     .map(s => sf(s,'Name','name'))
     .filter(Boolean)
     .join(', ');
+}
+
+// [{name, key}] for the same set of schools — used to build real clickable
+// links (deep-linking back into the app) inside emails.
+function schoolLinksForEmail(email) {
+  if (!email) return [];
+  return (DATA.sites || [])
+    .filter(s => sf(s,'Ranger 1','Ranger1')===email || sf(s,'Ranger 2','Ranger2')===email || sf(s,'Garden Keeper','GardenKeeper')===email)
+    .map(s => ({ name: sf(s,'Name','name'), key: sf(s,'Key','key') }))
+    .filter(sl => sl.name);
 }
 
 // ── Twilio credentials helpers ────────────────────────────────────────────────
@@ -5444,7 +5471,9 @@ async function _sendMailMerge(together){
   const btn = document.getElementById('reachSendBtn');
   if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
   if(st)st.textContent='';
-  const _tok = (str,r)=>{
+  const _escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Plain-text substitution — used for the Subject line (subjects can't render links).
+  const _tokPlain = (str,r)=>{
     const fname = r.firstName || (r.name||'').split(' ')[0] || '';
     return str.replace(/\{\{FirstName\}\}/gi, fname)
               .replace(/\{\{LastName\}\}/gi,  r.lastName||'')
@@ -5452,9 +5481,24 @@ async function _sendMailMerge(together){
               .replace(/\{\{School\}\}/gi,    r.school||'')
               .replace(/\{\{Role\}\}/gi,      r.role||'');
   };
+  // HTML substitution — used for the email body. {{School}} becomes real
+  // clickable link(s) back into the app (deep-links to that school's page).
+  const _tokHtml = (str,r)=>{
+    const fname = r.firstName || (r.name||'').split(' ')[0] || '';
+    const schoolHtml = (r.schoolLinks && r.schoolLinks.length)
+      ? r.schoolLinks.map(sl => `<a href="https://tomasogrady-hub.github.io/ranger-rover/#school=${encodeURIComponent(sl.key||'')}">${_escHtml(sl.name)}</a>`).join(', ')
+      : _escHtml(r.school||'');
+    return _escHtml(str)
+      .replace(/\{\{FirstName\}\}/gi, _escHtml(fname))
+      .replace(/\{\{LastName\}\}/gi,  _escHtml(r.lastName||''))
+      .replace(/\{\{FullName\}\}/gi,  _escHtml(r.name||''))
+      .replace(/\{\{School\}\}/gi,    schoolHtml)
+      .replace(/\{\{Role\}\}/gi,      _escHtml(r.role||''))
+      .replace(/\n/g, '<br>');
+  };
   const messages = together
     ? [{ to: recipients.map(r=>r.email).join(','), subject: subj, body: rawMsg }]
-    : recipients.map(r=>({ to: r.email, subject: _tok(subj,r), body: _tok(rawMsg,r) }));
+    : recipients.map(r=>({ to: r.email, subject: _tokPlain(subj,r), body: _tokPlain(rawMsg,r), html: _tokHtml(rawMsg,r) }));
   try{
     const res = await gasPost({action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:''});
     closeReachCompose();
