@@ -1228,14 +1228,21 @@ function handleSendMailMerge(p) {
       if (!to) return;
       var subject = String((m && m.subject) || '(no subject)');
       var body    = String((m && m.body)    || '');
+      var html    = (m && m.html) ? String(m.html) : null;
       var id      = Utilities.getUuid();
       try {
-        GmailApp.sendEmail(to, subject, body, {
+        var opts = {
           cc:      cc  || undefined,
           bcc:     bcc || undefined,
           name:    fromEmail,
           replyTo: replyTo
-        });
+        };
+        // When the client sent a personalised HTML version (school names as
+        // real clickable links back into the app), send that as the rendered
+        // body; the plain-text "body" still goes to Gmail as the fallback for
+        // text-only clients.
+        if (html) opts.htmlBody = html;
+        GmailApp.sendEmail(to, subject, body, opts);
         sentCount++;
       } catch (mailErr) {
         errors.push(to + ': ' + mailErr.message);
