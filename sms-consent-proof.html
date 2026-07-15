@@ -45,6 +45,7 @@
     <li>A Garden Ranger is added to the system by an Enrich LA administrator as part of normal staff onboarding (name, email, mobile number).</li>
     <li>The ranger logs into Ranger Rover with their staff email and opens <strong>My Profile</strong> from the app header.</li>
     <li>On the My Profile screen, the ranger sees an SMS consent checkbox that is <strong>unchecked by default</strong>. Consent is entirely optional and is never required to use the app or receive other program services.</li>
+    <li>Directly beneath the consent checkbox, the app shows tappable links to the <strong>Privacy Policy</strong> and <strong>SMS Terms &amp; Conditions</strong>, so the ranger can read the full policies before deciding whether to opt in — see the screenshot below.</li>
     <li>The exact consent language presented is shown below.</li>
     <li>When the ranger checks or unchecks the box and taps Save, the change is written to the organization's records together with a timestamp, so there is always a record of when consent status last changed.</li>
   </ol>
@@ -55,15 +56,25 @@
       ☐ I consent to receive SMS text messages from Enrich LA about site updates, chores, and
       program communications. Message frequency varies. Msg &amp; data rates may apply.
       Reply STOP to opt out, HELP for help.
+      <br><br>
+      <a href="https://www.enrichla.org/enrichla-privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>
+      &nbsp;·&nbsp;
+      <a href="https://www.enrichla.org/enrich-la-sms-terms-and-conditions" target="_blank" rel="noopener">SMS Terms &amp; Conditions</a>
+    </div>
+    <div style="font-size:13px;color:#777;margin-top:8px">
+      These two links appear directly under the consent text in the live app, immediately
+      accessible to the user before they opt in.
     </div>
   </div>
 
   <div class="card">
-    <div class="label">Screenshot — My Profile screen, SMS consent checkbox</div>
-    <img class="screenshot" src="./sms-consent-screenshot.jpg" alt="Ranger Rover My Profile screen showing the unchecked SMS consent checkbox with the opt-in language above.">
+    <div class="label">Screenshot — My Profile screen, SMS consent checkbox with policy links</div>
+    <img class="screenshot" src="./sms-consent-screenshot.jpg" alt="Ranger Rover My Profile screen showing the SMS consent checkbox, the opt-in language, and tappable Privacy Policy / SMS Terms and Conditions links directly beneath it.">
     <div style="font-size:13px;color:#777">
-      Screenshot taken from the production Ranger Rover app (My Profile screen), showing the
-      opt-in checkbox in its default, unchecked state.
+      Screenshot taken from the production Ranger Rover app (My Profile screen, v9.48). The
+      checkbox defaults to unchecked and is shown here after a user opted in; the Privacy Policy
+      and SMS Terms &amp; Conditions links are visible directly beneath the consent text, always
+      available before the user decides whether to consent.
     </div>
   </div>
 
@@ -80,7 +91,11 @@
     Enrich LA's internal staff records and are available to Enrich LA administrators on request.
   </p>
 
-  <h2>Related policies</h2>
+  <h2>Policy links, in context</h2>
+  <p>
+    The same Privacy Policy and SMS Terms &amp; Conditions linked in the app (shown in the
+    screenshot above) are also available here directly:
+  </p>
   <p>
     <a href="https://www.enrichla.org/enrichla-privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>
     &nbsp;·&nbsp;
