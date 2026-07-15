@@ -1207,10 +1207,16 @@ function handleSendMailMerge(p) {
     var cc        = String(p.cc        || '');
     var bcc       = String(p.bcc       || '');
     var category  = String(p.category  || '');
+    var mode      = String(p.mode      || 'email_individual');
     var now       = new Date();
     // Reply-To lets the recipient hit "reply" and land in the actual app
     // user's inbox, even though the email is sent from the shared account.
     var replyTo   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail) ? fromEmail : undefined;
+    // The un-merged template (still has {{FirstName}} etc.) — this is what
+    // gets logged to Memos so it can be reused later, NOT any one recipient's
+    // personalised copy (which has their actual name/school filled in).
+    var templateSubject = String(p.templateSubject || (messages[0] && messages[0].subject) || '');
+    var templateMessage = String(p.templateMessage || (messages[0] && messages[0].body)    || '');
 
     var ss    = SpreadsheetApp.openById(MEMOS_ID);
     var sheet = ss.getSheetByName('Memos');
@@ -1222,6 +1228,7 @@ function handleSendMailMerge(p) {
 
     var sentCount = 0;
     var errors    = [];
+    var sentTo    = [];
 
     messages.forEach(function(m) {
       var to = String((m && m.to) || '').trim();
@@ -1229,7 +1236,6 @@ function handleSendMailMerge(p) {
       var subject = String((m && m.subject) || '(no subject)');
       var body    = String((m && m.body)    || '');
       var html    = (m && m.html) ? String(m.html) : null;
-      var id      = Utilities.getUuid();
       try {
         var opts = {
           cc:      cc  || undefined,
@@ -1244,11 +1250,22 @@ function handleSendMailMerge(p) {
         if (html) opts.htmlBody = html;
         GmailApp.sendEmail(to, subject, body, opts);
         sentCount++;
+        sentTo.push(to);
       } catch (mailErr) {
         errors.push(to + ': ' + mailErr.message);
       }
-      sheet.appendRow([id, subject, now, to, fromEmail, cc, bcc, body, category, 'Mail Merge']);
     });
+
+    // ONE row per send action — every actual recipient address, comma-separated,
+    // in the "To" column; Subject/Message hold the original template so it's
+    // reusable on a fresh set of people later (see handleListMemos).
+    if (sentTo.length) {
+      var id = Utilities.getUuid();
+      sheet.appendRow([
+        id, templateSubject, now, sentTo.join(', '), fromEmail, cc, bcc,
+        templateMessage, category, mode === 'email_individual' ? 'Email Individual' : 'Email Together'
+      ]);
+    }
 
     logActivity(fromEmail, 'Sent Mail Merge', messages.length + ' emails', 'Mail Merge',
       'To count: ' + messages.length + (errors.length ? ' · Failed: ' + errors.length : ''));
