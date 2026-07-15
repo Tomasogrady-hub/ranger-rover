@@ -905,10 +905,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.46';
+const APP_VERSION='v9.47';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 Mail merge: one Memos row per batch (all recipients comma-separated in To), stores reusable template with tokens intact instead of each recipients merged text';
+const BUILD_STAMP='2026-07-15 Added SMS consent opt-in toggle to My Profile (unchecked by default, timestamped on change, logged to Humans sheet) for Twilio A2P proof';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -3834,6 +3834,8 @@ async function showSelfEdit(){
     const existingH=DATA.humans.find(h=>(h.Email||'').toLowerCase()===SESSION.email.toLowerCase());
     const resolvedImg=existingH?getImgSrc(existingH['Main Image']||''):'';
     const initials=inits(((p['First Name']||'')+' '+(p['Last Name']||'')).trim()||SESSION.name||'?');
+    const smsConsent=String(p['SMS Consent']||'').trim().toUpperCase()==='TRUE';
+    const smsConsentDate=p['SMS Consent Date']?new Date(p['SMS Consent Date']).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
@@ -3857,6 +3859,13 @@ async function showSelfEdit(){
         <input class="edit-input" id="self-LastName" value="${ea(p['Last Name']||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Mobile</div>
         <input class="edit-input" id="self-Mobile" type="tel" value="${ea(p['Mobile']||'')}"></div>
+      <div class="edit-wrap" style="display:flex;align-items:flex-start;gap:10px;background:var(--fog);border-radius:var(--r-sm);padding:14px 16px">
+        <input type="checkbox" id="self-SmsConsent" data-prev="${smsConsent?'1':'0'}" ${smsConsent?'checked':''} style="margin-top:3px;width:18px;height:18px;flex-shrink:0">
+        <label for="self-SmsConsent" style="font-size:14px;line-height:1.5;color:var(--stone);cursor:pointer">
+          I consent to receive SMS text messages from Enrich LA about site updates, chores, and program communications. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help.
+        </label>
+      </div>
+      ${smsConsentDate?`<div style="font-size:12px;color:var(--silver);margin:-6px 0 4px 2px">Consent status last updated: ${escHtml(smsConsentDate)}</div>`:''}
       ${lvl<=2?`<div class="edit-wrap"><div class="edit-label">Comments</div>
         <textarea class="edit-textarea" id="self-Comments">${ea(p['Comments']||'')}</textarea></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Profile Image URL</div>
@@ -3882,6 +3891,15 @@ async function saveSelfEdit(email){
     'Mobile':(document.getElementById('self-Mobile')||{value:''}).value.trim(),
     'Main Image':(document.getElementById('self-MainImage')||{value:''}).value.trim(),
   };
+  const smsConsentEl=document.getElementById('self-SmsConsent');
+  if(smsConsentEl){
+    const wasConsented=smsConsentEl.dataset.prev==='1';
+    const nowConsented=smsConsentEl.checked;
+    updates['SMS Consent']=nowConsented?'TRUE':'FALSE';
+    if(nowConsented!==wasConsented){
+      updates['SMS Consent Date']=new Date().toISOString();
+    }
+  }
   if(lvl<=2){const cel=document.getElementById('self-Comments');if(cel)updates['Comments']=cel.value.trim();}
   const pendingPhoto=window._pendingSelfPhoto;
   window._pendingSelfPhoto=null;
