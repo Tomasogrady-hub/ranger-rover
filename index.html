@@ -905,10 +905,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.44';
+const APP_VERSION='v9.45';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 School names in mail-merge emails are now real clickable links (deep-link #school=KEY opens that school in the app); HTML email body';
+const BUILD_STAMP='2026-07-13 Removed Open App/EnrichLA buttons from person card; added Garden Ranger Schools/Garden Keeper Schools/App Link/Website Link as Insert Field tokens in compose';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -3019,10 +3019,6 @@ function renderPD(h,edit){
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
         ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
-      </div>
-      <div class="detail-ctas">
-        <a class="dcta" href="https://tomasogrady-hub.github.io/ranger-rover/" target="_blank" rel="noopener">📱 Open App</a>
-        <a class="dcta" href="https://www.enrichla.org/" target="_blank" rel="noopener">🌐 EnrichLA Site</a>
       </div>
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
@@ -5222,6 +5218,21 @@ function _tryDeepLink(retries){
      so every tap is a direct user gesture Android cannot block
    ══════════════════════════════════════════════════════════════════*/
 const MEMOS_ID = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
+const REACH_APP_URL     = 'https://tomasogrady-hub.github.io/ranger-rover/';
+const REACH_WEBSITE_URL = 'https://www.enrichla.org/';
+
+// {{AppLink}} / {{WebsiteLink}} are static (same for every recipient), so they
+// work in both "Individually" and "Together" modes, email or text.
+function _reachStaticPlain(str) {
+  return String(str)
+    .replace(/\{\{AppLink\}\}/gi,     REACH_APP_URL)
+    .replace(/\{\{WebsiteLink\}\}/gi, REACH_WEBSITE_URL);
+}
+function _reachStaticHtml(str) {
+  return String(str)
+    .replace(/\{\{AppLink\}\}/gi,     `<a href="${REACH_APP_URL}">Ranger Rover App</a>`)
+    .replace(/\{\{WebsiteLink\}\}/gi, `<a href="${REACH_WEBSITE_URL}">EnrichLA.org</a>`);
+}
 
 // ── module state ──────────────────────────────────────────────────────────────
 let _reachCurrentPage = 'menu';
@@ -5352,19 +5363,28 @@ function clearReachSelection() {
 // current filter" when nothing is checked (see doReach()).
 function _buildTarget() {
   const selected = DATA.humans.filter(h => _reachSelected.has(h.Email||h.email||''));
-  return selected.map(h => ({
-    name:      fullName(h) || h.Email || h.email || '?',
-    firstName: h['First Name'] || h.firstName || (fullName(h)||'').split(' ')[0] || '',
-    lastName:  h['Last Name']  || h.lastName  || (fullName(h)||'').split(' ').slice(1).join(' ') || '',
-    email:     h.Email  || h.email  || '',
-    mobile:    String(h.Mobile || h.mobile || '').replace(/\D/g,''),
-    // Resolve real school NAME(s) from the Sites sheet relationship (Ranger 1/2,
-    // Garden Keeper) rather than trusting the raw Humans.School free-text column,
-    // which can sometimes hold a site Key instead of a Name.
-    school:      schoolNamesForEmail(h.Email || h.email || '') || h.School || h.school || '',
-    schoolLinks: schoolLinksForEmail(h.Email || h.email || ''),
-    role:        h.Role   || h.role   || ''
-  }));
+  return selected.map(h => {
+    const email = h.Email || h.email || '';
+    const rangerLinks = rangerSchoolLinksForEmail(email);
+    const gkLinks      = gkSchoolLinksForEmail(email);
+    return {
+      name:      fullName(h) || email || '?',
+      firstName: h['First Name'] || h.firstName || (fullName(h)||'').split(' ')[0] || '',
+      lastName:  h['Last Name']  || h.lastName  || (fullName(h)||'').split(' ').slice(1).join(' ') || '',
+      email:     email,
+      mobile:    String(h.Mobile || h.mobile || '').replace(/\D/g,''),
+      // Resolve real school NAME(s) from the Sites sheet relationship (Ranger 1/2,
+      // Garden Keeper) rather than trusting the raw Humans.School free-text column,
+      // which can sometimes hold a site Key instead of a Name.
+      school:            schoolNamesForEmail(email) || h.School || h.school || '',
+      schoolLinks:       schoolLinksForEmail(email),
+      rangerSchoolLinks: rangerLinks,
+      gkSchoolLinks:     gkLinks,
+      rangerSchools:     rangerLinks.map(s=>s.name).join(', '),
+      gkSchools:         gkLinks.map(s=>s.name).join(', '),
+      role:              h.Role || h.role || ''
+    };
+  });
 }
 
 // Comma-joined list of school NAMES this person is linked to as Ranger 1, Ranger 2,
@@ -5384,6 +5404,24 @@ function schoolLinksForEmail(email) {
   if (!email) return [];
   return (DATA.sites || [])
     .filter(s => sf(s,'Ranger 1','Ranger1')===email || sf(s,'Ranger 2','Ranger2')===email || sf(s,'Garden Keeper','GardenKeeper')===email)
+    .map(s => ({ name: sf(s,'Name','name'), key: sf(s,'Key','key') }))
+    .filter(sl => sl.name);
+}
+
+// Garden Ranger schools only (Ranger 1 or Ranger 2) — for the {{RangerSchools}} token.
+function rangerSchoolLinksForEmail(email) {
+  if (!email) return [];
+  return (DATA.sites || [])
+    .filter(s => sf(s,'Ranger 1','Ranger1')===email || sf(s,'Ranger 2','Ranger2')===email)
+    .map(s => ({ name: sf(s,'Name','name'), key: sf(s,'Key','key') }))
+    .filter(sl => sl.name);
+}
+
+// Garden Keeper schools only — for the {{GardenKeeperSchools}} token.
+function gkSchoolLinksForEmail(email) {
+  if (!email) return [];
+  return (DATA.sites || [])
+    .filter(s => sf(s,'Garden Keeper','GardenKeeper')===email)
     .map(s => ({ name: sf(s,'Name','name'), key: sf(s,'Key','key') }))
     .filter(sl => sl.name);
 }
@@ -5432,15 +5470,17 @@ async function _sendViaTwilio(together){
   if(st)st.textContent='';
   // Build per-recipient messages (personalised), or shared body
   const messages = together
-    ? recipients.map(r=>({to:r.mobile, body:rawMsg}))
+    ? recipients.map(r=>({to:r.mobile, body:_reachStaticPlain(rawMsg)}))
     : recipients.map(r=>{
         const fname = r.firstName||(r.name||'').split(' ')[0]||'';
-        const body  = rawMsg
+        const body  = _reachStaticPlain(rawMsg)
           .replace(/\{\{FirstName\}\}/gi, fname)
           .replace(/\{\{LastName\}\}/gi,  r.lastName||'')
           .replace(/\{\{FullName\}\}/gi,  r.name||'')
           .replace(/\{\{School\}\}/gi,    r.school||'')
-          .replace(/\{\{Role\}\}/gi,      r.role||'');
+          .replace(/\{\{Role\}\}/gi,      r.role||'')
+          .replace(/\{\{RangerSchools\}\}/gi,       r.rangerSchools||'')
+          .replace(/\{\{GardenKeeperSchools\}\}/gi, r.gkSchools||'');
         return {to:r.mobile, body};
       });
   try{
@@ -5475,29 +5515,36 @@ async function _sendMailMerge(together){
   // Plain-text substitution — used for the Subject line (subjects can't render links).
   const _tokPlain = (str,r)=>{
     const fname = r.firstName || (r.name||'').split(' ')[0] || '';
-    return str.replace(/\{\{FirstName\}\}/gi, fname)
+    return _reachStaticPlain(str)
+              .replace(/\{\{FirstName\}\}/gi, fname)
               .replace(/\{\{LastName\}\}/gi,  r.lastName||'')
               .replace(/\{\{FullName\}\}/gi,  r.name||'')
               .replace(/\{\{School\}\}/gi,    r.school||'')
-              .replace(/\{\{Role\}\}/gi,      r.role||'');
+              .replace(/\{\{Role\}\}/gi,      r.role||'')
+              .replace(/\{\{RangerSchools\}\}/gi,       r.rangerSchools||'')
+              .replace(/\{\{GardenKeeperSchools\}\}/gi, r.gkSchools||'');
   };
-  // HTML substitution — used for the email body. {{School}} becomes real
-  // clickable link(s) back into the app (deep-links to that school's page).
+  // HTML substitution — used for the email body. {{School}}, {{RangerSchools}},
+  // {{GardenKeeperSchools}} become real clickable link(s) back into the app
+  // (deep-links to that school's page); {{AppLink}}/{{WebsiteLink}} are static links.
   const _tokHtml = (str,r)=>{
     const fname = r.firstName || (r.name||'').split(' ')[0] || '';
-    const schoolHtml = (r.schoolLinks && r.schoolLinks.length)
-      ? r.schoolLinks.map(sl => `<a href="https://tomasogrady-hub.github.io/ranger-rover/#school=${encodeURIComponent(sl.key||'')}">${_escHtml(sl.name)}</a>`).join(', ')
-      : _escHtml(r.school||'');
-    return _escHtml(str)
+    const _linksHtml = links => links.map(sl => `<a href="${REACH_APP_URL}#school=${encodeURIComponent(sl.key||'')}">${_escHtml(sl.name)}</a>`).join(', ');
+    const schoolHtml = (r.schoolLinks && r.schoolLinks.length) ? _linksHtml(r.schoolLinks) : _escHtml(r.school||'');
+    const rangerHtml = (r.rangerSchoolLinks && r.rangerSchoolLinks.length) ? _linksHtml(r.rangerSchoolLinks) : _escHtml(r.rangerSchools||'');
+    const gkHtml     = (r.gkSchoolLinks && r.gkSchoolLinks.length) ? _linksHtml(r.gkSchoolLinks) : _escHtml(r.gkSchools||'');
+    return _reachStaticHtml(_escHtml(str))
       .replace(/\{\{FirstName\}\}/gi, _escHtml(fname))
       .replace(/\{\{LastName\}\}/gi,  _escHtml(r.lastName||''))
       .replace(/\{\{FullName\}\}/gi,  _escHtml(r.name||''))
       .replace(/\{\{School\}\}/gi,    schoolHtml)
       .replace(/\{\{Role\}\}/gi,      _escHtml(r.role||''))
+      .replace(/\{\{RangerSchools\}\}/gi,       rangerHtml)
+      .replace(/\{\{GardenKeeperSchools\}\}/gi, gkHtml)
       .replace(/\n/g, '<br>');
   };
   const messages = together
-    ? [{ to: recipients.map(r=>r.email).join(','), subject: subj, body: rawMsg }]
+    ? [{ to: recipients.map(r=>r.email).join(','), subject: _reachStaticPlain(subj), body: _reachStaticPlain(rawMsg), html: _reachStaticHtml(_escHtml(rawMsg)).replace(/\n/g,'<br>') }]
     : recipients.map(r=>({ to: r.email, subject: _tokPlain(subj,r), body: _tokPlain(rawMsg,r), html: _tokHtml(rawMsg,r) }));
   try{
     const res = await gasPost({action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:''});
@@ -5570,18 +5617,23 @@ function openReachCompose(mode) {
         <label class="memo-label">Message</label>
         <textarea id="reachMessage" class="memo-input" rows="8" placeholder="Write your message…" style="resize:vertical" onfocus="_reachLastFocusedField=this.id"></textarea>
       </div>
-      ${!isTogether ? `<div class="memo-field-group">
+      <div class="memo-field-group">
         <label class="memo-label">Insert Field</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          ${!isTogether ? `
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('Dear {{FirstName}} {{LastName}},')">👋 Greeting</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{FirstName}}')">First Name</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{LastName}}')">Last Name</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{FullName}}')">Full Name</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{School}}')">School</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Role}}')">Role</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{RangerSchools}}')">Garden Ranger Schools</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeperSchools}}')">Garden Keeper Schools</button>` : ''}
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
         </div>
-        <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor${isEmail?' (works in Subject or Message)':''} — each person gets their own version filled in automatically when sent.</div>
-      </div>` : ''}
+        <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor${isEmail?' (works in Subject or Message)':''}${!isTogether?' — each person gets their own version filled in automatically when sent':''}.</div>
+      </div>
       <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="closeReachCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink);flex:1;min-width:70px">Cancel</button>
