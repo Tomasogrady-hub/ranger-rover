@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ranger Rover — SMS Consent (Opt-In) Proof | Enrich LA</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:720px;margin:0 auto;padding:32px 20px 80px;color:#2b2b2b;line-height:1.6;background:#fff}
+  h1{font-size:24px;margin-bottom:4px}
+  h2{font-size:18px;margin-top:36px;border-bottom:1px solid #e2e2e2;padding-bottom:8px}
+  .sub{color:#666;font-size:14px;margin-bottom:24px}
+  .card{border:1px solid #dcdcdc;border-radius:10px;padding:18px 20px;margin:16px 0;background:#fafafa}
+  .label{font-weight:600;font-size:13px;color:#555;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}
+  .screenshot{border:1px solid #ccc;border-radius:8px;max-width:100%;display:block;margin:14px 0;background:#f0f0f0}
+  .consent-text{background:#fff;border:1px solid #cfd8cf;border-left:4px solid #3a5a3a;border-radius:6px;padding:14px 16px;font-size:15px}
+  code{background:#eee;padding:2px 6px;border-radius:4px;font-size:13px}
+  a{color:#2f5d2f}
+  footer{margin-top:48px;font-size:12px;color:#888;border-top:1px solid #e2e2e2;padding-top:16px}
+  ol li{margin-bottom:8px}
+</style>
+</head>
+<body>
+
+  <h1>Ranger Rover — SMS Consent (Opt-In) Proof</h1>
+  <div class="sub">Enrich LA · Garden Rangers program · Internal staff application</div>
+
+  <p>
+    Ranger Rover is an internal, login-required field tool used exclusively by Enrich LA staff
+    ("Garden Rangers") to manage school garden sites, tasks, and program communications.
+    Because the application requires authenticated staff login, the live opt-in screen is not
+    directly reachable by outside reviewers. This page documents the exact opt-in mechanism,
+    the consent language shown to users, and how consent is recorded, for A2P 10DLC campaign
+    verification purposes.
+  </p>
+
+  <h2>Who sends / receives messages</h2>
+  <p>
+    Enrich LA sends operational SMS messages to its own field staff (Garden Rangers) —
+    for example, site visit reminders, chore assignments, and program updates. This is
+    staff-to-staff operational messaging, not consumer marketing.
+  </p>
+
+  <h2>How a user opts in</h2>
+  <ol>
+    <li>A Garden Ranger is added to the system by an Enrich LA administrator as part of normal staff onboarding (name, email, mobile number).</li>
+    <li>The ranger logs into Ranger Rover with their staff email and opens <strong>My Profile</strong> from the app header.</li>
+    <li>On the My Profile screen, the ranger sees an SMS consent checkbox that is <strong>unchecked by default</strong>. Consent is entirely optional and is never required to use the app or receive other program services.</li>
+    <li>The exact consent language presented is shown below.</li>
+    <li>When the ranger checks or unchecks the box and taps Save, the change is written to the organization's records together with a timestamp, so there is always a record of when consent status last changed.</li>
+  </ol>
+
+  <div class="card">
+    <div class="label">Exact opt-in language shown in-app</div>
+    <div class="consent-text">
+      ☐ I consent to receive SMS text messages from Enrich LA about site updates, chores, and
+      program communications. Message frequency varies. Msg &amp; data rates may apply.
+      Reply STOP to opt out, HELP for help.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">Screenshot — My Profile screen, SMS consent checkbox</div>
+    <img class="screenshot" src="./sms-consent-screenshot.jpg" alt="Ranger Rover My Profile screen showing the unchecked SMS consent checkbox with the opt-in language above.">
+    <div style="font-size:13px;color:#777">
+      Screenshot taken from the production Ranger Rover app (My Profile screen), showing the
+      opt-in checkbox in its default, unchecked state.
+    </div>
+  </div>
+
+  <h2>Opt-out and help</h2>
+  <p>
+    Recipients can reply <code>STOP</code> at any time to a Ranger Rover text message to opt out
+    immediately, or <code>HELP</code> for assistance. Opting out does not affect the recipient's
+    employment, access to the Ranger Rover app, or any other Enrich LA service.
+  </p>
+
+  <h2>Consent record-keeping</h2>
+  <p>
+    Each ranger's consent status and the timestamp of the most recent change are stored in
+    Enrich LA's internal staff records and are available to Enrich LA administrators on request.
+  </p>
+
+  <h2>Related policies</h2>
+  <p>
+    <a href="https://www.enrichla.org/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>
+    &nbsp;·&nbsp;
+    <a href="https://www.enrichla.org/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a>
+  </p>
+
+  <footer>
+    Enrich LA — Garden Rangers Program · Ranger Rover internal staff application ·
+    This page exists solely to document the SMS opt-in flow for carrier/A2P 10DLC campaign review.
+  </footer>
+
+</body>
+</html>
