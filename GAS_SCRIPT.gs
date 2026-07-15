@@ -436,8 +436,20 @@ function getHumansSheet() {
   return SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
 }
 
+function ensureHumansConsentCols(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var toAdd = [];
+  if (headers.indexOf('SMS Consent') === -1) toAdd.push('SMS Consent');
+  if (headers.indexOf('SMS Consent Date') === -1) toAdd.push('SMS Consent Date');
+  if (toAdd.length) {
+    sheet.getRange(1, lastCol + 1, 1, toAdd.length).setValues([toAdd]);
+  }
+}
+
 function humansData() {
   var sheet = getHumansSheet();
+  ensureHumansConsentCols(sheet);
   var data  = sheet.getDataRange().getValues();
   return { sheet: sheet, data: data, h: data[0] };
 }
@@ -857,6 +869,7 @@ function handleSaveEdit(p) {
   var tab    = p.sheet === 'Humans' ? 'Humans'  : 'Sites';
 
   var sheet   = SpreadsheetApp.openById(id).getSheetByName(tab);
+  if (p.sheet === 'Humans') ensureHumansConsentCols(sheet);
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
   // p.key = 7-char Key (col A) for Sites, Email for Humans
