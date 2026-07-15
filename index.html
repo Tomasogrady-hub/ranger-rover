@@ -905,10 +905,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.45';
+const APP_VERSION='v9.46';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-13 Removed Open App/EnrichLA buttons from person card; added Garden Ranger Schools/Garden Keeper Schools/App Link/Website Link as Insert Field tokens in compose';
+const BUILD_STAMP='2026-07-13 Mail merge: one Memos row per batch (all recipients comma-separated in To), stores reusable template with tokens intact instead of each recipients merged text';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -5547,7 +5547,11 @@ async function _sendMailMerge(together){
     ? [{ to: recipients.map(r=>r.email).join(','), subject: _reachStaticPlain(subj), body: _reachStaticPlain(rawMsg), html: _reachStaticHtml(_escHtml(rawMsg)).replace(/\n/g,'<br>') }]
     : recipients.map(r=>({ to: r.email, subject: _tokPlain(subj,r), body: _tokPlain(rawMsg,r), html: _tokHtml(rawMsg,r) }));
   try{
-    const res = await gasPost({action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:''});
+    const res = await gasPost({
+      action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:'',
+      mode: together ? 'email_together' : 'email_individual',
+      templateSubject: subj, templateMessage: rawMsg
+    });
     closeReachCompose();
     const sent=res.sent||0, failed=res.failed||0;
     showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
