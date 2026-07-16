@@ -703,6 +703,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <button class="reach-token-chip" onclick="selectAllReach('reachRangerList')">☑ Select All Shown</button>
         <button class="reach-token-chip" onclick="clearReachSelection()">Clear Selection</button>
       </div>
+      <div style="padding:0 14px 10px">
+        <input type="search" class="edit-input" placeholder="🔍 Search by name…" oninput="filterReachSearch('reachRangerList', this.value)">
+      </div>
       <div class="card-list" id="reachRangerList"></div>
       <div id="reachActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
         <button class="reach-action-btn" onclick="doReach('email_individual')">&#9993; Email Individually</button>
@@ -722,6 +725,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <div style="display:flex;gap:8px;padding:0 14px 10px">
         <button class="reach-token-chip" onclick="selectAllReach('reachAllList')">☑ Select All Shown</button>
         <button class="reach-token-chip" onclick="clearReachSelection()">Clear Selection</button>
+      </div>
+      <div style="padding:0 14px 10px">
+        <input type="search" class="edit-input" placeholder="🔍 Search by name…" oninput="filterReachSearch('reachAllList', this.value)">
       </div>
       <div class="card-list" id="reachAllList"></div>
       <div id="reachAllActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
@@ -905,10 +911,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.48';
+const APP_VERSION='v9.49';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-15 Added Privacy Policy + SMS Terms links directly under the SMS consent checkbox on My Profile';
+const BUILD_STAMP='2026-07-15 Reach: school lists as heading+count+newline, search box for recipients, Greeting From You token; new-contact activity shows role+site; editable site Address';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2631,6 +2637,9 @@ function renderSchoolDetail(site,editMode){
           <option value="Possible Ranger Program"${type==='Possible Ranger Program'?' selected':''}>🟡 Possible Ranger Program</option>
         </select>
       </div>
+      <div class="edit-wrap"><div class="edit-label">Address</div>
+        <input class="edit-input" id="ef-FullAddress" value="${ea(addr)}" placeholder="Street, City, State, Zip">
+      </div>
       <hr class="section-divider">
       ${canAssign?`
       <div class="edit-wrap" style="position:relative;z-index:95"><div class="edit-label">Ranger 1</div>${bdd('r1',rangers,r1e,'Ranger')}</div>
@@ -2766,6 +2775,7 @@ async function saveSiteEdit(siteKey){
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
   const updates={};
   const tv=gv('ef-Type');if(tv!==null)updates['Type']=tv;
+  const addrv=gv('ef-FullAddress');if(addrv!==null)updates['Full Address']=addrv;
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
   const sch=gv('ef-Schedule');if(sch!==null)updates['Schedule']=sch;
   // Only include image fields if they have a real value (prevents blank from
@@ -5161,10 +5171,20 @@ function activityRowHtml(item){
   } else if(_isSiteType){
     // Clean line: actor + action + site — no column lists, ever. Site itself is the subject.
   } else if(item.subjectType==='person' && item.action==='added person'){
-    // detail is "email — role"; only the role is worth showing here (email is
-    // already the hotlink target, not display text).
-    const _role=(item.detail||'').split(' — ')[1]||'';
+    // detail is "email — role — site"; show the role, and a hotlinked "at [Site]".
+    const _dParts=(item.detail||'').split(' — ').map(s=>s.trim()).filter(Boolean);
+    const _role=_dParts[1]||'';
+    const _siteRef=_dParts[2]||'';
     if(_role)line1.push(`<span style="color:var(--silver);font-size:14px"> — ${_role}</span>`);
+    if(_siteRef){
+      const _s=(DATA.sites||[]).find(s=>(s.Key||s.key||'').trim()===_siteRef)
+             ||(DATA.sites||[]).find(s=>(s.Name||s.name||'').trim().toLowerCase()===_siteRef.toLowerCase());
+      const _sName=_s?(_s.Name||_s.name||_siteRef):_siteRef;
+      const _sKey=_s?(_s.Key||_s.key||''):'';
+      line1.push(_sKey
+        ?` <span style="color:var(--stone)">at</span> <button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_sKey)}')">${_sName}</button>`
+        :` <span style="color:var(--stone)">at</span> <span style="font-weight:500">${_sName}</span>`);
+    }
   } else {
     // Strip noisy column names from detail (site edit field lists)
     const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update|Type|Principal|School Administrative Assistant|Main Contact 1|Main Contact 2|Main Contact 3|Plant Manager|Telephone|City|State|Street Address|District)\b,?\s*/gi;
@@ -5255,6 +5275,18 @@ function _reachStaticHtml(str) {
   return String(str)
     .replace(/\{\{AppLink\}\}/gi,     `<a href="${REACH_APP_URL}">Ranger Rover App</a>`)
     .replace(/\{\{WebsiteLink\}\}/gi, `<a href="${REACH_WEBSITE_URL}">EnrichLA.org</a>`);
+}
+
+// Builds "Heading (N):\nSchool A\nSchool B" — one school per line, with a
+// heading + count so the recipient can see at a glance how many schools they
+// have. wrapLink=true makes each school name a real clickable link (email only).
+function _schoolListBlock(heading, links, escFn, wrapLink) {
+  links = links || [];
+  if (!links.length) return escFn(heading) + ' (0): —';
+  const lines = links.map(sl => wrapLink
+    ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(sl.key||'')}">${escFn(sl.name)}</a>`
+    : escFn(sl.name));
+  return escFn(heading) + ' (' + links.length + '):\n' + lines.join('\n');
 }
 
 // ── module state ──────────────────────────────────────────────────────────────
@@ -5354,13 +5386,14 @@ function toggleReachPerson(email) {
 }
 
 // ── Select All / Clear — selection must be a deliberate, positive choice.
-//    Selects every person currently rendered in the given list (i.e. respects
-//    whatever category filter chip is active), rather than silently
-//    defaulting to "everyone" when nothing is checked.
+//    Selects every person currently VISIBLE in the given list (i.e. respects
+//    both the active category filter chip and any search text), rather than
+//    silently defaulting to "everyone" when nothing is checked.
 function selectAllReach(listId) {
   const list = document.getElementById(listId);
   if (!list) return;
   list.querySelectorAll('.reach-person-card').forEach(card => {
+    if (card.style.display === 'none') return; // hidden by search — not "shown"
     const email = card.dataset.email;
     if (!email) return;
     _reachSelected.add(email);
@@ -5377,6 +5410,19 @@ function clearReachSelection() {
     card.classList.remove('selected');
     const chk = card.querySelector('.reach-check');
     if (chk) chk.textContent = '';
+  });
+}
+
+// Live-filters the visible recipient cards by name/role/email text as the
+// admin types — does not touch selection state, so already-checked people
+// stay checked even if a later search hides them from view.
+function filterReachSearch(listId, query) {
+  const q = (query||'').trim().toLowerCase();
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.querySelectorAll('.reach-person-card').forEach(card => {
+    const txt = card.textContent.toLowerCase();
+    card.style.display = (!q || txt.includes(q)) ? '' : 'none';
   });
 }
 
@@ -5491,9 +5537,10 @@ async function _sendViaTwilio(together){
   const btn = document.getElementById('reachTwilioBtn');
   if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
   if(st)st.textContent='';
+  const _fromNameSms = (SESSION && SESSION.name) || '';
   // Build per-recipient messages (personalised), or shared body
   const messages = together
-    ? recipients.map(r=>({to:r.mobile, body:_reachStaticPlain(rawMsg)}))
+    ? recipients.map(r=>({to:r.mobile, body:_reachStaticPlain(rawMsg).replace(/\{\{FromName\}\}/gi, _fromNameSms)}))
     : recipients.map(r=>{
         const fname = r.firstName||(r.name||'').split(' ')[0]||'';
         const body  = _reachStaticPlain(rawMsg)
@@ -5502,8 +5549,9 @@ async function _sendViaTwilio(together){
           .replace(/\{\{FullName\}\}/gi,  r.name||'')
           .replace(/\{\{School\}\}/gi,    r.school||'')
           .replace(/\{\{Role\}\}/gi,      r.role||'')
-          .replace(/\{\{RangerSchools\}\}/gi,       r.rangerSchools||'')
-          .replace(/\{\{GardenKeeperSchools\}\}/gi, r.gkSchools||'');
+          .replace(/\{\{RangerSchools\}\}/gi,       _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, s=>s, false))
+          .replace(/\{\{GardenKeeperSchools\}\}/gi, _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     s=>s, false))
+          .replace(/\{\{FromName\}\}/gi,  _fromNameSms);
         return {to:r.mobile, body};
       });
   try{
@@ -5535,6 +5583,7 @@ async function _sendMailMerge(together){
   if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
   if(st)st.textContent='';
   const _escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _fromName = (SESSION && SESSION.name) || '';
   // Plain-text substitution — used for the Subject line (subjects can't render links).
   const _tokPlain = (str,r)=>{
     const fname = r.firstName || (r.name||'').split(' ')[0] || '';
@@ -5544,8 +5593,9 @@ async function _sendMailMerge(together){
               .replace(/\{\{FullName\}\}/gi,  r.name||'')
               .replace(/\{\{School\}\}/gi,    r.school||'')
               .replace(/\{\{Role\}\}/gi,      r.role||'')
-              .replace(/\{\{RangerSchools\}\}/gi,       r.rangerSchools||'')
-              .replace(/\{\{GardenKeeperSchools\}\}/gi, r.gkSchools||'');
+              .replace(/\{\{RangerSchools\}\}/gi,       _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, s=>s, false))
+              .replace(/\{\{GardenKeeperSchools\}\}/gi, _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     s=>s, false))
+              .replace(/\{\{FromName\}\}/gi,  _fromName);
   };
   // HTML substitution — used for the email body. {{School}}, {{RangerSchools}},
   // {{GardenKeeperSchools}} become real clickable link(s) back into the app
@@ -5554,8 +5604,8 @@ async function _sendMailMerge(together){
     const fname = r.firstName || (r.name||'').split(' ')[0] || '';
     const _linksHtml = links => links.map(sl => `<a href="${REACH_APP_URL}#school=${encodeURIComponent(sl.key||'')}">${_escHtml(sl.name)}</a>`).join(', ');
     const schoolHtml = (r.schoolLinks && r.schoolLinks.length) ? _linksHtml(r.schoolLinks) : _escHtml(r.school||'');
-    const rangerHtml = (r.rangerSchoolLinks && r.rangerSchoolLinks.length) ? _linksHtml(r.rangerSchoolLinks) : _escHtml(r.rangerSchools||'');
-    const gkHtml     = (r.gkSchoolLinks && r.gkSchoolLinks.length) ? _linksHtml(r.gkSchoolLinks) : _escHtml(r.gkSchools||'');
+    const rangerHtml = _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, _escHtml, true);
+    const gkHtml     = _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     _escHtml, true);
     return _reachStaticHtml(_escHtml(str))
       .replace(/\{\{FirstName\}\}/gi, _escHtml(fname))
       .replace(/\{\{LastName\}\}/gi,  _escHtml(r.lastName||''))
@@ -5564,10 +5614,14 @@ async function _sendMailMerge(together){
       .replace(/\{\{Role\}\}/gi,      _escHtml(r.role||''))
       .replace(/\{\{RangerSchools\}\}/gi,       rangerHtml)
       .replace(/\{\{GardenKeeperSchools\}\}/gi, gkHtml)
+      .replace(/\{\{FromName\}\}/gi,  _escHtml(_fromName))
       .replace(/\n/g, '<br>');
   };
   const messages = together
-    ? [{ to: recipients.map(r=>r.email).join(','), subject: _reachStaticPlain(subj), body: _reachStaticPlain(rawMsg), html: _reachStaticHtml(_escHtml(rawMsg)).replace(/\n/g,'<br>') }]
+    ? [{ to: recipients.map(r=>r.email).join(','),
+         subject: _reachStaticPlain(subj).replace(/\{\{FromName\}\}/gi, _fromName),
+         body:    _reachStaticPlain(rawMsg).replace(/\{\{FromName\}\}/gi, _fromName),
+         html:    _reachStaticHtml(_escHtml(rawMsg)).replace(/\{\{FromName\}\}/gi, _escHtml(_fromName)).replace(/\n/g,'<br>') }]
     : recipients.map(r=>({ to: r.email, subject: _tokPlain(subj,r), body: _tokPlain(rawMsg,r), html: _tokHtml(rawMsg,r) }));
   try{
     const res = await gasPost({
@@ -5658,6 +5712,7 @@ function openReachCompose(mode) {
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeperSchools}}')">Garden Keeper Schools</button>` : ''}
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('\n\nSincerely,\n{{FromName}}')">🙏 Greeting From You</button>
         </div>
         <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor${isEmail?' (works in Subject or Message)':''}${!isTogether?' — each person gets their own version filled in automatically when sent':''}.</div>
       </div>
