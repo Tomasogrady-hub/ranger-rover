@@ -525,6 +525,25 @@ function handleForgotPassword(p) {
 
 // ── HUMANS / ROLES HANDLERS ───────────────────────────────────────────────────
 
+// Resolves a Sites "School" value (which may be a Key or a raw typed Name) to
+// its display Name, for activity-log purposes.
+function _siteNameForAddedHuman(schoolValue) {
+  if (!schoolValue) return '';
+  try {
+    var data = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues();
+    var headers = data[0];
+    var keyIdx  = headers.indexOf('Key');
+    var nameIdx = headers.indexOf('Name');
+    if (keyIdx === -1) keyIdx = 0;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][keyIdx]) === schoolValue || (nameIdx !== -1 && String(data[i][nameIdx]) === schoolValue)) {
+        return nameIdx !== -1 ? String(data[i][nameIdx] || schoolValue) : schoolValue;
+      }
+    }
+  } catch (e) {}
+  return schoolValue;
+}
+
 function handleAddHuman(p) {
   var sheet   = getHumansSheet();
   var allData = sheet.getDataRange().getValues();
@@ -546,11 +565,12 @@ function handleAddHuman(p) {
     p.data['Email'] || ''
   );
   var _personEmail = String(p.data['Email']||'');
-  var _role = String(p.data['Role']||'');
-  // detail stores "email — role" so the client can hotlink to the NEW person
-  // (not the actor who added them) while still showing their role.
+  var _role        = String(p.data['Role']||'');
+  var _siteName    = _siteNameForAddedHuman(String(p.data['School']||''));
+  // detail stores "email — role — site" so the client can hotlink to the NEW
+  // person (not the actor who added them) while still showing role AND site.
   logActivity(p.actor||_personEmail||'', 'added person', _displayName, 'person',
-    _personEmail + (_role ? (' — ' + _role) : ''));
+    _personEmail + (_role ? (' — ' + _role) : '') + (_siteName ? (' — ' + _siteName) : ''));
   return { ok: true };
 }
 
