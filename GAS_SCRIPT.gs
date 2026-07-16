@@ -800,18 +800,24 @@ function handleGetSelfProfile(p) {
 
 
 // ── PUBLIC SMS CONSENT (opt-in web page, no login required) ──────────────────
-// Called from the public sms-opt-in.html page. Requires a per-user token
-// (derived server-side from email + a secret salt in Script Properties) so
-// an anonymous visitor cannot toggle another person's consent just by
-// knowing/guessing their email address.
+// Called from the public sms-opt-in.html page. Two ways to reach this page:
+//  1. From the app's My Profile screen — includes ?email=&token= so the page
+//     can be pre-filled; token is verified if present.
+//  2. Directly (e.g. embedded on enrichla.org) — email + mobile are blank and
+//     the ranger types them in. No token in this case; the email must match
+//     an existing row in the Humans sheet before consent is recorded.
 function handlePublicSmsOptIn(p) {
   var email = String(p.email || '').trim().toLowerCase();
+  var mobile = String(p.mobile || '').trim();
   var token = String(p.token || '').trim();
-  if (!email || !token) return { ok: false, error: 'Missing email or token' };
-  if (token !== computeConsentToken(email)) return { ok: false, error: 'Invalid or expired link' };
+  if (!email) return { ok: false, error: 'Please enter your email address.' };
+  if (token && token !== computeConsentToken(email)) {
+    return { ok: false, error: 'Invalid or expired link' };
+  }
 
   var d  = humansData();
   var ei = d.h.indexOf('Email');
+  var mi = d.h.indexOf('Mobile');
   var ci = d.h.indexOf('SMS Consent');
   var di = d.h.indexOf('SMS Consent Date');
   var fi = d.h.indexOf('First Name');
@@ -820,6 +826,7 @@ function handlePublicSmsOptIn(p) {
   for (var r = 1; r < d.data.length; r++) {
     if (String(d.data[r][ei]).toLowerCase() !== email) continue;
     var consentBool = (p.consent === true || p.consent === 'true');
+    if (mobile) d.sheet.getRange(r + 1, mi + 1).setValue(mobile);
     d.sheet.getRange(r + 1, ci + 1).setValue(consentBool ? 'TRUE' : 'FALSE');
     d.sheet.getRange(r + 1, di + 1).setValue(new Date());
     return {
@@ -828,11 +835,12 @@ function handlePublicSmsOptIn(p) {
       name: (String(d.data[r][fi] || '') + ' ' + String(d.data[r][li] || '')).trim()
     };
   }
-  return { ok: false, error: 'User not found' };
+  return { ok: false, error: "We couldn't find that email in our records. Please check with your program administrator." };
 }
 
-// Lightweight lookup so the public page can show the person's name/current
-// consent status without exposing anything else. Requires the same token.
+// Lightweight lookup so the public page can pre-fill name/mobile/consent
+// when opened from the app's My Profile link (email + token both present).
+// Not used for the blank/manual-entry flow.
 function handlePublicSmsOptInStatus(p) {
   var email = String(p.email || '').trim().toLowerCase();
   var token = String(p.token || '').trim();
@@ -841,6 +849,7 @@ function handlePublicSmsOptInStatus(p) {
 
   var d  = humansData();
   var ei = d.h.indexOf('Email');
+  var mi = d.h.indexOf('Mobile');
   var ci = d.h.indexOf('SMS Consent');
   var fi = d.h.indexOf('First Name');
   var li = d.h.indexOf('Last Name');
@@ -850,6 +859,7 @@ function handlePublicSmsOptInStatus(p) {
     return {
       ok: true,
       name: (String(d.data[r][fi] || '') + ' ' + String(d.data[r][li] || '')).trim(),
+      mobile: String(d.data[r][mi] || ''),
       consent: String(d.data[r][ci] || '').trim().toUpperCase() === 'TRUE'
     };
   }
