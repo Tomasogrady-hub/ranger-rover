@@ -40,7 +40,8 @@
 
 <script>
 (function(){
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
+  var FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
+  var GAS_URL = FALLBACK_URL;
   var params = new URLSearchParams(window.location.search);
   var linkEmail = params.get('email') || '';
   var linkToken = params.get('token') || '';
@@ -49,10 +50,25 @@
   var CONSENT_TEXT = 'I consent to receive SMS text messages from Enrich LA about site updates, chores, and program communications. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help.';
   var LINKS_HTML = '<div class="links"><a href="https://www.enrichla.org/enrichla-privacy-policy" target="_blank" rel="noopener">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://www.enrichla.org/enrich-la-sms-terms-and-conditions" target="_blank" rel="noopener">SMS Terms &amp; Conditions</a></div>';
 
-  function post(action, extra){
+  function rawPost(url, action, extra){
     var body = Object.assign({action:action}, extra || {});
-    return fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(body)})
+    return fetch(url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(body)})
       .then(function(r){ return r.json(); });
+  }
+
+  // Resolve the current, live GAS deployment URL the same way the main app
+  // does — a hardcoded URL can go stale after a redeploy, so always ask
+  // whatever URL we have for the latest one and switch if it differs.
+  function resolveGasUrl(){
+    return rawPost(GAS_URL, 'getAppSettings')
+      .then(function(r){
+        if (r && r.gasUrl && r.gasUrl !== GAS_URL) GAS_URL = r.gasUrl;
+      })
+      .catch(function(){ /* keep FALLBACK_URL if this check fails */ });
+  }
+
+  function post(action, extra){
+    return rawPost(GAS_URL, action, extra);
   }
 
   function renderForm(opts){
@@ -120,8 +136,9 @@
 
   if (linkEmail && linkToken) {
     // Opened from the app's My Profile link — pre-fill from existing record.
-    post('publicSmsOptInStatus', {email: linkEmail, token: linkToken})
-      .then(function(res){
+    resolveGasUrl().then(function(){
+      return post('publicSmsOptInStatus', {email: linkEmail, token: linkToken});
+    }).then(function(res){
         if (res && res.ok) {
           renderForm({email: linkEmail, mobile: res.mobile, consent: res.consent, emailReadonly: true});
         } else {
@@ -134,7 +151,7 @@
       });
   } else {
     // Direct / embedded visit (e.g. on enrichla.org) — blank form.
-    renderForm({});
+    resolveGasUrl().then(function(){ renderForm({}); });
   }
 })();
 </script>
