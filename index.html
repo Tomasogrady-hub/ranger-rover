@@ -911,10 +911,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.49';
+const APP_VERSION='v9.50';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-15 Reach: school lists as heading+count+newline, search box for recipients, Greeting From You token; new-contact activity shows role+site; editable site Address';
+const BUILD_STAMP='2026-07-15 SMS consent moved to public, unauthenticated opt-in page (sms-opt-in.html) linked from My Profile via secure per-user token; supports Twilio A2P website-based opt-in requirement';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -3869,18 +3869,16 @@ async function showSelfEdit(){
         <input class="edit-input" id="self-LastName" value="${ea(p['Last Name']||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Mobile</div>
         <input class="edit-input" id="self-Mobile" type="tel" value="${ea(p['Mobile']||'')}"></div>
-      <div class="edit-wrap" style="display:flex;align-items:flex-start;gap:10px;background:var(--fog);border-radius:var(--r-sm);padding:14px 16px">
-        <input type="checkbox" id="self-SmsConsent" data-prev="${smsConsent?'1':'0'}" ${smsConsent?'checked':''} style="margin-top:3px;width:18px;height:18px;flex-shrink:0">
-        <label for="self-SmsConsent" style="font-size:14px;line-height:1.5;color:var(--stone);cursor:pointer">
-          I consent to receive SMS text messages from Enrich LA about site updates, chores, and program communications. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help.
-          <div style="margin-top:8px;font-size:13px">
-            <a href="https://www.enrichla.org/enrichla-privacy-policy" target="_blank" rel="noopener" style="color:var(--sage);text-decoration:underline" onclick="event.stopPropagation()">Privacy Policy</a>
-            &nbsp;·&nbsp;
-            <a href="https://www.enrichla.org/enrich-la-sms-terms-and-conditions" target="_blank" rel="noopener" style="color:var(--sage);text-decoration:underline" onclick="event.stopPropagation()">SMS Terms &amp; Conditions</a>
-          </div>
-        </label>
+      <div class="edit-wrap" style="background:var(--fog);border-radius:var(--r-sm);padding:14px 16px">
+        <div style="font-size:13px;font-weight:600;color:var(--stone);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px">SMS Consent</div>
+        <div style="font-size:14px;color:var(--stone);margin-bottom:2px">
+          Status: <strong>${smsConsent?'Opted in':'Not opted in'}</strong>
+        </div>
+        ${smsConsentDate?`<div style="font-size:12px;color:var(--silver);margin-bottom:10px">Last updated: ${escHtml(smsConsentDate)}</div>`:'<div style="margin-bottom:10px"></div>'}
+        <button type="button" onclick="window.open('https://tomasogrady-hub.github.io/ranger-rover/sms-opt-in.html?email=${encodeURIComponent(SESSION.email)}&token=${encodeURIComponent(p.consentToken||'')}','_blank')" style="display:inline-flex;align-items:center;gap:4px;padding:8px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:13px;color:var(--sage);cursor:pointer;font-family:var(--font-b)">
+          💬 Manage SMS Consent
+        </button>
       </div>
-      ${smsConsentDate?`<div style="font-size:12px;color:var(--silver);margin:-6px 0 4px 2px">Consent status last updated: ${escHtml(smsConsentDate)}</div>`:''}
       ${lvl<=2?`<div class="edit-wrap"><div class="edit-label">Comments</div>
         <textarea class="edit-textarea" id="self-Comments">${ea(p['Comments']||'')}</textarea></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Profile Image URL</div>
@@ -3906,15 +3904,6 @@ async function saveSelfEdit(email){
     'Mobile':(document.getElementById('self-Mobile')||{value:''}).value.trim(),
     'Main Image':(document.getElementById('self-MainImage')||{value:''}).value.trim(),
   };
-  const smsConsentEl=document.getElementById('self-SmsConsent');
-  if(smsConsentEl){
-    const wasConsented=smsConsentEl.dataset.prev==='1';
-    const nowConsented=smsConsentEl.checked;
-    updates['SMS Consent']=nowConsented?'TRUE':'FALSE';
-    if(nowConsented!==wasConsented){
-      updates['SMS Consent Date']=new Date().toISOString();
-    }
-  }
   if(lvl<=2){const cel=document.getElementById('self-Comments');if(cel)updates['Comments']=cel.value.trim();}
   const pendingPhoto=window._pendingSelfPhoto;
   window._pendingSelfPhoto=null;
