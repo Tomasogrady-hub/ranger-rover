@@ -142,12 +142,15 @@
         if (res && res.ok) {
           renderForm({email: linkEmail, mobile: res.mobile, consent: res.consent, emailReadonly: true});
         } else {
-          // Fall back to a blank form rather than a dead end.
           renderForm({email: linkEmail});
+          var s = document.getElementById('status');
+          if (s) s.innerHTML = '<span class="error">Could not pre-fill your info (' + (res && res.error ? res.error : 'unknown error') + '). You can still fill in the form manually.</span>';
         }
       })
-      .catch(function(){
+      .catch(function(err){
         renderForm({email: linkEmail});
+        var s = document.getElementById('status');
+        if (s) s.innerHTML = '<span class="error">Could not reach the server to pre-fill your info: ' + (err && err.message ? err.message : err) + '</span>';
       });
   } else {
     // Direct / embedded visit (e.g. on enrichla.org) — blank form.
