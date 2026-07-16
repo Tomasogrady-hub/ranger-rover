@@ -11,10 +11,12 @@
        max-width:480px;margin:0 auto;padding:28px 20px 60px;color:var(--ink);background:#fff;line-height:1.5}
   h1{font-size:20px;margin:0 0 4px}
   .sub{color:#666;font-size:13px;margin-bottom:22px}
-  .banner{background:#fff8e6;border:1px solid #f0d98a;border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:20px}
   .card{border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:var(--fog);margin-bottom:18px}
-  .name{font-size:15px;font-weight:600;margin-bottom:14px}
-  .consent-row{display:flex;align-items:flex-start;gap:10px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px}
+  .field input[type=email],.field input[type=tel]{width:100%;padding:11px 12px;border:1px solid var(--line);
+       border-radius:7px;font-size:15px;background:#fff}
+  .consent-row{display:flex;align-items:flex-start;gap:10px;margin-top:16px}
   .consent-row input[type=checkbox]{margin-top:3px;width:19px;height:19px;flex-shrink:0}
   .consent-row label{font-size:14px;line-height:1.55;cursor:pointer}
   .links{margin-top:10px;font-size:13px}
@@ -40,8 +42,8 @@
 (function(){
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
   var params = new URLSearchParams(window.location.search);
-  var email = params.get('email') || '';
-  var token = params.get('token') || '';
+  var linkEmail = params.get('email') || '';
+  var linkToken = params.get('token') || '';
   var app = document.getElementById('app');
 
   var CONSENT_TEXT = 'I consent to receive SMS text messages from Enrich LA about site updates, chores, and program communications. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help.';
@@ -53,45 +55,47 @@
       .then(function(r){ return r.json(); });
   }
 
-  function renderPreview(){
-    app.innerHTML =
-      '<div class="banner">This is a preview of the Ranger Rover SMS consent screen. To actually opt in or out, open this link from your My Profile screen in the Ranger Rover app, which includes your personal secure link.</div>' +
-      '<div class="card">' +
-        '<div class="name">Garden Ranger</div>' +
-        '<div class="consent-row"><input type="checkbox" disabled><label>' + CONSENT_TEXT + '</label></div>' +
-        LINKS_HTML +
-      '</div>' +
-      '<button disabled>SAVE</button>';
-  }
+  function renderForm(opts){
+    opts = opts || {};
+    var email = opts.email || '';
+    var mobile = opts.mobile || '';
+    var consent = !!opts.consent;
+    var emailReadonly = !!opts.emailReadonly;
 
-  function renderError(msg){
-    app.innerHTML =
-      '<div class="banner">' + msg + ' Please open this link again from your My Profile screen in the Ranger Rover app.</div>' +
-      '<div class="card">' +
-        '<div class="consent-row"><input type="checkbox" disabled><label>' + CONSENT_TEXT + '</label></div>' +
-        LINKS_HTML +
-      '</div>';
-  }
-
-  function renderForm(name, consent){
     app.innerHTML =
       '<div class="card">' +
-        '<div class="name">' + name + '</div>' +
+        '<div class="field"><label>Email</label>' +
+          '<input type="email" id="f-email" value="' + email.replace(/"/g,'&quot;') + '" placeholder="you@example.org"' + (emailReadonly ? ' readonly style="background:#eee"' : '') + '></div>' +
+        '<div class="field"><label>Mobile Number</label>' +
+          '<input type="tel" id="f-mobile" value="' + mobile.replace(/"/g,'&quot;') + '" placeholder="(555) 555-5555"></div>' +
         '<div class="consent-row"><input type="checkbox" id="c" ' + (consent ? 'checked' : '') + '><label for="c">' + CONSENT_TEXT + '</label></div>' +
         LINKS_HTML +
       '</div>' +
       '<button id="save">SAVE</button>' +
       '<div class="status" id="status"></div>';
+
     document.getElementById('save').addEventListener('click', function(){
       var btn = this;
-      btn.disabled = true;
       var statusEl = document.getElementById('status');
-      statusEl.textContent = 'Saving…';
+      var email = document.getElementById('f-email').value.trim();
+      var mobile = document.getElementById('f-mobile').value.trim();
       var checked = document.getElementById('c').checked;
-      post('publicSmsOptIn', {email: email, token: token, consent: checked})
+
+      if (!email || email.indexOf('@') === -1) {
+        statusEl.innerHTML = '<span class="error">Please enter a valid email address.</span>';
+        return;
+      }
+      if (!mobile) {
+        statusEl.innerHTML = '<span class="error">Please enter your mobile number.</span>';
+        return;
+      }
+
+      btn.disabled = true;
+      statusEl.textContent = 'Saving…';
+      post('publicSmsOptIn', {email: email, mobile: mobile, consent: checked, token: linkToken})
         .then(function(res){
           if (res && res.ok) {
-            renderConfirm(res.name || name, res.consent);
+            renderConfirm(res.name || 'there', res.consent);
           } else {
             statusEl.innerHTML = '<span class="error">' + (res && res.error ? res.error : 'Something went wrong. Please try again.') + '</span>';
             btn.disabled = false;
@@ -114,20 +118,23 @@
       '</div>';
   }
 
-  if (!email || !token) {
-    renderPreview();
-  } else {
-    post('publicSmsOptInStatus', {email: email, token: token})
+  if (linkEmail && linkToken) {
+    // Opened from the app's My Profile link — pre-fill from existing record.
+    post('publicSmsOptInStatus', {email: linkEmail, token: linkToken})
       .then(function(res){
         if (res && res.ok) {
-          renderForm(res.name || 'Garden Ranger', res.consent);
+          renderForm({email: linkEmail, mobile: res.mobile, consent: res.consent, emailReadonly: true});
         } else {
-          renderError(res && res.error ? res.error : 'This link is invalid or has expired.');
+          // Fall back to a blank form rather than a dead end.
+          renderForm({email: linkEmail});
         }
       })
       .catch(function(){
-        renderError('Could not load your consent status.');
+        renderForm({email: linkEmail});
       });
+  } else {
+    // Direct / embedded visit (e.g. on enrichla.org) — blank form.
+    renderForm({});
   }
 })();
 </script>
