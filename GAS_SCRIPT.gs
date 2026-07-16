@@ -183,6 +183,10 @@ function doPost(e) {
       case 'uploadSiteImage':  return respond(handleUploadSiteImage(p));
       case 'uploadHumanImage': return respond(handleUploadHumanImage(p));
 
+      // ── PUBLIC SMS CONSENT PAGE (no login; token-verified) ───────────────────
+      case 'publicSmsOptInStatus': return respond(handlePublicSmsOptInStatus(p));
+      case 'publicSmsOptIn':       return respond(handlePublicSmsOptIn(p));
+
       // ── ACTIVITY FEED ────────────────────────────────────────────────────────
       case 'getActivity': return respond(handleGetActivity());
       case 'logActivity':  return respond(handleLogActivity(p));
@@ -434,6 +438,27 @@ function handleGetPlant(rowIndex) {
 
 function getHumansSheet() {
   return SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+}
+
+function getConsentSalt() {
+  var props = PropertiesService.getScriptProperties();
+  var salt = props.getProperty('CONSENT_TOKEN_SALT');
+  if (!salt) {
+    salt = Utilities.getUuid() + '-' + Utilities.getUuid();
+    props.setProperty('CONSENT_TOKEN_SALT', salt);
+  }
+  return salt;
+}
+
+function computeConsentToken(email) {
+  var salt = getConsentSalt();
+  var raw  = String(email).trim().toLowerCase() + '|' + salt;
+  var digestBytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
+  var hex = digestBytes.map(function(b) {
+    var v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+  return hex.substring(0, 24);
 }
 
 function ensureHumansConsentCols(sheet) {
@@ -767,9 +792,68 @@ function handleGetSelfProfile(p) {
       if (k === 'Password' || k === 'Rating 1' || k === 'Rating 2' || k === 'Rating 3') return;
       profile[k] = d.data[r][i] !== undefined ? d.data[r][i] : '';
     });
+    profile.consentToken = computeConsentToken(p.email);
     return { ok: true, profile: profile };
   }
   return { ok: false, error: 'Profile not found' };
+}
+
+
+// ── PUBLIC SMS CONSENT (opt-in web page, no login required) ──────────────────
+// Called from the public sms-opt-in.html page. Requires a per-user token
+// (derived server-side from email + a secret salt in Script Properties) so
+// an anonymous visitor cannot toggle another person's consent just by
+// knowing/guessing their email address.
+function handlePublicSmsOptIn(p) {
+  var email = String(p.email || '').trim().toLowerCase();
+  var token = String(p.token || '').trim();
+  if (!email || !token) return { ok: false, error: 'Missing email or token' };
+  if (token !== computeConsentToken(email)) return { ok: false, error: 'Invalid or expired link' };
+
+  var d  = humansData();
+  var ei = d.h.indexOf('Email');
+  var ci = d.h.indexOf('SMS Consent');
+  var di = d.h.indexOf('SMS Consent Date');
+  var fi = d.h.indexOf('First Name');
+  var li = d.h.indexOf('Last Name');
+
+  for (var r = 1; r < d.data.length; r++) {
+    if (String(d.data[r][ei]).toLowerCase() !== email) continue;
+    var consentBool = (p.consent === true || p.consent === 'true');
+    d.sheet.getRange(r + 1, ci + 1).setValue(consentBool ? 'TRUE' : 'FALSE');
+    d.sheet.getRange(r + 1, di + 1).setValue(new Date());
+    return {
+      ok: true,
+      consent: consentBool,
+      name: (String(d.data[r][fi] || '') + ' ' + String(d.data[r][li] || '')).trim()
+    };
+  }
+  return { ok: false, error: 'User not found' };
+}
+
+// Lightweight lookup so the public page can show the person's name/current
+// consent status without exposing anything else. Requires the same token.
+function handlePublicSmsOptInStatus(p) {
+  var email = String(p.email || '').trim().toLowerCase();
+  var token = String(p.token || '').trim();
+  if (!email || !token) return { ok: false, error: 'Missing email or token' };
+  if (token !== computeConsentToken(email)) return { ok: false, error: 'Invalid or expired link' };
+
+  var d  = humansData();
+  var ei = d.h.indexOf('Email');
+  var ci = d.h.indexOf('SMS Consent');
+  var fi = d.h.indexOf('First Name');
+  var li = d.h.indexOf('Last Name');
+
+  for (var r = 1; r < d.data.length; r++) {
+    if (String(d.data[r][ei]).toLowerCase() !== email) continue;
+    return {
+      ok: true,
+      name: (String(d.data[r][fi] || '') + ' ' + String(d.data[r][li] || '')).trim(),
+      consent: String(d.data[r][ci] || '').trim().toUpperCase() === 'TRUE'
+    };
+  }
+  return { ok: false, error: 'User not found' };
 }
 
 
