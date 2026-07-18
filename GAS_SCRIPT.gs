@@ -909,6 +909,16 @@ function handleUploadSiteImage(p) {
 
     if (targetRow > -1 && ci > -1) {
       sheet.getRange(targetRow + 1, ci + 1).setValue(url);
+      // Record who uploaded it and when, in a companion "<Column> Info" column (auto-created if missing)
+      var infoCol = colName + ' Info';
+      var infoCi  = h.indexOf(infoCol);
+      if (infoCi === -1) {
+        infoCi = h.length;
+        sheet.getRange(1, infoCi + 1).setValue(infoCol);
+        h.push(infoCol);
+      }
+      var infoVal = (p.actor || '') + '|' + new Date().toISOString();
+      sheet.getRange(targetRow + 1, infoCi + 1).setValue(infoVal);
       logActivity(p.actor||'', 'uploaded photo', rowKey||lookupVal, 'site', rowName + ' — ' + colName);
     }
     return { ok: true, url: url };
@@ -1038,7 +1048,8 @@ function handleSaveEdit(p) {
       var ci = headers.indexOf(col);
       if (ci > -1) sheet.getRange(r + 1, ci + 1).setValue(p.updates[col]);
     });
-    var imgCols = ['Main Image','Helpful Image 1','Helpful Image 2','Image 2','Image 3','Helpful Before Image'];
+    var imgCols = ['Main Image','Helpful Image 1','Helpful Image 2','Image 2','Image 3','Helpful Before Image',
+                   'Main Image Info','Helpful Image 1 Info','Helpful Image 2 Info','Image 2 Info','Image 3 Info','Helpful Before Image Info'];
     var editedCols = Object.keys(p.updates)
       .filter(function(c){ return imgCols.indexOf(c) === -1; }).join(', ');
     var subjType = (p.sheet === 'Humans') ? 'person' : 'site';
