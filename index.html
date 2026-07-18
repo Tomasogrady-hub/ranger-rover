@@ -256,6 +256,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .img-gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
 .img-thumb-wrap{display:flex;flex-direction:column;align-items:center;gap:4px}
 .img-thumb-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--silver);max-width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img-thumb-meta{font-size:10px;color:var(--silver);opacity:.75;max-width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-thumb{width:100%;aspect-ratio:1;border-radius:var(--r-sm);object-fit:cover;background:var(--fog);cursor:pointer}
 
 /* ── MAP ── */
@@ -913,10 +914,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.53';
+const APP_VERSION='v9.54';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-18c Site card image gallery switched from 1-row horizontal scroll to a 3-across grid that wraps to a new row, larger thumbnails';
+const BUILD_STAMP='2026-07-18d Site images now show who uploaded them and when, under each thumbnail; stored in auto-created companion "<Column> Info" sheet columns, populated on upload';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -952,9 +953,22 @@ function buildFullAddress(street,city,state,zip,country){
   if(country)tail=(tail?tail+' ':'')+country;
   return [street,tail].filter(Boolean).join(', ');
 }
-function siteGalleryThumb(src,label){
+function _imgMetaLine(info){
+  if(!info)return '';
+  const parts=String(info).split('|');
+  const email=(parts[0]||'').trim();
+  const iso=(parts[1]||'').trim();
+  const name=email?(hn(email)||email):'';
+  let dateStr='';
+  if(iso){
+    const d=new Date(iso);
+    if(!isNaN(d))dateStr=d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  }
+  return [name,dateStr].filter(Boolean).join(' · ');
+}
+function siteGalleryThumb(src,label,meta){
   if(!src)return '';
-  return `<div class="img-thumb-wrap"><img data-lazy="${src}" class="img-thumb" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"><div class="img-thumb-label">${label}</div></div>`;
+  return `<div class="img-thumb-wrap"><img data-lazy="${src}" class="img-thumb" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"><div class="img-thumb-label">${label}</div>${meta?`<div class="img-thumb-meta">${meta}</div>`:''}</div>`;
 }
 /* ── ROLE CATEGORY HELPERS ── */
 function normCat(c){return(c||'').toLowerCase().replace(/[\s\-]+/g,'_').trim();}
@@ -2610,6 +2624,12 @@ function renderSchoolDetail(site,editMode){
   const helpImg1=getImgSrc(sf(site,'Helpful Image 1','HelpfulImage1'));
   const helpImg2=getImgSrc(sf(site,'Helpful Image 2','HelpfulImage2'));
   const helpBeforeImg=getImgSrc(sf(site,'Helpful Before Image','HelpfulBeforeImage'));
+  const mainImgMeta=_imgMetaLine(sf(site,'Main Image Info'));
+  const img2Meta=_imgMetaLine(sf(site,'Image 2 Info'));
+  const img3Meta=_imgMetaLine(sf(site,'Image 3 Info'));
+  const helpImg1Meta=_imgMetaLine(sf(site,'Helpful Image 1 Info'));
+  const helpImg2Meta=_imgMetaLine(sf(site,'Helpful Image 2 Info'));
+  const helpBeforeImgMeta=_imgMetaLine(sf(site,'Helpful Before Image Info'));
   const r1e=sf(site,'Ranger 1','Ranger1'),r1n=sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e),r1m=hm(r1e);
   const r2e=sf(site,'Ranger 2','Ranger2'),r2n=sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e),r2m=hm(r2e);
   const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=sf(site,'Garden Keeper Name','GardenKeeperName')||hn(gke),gkm=hm(gke);
@@ -2797,8 +2817,8 @@ function renderSchoolDetail(site,editMode){
     const keeperHtml=gke?crow('Garden Keeper',gke):'';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
-      ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"><div class="img-thumb-label" style="margin-top:4px">Main Image</div></div>`:''}
-      ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2')}${siteGalleryThumb(img3,'Image 3')}${siteGalleryThumb(helpImg1,'Helpful Image 1')}${siteGalleryThumb(helpImg2,'Helpful Image 2')}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image')}</div></div>`:''}
+      ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"><div class="img-thumb-label" style="margin-top:4px">Main Image</div>${mainImgMeta?`<div class="img-thumb-meta">${mainImgMeta}</div>`:''}</div>`:''}
+      ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2',img2Meta)}${siteGalleryThumb(img3,'Image 3',img3Meta)}${siteGalleryThumb(helpImg1,'Helpful Image 1',helpImg1Meta)}${siteGalleryThumb(helpImg2,'Helpful Image 2',helpImg2Meta)}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image',helpBeforeImgMeta)}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
@@ -2854,12 +2874,12 @@ async function saveSiteEdit(siteKey){
   const hbiv=gv('ef-HelpBeforeImg');if(hbiv)updates['Helpful Before Image']=hbiv;
   // If a photo was fire-and-forget cleared, explicitly write '' to override old value
   const _cl=window._sitePhotosCleared||{};
-  if(_cl['ef-MainImg'])updates['Main Image']='';
-  if(_cl['ef-HelpImg1'])updates['Helpful Image 1']='';
-  if(_cl['ef-HelpImg2'])updates['Helpful Image 2']='';
-  if(_cl['ef-Image2'])updates['Image 2']='';
-  if(_cl['ef-Image3'])updates['Image 3']='';
-  if(_cl['ef-HelpBeforeImg'])updates['Helpful Before Image']='';
+  if(_cl['ef-MainImg']){updates['Main Image']='';updates['Main Image Info']='';}
+  if(_cl['ef-HelpImg1']){updates['Helpful Image 1']='';updates['Helpful Image 1 Info']='';}
+  if(_cl['ef-HelpImg2']){updates['Helpful Image 2']='';updates['Helpful Image 2 Info']='';}
+  if(_cl['ef-Image2']){updates['Image 2']='';updates['Image 2 Info']='';}
+  if(_cl['ef-Image3']){updates['Image 3']='';updates['Image 3 Info']='';}
+  if(_cl['ef-HelpBeforeImg']){updates['Helpful Before Image']='';updates['Helpful Before Image Info']='';}
   const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;if(r1v)updates['Ranger 1 Name']=hn(r1v);}
   const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;if(r2v)updates['Ranger 2 Name']=hn(r2v);}
   const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;if(gkv)updates['Garden Keeper Name']=hn(gkv);}
@@ -4342,9 +4362,10 @@ function previewSitePhotoFile(file,previewId,fieldKey){
     window._pendingSitePhotoUrls[fieldKey]=url;
     const inp=document.getElementById(inputId);
     if(inp)inp.value=url;
-    if(site&&colName)site[colName]=url;
+    const infoVal=(SESSION?SESSION.email:'')+'|'+new Date().toISOString();
+    if(site&&colName){site[colName]=url;site[colName+' Info']=infoVal;}
     const row=DATA.sites.find(s=>(s.Key||s.key||'')===siteKey);
-    if(row&&colName)row[colName]=url;
+    if(row&&colName){row[colName]=url;row[colName+' Info']=infoVal;}
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     const img=document.getElementById(previewId);
     if(img)img.style.opacity='1';
