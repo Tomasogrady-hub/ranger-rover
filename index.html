@@ -253,10 +253,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .img-preview img{width:100%;height:100%;object-fit:cover}
 .img-placeholder-text{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:26px;color:var(--silver)}
 .site-img-full{width:100%;height:180px;object-fit:cover;border-radius:var(--r-sm);background:var(--fog);margin-top:8px}
-.img-gallery{display:flex;gap:8px;margin-top:8px;overflow-x:auto}
-.img-thumb-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
-.img-thumb-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--silver);max-width:80px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.img-thumb{width:80px;height:80px;border-radius:var(--r-sm);object-fit:cover;flex-shrink:0;background:var(--fog);cursor:pointer}
+.img-gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
+.img-thumb-wrap{display:flex;flex-direction:column;align-items:center;gap:4px}
+.img-thumb-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--silver);max-width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img-thumb{width:100%;aspect-ratio:1;border-radius:var(--r-sm);object-fit:cover;background:var(--fog);cursor:pointer}
 
 /* ── MAP ── */
 #mapContainer{position:absolute;inset:0;top:0}
@@ -913,10 +913,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.52';
+const APP_VERSION='v9.53';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-18b Site card now shows/edits all 6 site image cols (Main, Image 2/3, Helpful 1/2, Helpful Before) with same lazy-preview no-wait upload flow; thumbnails labeled by column name; new uploads get SiteName.ColumnName.timestamp filenames in Drive';
+const BUILD_STAMP='2026-07-18c Site card image gallery switched from 1-row horizontal scroll to a 3-across grid that wraps to a new row, larger thumbnails';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
