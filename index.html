@@ -911,10 +911,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.50';
+const APP_VERSION='v9.51';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-15 SMS consent moved to public, unauthenticated opt-in page (sms-opt-in.html) linked from My Profile via secure per-user token; supports Twilio A2P website-based opt-in requirement';
+const BUILD_STAMP='2026-07-18 Site edit address split into separate Street/City/State/Zip/Country fields (cols C-G), auto-rebuilds Full Address (col H) on save';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -943,6 +943,13 @@ window._fsDistMap={};
 /* ═══ UTILS ═══ */
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 function sf(o,...k){for(const key of k)if(o[key]!==undefined&&o[key]!==null&&o[key]!=='')return o[key];return '';}
+function buildFullAddress(street,city,state,zip,country){
+  street=(street||'').trim();city=(city||'').trim();state=(state||'').trim();zip=(zip||'').trim();country=(country||'').trim();
+  let tail=[city,state].filter(Boolean).join(', ');
+  if(zip)tail=(tail?tail+', ':'')+zip;
+  if(country)tail=(tail?tail+' ':'')+country;
+  return [street,tail].filter(Boolean).join(', ');
+}
 /* ── ROLE CATEGORY HELPERS ── */
 function normCat(c){return(c||'').toLowerCase().replace(/[\s\-]+/g,'_').trim();}
 function humanRoleCats(h){
@@ -2588,6 +2595,7 @@ function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name',
 
 function renderSchoolDetail(site,editMode){
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
+  const stAddr=sf(site,'Street Address','StreetAddress'),stCity=sf(site,'City','city'),stState=sf(site,'State','state'),stZip=sf(site,'Zip Code','ZipCode'),stCountry=sf(site,'Country','country');
   const details=sf(site,'SiteDetails','Site Details','siteDetails'),sched=sf(site,'Schedule','schedule');
   const videoSrc=(sf(site,'Helpful Video 1','HelpfulVideo1')||'').trim();
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
@@ -2637,8 +2645,16 @@ function renderSchoolDetail(site,editMode){
           <option value="Possible Ranger Program"${type==='Possible Ranger Program'?' selected':''}>🟡 Possible Ranger Program</option>
         </select>
       </div>
-      <div class="edit-wrap"><div class="edit-label">Address</div>
-        <input class="edit-input" id="ef-FullAddress" value="${ea(addr)}" placeholder="Street, City, State, Zip">
+      <div class="edit-wrap"><div class="edit-label">Street Address</div>
+        <input class="edit-input" id="ef-StreetAddress" value="${ea(stAddr)}" placeholder="Street address">
+      </div>
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:2"><div class="edit-label">City</div><input class="edit-input" id="ef-City" value="${ea(stCity)}" placeholder="City"></div>
+        <div style="flex:1"><div class="edit-label">State</div><input class="edit-input" id="ef-State" value="${ea(stState)}" placeholder="State"></div>
+      </div>
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Zip Code</div><input class="edit-input" id="ef-ZipCode" value="${ea(stZip)}" placeholder="Zip"></div>
+        <div style="flex:1"><div class="edit-label">Country</div><input class="edit-input" id="ef-Country" value="${ea(stCountry)}" placeholder="Country"></div>
       </div>
       <hr class="section-divider">
       ${canAssign?`
@@ -2775,7 +2791,15 @@ async function saveSiteEdit(siteKey){
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
   const updates={};
   const tv=gv('ef-Type');if(tv!==null)updates['Type']=tv;
-  const addrv=gv('ef-FullAddress');if(addrv!==null)updates['Full Address']=addrv;
+  const _stAddr=gv('ef-StreetAddress'),_stCity=gv('ef-City'),_stState=gv('ef-State'),_stZip=gv('ef-ZipCode'),_stCountry=gv('ef-Country');
+  if(_stAddr!==null||_stCity!==null||_stState!==null||_stZip!==null||_stCountry!==null){
+    updates['Street Address']=_stAddr||'';
+    updates['City']=_stCity||'';
+    updates['State']=_stState||'';
+    updates['Zip Code']=_stZip||'';
+    updates['Country']=_stCountry||'';
+    updates['Full Address']=buildFullAddress(_stAddr,_stCity,_stState,_stZip,_stCountry);
+  }
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
   const sch=gv('ef-Schedule');if(sch!==null)updates['Schedule']=sch;
   // Only include image fields if they have a real value (prevents blank from
