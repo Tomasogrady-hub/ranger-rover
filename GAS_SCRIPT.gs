@@ -871,30 +871,45 @@ function handlePublicSmsOptInStatus(p) {
 
 function handleUploadSiteImage(p) {
   try {
-    var decoded  = Utilities.base64Decode(p.base64);
-    var safeMime = (p.mimeType && !/heic|heif/i.test(p.mimeType) && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'image/jpeg';
-    var safeName = (p.filename || 'site.jpg').replace(/\.(heic|heif)$/i, '.jpg');
-    var blob     = Utilities.newBlob(decoded, safeMime, safeName);
-    var folder  = DriveApp.getFolderById(SITES_IMG_FOLDER);
-    var file    = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    var url     = 'https://lh3.googleusercontent.com/d/' + file.getId();
-    var colMap  = { 'MainImage': 'Main Image', 'HelpImg1': 'Helpful Image 1', 'HelpImg2': 'Helpful Image 2' };
+    var colMap = { 'MainImage': 'Main Image', 'HelpImg1': 'Helpful Image 1', 'HelpImg2': 'Helpful Image 2',
+                   'Image2': 'Image 2', 'Image3': 'Image 3', 'HelpBeforeImg': 'Helpful Before Image' };
     var colName = colMap[p.fieldKey];
     var lookupVal = p.siteKey || p.siteName;
+
+    // Look up the row first so the uploaded filename can carry the real site name + column name
+    var sheet, data, h, ki2, ni, ci, targetRow = -1, rowKey = '', rowName = '';
     if (lookupVal && colName) {
-      var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
-      var data  = sheet.getDataRange().getValues(), h = data[0];
-      var ki2   = h.indexOf('Key'), ni = h.indexOf('Name'), ci = h.indexOf(colName);
+      sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+      data  = sheet.getDataRange().getValues();
+      h     = data[0];
+      ki2   = h.indexOf('Key');
+      ni    = h.indexOf('Name');
+      ci    = h.indexOf(colName);
       for (var r = 1; r < data.length; r++) {
-        var rowKey  = ki2 > -1 ? String(data[r][ki2]).trim() : '';
-        var rowName = ni  > -1 ? String(data[r][ni]).trim()  : '';
-        if ((rowKey === String(lookupVal).trim() || rowName === String(lookupVal).trim()) && ci > -1) {
-          sheet.getRange(r + 1, ci + 1).setValue(url);
-          logActivity(p.actor||'', 'uploaded photo', rowKey||lookupVal, 'site', rowName + ' — ' + colName);
+        var rk = ki2 > -1 ? String(data[r][ki2]).trim() : '';
+        var rn = ni  > -1 ? String(data[r][ni]).trim()  : '';
+        if ((rk === String(lookupVal).trim() || rn === String(lookupVal).trim())) {
+          targetRow = r; rowKey = rk; rowName = rn;
           break;
         }
       }
+    }
+
+    var decoded  = Utilities.base64Decode(p.base64);
+    var safeMime = (p.mimeType && !/heic|heif/i.test(p.mimeType) && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'image/jpeg';
+    var ext      = /png/i.test(safeMime) ? '.png' : '.jpg';
+    var stamp    = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyyMMdd_HHmmss');
+    var safeName = (rowName || lookupVal || 'Site') + '.' + (colName || p.fieldKey || 'Image') + '.' + stamp + ext;
+
+    var blob = Utilities.newBlob(decoded, safeMime, safeName);
+    var folder = DriveApp.getFolderById(SITES_IMG_FOLDER);
+    var file  = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var url   = 'https://lh3.googleusercontent.com/d/' + file.getId();
+
+    if (targetRow > -1 && ci > -1) {
+      sheet.getRange(targetRow + 1, ci + 1).setValue(url);
+      logActivity(p.actor||'', 'uploaded photo', rowKey||lookupVal, 'site', rowName + ' — ' + colName);
     }
     return { ok: true, url: url };
   } catch(e) {
@@ -1023,7 +1038,7 @@ function handleSaveEdit(p) {
       var ci = headers.indexOf(col);
       if (ci > -1) sheet.getRange(r + 1, ci + 1).setValue(p.updates[col]);
     });
-    var imgCols = ['Main Image','Helpful Image 1','Helpful Image 2','Image 2','Image 3'];
+    var imgCols = ['Main Image','Helpful Image 1','Helpful Image 2','Image 2','Image 3','Helpful Before Image'];
     var editedCols = Object.keys(p.updates)
       .filter(function(c){ return imgCols.indexOf(c) === -1; }).join(', ');
     var subjType = (p.sheet === 'Humans') ? 'person' : 'site';
