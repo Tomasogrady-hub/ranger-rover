@@ -254,6 +254,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .img-placeholder-text{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:26px;color:var(--silver)}
 .site-img-full{width:100%;height:180px;object-fit:cover;border-radius:var(--r-sm);background:var(--fog);margin-top:8px}
 .img-gallery{display:flex;gap:8px;margin-top:8px;overflow-x:auto}
+.img-thumb-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
+.img-thumb-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--silver);max-width:80px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-thumb{width:80px;height:80px;border-radius:var(--r-sm);object-fit:cover;flex-shrink:0;background:var(--fog);cursor:pointer}
 
 /* ── MAP ── */
@@ -911,10 +913,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.51';
+const APP_VERSION='v9.52';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-18 Site edit address split into separate Street/City/State/Zip/Country fields (cols C-G), auto-rebuilds Full Address (col H) on save';
+const BUILD_STAMP='2026-07-18b Site card now shows/edits all 6 site image cols (Main, Image 2/3, Helpful 1/2, Helpful Before) with same lazy-preview no-wait upload flow; thumbnails labeled by column name; new uploads get SiteName.ColumnName.timestamp filenames in Drive';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -949,6 +951,10 @@ function buildFullAddress(street,city,state,zip,country){
   if(zip)tail=(tail?tail+', ':'')+zip;
   if(country)tail=(tail?tail+' ':'')+country;
   return [street,tail].filter(Boolean).join(', ');
+}
+function siteGalleryThumb(src,label){
+  if(!src)return '';
+  return `<div class="img-thumb-wrap"><img data-lazy="${src}" class="img-thumb" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"><div class="img-thumb-label">${label}</div></div>`;
 }
 /* ── ROLE CATEGORY HELPERS ── */
 function normCat(c){return(c||'').toLowerCase().replace(/[\s\-]+/g,'_').trim();}
@@ -2599,8 +2605,11 @@ function renderSchoolDetail(site,editMode){
   const details=sf(site,'SiteDetails','Site Details','siteDetails'),sched=sf(site,'Schedule','schedule');
   const videoSrc=(sf(site,'Helpful Video 1','HelpfulVideo1')||'').trim();
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
+  const img2=getImgSrc(sf(site,'Image 2','Image2'));
+  const img3=getImgSrc(sf(site,'Image 3','Image3'));
   const helpImg1=getImgSrc(sf(site,'Helpful Image 1','HelpfulImage1'));
   const helpImg2=getImgSrc(sf(site,'Helpful Image 2','HelpfulImage2'));
+  const helpBeforeImg=getImgSrc(sf(site,'Helpful Before Image','HelpfulBeforeImage'));
   const r1e=sf(site,'Ranger 1','Ranger1'),r1n=sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e),r1m=hm(r1e);
   const r2e=sf(site,'Ranger 2','Ranger2'),r2n=sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e),r2m=hm(r2e);
   const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=sf(site,'Garden Keeper Name','GardenKeeperName')||hn(gke),gkm=hm(gke);
@@ -2703,7 +2712,40 @@ function renderSchoolDetail(site,editMode){
           </button>
           ${helpImg2?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpImg2','ef-HelpImg2')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
         </div>
-        <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" style="display:none"></div>`:''}
+        <input class="edit-input" id="ef-HelpImg2" value="${ea(sf(site,'Helpful Image 2','HelpfulImage2'))}" style="display:none"></div>
+      <div class="edit-wrap"><div class="edit-label">Image 2</div>
+        <img id="ef-preview-Image2" src="${img2}" loading="lazy"
+          style="${img2?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
+          onerror="this.style.display='none'">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-Image2','Image2'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+            📷 ${img2?'Replace':'Add'} Photo
+          </button>
+          ${img2?`<button type="button" onclick="_clearSitePhoto('ef-preview-Image2','ef-Image2')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
+        </div>
+        <input class="edit-input" id="ef-Image2" value="${ea(sf(site,'Image 2','Image2'))}" style="display:none"></div>
+      <div class="edit-wrap"><div class="edit-label">Image 3</div>
+        <img id="ef-preview-Image3" src="${img3}" loading="lazy"
+          style="${img3?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
+          onerror="this.style.display='none'">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-Image3','Image3'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+            📷 ${img3?'Replace':'Add'} Photo
+          </button>
+          ${img3?`<button type="button" onclick="_clearSitePhoto('ef-preview-Image3','ef-Image3')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
+        </div>
+        <input class="edit-input" id="ef-Image3" value="${ea(sf(site,'Image 3','Image3'))}" style="display:none"></div>
+      <div class="edit-wrap"><div class="edit-label">Helpful Before Image</div>
+        <img id="ef-preview-HelpBeforeImg" src="${helpBeforeImg}" loading="lazy"
+          style="${helpBeforeImg?'':'display:none;'}width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
+          onerror="this.style.display='none'">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" onclick="showPhotoOptions(f=>previewSitePhotoFile(f,'ef-preview-HelpBeforeImg','HelpBeforeImg'))" style="display:inline-flex;align-items:center;gap:5px;padding:9px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--fog)">
+            📷 ${helpBeforeImg?'Replace':'Add'} Photo
+          </button>
+          ${helpBeforeImg?`<button type="button" onclick="_clearSitePhoto('ef-preview-HelpBeforeImg','ef-HelpBeforeImg')" style="display:inline-flex;align-items:center;gap:4px;padding:9px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove</button>`:``}
+        </div>
+        <input class="edit-input" id="ef-HelpBeforeImg" value="${ea(sf(site,'Helpful Before Image','HelpfulBeforeImage'))}" style="display:none"></div>`:''}
       <div class="edit-actions">
       <hr class="section-divider">
       <div class="edit-wrap">
@@ -2755,8 +2797,8 @@ function renderSchoolDetail(site,editMode){
     const keeperHtml=gke?crow('Garden Keeper',gke):'';
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
-      ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"></div>`:''}
-      ${(helpImg1||helpImg2)?`<div style="padding:8px 20px 0"><div class="img-gallery">${helpImg1?`<img data-lazy="${helpImg1}" class="img-thumb" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.style.display='none'">`:''}${helpImg2?`<img data-lazy="${helpImg2}" class="img-thumb" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.style.display='none'">`:''}</div></div>`:''}
+      ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"><div class="img-thumb-label" style="margin-top:4px">Main Image</div></div>`:''}
+      ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2')}${siteGalleryThumb(img3,'Image 3')}${siteGalleryThumb(helpImg1,'Helpful Image 1')}${siteGalleryThumb(helpImg2,'Helpful Image 2')}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image')}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
@@ -2807,11 +2849,17 @@ async function saveSiteEdit(siteKey){
   const mi=gv('ef-MainImg');if(mi)updates['Main Image']=mi;
   const hi1=gv('ef-HelpImg1');if(hi1)updates['Helpful Image 1']=hi1;
   const hi2=gv('ef-HelpImg2');if(hi2)updates['Helpful Image 2']=hi2;
+  const img2v=gv('ef-Image2');if(img2v)updates['Image 2']=img2v;
+  const img3v=gv('ef-Image3');if(img3v)updates['Image 3']=img3v;
+  const hbiv=gv('ef-HelpBeforeImg');if(hbiv)updates['Helpful Before Image']=hbiv;
   // If a photo was fire-and-forget cleared, explicitly write '' to override old value
   const _cl=window._sitePhotosCleared||{};
   if(_cl['ef-MainImg'])updates['Main Image']='';
   if(_cl['ef-HelpImg1'])updates['Helpful Image 1']='';
   if(_cl['ef-HelpImg2'])updates['Helpful Image 2']='';
+  if(_cl['ef-Image2'])updates['Image 2']='';
+  if(_cl['ef-Image3'])updates['Image 3']='';
+  if(_cl['ef-HelpBeforeImg'])updates['Helpful Before Image']='';
   const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;if(r1v)updates['Ranger 1 Name']=hn(r1v);}
   const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;if(r2v)updates['Ranger 2 Name']=hn(r2v);}
   const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;if(gkv)updates['Garden Keeper Name']=hn(gkv);}
@@ -2833,7 +2881,7 @@ async function saveSiteEdit(siteKey){
   // Save first, then close - prevents iOS WKWebView from killing in-flight fetch
   await (async()=>{
     // Wait for any in-flight eager uploads to complete
-    const inputMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2'};
+    const inputMap={'MainImage':'Main Image','HelpImg1':'Helpful Image 1','HelpImg2':'Helpful Image 2','Image2':'Image 2','Image3':'Image 3','HelpBeforeImg':'Helpful Before Image'};
     const uploadPromises=window._pendingSiteUploadPromises||{};
     const stillPending=Object.keys(uploadPromises);
     if(stillPending.length>0){
@@ -4270,8 +4318,8 @@ function previewNewChorePhotoFile(file){
 }
 function previewSitePhotoFile(file,previewId,fieldKey){
   if(!file)return;
-  const inputIdMap={MainImage:'ef-MainImg',HelpImg1:'ef-HelpImg1',HelpImg2:'ef-HelpImg2'};
-  const colMap={MainImage:'Main Image',HelpImg1:'Helpful Image 1',HelpImg2:'Helpful Image 2'};
+  const inputIdMap={MainImage:'ef-MainImg',HelpImg1:'ef-HelpImg1',HelpImg2:'ef-HelpImg2',Image2:'ef-Image2',Image3:'ef-Image3',HelpBeforeImg:'ef-HelpBeforeImg'};
+  const colMap={MainImage:'Main Image',HelpImg1:'Helpful Image 1',HelpImg2:'Helpful Image 2',Image2:'Image 2',Image3:'Image 3',HelpBeforeImg:'Helpful Before Image'};
   const inputId=inputIdMap[fieldKey];
   const colName=colMap[fieldKey];
   // Show dimmed local preview immediately
@@ -4307,7 +4355,7 @@ function previewSitePhotoFile(file,previewId,fieldKey){
   });
 }
 function _updateSitePhotoButtons(fieldKey,previewId){
-  const inputIdMap={MainImage:'ef-MainImg',HelpImg1:'ef-HelpImg1',HelpImg2:'ef-HelpImg2'};
+  const inputIdMap={MainImage:'ef-MainImg',HelpImg1:'ef-HelpImg1',HelpImg2:'ef-HelpImg2',Image2:'ef-Image2',Image3:'ef-Image3',HelpBeforeImg:'ef-HelpBeforeImg'};
   const inputId=inputIdMap[fieldKey];
   const img=document.getElementById(previewId);
   if(!img)return;
@@ -4773,10 +4821,10 @@ function _clearSitePhoto(previewId,inputId){
   if(!confirm('Remove this photo?'))return;
   // Cancel any pending upload
   if(window._pendingSitePhotos){
-    const keyMap={'ef-preview-MainImage':'MainImage','ef-preview-HelpImg1':'HelpImg1','ef-preview-HelpImg2':'HelpImg2'};
+    const keyMap={'ef-preview-MainImage':'MainImage','ef-preview-HelpImg1':'HelpImg1','ef-preview-HelpImg2':'HelpImg2','ef-preview-Image2':'Image2','ef-preview-Image3':'Image3','ef-preview-HelpBeforeImg':'HelpBeforeImg'};
     delete window._pendingSitePhotos[keyMap[previewId]||previewId];
   }
-  const colMap={'ef-MainImg':'Main Image','ef-HelpImg1':'Helpful Image 1','ef-HelpImg2':'Helpful Image 2'};
+  const colMap={'ef-MainImg':'Main Image','ef-HelpImg1':'Helpful Image 1','ef-HelpImg2':'Helpful Image 2','ef-Image2':'Image 2','ef-Image3':'Image 3','ef-HelpBeforeImg':'Helpful Before Image'};
   const colName=colMap[inputId];
   const site=window._currentSite;
   if(!site||!colName||!CFG.URL){
