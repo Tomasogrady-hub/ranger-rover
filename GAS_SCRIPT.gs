@@ -1197,7 +1197,7 @@ function handleSaveAppSettings(p) {
     var settings = p.settings || {};
     // Sanitise navVisibility: keys 1-9, values = arrays of known tab strings
     var KNOWN_TABS = ['notes','schools','map','chores','latest','rangers','people',
-                      'plants','action','reach','settings','control'];
+                      'plants','action','operations','reach','settings','control'];
     var navVis = {};
     var rawVis = settings.navVisibility || {};
     for (var i = 1; i <= 9; i++) {
