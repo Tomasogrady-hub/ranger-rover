@@ -979,10 +979,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.56';
+const APP_VERSION='v9.57';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-18f HOTFIX: a stray closing div in the new Operations tab was breaking all page nesting after it (nav bar disappeared, Operations sub-nav floated over every tab). Fixed div structure — only the Operations tab itself is new, all other tabs/nav restored to normal.';
+const BUILD_STAMP='2026-07-18g Operations Home: clicking a school now opens directly into a lean edit form (standard fields, no images/video) plus Ranger Day of Week 1-3, Program Started?, Any Response?, and all 11 financial columns; Save returns to Operations, not Schools.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2677,10 +2677,11 @@ function showSiteChores(siteKey){
   openDetail();
 }
 function showSchoolDetail(idx){const site=(window._fs||DATA.sites)[idx];if(!site)return;renderSchoolDetail(site,false);openDetail();}
-function showSchoolDetailByKey(key){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolDetail(site,false);openDetail();}
+function showSchoolDetailByKey(key){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;window._opsEditMode=false;renderSchoolDetail(site,false);openDetail();}
 function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name','name')===name);if(!site)return;renderSchoolDetail(site,false);openDetail();}
 
-function renderSchoolDetail(site,editMode){
+function renderSchoolDetail(site,editMode,opsMode){
+  opsMode=!!opsMode;
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
   const stAddr=sf(site,'Street Address','StreetAddress'),stCity=sf(site,'City','city'),stState=sf(site,'State','state'),stZip=sf(site,'Zip Code','ZipCode'),stCountry=sf(site,'Country','country');
   const details=sf(site,'SiteDetails','Site Details','siteDetails'),sched=sf(site,'Schedule','schedule');
@@ -2766,7 +2767,58 @@ function renderSchoolDetail(site,editMode){
       <hr class="section-divider">`:''}
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
       <div class="edit-wrap"><div class="edit-label">Schedule</div><input class="edit-input" id="ef-Schedule" value="${ea(sched)}"></div>
-      ${canAssign?`<hr class="section-divider">
+      ${opsMode?(()=>{
+        const rd1=sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
+        const rd2=sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2')||'';
+        const rd3=sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')||'';
+        const psRaw=sf(site,'Program Started?','ProgramStarted','programStarted');
+        const psChecked=psRaw===true||String(psRaw).toLowerCase()==='true';
+        const arRaw=sf(site,'Any Response?','AnyResponse','anyResponse');
+        const arChecked=arRaw===true||String(arRaw).toLowerCase()==='true';
+        const adj=sf(site,'Adjustment')||'';
+        const units=sf(site,'Ranger Program Units')||'';
+        const totalCost=sf(site,'Total Cost')||'';
+        const quoteNum=sf(site,'Quote Number')||'';
+        const unitDesc=sf(site,'Unit Description')||'';
+        const poNum=sf(site,'PO Number')||'';
+        const finNotes=sf(site,'Financial Notes')||'';
+        const owed=sf(site,'Amount Owed')||'';
+        const paid=sf(site,'Amount Paid')||'';
+        const otherNotes=sf(site,'Other Notes')||'';
+        const status=sf(site,'Status')||'';
+        return `<hr class="section-divider">
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Ranger Day 1</div><input class="edit-input" id="ef-RangerDay1" value="${ea(String(rd1))}" placeholder="e.g. Monday"></div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 2</div><input class="edit-input" id="ef-RangerDay2" value="${ea(String(rd2))}" placeholder="e.g. Wednesday"></div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 3</div><input class="edit-input" id="ef-RangerDay3" value="${ea(String(rd3))}" placeholder="e.g. Friday"></div>
+      </div>
+      <div class="edit-wrap" style="display:flex;gap:20px;align-items:center">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-b);font-size:15px;color:var(--ink)"><input type="checkbox" id="ef-ProgramStarted" ${psChecked?'checked':''} style="width:18px;height:18px">Program Started?</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-b);font-size:15px;color:var(--ink)"><input type="checkbox" id="ef-AnyResponse" ${arChecked?'checked':''} style="width:18px;height:18px">Any Response?</label>
+      </div>
+      <hr class="section-divider">
+      <div class="edit-wrap"><div class="edit-label" style="font-weight:700;font-size:14px;letter-spacing:.05em;text-transform:uppercase">Operations &amp; Finance</div></div>
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Status</div><input class="edit-input" id="ef-Status" value="${ea(String(status))}" placeholder="e.g. Pending, Paid"></div>
+        <div style="flex:1"><div class="edit-label">Adjustment</div><input class="edit-input" id="ef-Adjustment" value="${ea(String(adj))}"></div>
+      </div>
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Ranger Program Units</div><input class="edit-input" id="ef-RangerProgramUnits" value="${ea(String(units))}"></div>
+        <div style="flex:1"><div class="edit-label">Total Cost</div><input class="edit-input" id="ef-TotalCost" value="${ea(String(totalCost))}" placeholder="$"></div>
+      </div>
+      <div class="edit-wrap"><div class="edit-label">Unit Description</div><input class="edit-input" id="ef-UnitDescription" value="${ea(unitDesc)}"></div>
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Quote Number</div><input class="edit-input" id="ef-QuoteNumber" value="${ea(String(quoteNum))}"></div>
+        <div style="flex:1"><div class="edit-label">PO Number</div><input class="edit-input" id="ef-PONumber" value="${ea(String(poNum))}"></div>
+      </div>
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Amount Owed</div><input class="edit-input" id="ef-AmountOwed" value="${ea(String(owed))}" placeholder="$"></div>
+        <div style="flex:1"><div class="edit-label">Amount Paid</div><input class="edit-input" id="ef-AmountPaid" value="${ea(String(paid))}" placeholder="$"></div>
+      </div>
+      <div class="edit-wrap"><div class="edit-label">Financial Notes</div><textarea class="edit-textarea" id="ef-FinancialNotes">${ea(finNotes)}</textarea></div>
+      <div class="edit-wrap"><div class="edit-label">Other Notes</div><textarea class="edit-textarea" id="ef-OtherNotes">${ea(otherNotes)}</textarea></div>`;
+      })():''}
+      ${(canAssign&&!opsMode)?`<hr class="section-divider">
       <div class="edit-wrap"><div class="edit-label">Main Image</div>
         <img id="ef-preview-MainImage" src="${mainImg}" loading="lazy"
           style="${mainImg?'':'display:none;'}width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:8px"
@@ -2834,7 +2886,7 @@ function renderSchoolDetail(site,editMode){
         </div>
         <input class="edit-input" id="ef-HelpBeforeImg" value="${ea(sf(site,'Helpful Before Image','HelpfulBeforeImage'))}" style="display:none"></div>`:''}
       <div class="edit-actions">
-      <hr class="section-divider">
+      ${opsMode?'':`<hr class="section-divider">
       <div class="edit-wrap">
         <div class="edit-label">Site Video</div>
         ${videoSrc?`<div style="margin-bottom:10px">${videoLinkHtml(videoSrc)}</div>`:''}
@@ -2844,10 +2896,10 @@ function renderSchoolDetail(site,editMode){
         ${videoSrc?`<button type="button" onclick="_clearSiteVideo('ef-VideoLink','ef-video-status')" style="display:inline-flex;align-items:center;gap:4px;padding:10px 15px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;cursor:pointer;background:var(--danger-bg);color:var(--danger)">🗑 Remove Video</button>`:``}
         <div style="font-size:14px;margin-top:6px" id="ef-video-status"></div>
         <input class="edit-input" id="ef-VideoLink" value="${ea(videoSrc)}" style="display:none">
-      </div>
+      </div>`}
       <div class="edit-actions" style="flex-direction:column">
         <button class="btn-save" style="width:100%;font-size:17px;padding:18px" onclick="saveSiteEdit()">✓ Finished — Save &amp; Close</button>
-        <button class="btn-cancel" style="width:100%;text-align:center" onclick="renderSchoolDetail(window._currentSite,false)">Cancel</button>
+        <button class="btn-cancel" style="width:100%;text-align:center" onclick="${opsMode?"closeDetailImmediate();switchTab('operations')":"renderSchoolDetail(window._currentSite,false)"}">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingSitePhotos={};
@@ -2858,6 +2910,7 @@ function renderSchoolDetail(site,editMode){
     window._pendingSiteVideoPromise=null;
     window._currentEditSaveFn=()=>saveSiteEdit(window._currentSite.Key||window._currentSite.key||sf(window._currentSite,'Name','name'));
     window._currentEditContext='sites';
+    window._opsEditMode=opsMode;
     window._currentSite=site;
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
@@ -2931,6 +2984,24 @@ async function saveSiteEdit(siteKey){
   }
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
   const sch=gv('ef-Schedule');if(sch!==null)updates['Schedule']=sch;
+  // Operations edit fields (only present when editing from the Operations tab)
+  const gc=id=>{const el=document.getElementById(id);return el?el.checked:null;};
+  const rd1=gv('ef-RangerDay1');if(rd1!==null)updates['Ranger Day Of Week 1']=rd1;
+  const rd2=gv('ef-RangerDay2');if(rd2!==null)updates['Ranger Day Of Week 2']=rd2;
+  const rd3=gv('ef-RangerDay3');if(rd3!==null)updates['Ranger Day Of Week 3']=rd3;
+  const psC=gc('ef-ProgramStarted');if(psC!==null)updates['Program Started?']=psC?'TRUE':'FALSE';
+  const arC=gc('ef-AnyResponse');if(arC!==null)updates['Any Response?']=arC?'TRUE':'FALSE';
+  const statusV=gv('ef-Status');if(statusV!==null)updates['Status']=statusV;
+  const adjV=gv('ef-Adjustment');if(adjV!==null)updates['Adjustment']=adjV;
+  const rpuV=gv('ef-RangerProgramUnits');if(rpuV!==null)updates['Ranger Program Units']=rpuV;
+  const tcV=gv('ef-TotalCost');if(tcV!==null)updates['Total Cost']=tcV;
+  const udV=gv('ef-UnitDescription');if(udV!==null)updates['Unit Description']=udV;
+  const qnV=gv('ef-QuoteNumber');if(qnV!==null)updates['Quote Number']=qnV;
+  const poV=gv('ef-PONumber');if(poV!==null)updates['PO Number']=poV;
+  const fnV=gv('ef-FinancialNotes');if(fnV!==null)updates['Financial Notes']=fnV;
+  const owV=gv('ef-AmountOwed');if(owV!==null)updates['Amount Owed']=owV;
+  const pdV=gv('ef-AmountPaid');if(pdV!==null)updates['Amount Paid']=pdV;
+  const onV=gv('ef-OtherNotes');if(onV!==null)updates['Other Notes']=onV;
   // Only include image fields if they have a real value (prevents blank from
   // overwriting a freshly-uploaded photo). Pending uploads fill in the URL themselves.
   const mi=gv('ef-MainImg');if(mi)updates['Main Image']=mi;
@@ -3032,7 +3103,7 @@ async function saveSiteEdit(siteKey){
       renderAll();
       _playChime();
       closeDetailImmediate();
-      switchTab('schools');
+      switchTab(window._opsEditMode?'operations':'schools');
       showSaveToast('✓ '+_saveSiteName+' saved');
     }catch(e){
       const _sb2=document.querySelector('.btn-save');
@@ -3828,6 +3899,14 @@ function renderAction(){
   }).join('');
 }
 
+function showOperationsEditByKey(key){
+  const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);
+  if(!site)return;
+  window._opsEditMode=true;
+  renderSchoolDetail(site,true,true);
+  openDetail();
+}
+
 /* ═══ OPERATIONS ═══ */
 let _opsCurrentPage='home';
 let _opsFilter='all';
@@ -3925,7 +4004,7 @@ function renderOperationsHome(){
     ).join('')}</div>`:'';
     const notesHtml=(finNotes?`<div class="ops-fin-notes"><b>Financial Notes:</b> ${finNotes}</div>`:'')+
                      (otherNotes?`<div class="ops-fin-notes"><b>Other Notes:</b> ${otherNotes}</div>`:'');
-    return `<div class="action-row" onclick="showSchoolDetailByKey('${ea(key)}')">
+    return `<div class="action-row" onclick="showOperationsEditByKey('${ea(key)}')">
       <div class="action-name">${name}</div>
       <div class="action-meta">${dist?`<span>${dist}</span>`:''}${r1n?`<span>🌿 ${r1n}</span>`:''}</div>
       <div class="action-badges">
