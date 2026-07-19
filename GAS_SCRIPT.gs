@@ -113,10 +113,38 @@ function migrateSiteNamesToKeys() {
   }
 }
 
+// ── ONE-TIME MIGRATION: add Operations financial columns to Sites sheet ──────
+// Runs on every doGet until the Script Property 'migration_ops_cols_v1' = 'done'.
+// Safe to re-run (idempotent): only appends headers that don't already exist.
+function ensureOperationsColumns() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('migration_ops_cols_v1') === 'done') return;
+
+  try {
+    var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+    var lastCol = sheet.getLastColumn();
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    var needed = ['Adjustment', 'Ranger Program Units', 'Total Cost', 'Quote Number',
+                  'Unit Description', 'PO Number', 'Financial Notes', 'Amount Owed',
+                  'Amount Paid', 'Other Notes', 'Status'];
+    var toAdd = needed.filter(function(h) { return headers.indexOf(h) === -1; });
+    if (toAdd.length) {
+      sheet.getRange(1, lastCol + 1, 1, toAdd.length).setValues([toAdd]);
+      Logger.log('ensureOperationsColumns: added ' + toAdd.join(', '));
+    }
+    props.setProperty('migration_ops_cols_v1', 'done');
+  } catch (e) {
+    Logger.log('ensureOperationsColumns error: ' + e.message);
+    // Do NOT set 'done' — will retry next load
+  }
+}
+
 // ── doGet ─────────────────────────────────────────────────────────────────────
 function doGet(e) {
   // One-time migration: convert Site Names → Keys in Chores + Humans sheets
   migrateSiteNamesToKeys();
+  // One-time migration: add Operations financial columns to Sites sheet
+  ensureOperationsColumns();
 
   // type=core   → Sites + Chores only  (fast first paint)
   // type=humans → Humans + Roles only  (loaded in background)
