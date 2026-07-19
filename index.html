@@ -367,6 +367,17 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .badge-yes{background:#d4fbf5;color:#1e3a1e}
 .badge-no{background:#fdecea;color:#b02020}
 
+/* ── OPERATIONS TAB ── */
+.ops-fin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px 14px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--mist)}
+.ops-fin-item{display:flex;flex-direction:column;gap:2px}
+.ops-fin-label{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)}
+.ops-fin-value{font-size:15px;font-weight:600;color:var(--ink);font-family:var(--font-b)}
+.ops-fin-notes{margin-top:8px;font-size:13px;color:var(--stone);line-height:1.4}
+.ops-subnav{position:sticky;bottom:0;left:0;right:0;display:flex;overflow-x:auto;gap:6px;padding:8px 10px;background:var(--paper);border-top:1px solid var(--mist);z-index:5;-webkit-overflow-scrolling:touch}
+.ops-subnav-btn{flex:0 0 auto;padding:9px 16px;background:var(--fog);border:1px solid var(--mist);border-radius:99px;font-family:var(--font-b);font-size:13px;font-weight:600;color:var(--stone);letter-spacing:.03em;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.ops-subnav-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ops-empty-page{padding:60px 24px;text-align:center;color:var(--silver);font-family:var(--font-d);font-size:20px;font-style:italic}
+
 
 /* ── Nav Visibility Control ── */
 .nv-level-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
@@ -660,6 +671,61 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   </div>
 
 
+  <!-- OPERATIONS TAB (access levels 1 & 2, visibility controlled via Control panel) -->
+  <div class="tab-pane" id="tab-operations">
+      <!-- Sub-page: Home -->
+      <div id="ops-home" style="display:block">
+        <div class="page-header">
+          <span class="page-title">Operations</span>
+          <span class="page-count" id="opsCount"></span>
+        </div>
+        <div style="padding:10px 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="opsFilter" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="all">All Active Sites</option>
+            <option value="grp_started">GRP Started</option>
+            <option value="grp_not_started">GRP Not Started</option>
+            <option value="responded">Responded</option>
+            <option value="no_response">No Response</option>
+          </select>
+        </div>
+        <div class="card-list" id="opsHomeList" style="padding:0 16px 28px"></div>
+      </div>
+
+      <!-- Sub-pages: reserved for future Operations modules -->
+      <div id="ops-tab2" style="display:none">
+        <div class="page-header"><span class="page-title">Operations</span></div>
+        <div class="ops-empty-page">Coming soon</div>
+      </div>
+      <div id="ops-tab3" style="display:none">
+        <div class="page-header"><span class="page-title">Operations</span></div>
+        <div class="ops-empty-page">Coming soon</div>
+      </div>
+      <div id="ops-tab4" style="display:none">
+        <div class="page-header"><span class="page-title">Operations</span></div>
+        <div class="ops-empty-page">Coming soon</div>
+      </div>
+      <div id="ops-tab5" style="display:none">
+        <div class="page-header"><span class="page-title">Operations</span></div>
+        <div class="ops-empty-page">Coming soon</div>
+      </div>
+      <div id="ops-tab6" style="display:none">
+        <div class="page-header"><span class="page-title">Operations</span></div>
+        <div class="ops-empty-page">Coming soon</div>
+      </div>
+    </div>
+
+    <!-- Bottom sub-nav bar -->
+    <div class="ops-subnav" id="opsSubnav">
+      <button class="ops-subnav-btn active" data-ops="home" onclick="showOperationsPage('home')">🏠 Home</button>
+      <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">Tab 2</button>
+      <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">Tab 3</button>
+      <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">Tab 4</button>
+      <button class="ops-subnav-btn" data-ops="tab5" onclick="showOperationsPage('tab5')">Tab 5</button>
+      <button class="ops-subnav-btn" data-ops="tab6" onclick="showOperationsPage('tab6')">Tab 6</button>
+    </div>
+  </div>
+
+
   <!-- REACH -->
   <div class="tab-pane" id="tab-reach">
     <!-- Sub-page: Reach menu -->
@@ -914,10 +980,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.54';
+const APP_VERSION='v9.55';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-18d Site images now show who uploaded them and when, under each thumbnail; stored in auto-created companion "<Column> Info" sheet columns, populated on upload';
+const BUILD_STAMP='2026-07-18e New Operations tab (nav-controllable per level) with a Home sub-page — same layout as Action plus 11 new Sites financial columns (Adjustment, Ranger Program Units, Total Cost, Quote Number, Unit Description, PO Number, Financial Notes, Amount Owed, Amount Paid, Other Notes, Status) — and 5 empty placeholder sub-tabs for future modules';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -934,7 +1000,7 @@ let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
 let _activeTab='notes';
-const _tabDirty={schools:false,rangers:false,people:false,chores:false,action:false,reach:false};
+const _tabDirty={schools:false,rangers:false,people:false,chores:false,action:false,operations:false,reach:false};
 let _humansLoaded=false;  // true once humans phase-2 fetch completes
 
 /* ── LOCATION STATE ── */
@@ -1243,6 +1309,7 @@ function buildNav(lvl,plantsOn){
     if(_navTabAllowed('people',lvl))   row2tabs.push(_navBtn('people','People'));
     if((plantsOn||lvl===1)&&_navTabAllowed('plants',lvl)) row2tabs.push(_navBtn('plants','Plants'));
     if(_navTabAllowed('action',lvl))   row2tabs.push(_navBtn('action','Action'));
+    if(_navTabAllowed('operations',lvl)) row2tabs.push(_navBtn('operations','Operations'));
     if(lvl===1&&_navTabAllowed('settings',lvl)) row2tabs.push(_navBtn('settings','Settings'));
     if(lvl===1&&_navTabAllowed('control',lvl))  row2tabs.push(_navBtn('control','Control'));
     row2.innerHTML=row2tabs.join('');
@@ -2406,6 +2473,7 @@ function _renderDirtyTab(tab){
   }
   else if(tab==='chores'){renderChores();_tabDirty.chores=false;}
   else if(tab==='action'){renderAction();_tabDirty.action=false;}
+  else if(tab==='operations'){if(_opsCurrentPage==='home')renderOperationsHome();_tabDirty.operations=false;}
   else if(tab==='control'){renderNavVisibilityPanel();}
   else if(tab==='reach'){/* reach renders on demand */;_tabDirty.reach=false;}
 }
@@ -3761,6 +3829,117 @@ function renderAction(){
   }).join('');
 }
 
+/* ═══ OPERATIONS ═══ */
+let _opsCurrentPage='home';
+let _opsFilter='all';
+function showOperationsPage(sub){
+  _opsCurrentPage=sub;
+  ['home','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
+    const el=document.getElementById('ops-'+k);
+    if(el)el.style.display=(k===sub)?'block':'none';
+  });
+  document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===sub));
+  if(sub==='home')renderOperationsHome();
+}
+function filterOperations(){
+  const sel=document.getElementById('opsFilter');
+  _opsFilter=sel?sel.value:'all';
+  renderOperationsHome();
+}
+function _opsMoney(v){
+  if(v===''||v===null||v===undefined)return '';
+  const n=parseFloat(String(v).replace(/[^0-9.\-]/g,''));
+  if(isNaN(n))return String(v);
+  return '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function renderOperationsHome(){
+  const list=document.getElementById('opsHomeList');
+  const cnt=document.getElementById('opsCount');
+  if(!list)return;
+  // Same base set as Action: active ranger program sites only
+  let sites=(DATA.sites||[]).filter(s=>{
+    const t=(sf(s,'Type','type')||'').toLowerCase();
+    return t==='active ranger program';
+  });
+  const f=_opsFilter;
+  if(f==='grp_started'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Program Started?','ProgramStarted','programStarted');
+      return v===true||String(v).toLowerCase()==='true';
+    });
+  } else if(f==='grp_not_started'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Program Started?','ProgramStarted','programStarted');
+      return v!==true&&String(v).toLowerCase()!=='true';
+    });
+  } else if(f==='responded'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Any Response?','AnyResponse','anyResponse');
+      return v===true||String(v).toLowerCase()==='true';
+    });
+  } else if(f==='no_response'){
+    sites=sites.filter(s=>{
+      const v=sf(s,'Any Response?','AnyResponse','anyResponse');
+      return v!==true&&String(v).toLowerCase()!=='true';
+    });
+  }
+  sites=sites.slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
+  if(cnt)cnt.textContent=sites.length+' schools';
+  if(!sites.length){
+    list.innerHTML='<div style="padding:32px 0;text-align:center;color:var(--silver);font-family:var(--font-d);font-size:22px;font-style:italic">No schools match this filter</div>';
+    return;
+  }
+  list.innerHTML=sites.map(s=>{
+    const name=sf(s,'Name','name')||'';
+    const key=sf(s,'Key','key')||'';
+    const dist=sf(s,'District','district')||'';
+    const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||'';
+    const progStarted=sf(s,'Program Started?','ProgramStarted','programStarted');
+    const responded=sf(s,'Any Response?','AnyResponse','anyResponse');
+    const ps=progStarted===true||String(progStarted).toLowerCase()==='true';
+    const rp=responded===true||String(responded).toLowerCase()==='true';
+    // New financial/operations columns (Sites sheet)
+    const status    = sf(s,'Status')||'';
+    const adj       = sf(s,'Adjustment')||'';
+    const units     = sf(s,'Ranger Program Units')||'';
+    const totalCost = sf(s,'Total Cost')||'';
+    const quoteNum  = sf(s,'Quote Number')||'';
+    const unitDesc  = sf(s,'Unit Description')||'';
+    const poNum     = sf(s,'PO Number')||'';
+    const finNotes  = sf(s,'Financial Notes')||'';
+    const owed      = sf(s,'Amount Owed')||'';
+    const paid      = sf(s,'Amount Paid')||'';
+    const otherNotes= sf(s,'Other Notes')||'';
+    const statusClass=/paid|complete|closed/i.test(status)?'badge-yes':(/pending|open|owed|due/i.test(status)?'badge-no':'');
+    const finItems=[
+      totalCost!==''?['Total Cost',_opsMoney(totalCost)]:null,
+      owed!==''?['Amount Owed',_opsMoney(owed)]:null,
+      paid!==''?['Amount Paid',_opsMoney(paid)]:null,
+      units!==''?['Ranger Program Units',units]:null,
+      unitDesc!==''?['Unit Description',unitDesc]:null,
+      quoteNum!==''?['Quote #',quoteNum]:null,
+      poNum!==''?['PO #',poNum]:null,
+      adj!==''?['Adjustment',adj]:null,
+    ].filter(Boolean);
+    const finHtml=finItems.length?`<div class="ops-fin-grid">${finItems.map(([lbl,val])=>
+      `<div class="ops-fin-item"><span class="ops-fin-label">${lbl}</span><span class="ops-fin-value">${val}</span></div>`
+    ).join('')}</div>`:'';
+    const notesHtml=(finNotes?`<div class="ops-fin-notes"><b>Financial Notes:</b> ${finNotes}</div>`:'')+
+                     (otherNotes?`<div class="ops-fin-notes"><b>Other Notes:</b> ${otherNotes}</div>`:'');
+    return `<div class="action-row" onclick="showSchoolDetailByKey('${ea(key)}')">
+      <div class="action-name">${name}</div>
+      <div class="action-meta">${dist?`<span>${dist}</span>`:''}${r1n?`<span>🌿 ${r1n}</span>`:''}</div>
+      <div class="action-badges">
+        <span class="action-badge ${ps?'badge-yes':'badge-no'}">${ps?'GRP Started':'GRP Not Started'}</span>
+        <span class="action-badge ${rp?'badge-yes':'badge-no'}">${rp?'Responded':'No Response'}</span>
+        ${status?`<span class="action-badge ${statusClass}">${status}</span>`:''}
+      </div>
+      ${finHtml}
+      ${notesHtml}
+    </div>`;
+  }).join('');
+}
+
 function switchTab(tab,initMapFlag=false){const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
@@ -3779,6 +3958,7 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
   if(tab==='control'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='action')renderAction();
+  if(tab==='operations')showOperationsPage(_opsCurrentPage||'home');
   if(tab==='latest'){
     _activityLoaded=false;loadActivity();
     // Show debug test button only for admin (level 1)
@@ -6057,6 +6237,7 @@ const NAV_ALL_TABS = [
   {key:'people',   label:'👥 People'},
   {key:'plants',   label:'🪴 Plants'},
   {key:'action',   label:'⚡ Action'},
+  {key:'operations', label:'🧭 Operations'},
   {key:'reach',    label:'📡 Reach'},
   {key:'settings', label:'⚙️ Settings'},
   {key:'control',  label:'🎛 Control'},
