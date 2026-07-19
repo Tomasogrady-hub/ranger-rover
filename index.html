@@ -712,17 +712,16 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <div class="page-header"><span class="page-title">Operations</span></div>
         <div class="ops-empty-page">Coming soon</div>
       </div>
-    </div>
 
-    <!-- Bottom sub-nav bar -->
-    <div class="ops-subnav" id="opsSubnav">
-      <button class="ops-subnav-btn active" data-ops="home" onclick="showOperationsPage('home')">🏠 Home</button>
-      <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">Tab 2</button>
-      <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">Tab 3</button>
-      <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">Tab 4</button>
-      <button class="ops-subnav-btn" data-ops="tab5" onclick="showOperationsPage('tab5')">Tab 5</button>
-      <button class="ops-subnav-btn" data-ops="tab6" onclick="showOperationsPage('tab6')">Tab 6</button>
-    </div>
+      <!-- Bottom sub-nav bar -->
+      <div class="ops-subnav" id="opsSubnav">
+        <button class="ops-subnav-btn active" data-ops="home" onclick="showOperationsPage('home')">🏠 Home</button>
+        <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">Tab 2</button>
+        <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">Tab 3</button>
+        <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">Tab 4</button>
+        <button class="ops-subnav-btn" data-ops="tab5" onclick="showOperationsPage('tab5')">Tab 5</button>
+        <button class="ops-subnav-btn" data-ops="tab6" onclick="showOperationsPage('tab6')">Tab 6</button>
+      </div>
   </div>
 
 
@@ -980,10 +979,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.55';
+const APP_VERSION='v9.56';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-18e New Operations tab (nav-controllable per level) with a Home sub-page — same layout as Action plus 11 new Sites financial columns (Adjustment, Ranger Program Units, Total Cost, Quote Number, Unit Description, PO Number, Financial Notes, Amount Owed, Amount Paid, Other Notes, Status) — and 5 empty placeholder sub-tabs for future modules';
+const BUILD_STAMP='2026-07-18f HOTFIX: a stray closing div in the new Operations tab was breaking all page nesting after it (nav bar disappeared, Operations sub-nav floated over every tab). Fixed div structure — only the Operations tab itself is new, all other tabs/nav restored to normal.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
