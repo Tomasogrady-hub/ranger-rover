@@ -693,8 +693,17 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 
       <!-- Sub-pages: reserved for future Operations modules -->
       <div id="ops-tab2" style="display:none">
-        <div class="page-header"><span class="page-title">Operations</span></div>
-        <div class="ops-empty-page">Coming soon</div>
+        <div class="page-header"><span class="page-title">Operations Notes</span></div>
+        <div style="padding:10px 16px 6px;color:var(--stone);font-family:var(--font-b);font-size:14px">
+          Shared notes visible to everyone with Operations access — not tied to any one school.
+        </div>
+        <div style="padding:10px 16px 28px">
+          <textarea id="opsSharedNotes" class="edit-textarea" style="min-height:260px" placeholder="Type shared operations notes here…"></textarea>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+            <button class="settings-btn" onclick="saveOpsSharedNotes()">Save Notes</button>
+            <span id="opsNotesStatus" style="font-family:var(--font-b);font-size:14px;color:var(--stone)"></span>
+          </div>
+        </div>
       </div>
       <div id="ops-tab3" style="display:none">
         <div class="page-header"><span class="page-title">Operations</span></div>
@@ -716,7 +725,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <!-- Bottom sub-nav bar -->
       <div class="ops-subnav" id="opsSubnav">
         <button class="ops-subnav-btn active" data-ops="home" onclick="showOperationsPage('home')">🏠 Home</button>
-        <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">Tab 2</button>
+        <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">📝 Notes</button>
         <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">Tab 3</button>
         <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">Tab 4</button>
         <button class="ops-subnav-btn" data-ops="tab5" onclick="showOperationsPage('tab5')">Tab 5</button>
@@ -979,10 +988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.59';
+const APP_VERSION='v9.60';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-20b Control moved from Row 2 to Row 3 (next to Reach) for Level 1 — Row 2 was getting crowded with 8 possible tabs, causing Operations and Control to visually clip/overlap each other when both enabled at once.';
+const BUILD_STAMP='2026-07-20c Operations: top search bar now filters Operations Home list (was previously ignored); edit form moved Ranger Day 1-3/Program Started?/Any Response?/Other Notes to the very top for quick editing; Tab 2 is now a shared Notes page (all Operations users, not school-specific) — requires new GAS deployment for opsNotes to persist.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2708,6 +2717,15 @@ function renderSchoolDetail(site,editMode,opsMode){
   const pme=sf(site,'Plant Manager','PlantManager');
   const maps=addr?`https://maps.google.com/?q=${encodeURIComponent(addr)}`:`https://maps.google.com/?q=${encodeURIComponent(name+' Los Angeles')}`;
   const openChores=openChoresForSite(sf(site,'Key','key'));
+  // Ops-mode quick-edit fields, computed early so they can be placed at the top of the form
+  const _opsRd1=sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
+  const _opsRd2=sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2')||'';
+  const _opsRd3=sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')||'';
+  const _opsPsRaw=sf(site,'Program Started?','ProgramStarted','programStarted');
+  const _opsPsChecked=_opsPsRaw===true||String(_opsPsRaw).toLowerCase()==='true';
+  const _opsArRaw=sf(site,'Any Response?','AnyResponse','anyResponse');
+  const _opsArChecked=_opsArRaw===true||String(_opsArRaw).toLowerCase()==='true';
+  const _opsOtherNotes=sf(site,'Other Notes')||'';
 
   if(editMode){
     const lvl=SESSION?SESSION.accessLevel:3;
@@ -2735,6 +2753,18 @@ function renderSchoolDetail(site,editMode,opsMode){
     }
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+      ${opsMode?`
+      <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Ranger Day 1</div><input class="edit-input" id="ef-RangerDay1" value="${ea(String(_opsRd1))}" placeholder="e.g. Monday"></div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 2</div><input class="edit-input" id="ef-RangerDay2" value="${ea(String(_opsRd2))}" placeholder="e.g. Wednesday"></div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 3</div><input class="edit-input" id="ef-RangerDay3" value="${ea(String(_opsRd3))}" placeholder="e.g. Friday"></div>
+      </div>
+      <div class="edit-wrap" style="display:flex;gap:20px;align-items:center">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-b);font-size:15px;color:var(--ink)"><input type="checkbox" id="ef-ProgramStarted" ${_opsPsChecked?'checked':''} style="width:18px;height:18px">Program Started?</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-b);font-size:15px;color:var(--ink)"><input type="checkbox" id="ef-AnyResponse" ${_opsArChecked?'checked':''} style="width:18px;height:18px">Any Response?</label>
+      </div>
+      <div class="edit-wrap"><div class="edit-label">Other Notes</div><textarea class="edit-textarea" id="ef-OtherNotes">${ea(_opsOtherNotes)}</textarea></div>
+      <hr class="section-divider">`:''}
       <div class="edit-wrap"><div class="edit-label">Program Status (Type)</div>
         <select class="edit-input" id="ef-Type" style="font-size:17px">
           <option value="Active Ranger Program"${type==='Active Ranger Program'?' selected':''}>🟢 Active Ranger Program</option>
@@ -2769,13 +2799,6 @@ function renderSchoolDetail(site,editMode,opsMode){
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
       <div class="edit-wrap"><div class="edit-label">Schedule</div><input class="edit-input" id="ef-Schedule" value="${ea(sched)}"></div>
       ${opsMode?(()=>{
-        const rd1=sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
-        const rd2=sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2')||'';
-        const rd3=sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')||'';
-        const psRaw=sf(site,'Program Started?','ProgramStarted','programStarted');
-        const psChecked=psRaw===true||String(psRaw).toLowerCase()==='true';
-        const arRaw=sf(site,'Any Response?','AnyResponse','anyResponse');
-        const arChecked=arRaw===true||String(arRaw).toLowerCase()==='true';
         const adj=sf(site,'Adjustment')||'';
         const units=sf(site,'Ranger Program Units')||'';
         const totalCost=sf(site,'Total Cost')||'';
@@ -2785,19 +2808,8 @@ function renderSchoolDetail(site,editMode,opsMode){
         const finNotes=sf(site,'Financial Notes')||'';
         const owed=sf(site,'Amount Owed')||'';
         const paid=sf(site,'Amount Paid')||'';
-        const otherNotes=sf(site,'Other Notes')||'';
         const status=sf(site,'Status')||'';
         return `<hr class="section-divider">
-      <div class="edit-wrap" style="display:flex;gap:10px">
-        <div style="flex:1"><div class="edit-label">Ranger Day 1</div><input class="edit-input" id="ef-RangerDay1" value="${ea(String(rd1))}" placeholder="e.g. Monday"></div>
-        <div style="flex:1"><div class="edit-label">Ranger Day 2</div><input class="edit-input" id="ef-RangerDay2" value="${ea(String(rd2))}" placeholder="e.g. Wednesday"></div>
-        <div style="flex:1"><div class="edit-label">Ranger Day 3</div><input class="edit-input" id="ef-RangerDay3" value="${ea(String(rd3))}" placeholder="e.g. Friday"></div>
-      </div>
-      <div class="edit-wrap" style="display:flex;gap:20px;align-items:center">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-b);font-size:15px;color:var(--ink)"><input type="checkbox" id="ef-ProgramStarted" ${psChecked?'checked':''} style="width:18px;height:18px">Program Started?</label>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-b);font-size:15px;color:var(--ink)"><input type="checkbox" id="ef-AnyResponse" ${arChecked?'checked':''} style="width:18px;height:18px">Any Response?</label>
-      </div>
-      <hr class="section-divider">
       <div class="edit-wrap"><div class="edit-label" style="font-weight:700;font-size:14px;letter-spacing:.05em;text-transform:uppercase">Operations &amp; Finance</div></div>
       <div class="edit-wrap" style="display:flex;gap:10px">
         <div style="flex:1"><div class="edit-label">Status</div><input class="edit-input" id="ef-Status" value="${ea(String(status))}" placeholder="e.g. Pending, Paid"></div>
@@ -2816,8 +2828,7 @@ function renderSchoolDetail(site,editMode,opsMode){
         <div style="flex:1"><div class="edit-label">Amount Owed</div><input class="edit-input" id="ef-AmountOwed" value="${ea(String(owed))}" placeholder="$"></div>
         <div style="flex:1"><div class="edit-label">Amount Paid</div><input class="edit-input" id="ef-AmountPaid" value="${ea(String(paid))}" placeholder="$"></div>
       </div>
-      <div class="edit-wrap"><div class="edit-label">Financial Notes</div><textarea class="edit-textarea" id="ef-FinancialNotes">${ea(finNotes)}</textarea></div>
-      <div class="edit-wrap"><div class="edit-label">Other Notes</div><textarea class="edit-textarea" id="ef-OtherNotes">${ea(otherNotes)}</textarea></div>`;
+      <div class="edit-wrap"><div class="edit-label">Financial Notes</div><textarea class="edit-textarea" id="ef-FinancialNotes">${ea(finNotes)}</textarea></div>`;
       })():''}
       ${(canAssign&&!opsMode)?`<hr class="section-divider">
       <div class="edit-wrap"><div class="edit-label">Main Image</div>
@@ -3919,6 +3930,25 @@ function showOperationsPage(sub){
   });
   document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===sub));
   if(sub==='home')renderOperationsHome();
+  if(sub==='tab2'){
+    const ta=document.getElementById('opsSharedNotes');
+    if(ta)ta.value=_appSettings.opsNotes||'';
+  }
+}
+async function saveOpsSharedNotes(){
+  const ta=document.getElementById('opsSharedNotes');
+  if(!ta)return;
+  _appSettings.opsNotes=ta.value;
+  const statusEl=document.getElementById('opsNotesStatus');
+  if(statusEl)statusEl.textContent='Saving…';
+  try{
+    localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
+    await gasPost({action:'saveAppSettings',settings:_appSettings});
+    if(statusEl)statusEl.textContent='✅ Saved';
+    setTimeout(()=>{if(statusEl)statusEl.textContent='';},2500);
+  }catch(e){
+    if(statusEl)statusEl.textContent='❌ Error saving';
+  }
 }
 function filterOperations(){
   const sel=document.getElementById('opsFilter');
@@ -3935,11 +3965,19 @@ function renderOperationsHome(){
   const list=document.getElementById('opsHomeList');
   const cnt=document.getElementById('opsCount');
   if(!list)return;
+  const q=sq.toLowerCase();
   // Same base set as Action: active ranger program sites only
   let sites=(DATA.sites||[]).filter(s=>{
     const t=(sf(s,'Type','type')||'').toLowerCase();
     return t==='active ranger program';
   });
+  if(q){
+    sites=sites.filter(s=>{
+      const name=sf(s,'Name','name')||'',dist=sf(s,'District','district')||'';
+      const r1n=sf(s,'Ranger 1 Name','Ranger1Name')||'',r1e=sf(s,'Ranger 1','Ranger1')||'';
+      return (name+dist+r1n+r1e).toLowerCase().includes(q);
+    });
+  }
   const f=_opsFilter;
   if(f==='grp_started'){
     sites=sites.filter(s=>{
@@ -5226,7 +5264,7 @@ async function forceAppUpdate(){
 /* ═══ CONTROL PANEL ═══ */
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
-let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{},twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:''};
+let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{},opsNotes:'',twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:''};
 // Migration: clean up any empty navVisibility arrays saved by earlier buggy versions
 function _sanitizeNavVisibility(){
   const v=_appSettings.navVisibility;
