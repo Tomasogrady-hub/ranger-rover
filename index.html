@@ -988,10 +988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.60';
+const APP_VERSION='v9.61';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-20c Operations: top search bar now filters Operations Home list (was previously ignored); edit form moved Ranger Day 1-3/Program Started?/Any Response?/Other Notes to the very top for quick editing; Tab 2 is now a shared Notes page (all Operations users, not school-specific) — requires new GAS deployment for opsNotes to persist.';
+const BUILD_STAMP='2026-07-20d Ops edit card: added a small Save button next to the ✕ at the top (no more scrolling to save); Ranger Day 1-3 are now Monday–Saturday dropdowns instead of free text (any pre-existing unusual value like "Sunday" is preserved as an extra option rather than silently dropped).';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2752,12 +2752,12 @@ function renderSchoolDetail(site,editMode,opsMode){
       </div>`;
     }
     document.getElementById('detail-content').innerHTML=`
-      <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+      <div class="sheet-head"><div class="sheet-title">${name}</div>${opsMode?`<button type="button" class="settings-btn" style="padding:8px 14px;font-size:13px;margin-right:8px" onclick="saveSiteEdit()">💾 Save</button>`:''}<button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
       ${opsMode?`
       <div class="edit-wrap" style="display:flex;gap:10px">
-        <div style="flex:1"><div class="edit-label">Ranger Day 1</div><input class="edit-input" id="ef-RangerDay1" value="${ea(String(_opsRd1))}" placeholder="e.g. Monday"></div>
-        <div style="flex:1"><div class="edit-label">Ranger Day 2</div><input class="edit-input" id="ef-RangerDay2" value="${ea(String(_opsRd2))}" placeholder="e.g. Wednesday"></div>
-        <div style="flex:1"><div class="edit-label">Ranger Day 3</div><input class="edit-input" id="ef-RangerDay3" value="${ea(String(_opsRd3))}" placeholder="e.g. Friday"></div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 1</div>${_opsDayDropdown('ef-RangerDay1',_opsRd1)}</div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 2</div>${_opsDayDropdown('ef-RangerDay2',_opsRd2)}</div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 3</div>${_opsDayDropdown('ef-RangerDay3',_opsRd3)}</div>
       </div>
       <div class="edit-wrap" style="display:flex;gap:20px;align-items:center">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-b);font-size:15px;color:var(--ink)"><input type="checkbox" id="ef-ProgramStarted" ${_opsPsChecked?'checked':''} style="width:18px;height:18px">Program Started?</label>
@@ -3911,6 +3911,15 @@ function renderAction(){
   }).join('');
 }
 
+const OPS_DAY_NAMES=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function _opsDayDropdown(id,current){
+  const cur=String(current||'').trim();
+  const opts=['<option value="">— None —</option>'];
+  OPS_DAY_NAMES.forEach(d=>opts.push(`<option value="${d}"${cur===d?' selected':''}>${d}</option>`));
+  // Preserve any unexpected existing value (e.g. old "Sunday" data) instead of silently discarding it
+  if(cur&&!OPS_DAY_NAMES.includes(cur)) opts.push(`<option value="${ea(cur)}" selected>${ea(cur)}</option>`);
+  return `<select class="edit-input" id="${id}">${opts.join('')}</select>`;
+}
 function showOperationsEditByKey(key){
   const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);
   if(!site)return;
