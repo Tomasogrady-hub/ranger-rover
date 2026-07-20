@@ -979,10 +979,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.57';
+const APP_VERSION='v9.58';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-18g Operations Home: clicking a school now opens directly into a lean edit form (standard fields, no images/video) plus Ranger Day of Week 1-3, Program Started?, Any Response?, and all 11 financial columns; Save returns to Operations, not Schools.';
+const BUILD_STAMP='2026-07-20a Ranger 1/2 and Garden Keeper display names now always resolve live from Humans sheet by email (hn() lookup takes precedence over stored Name column), so name edits/corrections in Humans show up everywhere instantly instead of requiring re-save of each site.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2210,9 +2210,9 @@ function renderSchools(){
 function _schoolCardHtml(s,i){
   const name=sf(s,'Name','name'),dist=sf(s,'District','district'),type=sf(s,'Type','type')||'';
   const r1e=sf(s,'Ranger 1','Ranger1');
-  const r1n=r1e?(sf(s,'Ranger 1 Name','Ranger1Name')||hn(r1e)):'';
+  const r1n=r1e?(hn(r1e)||sf(s,'Ranger 1 Name','Ranger1Name')):'';
   const gke=sf(s,'Garden Keeper','GardenKeeper');
-  const gkn=gke?(sf(s,'Garden Keeper Name','GardenKeeperName')||hn(gke)):'';
+  const gkn=gke?(hn(gke)||sf(s,'Garden Keeper Name','GardenKeeperName')):'';
   const tl=type.toLowerCase();
   const dimmed=csf==='all'&&!tl.includes('active');
   const siteKey=sf(s,'Key','key')||'';
@@ -2698,9 +2698,9 @@ function renderSchoolDetail(site,editMode,opsMode){
   const helpImg1Meta=_imgMetaLine(sf(site,'Helpful Image 1 Info'));
   const helpImg2Meta=_imgMetaLine(sf(site,'Helpful Image 2 Info'));
   const helpBeforeImgMeta=_imgMetaLine(sf(site,'Helpful Before Image Info'));
-  const r1e=sf(site,'Ranger 1','Ranger1'),r1n=sf(site,'Ranger 1 Name','Ranger1Name')||hn(r1e),r1m=hm(r1e);
-  const r2e=sf(site,'Ranger 2','Ranger2'),r2n=sf(site,'Ranger 2 Name','Ranger2Name')||hn(r2e),r2m=hm(r2e);
-  const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=sf(site,'Garden Keeper Name','GardenKeeperName')||hn(gke),gkm=hm(gke);
+  const r1e=sf(site,'Ranger 1','Ranger1'),r1n=hn(r1e)||sf(site,'Ranger 1 Name','Ranger1Name'),r1m=hm(r1e);
+  const r2e=sf(site,'Ranger 2','Ranger2'),r2n=hn(r2e)||sf(site,'Ranger 2 Name','Ranger2Name'),r2m=hm(r2e);
+  const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=hn(gke)||sf(site,'Garden Keeper Name','GardenKeeperName'),gkm=hm(gke);
   const pe=sf(site,'Principal','principal'),pn=hn(pe),pm=hm(pe);
   const saa=sf(site,'School Administrative Assistant','SchoolAdministrativeAssistant');
   const mc1=sf(site,'Main Contact 1','MainContact1'),mc2=sf(site,'Main Contact 2','MainContact2'),mc3=sf(site,'Main Contact 3','MainContact3');
@@ -6456,3 +6456,4 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeImgLigh
   <button id="img-lightbox-close" onclick="closeImgLightbox();event.stopPropagation()" aria-label="Close">×</button>
   <img id="img-lightbox-img" src="" alt="" onclick="event.stopPropagation()">
 </div>
+
