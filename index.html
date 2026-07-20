@@ -979,10 +979,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.58';
+const APP_VERSION='v9.59';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-20a Ranger 1/2 and Garden Keeper display names now always resolve live from Humans sheet by email (hn() lookup takes precedence over stored Name column), so name edits/corrections in Humans show up everywhere instantly instead of requiring re-save of each site.';
+const BUILD_STAMP='2026-07-20b Control moved from Row 2 to Row 3 (next to Reach) for Level 1 — Row 2 was getting crowded with 8 possible tabs, causing Operations and Control to visually clip/overlap each other when both enabled at once.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1301,7 +1301,7 @@ function buildNav(lvl,plantsOn){
       _nb('schools','Schools'),
       _nb('map','Map'),
       _nb('chores','Chores')].filter(Boolean).join('')||'';
-    // Row 2: Notes, Rangers, People, Plants(if on), Settings(lvl1), Control(lvl1)
+    // Row 2: Notes, Rangers, People, Plants(if on), Settings(lvl1) — Control moved to Row 3 to avoid crowding
     let row2tabs=[];
     if(_navTabAllowed('notes',lvl))    row2tabs.push(_navBtn('notes','Notes'));
     if(_navTabAllowed('rangers',lvl))  row2tabs.push(_navBtn('rangers','Rangers'));
@@ -1310,15 +1310,16 @@ function buildNav(lvl,plantsOn){
     if(_navTabAllowed('action',lvl))   row2tabs.push(_navBtn('action','Action'));
     if(_navTabAllowed('operations',lvl)) row2tabs.push(_navBtn('operations','Operations'));
     if(lvl===1&&_navTabAllowed('settings',lvl)) row2tabs.push(_navBtn('settings','Settings'));
-    if(lvl===1&&_navTabAllowed('control',lvl))  row2tabs.push(_navBtn('control','Control'));
     row2.innerHTML=row2tabs.join('');
     row2.style.display='flex';
-    // Row 3: Reach row (always 7 buttons: Reach + 6 empty)
+    // Row 3: Control (lvl1) + Reach row (always 7 buttons: Reach + 6 empty)
     const row3=document.getElementById('navRow3');
     if(row3){
-      // Build row3 dynamically: Reach + up to 6 configurable future slots
+      // Build row3 dynamically: Control(lvl1) + Reach + up to 6 configurable future slots
       const slots = (_appSettings.navVisibility && _appSettings.navVisibility.row3Slots) || [];
-      let r3html = _navTabAllowed('reach',lvl) ? _navBtn('reach','Reach') : '';
+      const controlVisible = lvl===1 && _navTabAllowed('control',lvl);
+      let r3html = controlVisible ? _navBtn('control','Control') : '';
+      r3html += _navTabAllowed('reach',lvl) ? _navBtn('reach','Reach') : '';
       let slotCount = 0;
       for(let si=0; si<6; si++){
         const slot = slots[si] || {};
@@ -1330,9 +1331,9 @@ function buildNav(lvl,plantsOn){
           slotCount++;
         }
       }
-      // Show row3 only if Reach is visible or at least one slot is active
+      // Show row3 if Control is visible, Reach is visible, or at least one slot is active
       const reachVisible = _navTabAllowed('reach',lvl);
-      if(reachVisible || slotCount > 0){
+      if(controlVisible || reachVisible || slotCount > 0){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
