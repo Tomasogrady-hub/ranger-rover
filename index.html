@@ -988,10 +988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.62';
+const APP_VERSION='v9.63';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-20e Text buttons (contact card + person detail page) now detect Windows PCs and, instead of trying to launch Phone Link via sms:, copy the number to the clipboard and open Google Messages for web in a new tab, with a toast telling the user to paste. Android/iOS behavior unchanged.';
+const BUILD_STAMP='2026-07-20f Fixed Windows Text button: previous version relied on a fading toast, but opening the new Messages tab immediately shifted browser focus away so the toast was never seen. Now shows a persistent on-screen modal with the number in large text, copies it to clipboard, and gives an explicit Open Google Messages button plus a Close button.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1170,13 +1170,36 @@ function cleanPhone(raw){
   return digits.length===10?'+1'+digits:'+'+digits;
 }
 function isWindowsPC(){return /Windows/i.test(navigator.userAgent||'');}
+function _winTextCopy(tel){
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tel).catch(()=>{});}
+}
+function showWindowsTextModal(tel){
+  let m=document.getElementById('_winTextModal');
+  if(!m){
+    m=document.createElement('div');
+    m.id='_winTextModal';
+    m.style.cssText='position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+    m.innerHTML=`<div style="background:var(--paper,#fff);border-radius:16px;padding:26px 22px;max-width:320px;width:100%;text-align:center;font-family:var(--font-b,sans-serif);box-shadow:0 8px 30px rgba(0,0,0,.35)">
+      <div style="font-size:13px;color:var(--silver,#888);line-height:1.4;margin-bottom:10px">Texting on this PC opens Google Messages instead of Phone Link</div>
+      <div id="_winTextNum" style="font-size:26px;font-weight:600;color:var(--ink,#222);margin:6px 0 12px;letter-spacing:.02em"></div>
+      <div style="font-size:13px;color:var(--silver,#888);line-height:1.4;margin-bottom:18px">This number is copied to your clipboard. In the Messages tab, click <b>Start chat</b> and paste it in.</div>
+      <button id="_winTextOpenBtn" style="width:100%;padding:12px;background:var(--grove,#1e3a1e);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:500;margin-bottom:8px;cursor:pointer">Open Google Messages</button>
+      <button id="_winTextCloseBtn" style="width:100%;padding:10px;background:none;border:none;color:var(--silver,#888);font-size:14px;cursor:pointer">Close</button>
+    </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click',e=>{if(e.target===m)m.style.display='none';});
+    m.querySelector('#_winTextCloseBtn').onclick=()=>{m.style.display='none';};
+  }
+  m.querySelector('#_winTextNum').textContent=tel;
+  m.querySelector('#_winTextOpenBtn').onclick=()=>{_winTextCopy(tel);window.open('https://messages.google.com/web/conversations','_blank');};
+  _winTextCopy(tel);
+  m.style.display='flex';
+}
 function textTap(ev,tel){
   ev.stopPropagation();
   if(isWindowsPC()){
     ev.preventDefault();
-    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tel).catch(()=>{});}
-    window.open('https://messages.google.com/web/conversations','_blank');
-    if(typeof showSaveToast==='function')showSaveToast('📋 '+tel+' copied — paste into Messages to text');
+    showWindowsTextModal(tel);
   }
 }
 function ctaRow(mobile,email){
