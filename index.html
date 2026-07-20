@@ -988,10 +988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.61';
+const APP_VERSION='v9.62';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-20d Ops edit card: added a small Save button next to the ✕ at the top (no more scrolling to save); Ranger Day 1-3 are now Monday–Saturday dropdowns instead of free text (any pre-existing unusual value like "Sunday" is preserved as an extra option rather than silently dropped).';
+const BUILD_STAMP='2026-07-20e Text buttons (contact card + person detail page) now detect Windows PCs and, instead of trying to launch Phone Link via sms:, copy the number to the clipboard and open Google Messages for web in a new tab, with a toast telling the user to paste. Android/iOS behavior unchanged.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1169,9 +1169,19 @@ function cleanPhone(raw){
   if(!digits)return raw;
   return digits.length===10?'+1'+digits:'+'+digits;
 }
+function isWindowsPC(){return /Windows/i.test(navigator.userAgent||'');}
+function textTap(ev,tel){
+  ev.stopPropagation();
+  if(isWindowsPC()){
+    ev.preventDefault();
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tel).catch(()=>{});}
+    window.open('https://messages.google.com/web/conversations','_blank');
+    if(typeof showSaveToast==='function')showSaveToast('📋 '+tel+' copied — paste into Messages to text');
+  }
+}
 function ctaRow(mobile,email){
   let b='';
-  if(mobile){const tel=cleanPhone(mobile);b+=`<a class="cta primary" href="tel:${tel}" onclick="event.stopPropagation()">📞 ${mobile}</a>`;b+=`<a class="cta sms-btn" href="sms:${tel}" onclick="event.stopPropagation()">💬 Text</a>`;}
+  if(mobile){const tel=cleanPhone(mobile);b+=`<a class="cta primary" href="tel:${tel}" onclick="event.stopPropagation()">📞 ${mobile}</a>`;b+=`<a class="cta sms-btn" href="sms:${tel}" onclick="textTap(event,'${tel}')">💬 Text</a>`;}
   if(email)b+=`<a class="cta" href="mailto:${email}" onclick="event.stopPropagation()">✉ Email</a>`;
   return b;
 }
@@ -3269,7 +3279,7 @@ function renderPD(h,edit){
       </div>`:''}
       <div class="detail-ctas">
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
-        ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
+        ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}" onclick="textTap(event,'${cleanPhone(mobile)}')">💬 Text</a>`:''}
         ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
       </div>
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
