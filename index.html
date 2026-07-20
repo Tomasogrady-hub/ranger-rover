@@ -988,10 +988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.64';
+const APP_VERSION='v9.65';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-20g Added native sms: protocol handler support (manifest.json protocol_handlers, desktop-only, no effect on iOS/Android). Once the PWA is installed on a Windows PC and set as the default sms: handler, any Text link on that machine opens Ranger Rover directly and shows the number in the modal automatically — no Phone Link, no Google Messages tab-switching, no clipboard step needed. In-app Text button behavior on Windows without the PWA installed is unchanged (opens Google Messages + copies number).';
+const BUILD_STAMP='2026-07-20h Fixed misleading Text-modal copy: it said "In the Messages tab, click Start chat" as if that tab were already open, but the tab only opens once you click Open Google Messages. Now reads "Click Open Google Messages below, then Start chat and paste it in" — correct for both the Windows fallback and native sms: handler paths.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1182,7 +1182,7 @@ function showWindowsTextModal(tel,viaHandler){
     m.innerHTML=`<div style="background:var(--paper,#fff);border-radius:16px;padding:26px 22px;max-width:320px;width:100%;text-align:center;font-family:var(--font-b,sans-serif);box-shadow:0 8px 30px rgba(0,0,0,.35)">
       <div id="_winTextHeader" style="font-size:13px;color:var(--silver,#888);line-height:1.4;margin-bottom:10px"></div>
       <div id="_winTextNum" style="font-size:26px;font-weight:600;color:var(--ink,#222);margin:6px 0 12px;letter-spacing:.02em"></div>
-      <div style="font-size:13px;color:var(--silver,#888);line-height:1.4;margin-bottom:18px">This number is copied to your clipboard. In the Messages tab, click <b>Start chat</b> and paste it in.</div>
+      <div style="font-size:13px;color:var(--silver,#888);line-height:1.4;margin-bottom:18px">Copied to your clipboard. Click <b>Open Google Messages</b> below, then <b>Start chat</b> and paste it in.</div>
       <button id="_winTextOpenBtn" style="width:100%;padding:12px;background:var(--grove,#1e3a1e);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:500;margin-bottom:8px;cursor:pointer">Open Google Messages</button>
       <button id="_winTextCloseBtn" style="width:100%;padding:10px;background:none;border:none;color:var(--silver,#888);font-size:14px;cursor:pointer">Close</button>
     </div>`;
