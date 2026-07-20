@@ -1179,7 +1179,7 @@ function handleGetAppSettings() {
   try {
     var props    = PropertiesService.getScriptProperties();
     var raw      = props.getProperty('app_settings');
-    var settings = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '', navVisibility: {} };
+    var settings = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '', opsNotes: '', navVisibility: {} };
     var gasUrl   = props.getProperty('gas_url') || '';
     // Merge Twilio credentials back in (stored separately for security)
     settings.twilioSid       = props.getProperty('twilio_sid')        || '';
@@ -1225,6 +1225,7 @@ function handleSaveAppSettings(p) {
     var safe = {
       plantsEnabled: settings.plantsEnabled !== false,
       broadcast: String(settings.broadcast || '').slice(0, 500),
+      opsNotes: String(settings.opsNotes || '').slice(0, 20000),
       navVisibility: navVis
     };
     PropertiesService.getScriptProperties().setProperty('app_settings', JSON.stringify(safe));
@@ -1728,3 +1729,4 @@ function handleGetActivity() {
     return { ok: false, error: e.message };
   }
 }
+
