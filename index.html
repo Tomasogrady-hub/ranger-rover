@@ -165,6 +165,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .ops-card-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;background:#fff3e0;color:var(--charcoal);border:1px solid var(--amber);font-family:var(--font-b);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.04em;flex-shrink:0}
 .ops-row-highlight{animation:opsRowPulse 1.8s ease-out 1}
 @keyframes opsRowPulse{0%{box-shadow:0 0 0 3px var(--amber);background-color:#fff3e0}100%{box-shadow:0 0 0 0 rgba(245,166,35,0);background-color:transparent}}
+.ops-row-target{background:#fff8ec!important;box-shadow:inset 4px 0 0 0 var(--amber);transition:background .3s}
+.ops-row-target .action-name{font-weight:800;font-size:19px;color:var(--charcoal)}
 
 /* ── PEOPLE CARDS ── */
 .people-card{border-bottom:1px solid var(--mist);padding:17px 0;cursor:pointer;display:flex;align-items:flex-start;gap:13px}
@@ -979,10 +981,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.69';
+const APP_VERSION='v9.70';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-23c Fixed the real reason the new Site Card OPERATIONS toggle kept reverting to hidden: any access level that already had a customized (non-empty) Nav Visibility list saved before this toggle existed would treat the missing key as "explicitly hidden" forever, since a non-empty list only shows what it contains. Added a one-time migration that backfills newly-introduced toggle keys as visible by default (tracked so it only runs once — you can still turn it off afterward and it will stick).';
+const BUILD_STAMP='2026-07-23d Added the OPERATIONS button to the full School Detail sheet as well (not just the list card), same nav-visibility gating. On the Operations page, the jumped-to site now also gets a lasting highlight — bold/larger name plus a tinted background and amber accent bar — on top of the initial scroll pulse, so it clearly stands out; it settles back to normal after about 10 seconds or when you jump to a different site.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2942,8 +2944,12 @@ function renderSchoolDetail(site,editMode,opsMode){
       :`<div class="ds"><div class="dl">Ranger</div><div class="dv" style="color:var(--danger)">Unassigned</div></div>`;
     const ranger2Html=r2e?crow('Ranger 2',r2e):'';
     const keeperHtml=gke?crow('Garden Keeper',gke):'';
+    const _detailLvl=SESSION?SESSION.accessLevel:3;
+    const _detailSiteKey=sf(site,'Key','key')||'';
+    const _detailOpsBtn=_navTabAllowed('operations',_detailLvl)&&_navTabAllowed('site_ops_btn',_detailLvl)
+      ?`<button class="ops-card-btn" style="margin-right:8px" onclick="event.stopPropagation();closeDetailBtnChime();goToOperationsForSite('${esc(_detailSiteKey)}')">🧭 OPERATIONS</button>`:'';
     document.getElementById('detail-content').innerHTML=`
-      <div class="sheet-head"><div class="sheet-title">${name}</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+      <div class="sheet-head"><div class="sheet-title">${name}</div>${_detailOpsBtn}<button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
       ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" class="site-img-full" style="opacity:0;transition:opacity .3s;cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.parentElement.style.display='none'"><div class="img-thumb-label" style="margin-top:4px">Main Image</div>${mainImgMeta?`<div class="img-thumb-meta">${mainImgMeta}</div>`:''}</div>`:''}
       ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2',img2Meta)}${siteGalleryThumb(img3,'Image 3',img3Meta)}${siteGalleryThumb(helpImg1,'Helpful Image 1',helpImg1Meta)}${siteGalleryThumb(helpImg2,'Helpful Image 2',helpImg2Meta)}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image',helpBeforeImgMeta)}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
@@ -3926,10 +3932,14 @@ function showOperationsEditByKey(key){
 // Jump from a site card straight to that site's row on the Operations page.
 // Forces the filter to "All Active Sites" so the row is guaranteed to be
 // visible even if a previous Operations filter (e.g. "Responded") would hide it.
+let _opsTargetKey=null;
+let _opsTargetTimer=null;
 function goToOperationsForSite(key){
   _opsFilter='all';
   const selEl=document.getElementById('opsFilter');
   if(selEl)selEl.value='all';
+  _opsTargetKey=key;
+  clearTimeout(_opsTargetTimer);
   switchTab('operations');
   showOperationsPage('home');
   setTimeout(()=>{
@@ -3940,6 +3950,12 @@ function goToOperationsForSite(key){
       setTimeout(()=>row.classList.remove('ops-row-highlight'),1900);
     }
   },150);
+  // The bold/tinted "target" treatment sticks around a bit longer than the pulse
+  // so it's easy to spot even after you've scrolled or glanced away, then clears.
+  _opsTargetTimer=setTimeout(()=>{
+    _opsTargetKey=null;
+    if(_activeTab==='operations'&&_opsCurrentPage==='home')renderOperationsHome();
+  },10000);
 }
 
 /* ═══ OPERATIONS ═══ */
@@ -4066,7 +4082,7 @@ function renderOperationsHome(){
     ).join('')}</div>`:'';
     const notesHtml=(finNotes?`<div class="ops-fin-notes"><b>Financial Notes:</b> ${finNotes}</div>`:'')+
                      (otherNotes?`<div class="ops-fin-notes"><b>Other Notes:</b> ${otherNotes}</div>`:'');
-    return `<div class="action-row" data-sitekey="${ea(key)}" onclick="showOperationsEditByKey('${ea(key)}')">
+    return `<div class="action-row${key&&key===_opsTargetKey?' ops-row-target':''}" data-sitekey="${ea(key)}" onclick="showOperationsEditByKey('${ea(key)}')">
       <div class="action-name">${name}</div>
       <div class="action-meta">${dist?`<span>${dist}</span>`:''}${r1n?`<span>🌿 ${r1n}</span>`:''}</div>
       <div class="action-badges">
