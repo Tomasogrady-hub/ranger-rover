@@ -979,10 +979,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.68';
+const APP_VERSION='v9.69';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-23b Fixed Control Panel Nav Visibility overflow (nv-label was missing min-width:0, so long labels blew out the 3-col grid and pushed content off-screen) — switched to a clean single-column list styled like the rest of Settings. Removed the standalone Plants Tab feature flag; Plants visibility is now controlled purely via Nav Visibility by Access Level for every access level, including a fix for Level 3 which previously never had the option at all.';
+const BUILD_STAMP='2026-07-23c Fixed the real reason the new Site Card OPERATIONS toggle kept reverting to hidden: any access level that already had a customized (non-empty) Nav Visibility list saved before this toggle existed would treat the missing key as "explicitly hidden" forever, since a non-empty list only shows what it contains. Added a one-time migration that backfills newly-introduced toggle keys as visible by default (tracked so it only runs once — you can still turn it off afterward and it will stick).';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -5288,13 +5288,33 @@ async function forceAppUpdate(){
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
 let _appSettings={broadcast:'',navVisibility:{},opsNotes:'',twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:''};
-// Migration: clean up any empty navVisibility arrays saved by earlier buggy versions
+// Migration: clean up any empty navVisibility arrays saved by earlier buggy versions,
+// AND backfill newly-introduced toggle keys (like site_ops_btn) into anyone's already-
+// customized (non-empty) per-level list so a brand new feature doesn't silently look
+// "hidden" just because it didn't exist yet when they last saved. Each key is only
+// backfilled once (tracked in __migratedKeys) so people can still choose to turn it
+// off afterward without this migration re-adding it on every load.
+let _nvMigrationDirty=false;
 function _sanitizeNavVisibility(){
   const v=_appSettings.navVisibility;
   if(!v)return;
+  const _metaKeys=['row3Slots','__migratedKeys'];
   Object.keys(v).forEach(k=>{
+    if(_metaKeys.includes(k))return;
     if(Array.isArray(v[k])&&v[k].length===0)delete v[k];
   });
+  if(!Array.isArray(v.__migratedKeys))v.__migratedKeys=[];
+  const toBackfill=['site_ops_btn'].filter(k=>!v.__migratedKeys.includes(k));
+  if(toBackfill.length){
+    Object.keys(v).forEach(k=>{
+      if(_metaKeys.includes(k))return;
+      if(Array.isArray(v[k])&&v[k].length>0){
+        toBackfill.forEach(bk=>{ if(!v[k].includes(bk)) v[k].push(bk); });
+      }
+    });
+    v.__migratedKeys=v.__migratedKeys.concat(toBackfill);
+    _nvMigrationDirty=true;
+  }
 }
 
 async function loadAppSettings(){
@@ -5318,6 +5338,12 @@ async function loadAppSettings(){
       _sanitizeNavVisibility();
       localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
       _applyAppSettings();
+      // If the migration backfilled a newly-introduced toggle key, save that once
+      // server-side so every user gets it (and it won't be recomputed every load).
+      if(_nvMigrationDirty){
+        _nvMigrationDirty=false;
+        try{await gasPost({action:'saveAppSettings',settings:_appSettings});}catch(e){}
+      }
     }
     // If server has a canonical URL and it differs from what we have, adopt it
     if(r.gasUrl&&r.gasUrl!==CFG.URL){
