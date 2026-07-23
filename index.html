@@ -386,10 +386,11 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nv-level-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .nv-level-tab{padding:7px 14px;border-radius:99px;border:2px solid var(--mist);background:var(--fog);font-family:var(--font-b);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
 .nv-level-tab.active{background:var(--grove);border-color:var(--grove);color:#fff}
-.nv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.nv-tile{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--r-sm);background:var(--fog);border:1px solid var(--mist);font-family:var(--font-b);font-size:13px;font-weight:600;gap:6px}
-.nv-tile .nv-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nv-toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0}
+.nv-grid{display:flex;flex-direction:column;border:1px solid var(--mist);border-radius:var(--r-md);overflow:hidden;background:var(--paper);margin-bottom:12px}
+.nv-tile{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--mist);background:var(--paper);font-family:var(--font-b);font-size:15px;font-weight:500;gap:12px}
+.nv-tile:last-child{border-bottom:none}
+.nv-tile .nv-label{flex:1;min-width:0;color:var(--ink)}
+.nv-toggle{position:relative;display:inline-block;width:38px;height:22px;flex-shrink:0}
 .nv-toggle input{opacity:0;width:0;height:0}
 .nv-slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:99px;transition:.2s}
 .nv-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
@@ -927,19 +928,6 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     <div class="page-header"><span class="page-title">Control Panel</span></div>
     <div class="settings-section">
 
-      <!-- Plants tab toggle -->
-      <div class="dl" style="margin-bottom:8px">Feature Flags</div>
-      <div class="settings-group">
-        <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:16px">
-          <div>
-            <div class="dl" style="margin-bottom:3px">🌿 Plants Tab</div>
-            <div class="settings-note">Show or hide the Plants tab for all users (levels 2 &amp; 3).</div>
-          </div>
-          <button id="plantsToggleBtn" onclick="togglePlantsFeature()" style="flex-shrink:0;min-width:72px;padding:10px 16px;border-radius:99px;border:none;font-family:var(--font-b);font-size:15px;font-weight:600;cursor:pointer;transition:background .2s,color .2s">ON</button>
-        </div>
-      </div>
-
-
       <!-- Nav Visibility by Access Level -->
       <div class="dl" style="margin-bottom:8px;margin-top:4px">🧭 Nav Visibility by Access Level</div>
       <div class="settings-group">
@@ -991,10 +979,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.67';
+const APP_VERSION='v9.68';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-23a Fixed Reach "Greeting From You" chip (double-escaped \\n so it survives the template literal instead of breaking the onclick JS string). Added OPERATIONS button near top of site cards, controllable per access level in Control > Nav Visibility (site_ops_btn) — jumps to Operations page and highlights that site\'s row. Verified "added chore" Latest-feed hotlink already correctly links to the chore itself (not the school) — if still seeing old behavior, redeploy GAS.';
+const BUILD_STAMP='2026-07-23b Fixed Control Panel Nav Visibility overflow (nv-label was missing min-width:0, so long labels blew out the 3-col grid and pushed content off-screen) — switched to a clean single-column list styled like the rest of Settings. Removed the standalone Plants Tab feature flag; Plants visibility is now controlled purely via Nav Visibility by Access Level for every access level, including a fix for Level 3 which previously never had the option at all.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1284,13 +1272,13 @@ function setGreeting(){
 function _navBtn(tab,label,extraId=''){
   return `<button class="nav-btn" id="nav_${tab}" data-tab="${tab}" onclick="${tab==='map'?`switchTab('map',true)`:`switchTab('${tab}')`}">${label}</button>`;
 }
-function buildNav(lvl,plantsOn){
+function buildNav(lvl){
   const row1=document.getElementById('navRow1');
   const row2=document.getElementById('navRow2');
   if(!row1||!row2)return;
   // Helper: only emit nav button if allowed by navVisibility setting
   const _nb=(tab,label,extraId='')=>_navTabAllowed(tab,lvl)?_navBtn(tab,label,extraId):'';
-  // Level 3: two rows — Latest/Schools/Map/Chores on row1, Notes on row2
+  // Level 3: two rows — Latest/Schools/Map/Chores on row1, Notes(+Plants if allowed) on row2
   if(lvl>=3){
     row1.innerHTML=[
       _nb('latest','Latest'),
@@ -1299,6 +1287,7 @@ function buildNav(lvl,plantsOn){
       _nb('chores','Chores')].filter(Boolean).join('')||'';
     const row2l3tabs=[];
     if(_navTabAllowed('notes',lvl)) row2l3tabs.push(_navBtn('notes','Notes'));
+    if(_navTabAllowed('plants',lvl)) row2l3tabs.push(_navBtn('plants','Plants'));
     if(row2l3tabs.length){row2.innerHTML=row2l3tabs.join('');row2.style.display='flex';}
     else row2.style.display='none';
     // Level 3 never gets Row 3 (Reach) — always hide it explicitly
@@ -1313,12 +1302,12 @@ function buildNav(lvl,plantsOn){
       _nb('schools','Schools'),
       _nb('map','Map'),
       _nb('chores','Chores')].filter(Boolean).join('')||'';
-    // Row 2: Notes, Rangers, People, Plants(if on), Settings(lvl1) — Control moved to Row 3 to avoid crowding
+    // Row 2: Notes, Rangers, People, Plants(if allowed), Settings(lvl1) — Control moved to Row 3 to avoid crowding
     let row2tabs=[];
     if(_navTabAllowed('notes',lvl))    row2tabs.push(_navBtn('notes','Notes'));
     if(_navTabAllowed('rangers',lvl))  row2tabs.push(_navBtn('rangers','Rangers'));
     if(_navTabAllowed('people',lvl))   row2tabs.push(_navBtn('people','People'));
-    if((plantsOn||lvl===1)&&_navTabAllowed('plants',lvl)) row2tabs.push(_navBtn('plants','Plants'));
+    if(_navTabAllowed('plants',lvl))   row2tabs.push(_navBtn('plants','Plants'));
     if(_navTabAllowed('action',lvl))   row2tabs.push(_navBtn('action','Action'));
     if(_navTabAllowed('operations',lvl)) row2tabs.push(_navBtn('operations','Operations'));
     if(lvl===1&&_navTabAllowed('settings',lvl)) row2tabs.push(_navBtn('settings','Settings'));
@@ -1370,7 +1359,7 @@ function showApp(){
   document.getElementById('authScreen').style.display='none';
   ['header','searchbar','content','nav'].forEach(id=>{const el=document.getElementById(id);if(id==='nav'||id==='header')el.style.display='flex';else if(id==='content'){el.style.display='';el.style.removeProperty('display');}else el.style.display='block';});
   const lvl=SESSION.accessLevel;
-  buildNav(lvl,false); // plants off by default; loadAppSettings will call rebuildNavPlants
+  buildNav(lvl); // Nav Visibility settings (incl. Plants) are applied by loadAppSettings once loaded
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
   const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
@@ -5298,7 +5287,7 @@ async function forceAppUpdate(){
 /* ═══ CONTROL PANEL ═══ */
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
-let _appSettings={plantsEnabled:true,broadcast:'',navVisibility:{},opsNotes:'',twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:''};
+let _appSettings={broadcast:'',navVisibility:{},opsNotes:'',twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:''};
 // Migration: clean up any empty navVisibility arrays saved by earlier buggy versions
 function _sanitizeNavVisibility(){
   const v=_appSettings.navVisibility;
@@ -5342,20 +5331,13 @@ async function loadAppSettings(){
 }
 
 function _applyAppSettings(){
-  const plantsOn=_appSettings.plantsEnabled!==false; // default true
   const lvl=SESSION?SESSION.accessLevel:3;
-  // Rebuild nav so plants tab appears/disappears based on setting
-  buildNav(lvl,plantsOn);
+  // Rebuild nav so tabs (incl. Plants) reflect current Nav Visibility settings
+  buildNav(lvl);
   // Re-apply active state to current tab
   if(_activeTab){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===_activeTab));}
   // Update control panel toggle button
   setTimeout(renderNavVisibilityPanel, 50);
-  const tb=document.getElementById('plantsToggleBtn');
-  if(tb){
-    tb.textContent=plantsOn?'ON':'OFF';
-    tb.style.background=plantsOn?'var(--grove)':'var(--silver)';
-    tb.style.color='white';
-  }
   // Update broadcast textarea if on control panel
   const bi=document.getElementById('broadcastInput');if(bi)bi.value=_appSettings.broadcast||'';
   const _tSid2=document.getElementById('twilioSidInput');        if(_tSid2)_tSid2.value=_appSettings.twilioSid||'';
@@ -5371,15 +5353,6 @@ function _applyAppSettings(){
     else if(msg&&lvl===1){bb.style.display='block';bt.textContent='[Admin preview] '+msg;}
     else{bb.style.display='none';}
   }
-}
-
-async function togglePlantsFeature(){
-  _appSettings.plantsEnabled=!(_appSettings.plantsEnabled!==false);
-  _applyAppSettings();
-  localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
-  if(!CFG.URL)return;
-  try{await gasPost({action:'saveAppSettings',settings:_appSettings});}
-  catch(e){showSaveToast('⚠ Could not save setting');}
 }
 
 async function saveBroadcast(){
