@@ -8,12 +8,6 @@
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "orientation": "portrait-primary",
-  "protocol_handlers": [
-    {
-      "protocol": "sms",
-      "url": "./index.html?smsHandler=1&tel=%s"
-    }
-  ],
   "icons": [
     {
       "src": "./icon-192.png",
