@@ -162,6 +162,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .school-chevron{color:var(--mist);font-size:22px;flex-shrink:0;align-self:center}
 .chore-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:var(--warn-bg);color:var(--warn);font-size:13px;font-weight:600;white-space:nowrap}
 .add-chore-btn{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;background:var(--mint);color:var(--enrich-dark);border:1px solid var(--enrich-teal);font-family:var(--font-b);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;letter-spacing:.02em}
+.ops-card-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;background:#fff3e0;color:var(--charcoal);border:1px solid var(--amber);font-family:var(--font-b);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.04em;flex-shrink:0}
+.ops-row-highlight{animation:opsRowPulse 1.8s ease-out 1}
+@keyframes opsRowPulse{0%{box-shadow:0 0 0 3px var(--amber);background-color:#fff3e0}100%{box-shadow:0 0 0 0 rgba(245,166,35,0);background-color:transparent}}
 
 /* ── PEOPLE CARDS ── */
 .people-card{border-bottom:1px solid var(--mist);padding:17px 0;cursor:pointer;display:flex;align-items:flex-start;gap:13px}
@@ -988,10 +991,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.66';
+const APP_VERSION='v9.67';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-20i Reverted all Phone-Link workaround code now that Phone Link is fixed: removed the Windows-detection modal, the Google Messages redirect, and the sms: protocol_handlers entry in manifest.json. Text buttons are plain sms: links again, exactly as before this whole detour.';
+const BUILD_STAMP='2026-07-23a Fixed Reach "Greeting From You" chip (double-escaped \\n so it survives the template literal instead of breaking the onclick JS string). Added OPERATIONS button near top of site cards, controllable per access level in Control > Nav Visibility (site_ops_btn) — jumps to Operations page and highlights that site\'s row. Verified "added chore" Latest-feed hotlink already correctly links to the chore itself (not the school) — if still seeing old behavior, redeploy GAS.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2233,10 +2236,13 @@ function _schoolCardHtml(s,i){
     :`<span style="font-size:15px">${label}</span>`;
   const distM=window._fsDistMap&&window._fsDistMap[name]!=null?window._fsDistMap[name]:null;
   const distBadge=distM!==null?`<span class="dist-badge">${_fmtDist(distM)}</span>`:'';
+  const _lvl=SESSION?SESSION.accessLevel:3;
+  const opsBtn=_navTabAllowed('operations',_lvl)&&_navTabAllowed('site_ops_btn',_lvl)
+    ?`<button class="ops-card-btn" onclick="event.stopPropagation();goToOperationsForSite('${esc(siteKey)}')">🧭 OPERATIONS</button>`:'';
   return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)"${dimmed?' style="opacity:.5"':''}>
     <div class="sdm dm-${dc(dist)}"></div>
     <div class="school-info">
-      <div class="school-name-row"><span class="school-name">${name}</span>${distBadge}</div>
+      <div class="school-name-row">${opsBtn}<span class="school-name">${name}</span>${distBadge}</div>
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
       ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
@@ -3928,6 +3934,25 @@ function showOperationsEditByKey(key){
   openDetail();
 }
 
+// Jump from a site card straight to that site's row on the Operations page.
+// Forces the filter to "All Active Sites" so the row is guaranteed to be
+// visible even if a previous Operations filter (e.g. "Responded") would hide it.
+function goToOperationsForSite(key){
+  _opsFilter='all';
+  const selEl=document.getElementById('opsFilter');
+  if(selEl)selEl.value='all';
+  switchTab('operations');
+  showOperationsPage('home');
+  setTimeout(()=>{
+    const row=document.querySelector('#opsHomeList .action-row[data-sitekey="'+key+'"]');
+    if(row){
+      row.scrollIntoView({behavior:'smooth',block:'center'});
+      row.classList.add('ops-row-highlight');
+      setTimeout(()=>row.classList.remove('ops-row-highlight'),1900);
+    }
+  },150);
+}
+
 /* ═══ OPERATIONS ═══ */
 let _opsCurrentPage='home';
 let _opsFilter='all';
@@ -4052,7 +4077,7 @@ function renderOperationsHome(){
     ).join('')}</div>`:'';
     const notesHtml=(finNotes?`<div class="ops-fin-notes"><b>Financial Notes:</b> ${finNotes}</div>`:'')+
                      (otherNotes?`<div class="ops-fin-notes"><b>Other Notes:</b> ${otherNotes}</div>`:'');
-    return `<div class="action-row" onclick="showOperationsEditByKey('${ea(key)}')">
+    return `<div class="action-row" data-sitekey="${ea(key)}" onclick="showOperationsEditByKey('${ea(key)}')">
       <div class="action-name">${name}</div>
       <div class="action-meta">${dist?`<span>${dist}</span>`:''}${r1n?`<span>🌿 ${r1n}</span>`:''}</div>
       <div class="action-badges">
@@ -6100,7 +6125,7 @@ function openReachCompose(mode) {
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeperSchools}}')">Garden Keeper Schools</button>` : ''}
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
-          <button type="button" class="reach-token-chip" onclick="_insertReachToken('\n\nSincerely,\n{{FromName}}')">🙏 Greeting From You</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('\\n\\nSincerely,\\n{{FromName}}')">🙏 Greeting From You</button>
         </div>
         <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor${isEmail?' (works in Subject or Message)':''}${!isTogether?' — each person gets their own version filled in automatically when sent':''}.</div>
       </div>
@@ -6367,6 +6392,7 @@ const NAV_ALL_TABS = [
   {key:'reach',    label:'📡 Reach'},
   {key:'settings', label:'⚙️ Settings'},
   {key:'control',  label:'🎛 Control'},
+  {key:'site_ops_btn', label:'📍 Site Card: OPERATIONS Button'},
 ];
 
 // Default: all tabs visible for every level
