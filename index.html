@@ -687,7 +687,11 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
         <div style="padding:10px 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <select id="opsFilter" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
-            <option value="all">All Active Sites</option>
+            <option value="all">All</option>
+            <option value="type_active">Active Ranger Program</option>
+            <option value="type_future">Future Ranger Program</option>
+            <option value="type_inactive">Inactive Ranger Program</option>
+            <option value="type_possible">Possible Ranger Program</option>
             <option value="grp_started">GRP Started</option>
             <option value="grp_not_started">GRP Not Started</option>
             <option value="responded">Responded</option>
@@ -981,10 +985,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.71';
+const APP_VERSION='v9.72';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-24a Operations Home now shows all 227 schools regardless of Type (was previously limited to Active Ranger Program only, undercounting to 69).';
+const BUILD_STAMP='2026-07-24b Operations Home filter dropdown: added Active/Future/Inactive/Possible Ranger Program options (filtered by Type), renamed "All Active Sites" to "All" since the list now includes every school regardless of Type.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4015,7 +4019,15 @@ function renderOperationsHome(){
     });
   }
   const f=_opsFilter;
-  if(f==='grp_started'){
+  if(f==='type_active'){
+    sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='active ranger program');
+  } else if(f==='type_future'){
+    sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='future ranger program');
+  } else if(f==='type_inactive'){
+    sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='inactive ranger program');
+  } else if(f==='type_possible'){
+    sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='possible ranger program');
+  } else if(f==='grp_started'){
     sites=sites.filter(s=>{
       const v=sf(s,'Program Started?','ProgramStarted','programStarted');
       return v===true||String(v).toLowerCase()==='true';
