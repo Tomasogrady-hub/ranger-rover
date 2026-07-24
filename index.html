@@ -981,10 +981,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.70';
+const APP_VERSION='v9.71';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-23d Added the OPERATIONS button to the full School Detail sheet as well (not just the list card), same nav-visibility gating. On the Operations page, the jumped-to site now also gets a lasting highlight — bold/larger name plus a tinted background and amber accent bar — on top of the initial scroll pulse, so it clearly stands out; it settles back to normal after about 10 seconds or when you jump to a different site.';
+const BUILD_STAMP='2026-07-24a Operations Home now shows all 227 schools regardless of Type (was previously limited to Active Ranger Program only, undercounting to 69).';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4005,11 +4005,8 @@ function renderOperationsHome(){
   const cnt=document.getElementById('opsCount');
   if(!list)return;
   const q=sq.toLowerCase();
-  // Same base set as Action: active ranger program sites only
-  let sites=(DATA.sites||[]).filter(s=>{
-    const t=(sf(s,'Type','type')||'').toLowerCase();
-    return t==='active ranger program';
-  });
+  // Show all schools, regardless of Type
+  let sites=(DATA.sites||[]).slice();
   if(q){
     sites=sites.filter(s=>{
       const name=sf(s,'Name','name')||'',dist=sf(s,'District','district')||'';
@@ -6545,4 +6542,5 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeImgLigh
   <button id="img-lightbox-close" onclick="closeImgLightbox();event.stopPropagation()" aria-label="Close">×</button>
   <img id="img-lightbox-img" src="" alt="" onclick="event.stopPropagation()">
 </div>
+
 
