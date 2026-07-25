@@ -988,10 +988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.73';
+const APP_VERSION='v9.74';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-25a Added "➕ Add New Site" button to top of Operations Home: opens a search modal against the full LA-area schools master database, auto-fills address/district/principal-raw fields on selection (or "Can\'t find your school? Add it manually" for a blank entry), creates the row server-side with a fresh Key, then opens the normal Operations edit card to finish and Save.';
+const BUILD_STAMP='2026-07-25b Add New Site now opens the filled-in card for review/editing BEFORE anything is written to the Sites sheet — nothing is created until Save is tapped (Cancel/X discards the draft). On Save, the server tries to link the school\'s scraped Principal Email to an existing Human (filling in missing first/last name) or creates a new Human for them, then assigns them to the site\'s Principal column, unless the user already picked someone else.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2757,6 +2757,8 @@ function renderSchoolDetail(site,editMode,opsMode){
     }
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div>${opsMode?`<button type="button" class="settings-btn" style="padding:8px 14px;font-size:13px;margin-right:8px" onclick="saveSiteEdit()">💾 Save</button>`:''}<button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+      ${window._isNewSiteDraft?`<div class="edit-wrap"><div class="edit-label">School Name</div><input class="edit-input" id="ef-Name" value="${ea(name)}" placeholder="School name"></div>
+      <div style="padding:0 20px 4px;font-family:var(--font-b);font-size:13px;color:var(--stone)">Review and edit these details, then tap <strong>Save</strong> to add this site to Ranger Rover — nothing is written yet.</div>`:''}
       ${opsMode?`
       <div class="edit-wrap" style="display:flex;gap:10px">
         <div style="flex:1"><div class="edit-label">Ranger Day 1</div>${_opsDayDropdown('ef-RangerDay1',_opsRd1)}</div>
@@ -2979,19 +2981,12 @@ function toggleDropdown(id){const el=document.getElementById(id);document.queryS
 function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .dropdown-item`).forEach(i=>{i.style.display=i.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});}
 function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel');const cs=panel.closest('.custom-select');const btn=cs.querySelector('.custom-select-btn');const email=isNone?'':el.dataset.email;btn.textContent=isNone?'— None —':el.dataset.name;btn.dataset.value=email;panel.classList.remove('open');}
 
-async function saveSiteEdit(siteKey){
-  // iOS WKWebView: onclick attrs may not pass window globals reliably
-  // Always re-derive key from window._currentSite directly
-  if(window._currentSite){
-    const _cs=window._currentSite;
-    siteKey=_cs.Key||_cs.key||_cs['']||sf(_cs,'Name','name')||siteKey||'';
-  }
-  const _saveSiteName=sf(window._currentSite,'Name','name')||siteKey;
-  const siteName=sf(window._currentSite,'Name','name')||siteKey;
-  // Snapshot all form values immediately
+function _collectSiteEditFormValues(){
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
+  const gc=id=>{const el=document.getElementById(id);return el?el.checked:null;};
   const updates={};
+  const nmV=gv('ef-Name');if(nmV!==null)updates['Name']=nmV;
   const tv=gv('ef-Type');if(tv!==null)updates['Type']=tv;
   const _stAddr=gv('ef-StreetAddress'),_stCity=gv('ef-City'),_stState=gv('ef-State'),_stZip=gv('ef-ZipCode'),_stCountry=gv('ef-Country');
   if(_stAddr!==null||_stCity!==null||_stState!==null||_stZip!==null||_stCountry!==null){
@@ -3005,7 +3000,6 @@ async function saveSiteEdit(siteKey){
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
   const sch=gv('ef-Schedule');if(sch!==null)updates['Schedule']=sch;
   // Operations edit fields (only present when editing from the Operations tab)
-  const gc=id=>{const el=document.getElementById(id);return el?el.checked:null;};
   const rd1=gv('ef-RangerDay1');if(rd1!==null)updates['Ranger Day Of Week 1']=rd1;
   const rd2=gv('ef-RangerDay2');if(rd2!==null)updates['Ranger Day Of Week 2']=rd2;
   const rd3=gv('ef-RangerDay3');if(rd3!==null)updates['Ranger Day Of Week 3']=rd3;
@@ -3053,6 +3047,63 @@ async function saveSiteEdit(siteKey){
   const _preUploadedVideoUrl=window._pendingSiteVideoUrl||'';
   const _vidInputVal=gv('ef-VideoLink')||'';
   window._pendingSitePhotos={};window._pendingSiteVideoUrl=null;window._pendingSiteVideoPromise=null;
+  return{updates,_pPhotos,_pVidPromise,_preUploadedVideoUrl,_vidInputVal};
+}
+
+// Creates the Sites row for a school picked from (or added via) the "Add New
+// Site" search flow. Nothing is written to the Sheet until this runs — the
+// card shown beforehand is purely local, for inspection/editing.
+async function _saveNewSiteDraft(){
+  const {updates}=_collectSiteEditFormValues();
+  const draftBase=window._newSiteDraftData||{};
+  const data={...draftBase,...updates};
+  data['Name']=(updates['Name']||draftBase['Name']||'').trim();
+  if(!data['Name']){showSaveToast('⚠ School name is required');return;}
+  const saveBtn=document.querySelector('.sheet-head .settings-btn');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Saving…';}
+  try{
+    const res=await gasPost({action:'createSite',data,actor:SESSION?SESSION.email:''});
+    if(!res.ok){
+      if(res.duplicate&&res.existingKey){
+        showSaveToast('⚠ '+(res.error||'That site already exists')+' — opening it');
+        window._isNewSiteDraft=false;window._newSiteDraftData=null;
+        closeDetailImmediate();
+        goToOperationsForSite(res.existingKey);
+        return;
+      }
+      showSaveToast('⚠ '+(res.error||'Could not add site'));
+      if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 Save';}
+      return;
+    }
+    const newSite=Object.assign({},res.row||{});
+    newSite['Key']=res.key;
+    window._isNewSiteDraft=false;window._newSiteDraftData=null;
+    DATA.sites.push(newSite);
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    renderAll();
+    _playChime();
+    closeDetailImmediate();
+    switchTab('operations');
+    showOperationsPage('home');
+    showSaveToast('✓ '+(newSite['Name']||'New site')+' added to Ranger Rover');
+  }catch(e){
+    showSaveToast('⚠ Add failed: '+e.message);
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 Save';}
+  }
+}
+
+async function saveSiteEdit(siteKey){
+  if(window._isNewSiteDraft) return _saveNewSiteDraft();
+  // iOS WKWebView: onclick attrs may not pass window globals reliably
+  // Always re-derive key from window._currentSite directly
+  if(window._currentSite){
+    const _cs=window._currentSite;
+    siteKey=_cs.Key||_cs.key||_cs['']||sf(_cs,'Name','name')||siteKey||'';
+  }
+  const _saveSiteName=sf(window._currentSite,'Name','name')||siteKey;
+  const siteName=sf(window._currentSite,'Name','name')||siteKey;
+  // Snapshot all form values immediately
+  const{updates,_pPhotos,_pVidPromise,_preUploadedVideoUrl,_vidInputVal}=_collectSiteEditFormValues();
   // Show saving state on button - do NOT close yet (iOS cancels background fetches)
   const _saveBtn=document.querySelector('.btn-save');
   if(_saveBtn){_saveBtn.disabled=true;_saveBtn.textContent='Saving…';}
@@ -3653,10 +3704,10 @@ async function saveNewContactForSite(returnBtnId){
 
 /* ═══ OVERLAY ═══ */
 function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,80);});}
-function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
+function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;window._isNewSiteDraft=false;window._newSiteDraftData=null;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
 function closeDetailImmediate(){const o=document.getElementById('detail-overlay');o.classList.remove('open');o.style.display='none';}
 function closeDetailChime(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;_playChime();closeDetail(e);}
-function closeDetailBtnChime(){_playChime();closeDetailImmediate();}
+function closeDetailBtnChime(){window._isNewSiteDraft=false;window._newSiteDraftData=null;_playChime();closeDetailImmediate();}
 
 /* ═══ TOAST / SOUND HELPERS ═══ */
 function showSaveToast(msg){
@@ -4009,48 +4060,27 @@ function _mapMasterRowToSiteData(m){
 }
 function _ansSelectResult(i){
   const m=_ansResults[i];if(!m)return;
-  _ansCreate(_mapMasterRowToSiteData(m));
+  _ansOpenDraft(_mapMasterRowToSiteData(m));
 }
 function _ansAddManually(){
   const val=(document.getElementById('ans-search')?.value||'').trim();
   const msg=document.getElementById('ans-msg');
   if(!val){if(msg){msg.className='save-msg err';msg.textContent='Type the school name first';}document.getElementById('ans-search')?.focus();return;}
-  _ansCreate({'Name':val});
+  _ansOpenDraft({'Name':val});
 }
-async function _ansCreate(data){
-  const modal=document.getElementById('ans-modal');
-  const msg=document.getElementById('ans-msg');
-  const btns=modal?modal.querySelectorAll('button'):[];
-  btns.forEach(b=>b.disabled=true);
-  if(msg){msg.className='save-msg';msg.textContent='Adding site…';}
-  try{
-    const res=await gasPost({action:'createSite',data,actor:SESSION?SESSION.email:''});
-    if(!res.ok){
-      if(res.duplicate&&res.existingKey){
-        modal?.remove();
-        showSaveToast('⚠ '+(res.error||'That site already exists')+' — opening it');
-        goToOperationsForSite(res.existingKey);
-        return;
-      }
-      if(msg){msg.className='save-msg err';msg.textContent='⚠ '+(res.error||'Could not add site');}
-      btns.forEach(b=>b.disabled=false);
-      return;
-    }
-    const newSite=Object.assign({},res.row||{});
-    newSite['Key']=res.key;
-    DATA.sites.push(newSite);
-    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    modal?.remove();
-    renderAll();
-    window._opsEditMode=true;
-    renderSchoolDetail(newSite,true,true);
-    openDetail();
-    _playChime();
-    showSaveToast('✓ '+(newSite['Name']||'New site')+' added — finish filling it in and Save');
-  }catch(e){
-    if(msg){msg.className='save-msg err';msg.textContent='⚠ Add failed: '+e.message;}
-    btns.forEach(b=>b.disabled=false);
-  }
+// Opens the normal Operations edit card, pre-filled but NOT yet written to the
+// Sites sheet, so the details can be reviewed/corrected first. The row is only
+// created once the user taps Save (see _saveNewSiteDraft).
+function _ansOpenDraft(data){
+  document.getElementById('ans-modal')?.remove();
+  window._newSiteDraftData=data;
+  window._isNewSiteDraft=true;
+  window._opsEditMode=true;
+  const draftSite=Object.assign({},data);
+  window._currentSite=draftSite;
+  renderSchoolDetail(draftSite,true,true);
+  openDetail();
+  showSaveToast('Review the details below, then tap Save to add this site');
 }
 
 // Jump from a site card straight to that site's row on the Operations page.
