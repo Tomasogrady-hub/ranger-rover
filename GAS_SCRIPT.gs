@@ -1096,11 +1096,73 @@ function handleCreateSite(p) {
     if (h === 'Last Update') { rowObj[h] = new Date(); return; }
     rowObj[h] = (p.data[h] !== undefined && p.data[h] !== null) ? p.data[h] : '';
   });
+
+  // If we have a raw principal email (scraped from the master schools DB, or
+  // typed by hand), try to link it to an existing Human, or create one — but
+  // never override a Principal the user explicitly picked in the edit card.
+  var principalEmail = _resolvePrincipalForNewSite(p.data, incomingName, p.actor);
+  if (principalEmail && headers.indexOf('Principal') > -1 && !String(rowObj['Principal'] || '').trim()) {
+    rowObj['Principal'] = principalEmail;
+  }
+
   var row = headers.map(function (h) { return h ? rowObj[h] : ''; });
   sheet.appendRow(row);
 
   logActivity(p.actor || '', 'added site', newKey, 'site', incomingName);
   return { ok: true, key: newKey, row: rowObj };
+}
+
+// Given a new site's raw principal fields (Principal Email Raw / Principal
+// First Name Raw / Principal Last Name Raw, as scraped from the master schools
+// DB), tries to find a matching Human by email. If found, fills in any missing
+// first/last/name on that Human row. If not found, creates a new Human row for
+// them (Role: Principal). Either way, returns the email to assign to the new
+// site's Principal column — or '' if no raw email was supplied.
+function _resolvePrincipalForNewSite(pData, siteName, actor) {
+  var email = String((pData && pData['Principal Email Raw']) || '').trim();
+  if (!email) return '';
+  var firstName = String((pData && pData['Principal First Name Raw']) || '').trim();
+  var lastName  = String((pData && pData['Principal Last Name Raw'])  || '').trim();
+
+  var humansSheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+  var hData    = humansSheet.getDataRange().getValues();
+  var hHeaders = hData[0];
+  var hEmailIdx = hHeaders.indexOf('Email');
+  var hFirstIdx = hHeaders.indexOf('First Name');
+  var hLastIdx  = hHeaders.indexOf('Last Name');
+  var hNameIdx  = hHeaders.indexOf('Name');
+  if (hEmailIdx === -1) return email; // sheet shape unexpected — pass the email through anyway
+
+  for (var r = 1; r < hData.length; r++) {
+    if (String(hData[r][hEmailIdx] || '').trim().toLowerCase() !== email.toLowerCase()) continue;
+    // Found an existing Human — fill in first/last/name only where currently blank
+    if (hFirstIdx > -1 && firstName && !String(hData[r][hFirstIdx] || '').trim()) {
+      humansSheet.getRange(r + 1, hFirstIdx + 1).setValue(firstName);
+    }
+    if (hLastIdx > -1 && lastName && !String(hData[r][hLastIdx] || '').trim()) {
+      humansSheet.getRange(r + 1, hLastIdx + 1).setValue(lastName);
+    }
+    if (hNameIdx > -1 && (firstName || lastName) && !String(hData[r][hNameIdx] || '').trim()) {
+      humansSheet.getRange(r + 1, hNameIdx + 1).setValue((firstName + ' ' + lastName).trim());
+    }
+    return String(hData[r][hEmailIdx]).trim();
+  }
+
+  // Not found — add a new Human row for this principal
+  var newHumanRow = hHeaders.map(function (h) {
+    if (h === 'Email')         return email;
+    if (h === 'First Name')    return firstName;
+    if (h === 'Last Name')     return lastName;
+    if (h === 'Name')          return (firstName + ' ' + lastName).trim() || email;
+    if (h === 'Role')          return 'Principal';
+    if (h === 'School')        return siteName || '';
+    if (h === 'Access Level')  return 3;
+    return '';
+  });
+  humansSheet.appendRow(newHumanRow);
+  logActivity(actor || '', 'added person', (firstName + ' ' + lastName).trim() || email, 'person',
+    email + ' — Principal' + (siteName ? (' — ' + siteName) : ''));
+  return email;
 }
 
 function handleSaveEdit(p) {
