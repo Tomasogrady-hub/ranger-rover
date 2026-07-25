@@ -685,8 +685,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <span class="page-title">Operations</span>
           <span class="page-count" id="opsCount"></span>
         </div>
-        <div style="padding:10px 16px 0">
-          <button class="settings-btn" onclick="showAddNewSiteModal()">➕ Add New Site</button>
+        <div style="padding:10px 16px 0;display:flex;gap:8px">
+          <button class="settings-btn" style="flex:1" onclick="showAddNewSiteModal()">➕ Add New Site</button>
+          <button class="settings-btn" style="flex:1;background:var(--danger)" onclick="showDeleteSiteModal()">🗑 Delete Site</button>
         </div>
         <div style="padding:10px 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <select id="opsFilter" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
@@ -988,10 +989,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.74';
+const APP_VERSION='v9.75';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-25b Add New Site now opens the filled-in card for review/editing BEFORE anything is written to the Sites sheet — nothing is created until Save is tapped (Cancel/X discards the draft). On Save, the server tries to link the school\'s scraped Principal Email to an existing Human (filling in missing first/last name) or creates a new Human for them, then assigns them to the site\'s Principal column, unless the user already picked someone else.';
+const BUILD_STAMP='2026-07-25c "Can\'t find your school? Add it manually" now opens a blank site card directly (no search text required). Added 🗑 Delete Site button next to Add New Site (search existing sites, confirm, permanently removes the row). New-site draft card now shows an editable District dropdown (sourced from Items All / School District) and previews the Principal that will be linked/created on Save. Saving a new site now shows a full-screen "Adding site now…" spinner instead of just disabling the button.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2758,6 +2759,7 @@ function renderSchoolDetail(site,editMode,opsMode){
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div>${opsMode?`<button type="button" class="settings-btn" style="padding:8px 14px;font-size:13px;margin-right:8px" onclick="saveSiteEdit()">💾 Save</button>`:''}<button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
       ${window._isNewSiteDraft?`<div class="edit-wrap"><div class="edit-label">School Name</div><input class="edit-input" id="ef-Name" value="${ea(name)}" placeholder="School name"></div>
+      <div class="edit-wrap"><div class="edit-label">School District</div><select class="edit-input" id="ef-District"><option value="${ea(dist)}">${dist?ea(dist):'Loading districts…'}</option></select></div>
       <div style="padding:0 20px 4px;font-family:var(--font-b);font-size:13px;color:var(--stone)">Review and edit these details, then tap <strong>Save</strong> to add this site to Ranger Rover — nothing is written yet.</div>`:''}
       ${opsMode?`
       <div class="edit-wrap" style="display:flex;gap:10px">
@@ -2917,7 +2919,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       </div>`}
       <div class="edit-actions" style="flex-direction:column">
         <button class="btn-save" style="width:100%;font-size:17px;padding:18px" onclick="saveSiteEdit()">✓ Finished — Save &amp; Close</button>
-        <button class="btn-cancel" style="width:100%;text-align:center" onclick="${opsMode?"closeDetailImmediate();switchTab('operations')":"renderSchoolDetail(window._currentSite,false)"}">Cancel</button>
+        <button class="btn-cancel" style="width:100%;text-align:center" onclick="${opsMode?"window._isNewSiteDraft=false;window._newSiteDraftData=null;closeDetailImmediate();switchTab('operations')":"renderSchoolDetail(window._currentSite,false)"}">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
     window._pendingSitePhotos={};
@@ -2930,6 +2932,7 @@ function renderSchoolDetail(site,editMode,opsMode){
     window._currentEditContext='sites';
     window._opsEditMode=opsMode;
     window._currentSite=site;
+    if(window._isNewSiteDraft)_populateDistrictDropdown(dist);
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
     // All contact rows — field stores email (primary key); display name derived from Humans
@@ -2987,6 +2990,7 @@ function _collectSiteEditFormValues(){
   const gc=id=>{const el=document.getElementById(id);return el?el.checked:null;};
   const updates={};
   const nmV=gv('ef-Name');if(nmV!==null)updates['Name']=nmV;
+  const distV=gv('ef-District');if(distV!==null)updates['District']=distV;
   const tv=gv('ef-Type');if(tv!==null)updates['Type']=tv;
   const _stAddr=gv('ef-StreetAddress'),_stCity=gv('ef-City'),_stState=gv('ef-State'),_stZip=gv('ef-ZipCode'),_stCountry=gv('ef-Country');
   if(_stAddr!==null||_stCity!==null||_stState!==null||_stZip!==null||_stCountry!==null){
@@ -3059,11 +3063,11 @@ async function _saveNewSiteDraft(){
   const data={...draftBase,...updates};
   data['Name']=(updates['Name']||draftBase['Name']||'').trim();
   if(!data['Name']){showSaveToast('⚠ School name is required');return;}
-  const saveBtn=document.querySelector('.sheet-head .settings-btn');
-  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Saving…';}
+  showBlockingOverlay('Adding site now…');
   try{
     const res=await gasPost({action:'createSite',data,actor:SESSION?SESSION.email:''});
     if(!res.ok){
+      hideBlockingOverlay();
       if(res.duplicate&&res.existingKey){
         showSaveToast('⚠ '+(res.error||'That site already exists')+' — opening it');
         window._isNewSiteDraft=false;window._newSiteDraftData=null;
@@ -3072,7 +3076,6 @@ async function _saveNewSiteDraft(){
         return;
       }
       showSaveToast('⚠ '+(res.error||'Could not add site'));
-      if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 Save';}
       return;
     }
     const newSite=Object.assign({},res.row||{});
@@ -3082,13 +3085,14 @@ async function _saveNewSiteDraft(){
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     renderAll();
     _playChime();
+    hideBlockingOverlay();
     closeDetailImmediate();
     switchTab('operations');
     showOperationsPage('home');
     showSaveToast('✓ '+(newSite['Name']||'New site')+' added to Ranger Rover');
   }catch(e){
+    hideBlockingOverlay();
     showSaveToast('⚠ Add failed: '+e.message);
-    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 Save';}
   }
 }
 
@@ -3716,6 +3720,25 @@ function showSaveToast(msg){
   t.textContent=msg;t.style.opacity='1';clearTimeout(t._tid);
   t._tid=setTimeout(()=>{t.style.opacity='0';},2800);
 }
+// Full-screen blocking overlay for actions that must not be interrupted
+// (e.g. creating/deleting a site) — disables the screen and shows a spinner
+// plus a short status message until hideBlockingOverlay() is called.
+function showBlockingOverlay(msg){
+  let o=document.getElementById('_blockOverlay');
+  if(!o){
+    o=document.createElement('div');
+    o.id='_blockOverlay';
+    o.style='position:fixed;inset:0;background:rgba(255,255,255,.88);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
+    o.innerHTML='<div class="spinner" style="margin:0"></div><div id="_blockOverlayMsg" style="font-family:var(--font-b);font-size:16px;color:var(--ink);font-weight:600"></div>';
+    document.body.appendChild(o);
+  }
+  document.getElementById('_blockOverlayMsg').textContent=msg||'Working…';
+  o.style.display='flex';
+}
+function hideBlockingOverlay(){
+  const o=document.getElementById('_blockOverlay');
+  if(o)o.style.display='none';
+}
 /* ─── Photo upload sound effects ─── */
 function _playUploadStart(){
   try{
@@ -4011,6 +4034,28 @@ function showAddNewSiteModal(){
   setTimeout(()=>document.getElementById('ans-search')?.focus(),100);
 }
 let _ansResults=[];
+let _districtListCache=null;
+async function _ensureDistrictList(){
+  if(_districtListCache)return _districtListCache;
+  try{
+    const res=await gasPost({action:'getSchoolDistricts'});
+    _districtListCache=(res&&res.ok&&res.districts)?res.districts:[];
+  }catch(e){_districtListCache=[];}
+  return _districtListCache;
+}
+// Fills in the District <select> on the new-site draft card once the list
+// loads, preserving whatever value was already there (e.g. scraped from the
+// master schools DB) even if it doesn't exactly match the Items All list.
+async function _populateDistrictDropdown(current){
+  const list=await _ensureDistrictList();
+  const sel=document.getElementById('ef-District');
+  if(!sel)return; // card was closed/changed before this resolved
+  const cur=String(current||'').trim();
+  const opts=['<option value="">— Select district —</option>'];
+  list.forEach(d=>opts.push(`<option value="${ea(d)}"${d===cur?' selected':''}>${ea(d)}</option>`));
+  if(cur&&!list.includes(cur))opts.push(`<option value="${ea(cur)}" selected>${ea(cur)}</option>`);
+  sel.innerHTML=opts.join('');
+}
 let _ansDebTimer=null;
 function _ansDebounceSearch(val){
   clearTimeout(_ansDebTimer);
@@ -4040,7 +4085,8 @@ async function _ansRunSearch(q){
 function _mapMasterRowToSiteData(m){
   const g=k=>(m[k]!==undefined&&m[k]!==null)?String(m[k]).trim():'';
   const street=g('Street Address'),city=g('City'),state=g('State'),zip=g('Zip Code'),country=g('Country')||'USA';
-  return {
+  const principalEmailRaw=g('Principal Email');
+  const out={
     'Name': g('Name'),
     'Street Address': street,
     'City': city,
@@ -4053,20 +4099,29 @@ function _mapMasterRowToSiteData(m){
     'Siteslatlong': g('Siteslatlong'),
     'enrollment': g('Enrollment'),
     'Grades&Type': g('Type'),
-    'Principal Email Raw': g('Principal Email'),
+    'Principal Email Raw': principalEmailRaw,
     'Principal First Name Raw': g('Principal First Name'),
     'Principal Last Name Raw': g('Principal Last Name')
   };
+  // Preview the Principal assignment in the draft card before Save. If this
+  // email already exists in Humans, show them by name; otherwise still show
+  // the raw email as a preview — a new Human record for them gets created
+  // for real once the site is actually saved (see handleCreateSite in GAS).
+  if(principalEmailRaw){
+    const existing=DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===principalEmailRaw.toLowerCase());
+    out['Principal']=existing?(existing.Email||existing.email||principalEmailRaw):principalEmailRaw;
+  }
+  return out;
 }
 function _ansSelectResult(i){
   const m=_ansResults[i];if(!m)return;
   _ansOpenDraft(_mapMasterRowToSiteData(m));
 }
 function _ansAddManually(){
+  // Opens a blank site card right away — any text already typed into search
+  // is used as a starting point for the Name, but it's never required.
   const val=(document.getElementById('ans-search')?.value||'').trim();
-  const msg=document.getElementById('ans-msg');
-  if(!val){if(msg){msg.className='save-msg err';msg.textContent='Type the school name first';}document.getElementById('ans-search')?.focus();return;}
-  _ansOpenDraft({'Name':val});
+  _ansOpenDraft(val?{'Name':val}:{});
 }
 // Opens the normal Operations edit card, pre-filled but NOT yet written to the
 // Sites sheet, so the details can be reviewed/corrected first. The row is only
@@ -4081,6 +4136,80 @@ function _ansOpenDraft(data){
   renderSchoolDetail(draftSite,true,true);
   openDetail();
   showSaveToast('Review the details below, then tap Save to add this site');
+}
+
+/* ═══ DELETE SITE ═══ */
+function showDeleteSiteModal(){
+  document.getElementById('dss-modal')?.remove();
+  const modal=document.createElement('div');
+  modal.id='dss-modal';
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:26px 26px 0 0;width:100%;max-height:85dvh;overflow-y:auto;padding:20px 20px calc(20px + var(--safe-bottom))">
+      <div style="font-family:var(--font-d);font-size:28px;font-style:italic;margin-bottom:6px;color:var(--danger)">Delete Site</div>
+      <div style="font-family:var(--font-b);font-size:14px;color:var(--stone);margin-bottom:14px">Search for the site you want to permanently remove from Ranger Rover.</div>
+      <div class="edit-wrap"><div class="edit-label">Search Sites</div>
+        <input class="edit-input" id="dss-search" placeholder="Start typing a site name…" oninput="_dssSearch(this.value)" autocomplete="off">
+      </div>
+      <div id="dss-results" style="margin-top:4px"></div>
+      <div style="padding-top:14px;margin-top:10px;border-top:1px solid var(--mist)">
+        <button class="btn-cancel" style="width:100%" onclick="document.getElementById('dss-modal').remove()">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('dss-search')?.focus(),100);
+}
+function _dssSearch(val){
+  const q=val.trim().toLowerCase();
+  const resultsEl=document.getElementById('dss-results');
+  if(!resultsEl)return;
+  if(!q){resultsEl.innerHTML='';return;}
+  const matches=DATA.sites.filter(s=>(sf(s,'Name','name')||'').toLowerCase().includes(q)).slice(0,30);
+  if(matches.length===0){resultsEl.innerHTML='<div style="padding:14px;color:var(--silver);font-family:var(--font-b);font-size:14px">No matches found.</div>';return;}
+  resultsEl.innerHTML=matches.map(s=>{
+    const nm=ea(sf(s,'Name','name')||''),dist=ea(sf(s,'District','district')||''),key=ea(sf(s,'Key','key')||'');
+    return `<div class="action-row" onclick="_dssConfirm('${key}')">
+      <div class="action-name">${nm}</div>
+      <div class="action-meta">${dist?`<span>${dist}</span>`:''}</div>
+    </div>`;
+  }).join('');
+}
+function _dssConfirm(key){
+  const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);
+  if(!site)return;
+  const nm=sf(site,'Name','name')||'this site';
+  document.getElementById('dss-modal')?.remove();
+  const modal=document.createElement('div');
+  modal.id='dss-confirm-modal';
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:20px;width:100%;max-width:380px;padding:24px">
+      <div style="font-family:var(--font-d);font-size:24px;font-style:italic;margin-bottom:10px;color:var(--danger)">Delete "${ea(nm)}"?</div>
+      <div style="font-family:var(--font-b);font-size:14px;color:var(--stone);margin-bottom:18px">This permanently removes the site row from the Sites sheet. This cannot be undone.</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-cancel" style="flex:1" onclick="document.getElementById('dss-confirm-modal').remove()">Cancel</button>
+        <button class="btn-save" style="flex:1;background:var(--danger)" onclick="_dssDelete('${key}')">Delete</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+async function _dssDelete(key){
+  const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);
+  const nm=site?(sf(site,'Name','name')||'Site'):'Site';
+  showBlockingOverlay('Deleting site…');
+  try{
+    const res=await gasPost({action:'deleteSite',key,actor:SESSION?SESSION.email:''});
+    document.getElementById('dss-confirm-modal')?.remove();
+    if(!res.ok){hideBlockingOverlay();showSaveToast('⚠ '+(res.error||'Delete failed'));return;}
+    DATA.sites=DATA.sites.filter(s=>(s.Key||s.key||'')!==key);
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    hideBlockingOverlay();
+    renderAll();
+    showSaveToast('🗑 '+nm+' deleted');
+  }catch(e){
+    hideBlockingOverlay();
+    showSaveToast('⚠ Delete failed: '+e.message);
+  }
 }
 
 // Jump from a site card straight to that site's row on the Operations page.
