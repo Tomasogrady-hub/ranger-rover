@@ -4,6 +4,7 @@ const HUMANS_ID = '19s6gQeFJWeVcAezkE1Lg6MJcZ3C8-h-IdWmZUDT5cHk';
 const CHORES_ID = '13PV1ahdjdelyT3iaZRmpunqKmIb8NjsNOs6Hw_Jw1Yo';
 const PLANTS_ID = '1FFhvdCupYlTJnPQIyGwWDRmHtuhqKFi2whK9BgjSdHk';
 const MEMOS_ID  = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
+const MASTER_SCHOOLS_ID = '1j1vjThg9FV0dj-qMP3RM8T_Lr-ujR2r6vANqhMPoFm8'; // full LA-area schools database used by "Add New Site" search
 
 // ── DRIVE FOLDER IDs (images) ─────────────────────────────────────────────────
 const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
@@ -226,6 +227,10 @@ function doPost(e) {
       // ── APP SETTINGS (control panel) ─────────────────────────────────────────
       case 'getAppSettings':  return respond(handleGetAppSettings());
       case 'saveAppSettings': return respond(handleSaveAppSettings(p));
+
+      // ── ADD NEW SITE (search master schools DB + create row) ─────────────────
+      case 'searchMasterSchools': return respond(handleSearchMasterSchools(p));
+      case 'createSite':          return respond(handleCreateSite(p));
 
       // ── DELETE HUMAN ─────────────────────────────────────────────────────────
       case 'deleteHuman':   return respond(handleDeleteHuman(p));
@@ -1029,6 +1034,73 @@ function handleCascadeEmail(p) {
   });
 
   return { ok: true, siteChanges: siteChanges, choreChanges: choreChanges };
+}
+
+// ── ADD NEW SITE ──────────────────────────────────────────────────────────────
+// Searches the full LA-area schools master database (separate spreadsheet, not
+// the Sites sheet) by Name substring, so a user adding a new site can find and
+// auto-fill it instead of typing everything by hand.
+function handleSearchMasterSchools(p) {
+  var q = String((p && p.query) || '').trim().toLowerCase();
+  if (q.length < 2) return { ok: true, results: [] };
+  var sheet = SpreadsheetApp.openById(MASTER_SCHOOLS_ID).getSheets()[0];
+  var data  = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ni = headers.indexOf('Name');
+  if (ni === -1) return { ok: false, error: 'Name column not found in master schools database.' };
+  var out = [];
+  for (var r = 1; r < data.length && out.length < 30; r++) {
+    var nm = String(data[r][ni] || '');
+    if (nm.toLowerCase().indexOf(q) === -1) continue;
+    var obj = {};
+    headers.forEach(function (h, i) { if (h) obj[h] = data[r][i]; });
+    out.push(obj);
+  }
+  return { ok: true, results: out };
+}
+
+// Creates a brand-new row in the Sites sheet — either from a selected master-
+// database school (data pre-mapped by the client) or a bare Name for a manual
+// "can't find your school" entry. Generates a fresh 7-char Key (col A), the
+// same reliable ID scheme every other Sites row lookup depends on.
+function handleCreateSite(p) {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ni = headers.indexOf('Name');
+  var ki = headers.indexOf('Key');
+  var incomingName = String((p.data && p.data['Name']) || '').trim();
+  if (!incomingName) return { ok: false, error: 'School name is required.' };
+
+  // Duplicate guard — exact (case-insensitive) Name match against existing Sites
+  for (var r = 1; r < data.length; r++) {
+    if (ni > -1 && String(data[r][ni] || '').trim().toLowerCase() === incomingName.toLowerCase()) {
+      return {
+        ok: false,
+        duplicate: true,
+        existingKey: ki > -1 ? String(data[r][ki] || '') : '',
+        error: 'A site named "' + incomingName + '" already exists.'
+      };
+    }
+  }
+
+  var newKey = Utilities.base64Encode(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, String(Date.now()) + String(Math.random()))
+  ).substring(0, 7).replace(/[+/=]/g, 'x');
+
+  var rowObj = {};
+  headers.forEach(function (h) {
+    if (!h) return;
+    if (h === 'Key')         { rowObj[h] = newKey; return; }
+    if (h === 'Type')        { rowObj[h] = (p.data['Type'] || 'Possible Ranger Program'); return; }
+    if (h === 'Last Update') { rowObj[h] = new Date(); return; }
+    rowObj[h] = (p.data[h] !== undefined && p.data[h] !== null) ? p.data[h] : '';
+  });
+  var row = headers.map(function (h) { return h ? rowObj[h] : ''; });
+  sheet.appendRow(row);
+
+  logActivity(p.actor || '', 'added site', newKey, 'site', incomingName);
+  return { ok: true, key: newKey, row: rowObj };
 }
 
 function handleSaveEdit(p) {
