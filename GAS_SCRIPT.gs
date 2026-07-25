@@ -231,6 +231,8 @@ function doPost(e) {
       // ── ADD NEW SITE (search master schools DB + create row) ─────────────────
       case 'searchMasterSchools': return respond(handleSearchMasterSchools(p));
       case 'createSite':          return respond(handleCreateSite(p));
+      case 'deleteSite':          return respond(handleDeleteSite(p));
+      case 'getSchoolDistricts':  return respond(handleGetSchoolDistricts());
 
       // ── DELETE HUMAN ─────────────────────────────────────────────────────────
       case 'deleteHuman':   return respond(handleDeleteHuman(p));
@@ -1163,6 +1165,51 @@ function _resolvePrincipalForNewSite(pData, siteName, actor) {
   logActivity(actor || '', 'added person', (firstName + ' ' + lastName).trim() || email, 'person',
     email + ' — Principal' + (siteName ? (' — ' + siteName) : ''));
   return email;
+}
+
+// Permanently removes a row from the Sites sheet by Key. Used by the
+// "🗑 Delete Site" flow at the top of Operations Home.
+function handleDeleteSite(p) {
+  var sheet   = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ki = headers.indexOf('Key');
+  var ni = headers.indexOf('Name');
+  var key = String(p.key || '').trim();
+  if (!key) return { ok: false, error: 'No site key provided.' };
+  for (var r = 1; r < data.length; r++) {
+    if (ki > -1 && String(data[r][ki] || '').trim() === key) {
+      var siteName = ni > -1 ? String(data[r][ni] || '') : key;
+      sheet.deleteRow(r + 1);
+      logActivity(p.actor || '', 'deleted site', key, 'site', siteName);
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'Site not found.' };
+}
+
+// Returns the distinct "School District" names from the "Items All" tab
+// (same spreadsheet as Sites) — used to populate the District dropdown shown
+// on the Add New Site draft card, before it's saved.
+function handleGetSchoolDistricts() {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ni = headers.indexOf('Name');
+  var ti = headers.indexOf('Type');
+  if (ni === -1 || ti === -1) return { ok: false, error: 'Expected Name/Type columns not found in Items All.' };
+  var seen = {}, out = [];
+  for (var r = 1; r < data.length; r++) {
+    var type = String(data[r][ti] || '').trim().toLowerCase();
+    if (type !== 'school district') continue;
+    var nm = String(data[r][ni] || '').trim();
+    if (!nm || seen[nm]) continue;
+    seen[nm] = true;
+    out.push(nm);
+  }
+  out.sort();
+  return { ok: true, districts: out };
 }
 
 function handleSaveEdit(p) {
