@@ -685,6 +685,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <span class="page-title">Operations</span>
           <span class="page-count" id="opsCount"></span>
         </div>
+        <div style="padding:10px 16px 0">
+          <button class="settings-btn" onclick="showAddNewSiteModal()">➕ Add New Site</button>
+        </div>
         <div style="padding:10px 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <select id="opsFilter" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
             <option value="all">All</option>
@@ -985,10 +988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.72';
+const APP_VERSION='v9.73';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-24b Operations Home filter dropdown: added Active/Future/Inactive/Possible Ranger Program options (filtered by Type), renamed "All Active Sites" to "All" since the list now includes every school regardless of Type.';
+const BUILD_STAMP='2026-07-25a Added "➕ Add New Site" button to top of Operations Home: opens a search modal against the full LA-area schools master database, auto-fills address/district/principal-raw fields on selection (or "Can\'t find your school? Add it manually" for a blank entry), creates the row server-side with a fresh Key, then opens the normal Operations edit card to finish and Save.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -3931,6 +3934,123 @@ function showOperationsEditByKey(key){
   window._opsEditMode=true;
   renderSchoolDetail(site,true,true);
   openDetail();
+}
+
+/* ═══ ADD NEW SITE (search master LA-schools database, then open blank edit card) ═══ */
+function showAddNewSiteModal(){
+  document.getElementById('ans-modal')?.remove();
+  const modal=document.createElement('div');
+  modal.id='ans-modal';
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end';
+  modal.innerHTML=`
+    <div style="background:white;border-radius:26px 26px 0 0;width:100%;max-height:85dvh;overflow-y:auto;padding:20px 20px calc(20px + var(--safe-bottom))">
+      <div style="font-family:var(--font-d);font-size:28px;font-style:italic;margin-bottom:6px">Add New Site</div>
+      <div style="font-family:var(--font-b);font-size:14px;color:var(--stone);margin-bottom:14px">Search the full LA-area schools database to auto-fill site details.</div>
+      <div class="edit-wrap"><div class="edit-label">Search Schools</div>
+        <input class="edit-input" id="ans-search" placeholder="Start typing a school name…" oninput="_ansDebounceSearch(this.value)" autocomplete="off">
+      </div>
+      <div id="ans-results" style="margin-top:4px"></div>
+      <div style="padding-top:14px;margin-top:10px;border-top:1px solid var(--mist)">
+        <button class="btn-cancel" style="width:100%" onclick="_ansAddManually()">Can't find your school? Add it manually</button>
+        <button class="btn-cancel" style="width:100%;margin-top:8px" onclick="document.getElementById('ans-modal').remove()">Cancel</button>
+      </div>
+      <div class="save-msg" id="ans-msg"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('ans-search')?.focus(),100);
+}
+let _ansResults=[];
+let _ansDebTimer=null;
+function _ansDebounceSearch(val){
+  clearTimeout(_ansDebTimer);
+  const q=val.trim();
+  const resultsEl=document.getElementById('ans-results');
+  if(q.length<2){if(resultsEl)resultsEl.innerHTML='';return;}
+  if(resultsEl)resultsEl.innerHTML='<div style="padding:14px;color:var(--silver);font-family:var(--font-b);font-size:14px">Searching…</div>';
+  _ansDebTimer=setTimeout(()=>_ansRunSearch(q),350);
+}
+async function _ansRunSearch(q){
+  const resultsEl=document.getElementById('ans-results');
+  try{
+    const res=await gasPost({action:'searchMasterSchools',query:q});
+    if(!resultsEl)return; // modal closed while awaiting
+    if(!res.ok){resultsEl.innerHTML='<div style="padding:14px;color:var(--danger);font-family:var(--font-b);font-size:14px">⚠ '+(res.error||'Search failed')+'</div>';return;}
+    _ansResults=res.results||[];
+    if(_ansResults.length===0){resultsEl.innerHTML='<div style="padding:14px;color:var(--silver);font-family:var(--font-b);font-size:14px">No matches found.</div>';return;}
+    resultsEl.innerHTML=_ansResults.map((m,i)=>{
+      const nm=ea(m['Name']||''),city=ea(m['City']||''),dist=ea(m['District']||''),type=ea(m['Type']||'');
+      return `<div class="action-row" onclick="_ansSelectResult(${i})">
+        <div class="action-name">${nm}</div>
+        <div class="action-meta">${city?`<span>${city}</span>`:''}${dist?`<span>${dist}</span>`:''}${type?`<span>${type}</span>`:''}</div>
+      </div>`;
+    }).join('');
+  }catch(e){if(resultsEl)resultsEl.innerHTML='<div style="padding:14px;color:var(--danger);font-family:var(--font-b);font-size:14px">⚠ Search failed</div>';}
+}
+function _mapMasterRowToSiteData(m){
+  const g=k=>(m[k]!==undefined&&m[k]!==null)?String(m[k]).trim():'';
+  const street=g('Street Address'),city=g('City'),state=g('State'),zip=g('Zip Code'),country=g('Country')||'USA';
+  return {
+    'Name': g('Name'),
+    'Street Address': street,
+    'City': city,
+    'State': state,
+    'Zip Code': zip,
+    'Country': country,
+    'Full Address': g('Full Address')||buildFullAddress(street,city,state,zip,country),
+    'Telephone': g('Telephone'),
+    'District': g('District'),
+    'Siteslatlong': g('Siteslatlong'),
+    'enrollment': g('Enrollment'),
+    'Grades&Type': g('Type'),
+    'Principal Email Raw': g('Principal Email'),
+    'Principal First Name Raw': g('Principal First Name'),
+    'Principal Last Name Raw': g('Principal Last Name')
+  };
+}
+function _ansSelectResult(i){
+  const m=_ansResults[i];if(!m)return;
+  _ansCreate(_mapMasterRowToSiteData(m));
+}
+function _ansAddManually(){
+  const val=(document.getElementById('ans-search')?.value||'').trim();
+  const msg=document.getElementById('ans-msg');
+  if(!val){if(msg){msg.className='save-msg err';msg.textContent='Type the school name first';}document.getElementById('ans-search')?.focus();return;}
+  _ansCreate({'Name':val});
+}
+async function _ansCreate(data){
+  const modal=document.getElementById('ans-modal');
+  const msg=document.getElementById('ans-msg');
+  const btns=modal?modal.querySelectorAll('button'):[];
+  btns.forEach(b=>b.disabled=true);
+  if(msg){msg.className='save-msg';msg.textContent='Adding site…';}
+  try{
+    const res=await gasPost({action:'createSite',data,actor:SESSION?SESSION.email:''});
+    if(!res.ok){
+      if(res.duplicate&&res.existingKey){
+        modal?.remove();
+        showSaveToast('⚠ '+(res.error||'That site already exists')+' — opening it');
+        goToOperationsForSite(res.existingKey);
+        return;
+      }
+      if(msg){msg.className='save-msg err';msg.textContent='⚠ '+(res.error||'Could not add site');}
+      btns.forEach(b=>b.disabled=false);
+      return;
+    }
+    const newSite=Object.assign({},res.row||{});
+    newSite['Key']=res.key;
+    DATA.sites.push(newSite);
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    modal?.remove();
+    renderAll();
+    window._opsEditMode=true;
+    renderSchoolDetail(newSite,true,true);
+    openDetail();
+    _playChime();
+    showSaveToast('✓ '+(newSite['Name']||'New site')+' added — finish filling it in and Save');
+  }catch(e){
+    if(msg){msg.className='save-msg err';msg.textContent='⚠ Add failed: '+e.message;}
+    btns.forEach(b=>b.disabled=false);
+  }
 }
 
 // Jump from a site card straight to that site's row on the Operations page.
