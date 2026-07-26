@@ -1403,6 +1403,14 @@ function handleSaveAppSettings(p) {
       });
     }
     navVis.row3Slots = safeSlots;
+    // Preserve the one-time migration tracker — without this, every save (even an
+    // unrelated one like Broadcast or Twilio) wiped it, which made the client think
+    // newly-introduced toggle keys (like "operations" for a level with an already-
+    // customized list) still needed backfilling on every single load. That's the
+    // root cause behind the Operations nav tab appearing to "keep turning itself off".
+    navVis.__migratedKeys = Array.isArray(rawVis.__migratedKeys)
+      ? rawVis.__migratedKeys.filter(function(t){ return typeof t === 'string'; }).slice(0, 50)
+      : [];
     var safe = {
       plantsEnabled: settings.plantsEnabled !== false,
       broadcast: String(settings.broadcast || '').slice(0, 500),
