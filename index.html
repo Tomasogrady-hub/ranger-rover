@@ -690,14 +690,17 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <button class="settings-btn" style="flex:1;background:var(--danger)" onclick="showDeleteSiteModal()">🗑 Delete Site</button>
         </div>
         <div style="padding:10px 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <select id="opsFilter" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
-            <option value="all">All</option>
-            <option value="type_active">Active Ranger Program</option>
+          <select id="opsFilterType" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="type_active" selected>All Active Sites</option>
             <option value="type_future">Future Ranger Program</option>
             <option value="type_inactive">Inactive Ranger Program</option>
             <option value="type_possible">Possible Ranger Program</option>
+            <option value="all">All Types</option>
+          </select>
+          <select id="opsFilterStatus" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="" selected>All Statuses</option>
             <option value="grp_started">GRP Started</option>
-            <option value="grp_not_started">GRP Not Started</option>
+            <option value="grp_not_started">GRP NOT Started</option>
             <option value="responded">Responded</option>
             <option value="no_response">No Response</option>
           </select>
@@ -989,10 +992,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.75';
+const APP_VERSION='v9.76';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-25c "Can\'t find your school? Add it manually" now opens a blank site card directly (no search text required). Added 🗑 Delete Site button next to Add New Site (search existing sites, confirm, permanently removes the row). New-site draft card now shows an editable District dropdown (sourced from Items All / School District) and previews the Principal that will be linked/created on Save. Saving a new site now shows a full-screen "Adding site now…" spinner instead of just disabling the button.';
+const BUILD_STAMP='2026-07-25d Added "ℹ️ Regular Info" button under Save on the Operations edit card (opens the same view-mode card as the Schools tab). Operations filter is now two-tier: Program Type (default "All Active Sites") + Program Status (GRP Started/NOT Started, Responded/No Response), applied together. Fixed a real bug where saveAppSettings in GAS was silently dropping the nav-visibility migration tracker on every save, which is why the Operations nav tab kept reappearing as hidden — one-time backfill now restores it and, since the tracker actually persists now, it will stick.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -2758,6 +2761,7 @@ function renderSchoolDetail(site,editMode,opsMode){
     }
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head"><div class="sheet-title">${name}</div>${opsMode?`<button type="button" class="settings-btn" style="padding:8px 14px;font-size:13px;margin-right:8px" onclick="saveSiteEdit()">💾 Save</button>`:''}<button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+      ${(opsMode&&!window._isNewSiteDraft)?`<div style="padding:10px 20px 0"><button type="button" class="settings-btn" style="background:var(--fog);color:var(--ink);border:1px solid var(--mist)" onclick="showSchoolDetailByKey('${esc(sf(site,'Key','key')||'')}')">ℹ️ Regular Info</button></div>`:''}
       ${window._isNewSiteDraft?`<div class="edit-wrap"><div class="edit-label">School Name</div><input class="edit-input" id="ef-Name" value="${ea(name)}" placeholder="School name"></div>
       <div class="edit-wrap"><div class="edit-label">School District</div><select class="edit-input" id="ef-District"><option value="${ea(dist)}">${dist?ea(dist):'Loading districts…'}</option></select></div>
       <div style="padding:0 20px 4px;font-family:var(--font-b);font-size:13px;color:var(--stone)">Review and edit these details, then tap <strong>Save</strong> to add this site to Ranger Rover — nothing is written yet.</div>`:''}
@@ -4218,9 +4222,11 @@ async function _dssDelete(key){
 let _opsTargetKey=null;
 let _opsTargetTimer=null;
 function goToOperationsForSite(key){
-  _opsFilter='all';
-  const selEl=document.getElementById('opsFilter');
-  if(selEl)selEl.value='all';
+  _opsFilterType='all';_opsFilterStatus='';
+  const selType=document.getElementById('opsFilterType');
+  const selStatus=document.getElementById('opsFilterStatus');
+  if(selType)selType.value='all';
+  if(selStatus)selStatus.value='';
   _opsTargetKey=key;
   clearTimeout(_opsTargetTimer);
   switchTab('operations');
@@ -4243,7 +4249,8 @@ function goToOperationsForSite(key){
 
 /* ═══ OPERATIONS ═══ */
 let _opsCurrentPage='home';
-let _opsFilter='all';
+let _opsFilterType='type_active'; // default: All Active Sites
+let _opsFilterStatus=''; // default: no status sub-filter
 function showOperationsPage(sub){
   _opsCurrentPage=sub;
   ['home','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
@@ -4273,8 +4280,10 @@ async function saveOpsSharedNotes(){
   }
 }
 function filterOperations(){
-  const sel=document.getElementById('opsFilter');
-  _opsFilter=sel?sel.value:'all';
+  const t=document.getElementById('opsFilterType');
+  const s=document.getElementById('opsFilterStatus');
+  _opsFilterType=t?t.value:'type_active';
+  _opsFilterStatus=s?s.value:'';
   renderOperationsHome();
 }
 function _opsMoney(v){
@@ -4297,31 +4306,36 @@ function renderOperationsHome(){
       return (name+dist+r1n+r1e).toLowerCase().includes(q);
     });
   }
-  const f=_opsFilter;
-  if(f==='type_active'){
+  // Tier 1: Program Type (Active/Future/Inactive/Possible, or All Types)
+  const ft=_opsFilterType;
+  if(ft==='type_active'){
     sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='active ranger program');
-  } else if(f==='type_future'){
+  } else if(ft==='type_future'){
     sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='future ranger program');
-  } else if(f==='type_inactive'){
+  } else if(ft==='type_inactive'){
     sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='inactive ranger program');
-  } else if(f==='type_possible'){
+  } else if(ft==='type_possible'){
     sites=sites.filter(s=>(sf(s,'Type','type')||'').toLowerCase()==='possible ranger program');
-  } else if(f==='grp_started'){
+  } // ft==='all' → no type filter
+
+  // Tier 2: Program Status (applied on top of the Tier 1 result)
+  const fst=_opsFilterStatus;
+  if(fst==='grp_started'){
     sites=sites.filter(s=>{
       const v=sf(s,'Program Started?','ProgramStarted','programStarted');
       return v===true||String(v).toLowerCase()==='true';
     });
-  } else if(f==='grp_not_started'){
+  } else if(fst==='grp_not_started'){
     sites=sites.filter(s=>{
       const v=sf(s,'Program Started?','ProgramStarted','programStarted');
       return v!==true&&String(v).toLowerCase()!=='true';
     });
-  } else if(f==='responded'){
+  } else if(fst==='responded'){
     sites=sites.filter(s=>{
       const v=sf(s,'Any Response?','AnyResponse','anyResponse');
       return v===true||String(v).toLowerCase()==='true';
     });
-  } else if(f==='no_response'){
+  } else if(fst==='no_response'){
     sites=sites.filter(s=>{
       const v=sf(s,'Any Response?','AnyResponse','anyResponse');
       return v!==true&&String(v).toLowerCase()!=='true';
@@ -5608,7 +5622,11 @@ function _sanitizeNavVisibility(){
     if(Array.isArray(v[k])&&v[k].length===0)delete v[k];
   });
   if(!Array.isArray(v.__migratedKeys))v.__migratedKeys=[];
-  const toBackfill=['site_ops_btn'].filter(k=>!v.__migratedKeys.includes(k));
+  // 'operations' backfill: a past bug (see handleSaveAppSettings in GAS) dropped
+  // __migratedKeys on every settings save, which could let an already-customized
+  // level's array lose 'operations' without it ever being intentionally toggled
+  // off. This runs once (now that __migratedKeys actually persists) to restore it.
+  const toBackfill=['site_ops_btn','operations'].filter(k=>!v.__migratedKeys.includes(k));
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
