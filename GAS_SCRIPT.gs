@@ -239,6 +239,9 @@ function doPost(e) {
       case 'getComments':   return respond(handleGetComments(p));
       case 'saveComments':  return respond(handleSaveComments(p));
 
+      // ── PROGRAMS (Items All → Operations edit card dropdown) ────────────────
+      case 'getPrograms':   return respond(handleGetPrograms());
+
       // ── CASCADE EMAIL CHANGE ─────────────────────────────────────────────────
       case 'cascadeEmail': return respond(handleCascadeEmail(p));
 
@@ -1257,6 +1260,15 @@ function handleSaveEdit(p) {
       var ci = headers.indexOf(col);
       if (ci > -1) sheet.getRange(r + 1, ci + 1).setValue(p.updates[col]);
     });
+
+    // Recalculate Program Cost / Total Cost / Amount Owed if a relevant field just changed
+    var recalcResult = null;
+    if (p.sheet !== 'Humans') {
+      var touchedFinancial = ['Program', 'Adjustment', 'Ranger Program Units', 'Amount Paid']
+        .some(function(h) { return Object.prototype.hasOwnProperty.call(p.updates, h); });
+      if (touchedFinancial) recalcResult = recalcSiteFinancials(sheet, headers, r);
+    }
+
     var imgCols = ['Main Image','Helpful Image 1','Helpful Image 2','Image 2','Image 3','Helpful Before Image',
                    'Main Image Info','Helpful Image 1 Info','Helpful Image 2 Info','Image 2 Info','Image 3 Info','Helpful Before Image Info'];
     var editedCols = Object.keys(p.updates)
@@ -1277,7 +1289,7 @@ function handleSaveEdit(p) {
     var finalSType  = piggySType  || subjType;
     var finalDetail = piggyDetail || editedCols;
     logActivity(finalActor, finalAction, finalSubj, finalSType, finalDetail);
-    return { ok: true };
+    return { ok: true, recalc: recalcResult };
   }
   Logger.log('handleSaveEdit MISS: pKey='+pKey+' siteKey='+siteKey);
   return { ok: false, error: 'Row not found. Sent name=['+pKey+'] key=['+siteKey+']' };
@@ -1696,6 +1708,77 @@ function getRoles() {
   } catch(e) { return []; }
 }
 
+// ── PROGRAMS (Items All, filtered to Type="enrichla product" / Type 2="Program") ──
+function handleGetPrograms() {
+  var itemsSheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!itemsSheet) return { programs: [] };
+  var data = itemsSheet.getDataRange().getValues();
+  var headers = data[0];
+  var nameCol   = headers.indexOf('Name');
+  var typeCol   = headers.indexOf('Type');
+  var type2Col  = headers.indexOf('Type 2');
+  var amountCol = headers.indexOf('Amount');
+  if ([nameCol, typeCol, type2Col, amountCol].indexOf(-1) !== -1) return { programs: [] };
+
+  var programs = [];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][typeCol] === 'enrichla product' && data[i][type2Col] === 'Program' && data[i][nameCol]) {
+      programs.push({ name: data[i][nameCol], amount: data[i][amountCol] });
+    }
+  }
+  return { programs: programs };
+}
+
+// ── SITES FINANCIAL RECALCULATION ──────────────────────────────────────────────
+// Mirrors the same logic already running in Rover Operations (JohannaEditSync.gs /
+// pushFieldAndRecalcFinancials). This is necessary because handleSaveEdit writes via
+// SpreadsheetApp directly — a script-driven edit — and installable onEdit triggers
+// (like the Sites-bound handleSitesEdit) never fire for script-driven edits, only for
+// edits made directly by a person through the Sheets UI. Without this, saving Program/
+// Adjustment/Units/Amount Paid from the app would never recompute Program Cost, Total
+// Cost, or Amount Owed.
+function lookupProgramCostFromItemsAll(programName) {
+  var itemsSheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!itemsSheet) return null;
+  var data = itemsSheet.getDataRange().getValues();
+  var headers = data[0];
+  var nameCol = headers.indexOf('Name');
+  var amountCol = headers.indexOf('Amount');
+  if (nameCol === -1 || amountCol === -1) return null;
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][nameCol] === programName) return data[i][amountCol];
+  }
+  return null;
+}
+
+function recalcSiteFinancials(sheet, headers, r) {
+  var programCol = headers.indexOf('Program');
+  var costCol    = headers.indexOf('Program Cost');
+  var adjCol     = headers.indexOf('Adjustment');
+  var unitsCol   = headers.indexOf('Ranger Program Units');
+  var paidCol    = headers.indexOf('Amount Paid');
+  var totalCol   = headers.indexOf('Total Cost');
+  var owedCol    = headers.indexOf('Amount Owed');
+  if ([programCol, costCol, adjCol, unitsCol, paidCol, totalCol, owedCol].indexOf(-1) !== -1) return null;
+
+  var programName = sheet.getRange(r + 1, programCol + 1).getValue();
+  var cost = programName ? lookupProgramCostFromItemsAll(programName) : '';
+  sheet.getRange(r + 1, costCol + 1).setValue(cost !== null ? cost : '');
+
+  var costNum  = parseFloat(cost)  || 0;
+  var adjNum   = parseFloat(sheet.getRange(r + 1, adjCol   + 1).getValue()) || 0;
+  var unitsNum = parseFloat(sheet.getRange(r + 1, unitsCol + 1).getValue()) || 0;
+  var paidNum  = parseFloat(sheet.getRange(r + 1, paidCol  + 1).getValue()) || 0;
+
+  var total = (unitsNum * costNum) + adjNum;
+  var owed  = total - paidNum;
+
+  sheet.getRange(r + 1, totalCol + 1).setValue(total);
+  sheet.getRange(r + 1, owedCol  + 1).setValue(owed);
+
+  return { programCost: cost, totalCost: total, amountOwed: owed };
+}
+
 function readSheet(id, tab, blocked, imgCols, imgMap) {
   var data    = SpreadsheetApp.openById(id).getSheetByName(tab).getDataRange().getValues();
   var headers = data[0];
@@ -1918,4 +2001,5 @@ function handleGetActivity() {
     return { ok: false, error: e.message };
   }
 }
+
 
