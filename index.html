@@ -992,10 +992,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.77';
+const APP_VERSION='v9.78';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-27 Operations edit card: added Program dropdown (sourced from Items All, lazy-loaded once per session) and read-only Program Cost field. Total Cost and Amount Owed are now disabled/read-only in the UI — both are calculated server-side (GAS handleSaveEdit → recalcSiteFinancials) whenever Program, Adjustment, Ranger Program Units, or Amount Paid change, mirroring the same recalculation already in place for Rover Operations.';
+const BUILD_STAMP='2026-07-27b Site save now shows the existing full-screen spinner overlay (reused showBlockingOverlay, same one used for Add New Site) while saving, blocking all interaction until done. Operations saves now show "please refresh to see updated calculations" in the confirmation toast, since Program Cost/Total Cost/Amount Owed recalculate server-side and are not reflected locally until the next data refresh.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -3153,6 +3153,7 @@ async function saveSiteEdit(siteKey){
   // Show saving state on button - do NOT close yet (iOS cancels background fetches)
   const _saveBtn=document.querySelector('.btn-save');
   if(_saveBtn){_saveBtn.disabled=true;_saveBtn.textContent='Saving…';}
+  showBlockingOverlay('Saving…');
   // Save first, then close - prevents iOS WKWebView from killing in-flight fetch
   await (async()=>{
     // Wait for any in-flight eager uploads to complete
@@ -3219,10 +3220,12 @@ async function saveSiteEdit(siteKey){
       localStorage.setItem(CFG.CK,JSON.stringify(DATA));
       renderAll();
       _playChime();
+      hideBlockingOverlay();
       closeDetailImmediate();
       switchTab(window._opsEditMode?'operations':'schools');
-      showSaveToast('✓ '+_saveSiteName+' saved');
+      showSaveToast(window._opsEditMode?('✓ '+_saveSiteName+' saved — please refresh to see updated calculations'):('✓ '+_saveSiteName+' saved'));
     }catch(e){
+      hideBlockingOverlay();
       const _sb2=document.querySelector('.btn-save');
       if(_sb2){_sb2.disabled=false;_sb2.textContent='✓ Finished — Save & Close';}
       showSaveToast('⚠ Save failed: '+e.message+' | key=['+siteKey+'] name=['+_saveSiteName+']');
