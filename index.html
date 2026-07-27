@@ -992,10 +992,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.76';
+const APP_VERSION='v9.77';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-25d Added "ℹ️ Regular Info" button under Save on the Operations edit card (opens the same view-mode card as the Schools tab). Operations filter is now two-tier: Program Type (default "All Active Sites") + Program Status (GRP Started/NOT Started, Responded/No Response), applied together. Fixed a real bug where saveAppSettings in GAS was silently dropping the nav-visibility migration tracker on every save, which is why the Operations nav tab kept reappearing as hidden — one-time backfill now restores it and, since the tracker actually persists now, it will stick.';
+const BUILD_STAMP='2026-07-27 Operations edit card: added Program dropdown (sourced from Items All, lazy-loaded once per session) and read-only Program Cost field. Total Cost and Amount Owed are now disabled/read-only in the UI — both are calculated server-side (GAS handleSaveEdit → recalcSiteFinancials) whenever Program, Adjustment, Ranger Program Units, or Amount Paid change, mirroring the same recalculation already in place for Rover Operations.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1005,7 +1005,8 @@ const CFG={
   VIDEO_MAX_SECS:parseInt(localStorage.getItem('rr_video_max_secs')||'12'),
   VIDEO_DELETE_DAYS:parseInt(localStorage.getItem('rr_video_delete_days')||'90')
 };
-let DATA={sites:[],humans:[],roles:[],chores:[]};
+let DATA={sites:[],humans:[],roles:[],chores:[],programs:[]};
+let _programsLoaded=false;
 let SESSION=null;
 let csf='active',crf='all',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
@@ -1392,6 +1393,34 @@ function showApp(){
 
 /* ═══ API ═══ */
 async function gasPost(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
+// Lazy-loaded once per session — small list, only needed when an Operations edit card opens
+async function loadProgramsIfNeeded(){
+  if(_programsLoaded)return;
+  try{
+    const j=await gasPost({action:'getPrograms'});
+    if(j&&j.programs){DATA.programs=j.programs;_programsLoaded=true;}
+  }catch(e){/* leave DATA.programs empty; dropdown will show current value only */}
+}
+function _lookupProgramCostClient(name){
+  const hit=(DATA.programs||[]).find(p=>(p.name||p.Name)===name);
+  return hit?(hit.amount!==undefined?hit.amount:hit.Amount):null;
+}
+function _opsProgramDropdown(id,current){
+  const cur=String(current||'').trim();
+  const opts=['<option value="">— None —</option>'];
+  (DATA.programs||[]).forEach(p=>{
+    const n=p.name||p.Name||'';
+    if(!n)return;
+    opts.push(`<option value="${ea(n)}"${cur===n?' selected':''}>${ea(n)}</option>`);
+  });
+  if(cur&&!(DATA.programs||[]).some(p=>(p.name||p.Name)===cur)) opts.push(`<option value="${ea(cur)}" selected>${ea(cur)}</option>`);
+  return `<select class="edit-input" id="${id}" onchange="_opsProgramChanged(this)">${opts.join('')}</select>`;
+}
+function _opsProgramChanged(sel){
+  const cost=_lookupProgramCostClient(sel.value);
+  const costEl=document.getElementById('ef-ProgramCost');
+  if(costEl)costEl.value=(cost===null||cost===undefined)?'':cost;
+}
 
 async function loadData(force=false){
   // ── Cache hit: render immediately then return ──────────────────────────────
@@ -2811,6 +2840,8 @@ function renderSchoolDetail(site,editMode,opsMode){
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
       <div class="edit-wrap"><div class="edit-label">Schedule</div><input class="edit-input" id="ef-Schedule" value="${ea(sched)}"></div>
       ${opsMode?(()=>{
+        const program=sf(site,'Program')||'';
+        const programCost=sf(site,'Program Cost')||'';
         const adj=sf(site,'Adjustment')||'';
         const units=sf(site,'Ranger Program Units')||'';
         const totalCost=sf(site,'Total Cost')||'';
@@ -2821,6 +2852,7 @@ function renderSchoolDetail(site,editMode,opsMode){
         const owed=sf(site,'Amount Owed')||'';
         const paid=sf(site,'Amount Paid')||'';
         const status=sf(site,'Status')||'';
+        const roStyle='background:var(--bg-alt,#eee);color:var(--silver,#666);cursor:not-allowed';
         return `<hr class="section-divider">
       <div class="edit-wrap"><div class="edit-label" style="font-weight:700;font-size:14px;letter-spacing:.05em;text-transform:uppercase">Operations &amp; Finance</div></div>
       <div class="edit-wrap" style="display:flex;gap:10px">
@@ -2828,8 +2860,12 @@ function renderSchoolDetail(site,editMode,opsMode){
         <div style="flex:1"><div class="edit-label">Adjustment</div><input class="edit-input" id="ef-Adjustment" value="${ea(String(adj))}"></div>
       </div>
       <div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Program</div>${_opsProgramDropdown('ef-Program',program)}</div>
+        <div style="flex:1"><div class="edit-label">Program Cost</div><input class="edit-input" id="ef-ProgramCost" value="${ea(String(programCost))}" placeholder="$" disabled style="${roStyle}"></div>
+      </div>
+      <div class="edit-wrap" style="display:flex;gap:10px">
         <div style="flex:1"><div class="edit-label">Ranger Program Units</div><input class="edit-input" id="ef-RangerProgramUnits" value="${ea(String(units))}"></div>
-        <div style="flex:1"><div class="edit-label">Total Cost</div><input class="edit-input" id="ef-TotalCost" value="${ea(String(totalCost))}" placeholder="$"></div>
+        <div style="flex:1"><div class="edit-label">Total Cost</div><input class="edit-input" id="ef-TotalCost" value="${ea(String(totalCost))}" placeholder="$" disabled style="${roStyle}"></div>
       </div>
       <div class="edit-wrap"><div class="edit-label">Unit Description</div><input class="edit-input" id="ef-UnitDescription" value="${ea(unitDesc)}"></div>
       <div class="edit-wrap" style="display:flex;gap:10px">
@@ -2837,7 +2873,7 @@ function renderSchoolDetail(site,editMode,opsMode){
         <div style="flex:1"><div class="edit-label">PO Number</div><input class="edit-input" id="ef-PONumber" value="${ea(String(poNum))}"></div>
       </div>
       <div class="edit-wrap" style="display:flex;gap:10px">
-        <div style="flex:1"><div class="edit-label">Amount Owed</div><input class="edit-input" id="ef-AmountOwed" value="${ea(String(owed))}" placeholder="$"></div>
+        <div style="flex:1"><div class="edit-label">Amount Owed</div><input class="edit-input" id="ef-AmountOwed" value="${ea(String(owed))}" placeholder="$" disabled style="${roStyle}"></div>
         <div style="flex:1"><div class="edit-label">Amount Paid</div><input class="edit-input" id="ef-AmountPaid" value="${ea(String(paid))}" placeholder="$"></div>
       </div>
       <div class="edit-wrap"><div class="edit-label">Financial Notes</div><textarea class="edit-textarea" id="ef-FinancialNotes">${ea(finNotes)}</textarea></div>`;
@@ -3015,13 +3051,15 @@ function _collectSiteEditFormValues(){
   const arC=gc('ef-AnyResponse');if(arC!==null)updates['Any Response?']=arC?'TRUE':'FALSE';
   const statusV=gv('ef-Status');if(statusV!==null)updates['Status']=statusV;
   const adjV=gv('ef-Adjustment');if(adjV!==null)updates['Adjustment']=adjV;
+  const progV=gv('ef-Program');if(progV!==null)updates['Program']=progV;
+  // Program Cost / Total Cost / Amount Owed are calculated server-side (see recalcSiteFinancials
+  // in GAS) whenever Program, Adjustment, Ranger Program Units, or Amount Paid change — never
+  // sent from the client, since the fields are disabled/read-only in the UI.
   const rpuV=gv('ef-RangerProgramUnits');if(rpuV!==null)updates['Ranger Program Units']=rpuV;
-  const tcV=gv('ef-TotalCost');if(tcV!==null)updates['Total Cost']=tcV;
   const udV=gv('ef-UnitDescription');if(udV!==null)updates['Unit Description']=udV;
   const qnV=gv('ef-QuoteNumber');if(qnV!==null)updates['Quote Number']=qnV;
   const poV=gv('ef-PONumber');if(poV!==null)updates['PO Number']=poV;
   const fnV=gv('ef-FinancialNotes');if(fnV!==null)updates['Financial Notes']=fnV;
-  const owV=gv('ef-AmountOwed');if(owV!==null)updates['Amount Owed']=owV;
   const pdV=gv('ef-AmountPaid');if(pdV!==null)updates['Amount Paid']=pdV;
   const onV=gv('ef-OtherNotes');if(onV!==null)updates['Other Notes']=onV;
   // Only include image fields if they have a real value (prevents blank from
@@ -4006,10 +4044,11 @@ function _opsDayDropdown(id,current){
   if(cur&&!OPS_DAY_NAMES.includes(cur)) opts.push(`<option value="${ea(cur)}" selected>${ea(cur)}</option>`);
   return `<select class="edit-input" id="${id}">${opts.join('')}</select>`;
 }
-function showOperationsEditByKey(key){
+async function showOperationsEditByKey(key){
   const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);
   if(!site)return;
   window._opsEditMode=true;
+  await loadProgramsIfNeeded();
   renderSchoolDetail(site,true,true);
   openDetail();
 }
@@ -4130,13 +4169,14 @@ function _ansAddManually(){
 // Opens the normal Operations edit card, pre-filled but NOT yet written to the
 // Sites sheet, so the details can be reviewed/corrected first. The row is only
 // created once the user taps Save (see _saveNewSiteDraft).
-function _ansOpenDraft(data){
+async function _ansOpenDraft(data){
   document.getElementById('ans-modal')?.remove();
   window._newSiteDraftData=data;
   window._isNewSiteDraft=true;
   window._opsEditMode=true;
   const draftSite=Object.assign({},data);
   window._currentSite=draftSite;
+  await loadProgramsIfNeeded();
   renderSchoolDetail(draftSite,true,true);
   openDetail();
   showSaveToast('Review the details below, then tap Save to add this site');
