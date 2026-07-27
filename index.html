@@ -703,6 +703,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="grp_not_started">GRP NOT Started</option>
             <option value="responded">Responded</option>
             <option value="no_response">No Response</option>
+            <option value="has_po">Has PO</option>
           </select>
         </div>
         <div class="card-list" id="opsHomeList" style="padding:0 16px 28px"></div>
@@ -992,10 +993,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.79';
+const APP_VERSION='v9.80';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-27c Operations edit card: added Response dropdown (sourced from Items All, Type="Question", same lazy-loaded payload as Program). Operations Home status filter now also includes one "Response: X" option per distinct Items All Question, filtering sites by their Response column value, additive to the existing GRP Started/Responded options.';
+const BUILD_STAMP='2026-07-27d Operations Home status filter: added "Has PO" option, filtering to sites with a non-blank PO Number (column BI). Same filter added as a named Filter View in Rover Operations.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -4417,6 +4418,8 @@ function renderOperationsHome(){
   } else if(fst.indexOf('response:')===0){
     const wanted=fst.slice('response:'.length);
     sites=sites.filter(s=>(sf(s,'Response')||'')===wanted);
+  } else if(fst==='has_po'){
+    sites=sites.filter(s=>String(sf(s,'PO Number')||'').trim()!=='');
   }
   sites=sites.slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
   if(cnt)cnt.textContent=sites.length+' schools';
