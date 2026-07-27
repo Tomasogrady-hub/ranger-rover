@@ -1708,25 +1708,29 @@ function getRoles() {
   } catch(e) { return []; }
 }
 
-// ── PROGRAMS (Items All, filtered to Type="enrichla product" / Type 2="Program") ──
+// ── PROGRAMS + RESPONSE OPTIONS (Items All → Operations dropdowns/filter) ──
 function handleGetPrograms() {
   var itemsSheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
-  if (!itemsSheet) return { programs: [] };
+  if (!itemsSheet) return { programs: [], responses: [] };
   var data = itemsSheet.getDataRange().getValues();
   var headers = data[0];
   var nameCol   = headers.indexOf('Name');
   var typeCol   = headers.indexOf('Type');
   var type2Col  = headers.indexOf('Type 2');
   var amountCol = headers.indexOf('Amount');
-  if ([nameCol, typeCol, type2Col, amountCol].indexOf(-1) !== -1) return { programs: [] };
+  if ([nameCol, typeCol, type2Col, amountCol].indexOf(-1) !== -1) return { programs: [], responses: [] };
 
   var programs = [];
+  var responses = [];
   for (var i = 1; i < data.length; i++) {
     if (data[i][typeCol] === 'enrichla product' && data[i][type2Col] === 'Program' && data[i][nameCol]) {
       programs.push({ name: data[i][nameCol], amount: data[i][amountCol] });
     }
+    if (data[i][typeCol] === 'Question' && data[i][nameCol]) {
+      responses.push(data[i][nameCol]);
+    }
   }
-  return { programs: programs };
+  return { programs: programs, responses: responses };
 }
 
 // ── SITES FINANCIAL RECALCULATION ──────────────────────────────────────────────
