@@ -992,10 +992,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.78';
+const APP_VERSION='v9.79';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-27b Site save now shows the existing full-screen spinner overlay (reused showBlockingOverlay, same one used for Add New Site) while saving, blocking all interaction until done. Operations saves now show "please refresh to see updated calculations" in the confirmation toast, since Program Cost/Total Cost/Amount Owed recalculate server-side and are not reflected locally until the next data refresh.';
+const BUILD_STAMP='2026-07-27c Operations edit card: added Response dropdown (sourced from Items All, Type="Question", same lazy-loaded payload as Program). Operations Home status filter now also includes one "Response: X" option per distinct Items All Question, filtering sites by their Response column value, additive to the existing GRP Started/Responded options.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1005,7 +1005,7 @@ const CFG={
   VIDEO_MAX_SECS:parseInt(localStorage.getItem('rr_video_max_secs')||'12'),
   VIDEO_DELETE_DAYS:parseInt(localStorage.getItem('rr_video_delete_days')||'90')
 };
-let DATA={sites:[],humans:[],roles:[],chores:[],programs:[]};
+let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
 let csf='active',crf='all',cpf='all',ccf='all',cmf='all',sq='';
@@ -1398,8 +1398,10 @@ async function loadProgramsIfNeeded(){
   if(_programsLoaded)return;
   try{
     const j=await gasPost({action:'getPrograms'});
-    if(j&&j.programs){DATA.programs=j.programs;_programsLoaded=true;}
-  }catch(e){/* leave DATA.programs empty; dropdown will show current value only */}
+    if(j&&j.programs){DATA.programs=j.programs;}
+    if(j&&j.responses){DATA.responseOptions=j.responses;}
+    _programsLoaded=true;
+  }catch(e){/* leave DATA.programs/responseOptions empty; dropdowns will show current value only */}
 }
 function _lookupProgramCostClient(name){
   const hit=(DATA.programs||[]).find(p=>(p.name||p.Name)===name);
@@ -1420,6 +1422,16 @@ function _opsProgramChanged(sel){
   const cost=_lookupProgramCostClient(sel.value);
   const costEl=document.getElementById('ef-ProgramCost');
   if(costEl)costEl.value=(cost===null||cost===undefined)?'':cost;
+}
+function _opsResponseDropdown(id,current){
+  const cur=String(current||'').trim();
+  const opts=['<option value="">— None —</option>'];
+  (DATA.responseOptions||[]).forEach(n=>{
+    if(!n)return;
+    opts.push(`<option value="${ea(n)}"${cur===n?' selected':''}>${ea(n)}</option>`);
+  });
+  if(cur&&!(DATA.responseOptions||[]).includes(cur)) opts.push(`<option value="${ea(cur)}" selected>${ea(cur)}</option>`);
+  return `<select class="edit-input" id="${id}">${opts.join('')}</select>`;
 }
 
 async function loadData(force=false){
@@ -2842,6 +2854,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${opsMode?(()=>{
         const program=sf(site,'Program')||'';
         const programCost=sf(site,'Program Cost')||'';
+        const response=sf(site,'Response')||'';
         const adj=sf(site,'Adjustment')||'';
         const units=sf(site,'Ranger Program Units')||'';
         const totalCost=sf(site,'Total Cost')||'';
@@ -2859,6 +2872,7 @@ function renderSchoolDetail(site,editMode,opsMode){
         <div style="flex:1"><div class="edit-label">Status</div><input class="edit-input" id="ef-Status" value="${ea(String(status))}" placeholder="e.g. Pending, Paid"></div>
         <div style="flex:1"><div class="edit-label">Adjustment</div><input class="edit-input" id="ef-Adjustment" value="${ea(String(adj))}"></div>
       </div>
+      <div class="edit-wrap"><div class="edit-label">Response</div>${_opsResponseDropdown('ef-Response',response)}</div>
       <div class="edit-wrap" style="display:flex;gap:10px">
         <div style="flex:1"><div class="edit-label">Program</div>${_opsProgramDropdown('ef-Program',program)}</div>
         <div style="flex:1"><div class="edit-label">Program Cost</div><input class="edit-input" id="ef-ProgramCost" value="${ea(String(programCost))}" placeholder="$" disabled style="${roStyle}"></div>
@@ -3052,6 +3066,7 @@ function _collectSiteEditFormValues(){
   const statusV=gv('ef-Status');if(statusV!==null)updates['Status']=statusV;
   const adjV=gv('ef-Adjustment');if(adjV!==null)updates['Adjustment']=adjV;
   const progV=gv('ef-Program');if(progV!==null)updates['Program']=progV;
+  const respV=gv('ef-Response');if(respV!==null)updates['Response']=respV;
   // Program Cost / Total Cost / Amount Owed are calculated server-side (see recalcSiteFinancials
   // in GAS) whenever Program, Adjustment, Ranger Program Units, or Amount Paid change — never
   // sent from the client, since the fields are disabled/read-only in the UI.
@@ -4301,7 +4316,7 @@ function showOperationsPage(sub){
     if(el)el.style.display=(k===sub)?'block':'none';
   });
   document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===sub));
-  if(sub==='home')renderOperationsHome();
+  if(sub==='home'){renderOperationsHome();_ensureOpsResponseFilterOptions();}
   if(sub==='tab2'){
     const ta=document.getElementById('opsSharedNotes');
     if(ta)ta.value=_appSettings.opsNotes||'';
@@ -4321,6 +4336,22 @@ async function saveOpsSharedNotes(){
   }catch(e){
     if(statusEl)statusEl.textContent='❌ Error saving';
   }
+}
+// Appends "Response: X" options to the status filter, once, as soon as the
+// Items All-derived response list is available. Additive only — never
+// touches the existing GRP Started / Responded options already in the list.
+async function _ensureOpsResponseFilterOptions(){
+  await loadProgramsIfNeeded();
+  const sel=document.getElementById('opsFilterStatus');
+  if(!sel||sel.dataset.responseOptionsAdded)return;
+  (DATA.responseOptions||[]).forEach(name=>{
+    if(!name)return;
+    const opt=document.createElement('option');
+    opt.value='response:'+name;
+    opt.textContent='Response: '+name;
+    sel.appendChild(opt);
+  });
+  sel.dataset.responseOptionsAdded='1';
 }
 function filterOperations(){
   const t=document.getElementById('opsFilterType');
@@ -4383,6 +4414,9 @@ function renderOperationsHome(){
       const v=sf(s,'Any Response?','AnyResponse','anyResponse');
       return v!==true&&String(v).toLowerCase()!=='true';
     });
+  } else if(fst.indexOf('response:')===0){
+    const wanted=fst.slice('response:'.length);
+    sites=sites.filter(s=>(sf(s,'Response')||'')===wanted);
   }
   sites=sites.slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
   if(cnt)cnt.textContent=sites.length+' schools';
