@@ -993,10 +993,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.80';
+const APP_VERSION='v9.81';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-27d Operations Home status filter: added "Has PO" option, filtering to sites with a non-blank PO Number (column BI). Same filter added as a named Filter View in Rover Operations.';
+const BUILD_STAMP='2026-07-27e Fixed SAA contacts not appearing (category matching now keys off role name, not the sheet Category column) and the OPERATIONS site-card button repeatedly disappearing (site_ops_btn was missing from the GAS KNOWN_TABS whitelist and got silently stripped on every settings save).';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1052,12 +1052,42 @@ function siteGalleryThumb(src,label,meta){
 }
 /* ── ROLE CATEGORY HELPERS ── */
 function normCat(c){return(c||'').toLowerCase().replace(/[\s\-]+/g,'_').trim();}
+// Canonical role-name → category map. This is the SOURCE OF TRUTH for category
+// matching, independent of whatever happens to be typed into the Roles tab's
+// "Category" column in the sheet. Historically that column was populated with
+// the role name itself (e.g. Category="School Administrative Assistant" for
+// Role="School Administrative Assistant"), which only produced a working match
+// by coincidence for roles whose normalized text happened to equal the internal
+// code (e.g. "Garden Keeper"→garden_keeper, "Ranger"→ranger). "School
+// Administrative Assistant" normalizes to school_administrative_assistant, which
+// never matched the code's short internal code 'saa' — so SAA contacts silently
+// never showed up. Matching against the role NAME here (not the sheet's Category
+// column) fixes this and prevents it recurring if the sheet is re-edited.
+const CANONICAL_ROLE_CATS={
+  'ranger':'ranger',
+  'master_ranger':'ranger',
+  'garden_keeper':'garden_keeper',
+  'ranger_applicant':'ranger_applicant',
+  'ranger_past':'ranger_past',
+  'principal':'principal',
+  'plant_manager':'plant_manager',
+  'school_administrative_assistant':'saa'
+};
+function _roleCategoryFor(roleName){
+  if(!roleName)return '';
+  const nr=normCat(roleName);
+  if(CANONICAL_ROLE_CATS[nr])return CANONICAL_ROLE_CATS[nr];
+  // Fallback: whatever the Roles sheet's Category column says, for any role
+  // not covered by the canonical map above (custom/one-off roles).
+  const o=DATA.roles.find(r=>(r.name||'').trim()===roleName.trim());
+  return (o&&o.category)?normCat(o.category):'';
+}
 function humanRoleCats(h){
   const cats=[];
-  const r1=h.Role||h.role||'';
-  const r2=h['Role Additional']||h.RoleAdditional||'';
-  if(r1){const o=DATA.roles.find(r=>r.name===r1);if(o&&o.category)cats.push(normCat(o.category));}
-  if(r2){const o=DATA.roles.find(r=>r.name===r2);if(o&&o.category)cats.push(normCat(o.category));}
+  const r1=(h.Role||h.role||'').trim();
+  const r2=(h['Role Additional']||h.RoleAdditional||'').trim();
+  const c1=_roleCategoryFor(r1);if(c1)cats.push(c1);
+  const c2=_roleCategoryFor(r2);if(c2)cats.push(c2);
   return cats.filter(Boolean);
 }
 function humanRoleCat(h){return humanRoleCats(h)[0]||'';}
@@ -5706,12 +5736,19 @@ function _sanitizeNavVisibility(){
   // __migratedKeys on every settings save, which could let an already-customized
   // level's array lose 'operations' without it ever being intentionally toggled
   // off. This runs once (now that __migratedKeys actually persists) to restore it.
-  const toBackfill=['site_ops_btn','operations'].filter(k=>!v.__migratedKeys.includes(k));
+  // NOTE: 'site_ops_btn' was previously marked migrated, but the GAS-side
+  // KNOWN_TABS whitelist (see handleSaveAppSettings) didn't actually include it,
+  // so every subsequent save silently stripped it back out again even though
+  // this migration thought it had already handled it. Now that KNOWN_TABS
+  // includes 'site_ops_btn', re-run the backfill once more under a new marker
+  // name so it actually sticks this time.
+  const toBackfill=['site_ops_btn_v2','operations'].filter(k=>!v.__migratedKeys.includes(k));
+  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn'};
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
       if(Array.isArray(v[k])&&v[k].length>0){
-        toBackfill.forEach(bk=>{ if(!v[k].includes(bk)) v[k].push(bk); });
+        toBackfill.forEach(bk=>{ const realKey=_bfKeyMap[bk]||bk; if(!v[k].includes(realKey)) v[k].push(realKey); });
       }
     });
     v.__migratedKeys=v.__migratedKeys.concat(toBackfill);
