@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.82 | BUILDITALL: 2026-07-28 19:19 PT | Ranger Rover PWA -->
+<!-- v9.83 | BUILDITALL: 2026-07-28 19:45 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,7 +1008,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.82';
+const APP_VERSION='v9.83';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
 const BUILD_STAMP='2026-07-27e Fixed SAA contacts not appearing (category matching now keys off role name, not the sheet Category column) and the OPERATIONS site-card button repeatedly disappearing (site_ops_btn was missing from the GAS KNOWN_TABS whitelist and got silently stripped on every settings save).';
@@ -1245,6 +1245,7 @@ function searchTeamEmailsFor(email){
           <div class="esm-subject">${escHtml(r.subject)}</div>
           <div class="esm-meta">${escHtml(r.from)}${r.date?' · '+escHtml(r.date):''}</div>
           <div class="esm-snippet">${escHtml(r.snippet)}</div>
+          ${r.threadId?`<a class="cta" style="display:inline-block;margin-top:6px" target="_blank" rel="noopener" href="https://mail.google.com/mail/?authuser=${encodeURIComponent(r.mailbox)}#all/${encodeURIComponent(r.threadId)}">↗ Open in Gmail</a>`:''}
         </div>`).join('')
         +(errs.length?`<div class="esm-error" style="margin-top:10px">Could not search: ${errs.map(e=>escHtml(e.mailbox)).join(', ')}</div>`:'');
     }catch(e){
