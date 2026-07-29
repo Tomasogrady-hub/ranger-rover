@@ -403,6 +403,23 @@ function _gmailImpersonatedToken(subjectEmail) {
 // Searches every mailbox in GMAIL_SEARCH_TEAM_EMAILS for messages involving
 // contactEmail. Skips any mailbox that errors (e.g. delegation not yet propagated)
 // rather than failing the whole request. Returns newest-first.
+// Gmail API's `snippet` (and sometimes header) fields come back with HTML
+// entities already baked in (e.g. an apostrophe as literal "&#39;"). Treating
+// that as plain text — as we were — makes it show up as literal "&#39;" to a
+// human reader instead of an actual apostrophe. Decode once at the source so
+// every downstream consumer (the modal, the forward-request email) gets real text.
+function _decodeHtmlEntities(s) {
+  if (!s) return s;
+  return String(s)
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, function(_, code) { return String.fromCharCode(parseInt(code, 10)); })
+    .replace(/&amp;/g, '&'); // must be last, or it double-unescapes "&amp;lt;" etc.
+}
+
 function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
   maxPerMailbox = maxPerMailbox || 4;
   var results = [];
@@ -421,7 +438,7 @@ function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
 
       listData.messages.forEach(function(m) {
         var msgUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + m.id +
-          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date';
+          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date';
         var msgResp = UrlFetchApp.fetch(msgUrl, {
           headers: { Authorization: 'Bearer ' + token },
           muteHttpExceptions: true
@@ -433,11 +450,10 @@ function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
         results.push({
           mailbox:  mailbox,
           threadId: m.threadId,
-          subject:  headers.Subject || '(no subject)',
-          from:     headers.From || '',
-          to:       headers.To || '',
+          subject:  _decodeHtmlEntities(headers.Subject || '(no subject)'),
+          from:     _decodeHtmlEntities(headers.From || ''),
           date:     headers.Date || '',
-          snippet:  msg.snippet || '',
+          snippet:  _decodeHtmlEntities(msg.snippet || ''),
           labelIds: msg.labelIds || []
         });
       });
@@ -503,8 +519,10 @@ function _gmailFolderFor(labelIds) {
 //            snippet, labelIds, contactEmail, requesterEmail, requesterName, accessLevel }
 // Sends an email TO the mailbox owner (via the script's own authorized Gmail
 // send — same mechanism as Memos/Reach) asking them to forward the specific
-// thread to the requester. Includes an authuser-scoped Gmail link that will
-// actually resolve for the owner, since it's their own inbox.
+// thread to the requester. Sent as real HTML with an actual <a href> tag —
+// a plain-text URL immediately followed by a signature line was getting
+// mangled by some mail clients' auto-linkification (grabbing trailing text
+// into the same "link"). An explicit anchor tag has no such ambiguity.
 function handleRequestEmailForward(p) {
   var accessLevel = parseInt(p.accessLevel || '3');
   if (!_teamEmailFeatureAuthorized(accessLevel)) return { ok: false, error: 'Not authorized' };
@@ -521,22 +539,49 @@ function handleRequestEmailForward(p) {
     ? 'https://mail.google.com/mail/?authuser=' + encodeURIComponent(mailbox) + '#' + _gmailFolderFor(p.labelIds) + '/' + encodeURIComponent(threadId)
     : '';
 
-  var body =
+  // Fields may already be HTML-entity-decoded (via _decodeHtmlEntities in
+  // _gmailSearchTeamMailboxes) if they came from a fresh search result, but
+  // decode defensively here too in case a caller passes raw values.
+  var subjectTxt = _decodeHtmlEntities(p.subject || '(no subject)');
+  var fromTxt    = _decodeHtmlEntities(p.from || '');
+  var snippetTxt = _decodeHtmlEntities(p.snippet || '');
+
+  var plainBody =
     requesterName + ' is looking into ' + (p.contactEmail || 'a contact') + ' in Ranger Rover and found a matching ' +
     'email in your inbox, but can\'t open it directly.\n\n' +
     'Could you forward it to ' + requester + ' when you get a chance?\n\n' +
-    'Subject: ' + (p.subject || '(no subject)') + '\n' +
-    (p.from ? 'From: ' + p.from + '\n' : '') +
+    'Subject: ' + subjectTxt + '\n' +
+    (fromTxt ? 'From: ' + fromTxt + '\n' : '') +
     (p.date ? 'Date: ' + p.date + '\n' : '') +
-    (p.snippet ? '\nPreview: "' + p.snippet + '"\n' : '') +
+    (snippetTxt ? '\nPreview: "' + snippetTxt + '"\n' : '') +
     (gmailLink ? '\nOpen it here: ' + gmailLink + '\n' : '') +
     '\nThanks!\n— Sent automatically by Ranger Rover on behalf of ' + requesterName;
 
+  function _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  var htmlBody =
+    '<p>' + _esc(requesterName) + ' is looking into <strong>' + _esc(p.contactEmail || 'a contact') +
+    '</strong> in Ranger Rover and found a matching email in your inbox, but can&#39;t open it directly.</p>' +
+    '<p>Could you forward it to <strong>' + _esc(requester) + '</strong> when you get a chance?</p>' +
+    '<p><strong>Subject:</strong> ' + _esc(subjectTxt) + '<br>' +
+    (fromTxt ? '<strong>From:</strong> ' + _esc(fromTxt) + '<br>' : '') +
+    (p.date ? '<strong>Date:</strong> ' + _esc(p.date) + '<br>' : '') +
+    '</p>' +
+    (snippetTxt ? '<p><em>Preview:</em> &ldquo;' + _esc(snippetTxt) + '&rdquo;</p>' : '') +
+    (gmailLink ? '<p><a href="' + gmailLink + '">Open it here</a></p>' : '') +
+    '<p>Thanks!<br>— Sent automatically by Ranger Rover on behalf of ' + _esc(requesterName) + '</p>';
+
   try {
-    GmailApp.sendEmail(mailbox, subjectLine, body, { replyTo: requester, name: 'Ranger Rover' });
+    GmailApp.sendEmail(mailbox, subjectLine, plainBody, {
+      replyTo: requester,
+      name: 'Ranger Rover',
+      htmlBody: htmlBody
+    });
     try {
       logActivity(requester, 'requested email forward', mailbox, 'human',
-        'Re: "' + (p.subject || '') + '" (about ' + (p.contactEmail || '') + ')');
+        'Re: "' + subjectTxt + '" (about ' + (p.contactEmail || '') + ')');
     } catch (e) {}
     return { ok: true };
   } catch (err) {
