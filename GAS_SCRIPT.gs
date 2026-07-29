@@ -268,7 +268,8 @@ function doPost(e) {
       case 'sendTwilioSms': return respond(handleSendTwilioSms(p));
 
       // ── TEAM EMAIL SEARCH (level 1 only) ─────────────────────────────────────
-      case 'searchTeamEmails': return respond(handleSearchTeamEmails(p));
+      case 'searchTeamEmails':    return respond(handleSearchTeamEmails(p));
+      case 'requestEmailForward': return respond(handleRequestEmailForward(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -453,21 +454,26 @@ function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
 // opted level 2 into 'team_email_search_btn' via the Nav Visibility Control
 // Panel — checked here server-side (not just hidden client-side), since this
 // exposes team members' inbox content.
+// Level 1 always authorized. Level 2 only if explicitly opted in via the
+// Nav Visibility Control Panel ('team_email_search_btn' for that level).
+// Anything else: not authorized. Shared by both handleSearchTeamEmails and
+// handleRequestEmailForward since they expose/act on the same sensitive data.
+function _teamEmailFeatureAuthorized(accessLevel) {
+  if (accessLevel > 2) return false;
+  if (accessLevel === 1) return true;
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty('app_settings');
+    var settings = raw ? JSON.parse(raw) : {};
+    var lvl2 = (settings.navVisibility && settings.navVisibility['2']) || [];
+    return lvl2.indexOf('team_email_search_btn') !== -1;
+  } catch (e) {
+    return false;
+  }
+}
+
 function handleSearchTeamEmails(p) {
   var accessLevel = parseInt(p.accessLevel || '3');
-  if (accessLevel > 2) return { ok: false, error: 'Not authorized' };
-  if (accessLevel === 2) {
-    try {
-      var raw = PropertiesService.getScriptProperties().getProperty('app_settings');
-      var settings = raw ? JSON.parse(raw) : {};
-      var lvl2 = (settings.navVisibility && settings.navVisibility['2']) || [];
-      if (lvl2.indexOf('team_email_search_btn') === -1) {
-        return { ok: false, error: 'Not authorized' };
-      }
-    } catch (e) {
-      return { ok: false, error: 'Not authorized' };
-    }
-  }
+  if (!_teamEmailFeatureAuthorized(accessLevel)) return { ok: false, error: 'Not authorized' };
   var contactEmail = (p.contactEmail || '').trim().toLowerCase();
   if (!contactEmail || contactEmail.indexOf('@') === -1) {
     return { ok: false, error: 'Missing or invalid contactEmail' };
@@ -475,6 +481,51 @@ function handleSearchTeamEmails(p) {
   try {
     var results = _gmailSearchTeamMailboxes(contactEmail);
     return { ok: true, results: results };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// Payload: { action:'requestEmailForward', mailbox, threadId, subject, from, date,
+//            snippet, contactEmail, requesterEmail, requesterName, accessLevel }
+// Sends an email TO the mailbox owner (via the script's own authorized Gmail
+// send — same mechanism as Memos/Reach) asking them to forward the specific
+// thread to the requester. Includes an authuser-scoped Gmail link that will
+// actually resolve for the owner, since it's their own inbox.
+function handleRequestEmailForward(p) {
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (!_teamEmailFeatureAuthorized(accessLevel)) return { ok: false, error: 'Not authorized' };
+
+  var mailbox   = (p.mailbox || '').trim().toLowerCase();
+  var threadId  = (p.threadId || '').trim();
+  var requester = (p.requesterEmail || '').trim().toLowerCase();
+  if (!mailbox || mailbox.indexOf('@') === -1) return { ok: false, error: 'Missing mailbox' };
+  if (!requester || requester.indexOf('@') === -1) return { ok: false, error: 'Missing requester email' };
+
+  var requesterName = p.requesterName || requester;
+  var subjectLine = 'Could you forward this email? — Ranger Rover';
+  var gmailLink = threadId
+    ? 'https://mail.google.com/mail/?authuser=' + encodeURIComponent(mailbox) + '#all/' + encodeURIComponent(threadId)
+    : '';
+
+  var body =
+    requesterName + ' is looking into ' + (p.contactEmail || 'a contact') + ' in Ranger Rover and found a matching ' +
+    'email in your inbox, but can\'t open it directly.\n\n' +
+    'Could you forward it to ' + requester + ' when you get a chance?\n\n' +
+    'Subject: ' + (p.subject || '(no subject)') + '\n' +
+    (p.from ? 'From: ' + p.from + '\n' : '') +
+    (p.date ? 'Date: ' + p.date + '\n' : '') +
+    (p.snippet ? '\nPreview: "' + p.snippet + '"\n' : '') +
+    (gmailLink ? '\nOpen it here: ' + gmailLink + '\n' : '') +
+    '\nThanks!\n— Sent automatically by Ranger Rover on behalf of ' + requesterName;
+
+  try {
+    GmailApp.sendEmail(mailbox, subjectLine, body, { replyTo: requester, name: 'Ranger Rover' });
+    try {
+      logActivity(requester, 'requested email forward', mailbox, 'human',
+        'Re: "' + (p.subject || '') + '" (about ' + (p.contactEmail || '') + ')');
+    } catch (e) {}
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
   }
