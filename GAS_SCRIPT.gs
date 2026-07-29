@@ -50,7 +50,9 @@ const GMAIL_SEARCH_TEAM_EMAILS = [
   'tomasogrady@enrichla.org',
   'hillarywilliams@enrichla.org',
   'catrinaestrada@enrichla.org',
-  'invoices@enrichla.org'
+  'invoices@enrichla.org',
+  'johannarecalde@enrichla.org',
+  'alexaleshire@enrichla.org'
 ];
 
 
@@ -447,10 +449,25 @@ function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
 }
 
 // Payload: { action:'searchTeamEmails', contactEmail, accessLevel, actor }
-// Level-1-only: exposes team members' inbox content.
+// Level 1 always allowed. Level 2 allowed ONLY if the admin has explicitly
+// opted level 2 into 'team_email_search_btn' via the Nav Visibility Control
+// Panel — checked here server-side (not just hidden client-side), since this
+// exposes team members' inbox content.
 function handleSearchTeamEmails(p) {
   var accessLevel = parseInt(p.accessLevel || '3');
-  if (accessLevel > 1) return { ok: false, error: 'Not authorized' };
+  if (accessLevel > 2) return { ok: false, error: 'Not authorized' };
+  if (accessLevel === 2) {
+    try {
+      var raw = PropertiesService.getScriptProperties().getProperty('app_settings');
+      var settings = raw ? JSON.parse(raw) : {};
+      var lvl2 = (settings.navVisibility && settings.navVisibility['2']) || [];
+      if (lvl2.indexOf('team_email_search_btn') === -1) {
+        return { ok: false, error: 'Not authorized' };
+      }
+    } catch (e) {
+      return { ok: false, error: 'Not authorized' };
+    }
+  }
   var contactEmail = (p.contactEmail || '').trim().toLowerCase();
   if (!contactEmail || contactEmail.indexOf('@') === -1) {
     return { ok: false, error: 'Missing or invalid contactEmail' };
@@ -1523,7 +1540,7 @@ function handleSaveAppSettings(p) {
     // Sanitise navVisibility: keys 1-9, values = arrays of known tab strings
     var KNOWN_TABS = ['notes','schools','map','chores','latest','rangers','people',
                       'plants','action','operations','reach','settings','control',
-                      'site_ops_btn'];
+                      'site_ops_btn','team_email_search_btn'];
     var navVis = {};
     var rawVis = settings.navVisibility || {};
     for (var i = 1; i <= 9; i++) {
