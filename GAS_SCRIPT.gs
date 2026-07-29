@@ -437,7 +437,8 @@ function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
           from:     headers.From || '',
           to:       headers.To || '',
           date:     headers.Date || '',
-          snippet:  msg.snippet || ''
+          snippet:  msg.snippet || '',
+          labelIds: msg.labelIds || []
         });
       });
     } catch (err) {
@@ -486,8 +487,20 @@ function handleSearchTeamEmails(p) {
   }
 }
 
+// Mirrors _gmailFolderFor on the frontend — "#all/" (All Mail) excludes Spam
+// and Trash, so a message actually sitting in either would silently fail to
+// open. Pick the folder that matches where the message actually lives.
+function _gmailFolderFor(labelIds) {
+  var l = labelIds || [];
+  if (l.indexOf('TRASH') !== -1) return 'trash';
+  if (l.indexOf('SPAM') !== -1) return 'spam';
+  if (l.indexOf('DRAFT') !== -1) return 'drafts';
+  if (l.indexOf('SENT') !== -1 && l.indexOf('INBOX') === -1) return 'sent';
+  return 'all';
+}
+
 // Payload: { action:'requestEmailForward', mailbox, threadId, subject, from, date,
-//            snippet, contactEmail, requesterEmail, requesterName, accessLevel }
+//            snippet, labelIds, contactEmail, requesterEmail, requesterName, accessLevel }
 // Sends an email TO the mailbox owner (via the script's own authorized Gmail
 // send — same mechanism as Memos/Reach) asking them to forward the specific
 // thread to the requester. Includes an authuser-scoped Gmail link that will
@@ -505,7 +518,7 @@ function handleRequestEmailForward(p) {
   var requesterName = p.requesterName || requester;
   var subjectLine = 'Could you forward this email? — Ranger Rover';
   var gmailLink = threadId
-    ? 'https://mail.google.com/mail/?authuser=' + encodeURIComponent(mailbox) + '#all/' + encodeURIComponent(threadId)
+    ? 'https://mail.google.com/mail/?authuser=' + encodeURIComponent(mailbox) + '#' + _gmailFolderFor(p.labelIds) + '/' + encodeURIComponent(threadId)
     : '';
 
   var body =
