@@ -39,6 +39,20 @@ const PLANT_SEARCH_FIELDS = [
   'Color', 'Special uses', 'Plant type'
 ];
 
+// ── TEAM EMAIL SEARCH (Gmail API via service-account domain-wide delegation) ──
+// Level-1-only feature: searches across enrichla.org team mailboxes for any
+// thread involving a given contact email (e.g. a principal). Requires the
+// service-account JSON key to be stored in Script Properties under 'gmail_sa_key'.
+const GMAIL_SEARCH_TEAM_EMAILS = [
+  'mauravelasco@enrichla.org',
+  'recruit@enrichla.org',
+  'team@enrichla.org',
+  'tomasogrady@enrichla.org',
+  'hillarywilliams@enrichla.org',
+  'catrinaestrada@enrichla.org',
+  'invoices@enrichla.org'
+];
+
 
 
 // ── ONE-TIME MIGRATION: Site Names → Site Keys in Chores and Humans sheets ──
@@ -251,6 +265,9 @@ function doPost(e) {
       case 'sendMailMerge': return respond(handleSendMailMerge(p));
       case 'sendTwilioSms': return respond(handleSendTwilioSms(p));
 
+      // ── TEAM EMAIL SEARCH (level 1 only) ─────────────────────────────────────
+      case 'searchTeamEmails': return respond(handleSearchTeamEmails(p));
+
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
     }
@@ -329,6 +346,121 @@ function handleSendTwilioSms(payload) {
   } catch(e) {}
 
   return { ok: true, sent: sent, failed: failed, errors: errors };
+}
+
+// ── TEAM EMAIL SEARCH (Gmail API, service-account impersonation) ────────────
+// Reads service-account creds from Script Property 'gmail_sa_key' (paste the
+// full downloaded JSON key file contents as the property value — do NOT hardcode
+// it here). Requires domain-wide delegation to be authorized in the Workspace
+// Admin console for the 'https://www.googleapis.com/auth/gmail.readonly' scope.
+function _gmailSaCreds() {
+  var raw = PropertiesService.getScriptProperties().getProperty('gmail_sa_key');
+  if (!raw) throw new Error('Missing gmail_sa_key Script Property');
+  return JSON.parse(raw);
+}
+
+// Mints a short-lived Gmail-readonly access token, impersonating subjectEmail
+// (one of the team mailboxes), via a signed JWT exchanged at Google's OAuth endpoint.
+function _gmailImpersonatedToken(subjectEmail) {
+  var creds = _gmailSaCreds();
+  var now = Math.floor(Date.now() / 1000);
+  var header   = { alg: 'RS256', typ: 'JWT' };
+  var claimSet = {
+    iss:   creds.client_email,
+    scope: 'https://www.googleapis.com/auth/gmail.readonly',
+    aud:   'https://oauth2.googleapis.com/token',
+    exp:   now + 3600,
+    iat:   now,
+    sub:   subjectEmail
+  };
+  function b64(obj) {
+    return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, '');
+  }
+  var toSign = b64(header) + '.' + b64(claimSet);
+  var sigBytes = Utilities.computeRsaSha256Signature(toSign, creds.private_key);
+  var signature = Utilities.base64EncodeWebSafe(sigBytes).replace(/=+$/, '');
+  var jwt = toSign + '.' + signature;
+
+  var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: {
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt
+    },
+    muteHttpExceptions: true
+  });
+  var body = JSON.parse(resp.getContentText());
+  if (!body.access_token) {
+    throw new Error('Token error for ' + subjectEmail + ': ' + resp.getContentText().substring(0, 200));
+  }
+  return body.access_token;
+}
+
+// Searches every mailbox in GMAIL_SEARCH_TEAM_EMAILS for messages involving
+// contactEmail. Skips any mailbox that errors (e.g. delegation not yet propagated)
+// rather than failing the whole request. Returns newest-first.
+function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
+  maxPerMailbox = maxPerMailbox || 4;
+  var results = [];
+
+  GMAIL_SEARCH_TEAM_EMAILS.forEach(function(mailbox) {
+    try {
+      var token = _gmailImpersonatedToken(mailbox);
+      var q = encodeURIComponent(contactEmail);
+      var listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?q=' + q + '&maxResults=' + maxPerMailbox;
+      var listResp = UrlFetchApp.fetch(listUrl, {
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      });
+      var listData = JSON.parse(listResp.getContentText());
+      if (!listData.messages) return;
+
+      listData.messages.forEach(function(m) {
+        var msgUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + m.id +
+          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date';
+        var msgResp = UrlFetchApp.fetch(msgUrl, {
+          headers: { Authorization: 'Bearer ' + token },
+          muteHttpExceptions: true
+        });
+        var msg = JSON.parse(msgResp.getContentText());
+        var headers = {};
+        (msg.payload && msg.payload.headers || []).forEach(function(h) { headers[h.name] = h.value; });
+
+        results.push({
+          mailbox:  mailbox,
+          threadId: m.threadId,
+          subject:  headers.Subject || '(no subject)',
+          from:     headers.From || '',
+          to:       headers.To || '',
+          date:     headers.Date || '',
+          snippet:  msg.snippet || ''
+        });
+      });
+    } catch (err) {
+      results.push({ mailbox: mailbox, error: String(err) });
+    }
+  });
+
+  results.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+  return results;
+}
+
+// Payload: { action:'searchTeamEmails', contactEmail, accessLevel, actor }
+// Level-1-only: exposes team members' inbox content.
+function handleSearchTeamEmails(p) {
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (accessLevel > 1) return { ok: false, error: 'Not authorized' };
+  var contactEmail = (p.contactEmail || '').trim().toLowerCase();
+  if (!contactEmail || contactEmail.indexOf('@') === -1) {
+    return { ok: false, error: 'Missing or invalid contactEmail' };
+  }
+  try {
+    var results = _gmailSearchTeamMailboxes(contactEmail);
+    return { ok: true, results: results };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
 
 // ── IMAGE RESOLUTION ──────────────────────────────────────────────────────────
