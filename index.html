@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.83 | BUILDITALL: 2026-07-28 19:45 PT | Ranger Rover PWA -->
+<!-- v9.84 | BUILDITALL: 2026-07-28 20:10 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,10 +1008,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.83';
+const APP_VERSION='v9.84';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-27e Fixed SAA contacts not appearing (category matching now keys off role name, not the sheet Category column) and the OPERATIONS site-card button repeatedly disappearing (site_ops_btn was missing from the GAS KNOWN_TABS whitelist and got silently stripped on every settings save).';
+const BUILD_STAMP='2026-07-28 Added Team Email Search (Gmail API across enrichla.org mailboxes, opt-in per level via Nav Visibility), and fixed the real root cause of the OPERATIONS site-card button "turning itself off": saving Nav Visibility for one level was resending every other level from whatever was in that browser tab memory, which could be stale and silently wipe site_ops_btn back out. Saves now read-modify-write against the freshest server copy.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1264,7 +1264,7 @@ function ctaRow(mobile,email){
   let b='';
   if(mobile){const tel=cleanPhone(mobile);b+=`<a class="cta primary" href="tel:${tel}" onclick="event.stopPropagation()">📞 ${mobile}</a>`;b+=`<a class="cta sms-btn" href="sms:${tel}" onclick="event.stopPropagation()">💬 Text</a>`;}
   if(email)b+=`<a class="cta" href="mailto:${email}" onclick="event.stopPropagation()">✉ Email</a>`;
-  if(email&&SESSION&&Number(SESSION.accessLevel)===1)b+=`<button type="button" class="cta" onclick="event.stopPropagation();searchTeamEmailsFor('${ea(email)}')">🔎 Team Emails</button>`;
+  if(email&&SESSION&&_teamEmailSearchAllowed(SESSION.accessLevel))b+=`<button type="button" class="cta" onclick="event.stopPropagation();searchTeamEmailsFor('${ea(email)}')">🔎 Team Emails</button>`;
   return b;
 }
 
@@ -6887,12 +6887,20 @@ const NAV_ALL_TABS = [
   {key:'settings', label:'⚙️ Settings'},
   {key:'control',  label:'🎛 Control'},
   {key:'site_ops_btn', label:'📍 Site Card: OPERATIONS Button'},
+  {key:'team_email_search_btn', label:'🔎 Contact Row: Team Email Search Button'},
 ];
 
-// Default: all tabs visible for every level
+// Keys that must be explicitly turned ON per-level rather than defaulting to
+// visible-for-everyone like ordinary tabs. Used for sensitive, opt-in-only
+// features (e.g. searching teammates' inboxes) where accidentally leaving a
+// checkbox pre-checked could grant access nobody intended to grant.
+const NAV_OPT_IN_ONLY = ['team_email_search_btn'];
+
+// Default: all ordinary tabs visible for every level (opt-in-only keys start unchecked)
 function _nvDefaults(){
   const d={};
-  for(let i=1;i<=9;i++){d[i]=NAV_ALL_TABS.map(t=>t.key);}
+  const defaultKeys=NAV_ALL_TABS.map(t=>t.key).filter(k=>!NAV_OPT_IN_ONLY.includes(k));
+  for(let i=1;i<=9;i++){d[i]=defaultKeys.slice();}
   return d;
 }
 
@@ -6963,9 +6971,6 @@ async function saveNavVisibility(){
   const visible=[];
   checks.forEach(c=>{if(c.checked)visible.push(c.dataset.tab);});
 
-  if(!_appSettings.navVisibility)_appSettings.navVisibility={};
-  _appSettings.navVisibility[_nvCurrentLevel]=visible;
-
   // Collect row3 slot data
   const slots=[];
   for(let si=0;si<6;si++){
@@ -6980,13 +6985,26 @@ async function saveNavVisibility(){
       visibleLevels
     });
   }
-  _appSettings.navVisibility.row3Slots=slots;
 
-  // Persist
-  localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
   const statusEl=document.getElementById('nvSaveStatus');
   if(statusEl)statusEl.textContent='Saving…';
   try{
+    // Read-modify-write against the FRESHEST server copy rather than whatever
+    // sits in this tab's memory. Editing one level used to resend every other
+    // level's array from local state — if this browser tab had been open since
+    // before a fix/backfill landed, that stale snapshot silently overwrote the
+    // server's up-to-date data for other levels. This is what made the
+    // Operations site-card button appear to randomly "turn itself off": an
+    // unrelated save, from a stale tab, would wipe it back out for a level the
+    // admin wasn't even looking at. Fetching fresh immediately before writing
+    // means only the level actually being edited right now can change.
+    const fresh=await gasPost({action:'getAppSettings'});
+    const freshSettings=(fresh&&fresh.ok&&fresh.settings)?fresh.settings:_appSettings;
+    if(!freshSettings.navVisibility)freshSettings.navVisibility={};
+    freshSettings.navVisibility[_nvCurrentLevel]=visible;
+    freshSettings.navVisibility.row3Slots=slots;
+    _appSettings=freshSettings;
+    localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
     await gasPost({action:'saveAppSettings',settings:_appSettings});
     if(statusEl)statusEl.textContent='✅ Saved for Level '+_nvCurrentLevel;
     setTimeout(()=>{if(statusEl)statusEl.textContent='';},2500);
@@ -7004,6 +7022,18 @@ function _navTabAllowed(tabKey, lvl){
   // No entry, or empty array = not yet configured = show all
   if(!entry || !Array.isArray(entry) || entry.length===0)return true;
   return entry.includes(tabKey);
+}
+
+// Level 1 always allowed. Any other level ONLY if explicitly opted in via the
+// Nav Visibility Control Panel — unlike _navTabAllowed above, an empty/missing
+// entry here means NOT allowed (opt-in, not opt-out), since this exposes
+// teammates' inbox content. Mirrors the server-side check in handleSearchTeamEmails.
+function _teamEmailSearchAllowed(lvl){
+  if(Number(lvl)===1)return true;
+  const vis=_appSettings.navVisibility;
+  if(!vis)return false;
+  const entry = vis[lvl] !== undefined ? vis[lvl] : vis[String(lvl)];
+  return Array.isArray(entry) && entry.includes('team_email_search_btn');
 }
 
 
