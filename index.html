@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.84 | BUILDITALL: 2026-07-28 20:10 PT | Ranger Rover PWA -->
+<!-- v9.85 | BUILDITALL: 2026-07-28 20:35 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,7 +1008,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.84';
+const APP_VERSION='v9.85';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
 const BUILD_STAMP='2026-07-28 Added Team Email Search (Gmail API across enrichla.org mailboxes, opt-in per level via Nav Visibility), and fixed the real root cause of the OPERATIONS site-card button "turning itself off": saving Nav Visibility for one level was resending every other level from whatever was in that browser tab memory, which could be stale and silently wipe site_ops_btn back out. Saves now read-modify-write against the freshest server copy.';
@@ -1239,15 +1239,21 @@ function searchTeamEmailsFor(email){
       const items=(res.results||[]).filter(r=>!r.error);
       const errs=(res.results||[]).filter(r=>r.error);
       if(!items.length){body.innerHTML='<div class="esm-empty">No emails found across team mailboxes.</div>';return;}
-      body.innerHTML=items.map(r=>`
+      body.innerHTML=items.map((r,i)=>`
         <div class="esm-item">
           <div class="esm-mailbox">${escHtml(r.mailbox)}</div>
           <div class="esm-subject">${escHtml(r.subject)}</div>
           <div class="esm-meta">${escHtml(r.from)}${r.date?' · '+escHtml(r.date):''}</div>
           <div class="esm-snippet">${escHtml(r.snippet)}</div>
-          ${r.threadId?`<a class="cta" style="display:inline-block;margin-top:6px" target="_blank" rel="noopener" href="https://mail.google.com/mail/?authuser=${encodeURIComponent(r.mailbox)}#all/${encodeURIComponent(r.threadId)}">↗ Open in Gmail</a>`:''}
+          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+            ${r.threadId?`<a class="cta" target="_blank" rel="noopener" href="https://mail.google.com/mail/?authuser=${encodeURIComponent(r.mailbox)}#all/${encodeURIComponent(r.threadId)}">↗ Open in Gmail</a>`:''}
+            ${(SESSION&&r.mailbox.toLowerCase()!==(SESSION.email||'').toLowerCase())?`<button type="button" class="cta esm-forward-btn" data-idx="${i}">✉ Ask ${escHtml(r.mailbox)} to Forward</button>`:''}
+          </div>
         </div>`).join('')
         +(errs.length?`<div class="esm-error" style="margin-top:10px">Could not search: ${errs.map(e=>escHtml(e.mailbox)).join(', ')}</div>`:'');
+      body.querySelectorAll('.esm-forward-btn').forEach(btn=>{
+        btn.addEventListener('click',()=>_requestEmailForward(items[Number(btn.dataset.idx)],email,btn));
+      });
     }catch(e){
       if(modal.classList.contains('open'))body.innerHTML='<div class="esm-error">⚠ Could not reach server.</div>';
     }
@@ -1259,6 +1265,32 @@ function closeEmailSearchModal(){
   document.body.style.overflow='';
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeEmailSearchModal();});
+
+async function _requestEmailForward(r,contactEmail,btn){
+  if(!r||!btn)return;
+  btn.disabled=true;
+  const original=btn.textContent;
+  btn.textContent='Sending…';
+  try{
+    const res=await gasPost({
+      action:'requestEmailForward',
+      mailbox:r.mailbox, threadId:r.threadId, subject:r.subject, from:r.from, date:r.date, snippet:r.snippet,
+      contactEmail:contactEmail,
+      requesterEmail:SESSION.email, requesterName:SESSION.name||SESSION.email,
+      accessLevel:SESSION.accessLevel
+    });
+    if(res.ok){
+      btn.textContent='✓ Sent to '+r.mailbox;
+      showSaveToast('✓ Asked '+r.mailbox+' to forward that email to you');
+    }else{
+      btn.disabled=false;btn.textContent=original;
+      showSaveToast('⚠ '+(res.error||'Could not send request'));
+    }
+  }catch(e){
+    btn.disabled=false;btn.textContent=original;
+    showSaveToast('⚠ Could not reach server');
+  }
+}
 
 function ctaRow(mobile,email){
   let b='';
