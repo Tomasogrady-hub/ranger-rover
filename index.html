@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.88 | BUILDITALL: 2026-07-28 21:35 PT | Ranger Rover PWA -->
+<!-- v9.89 | BUILDITALL: 2026-07-28 21:50 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,7 +1008,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.88';
+const APP_VERSION='v9.89';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
 const BUILD_STAMP='2026-07-28 Added Team Email Search (Gmail API across enrichla.org mailboxes, opt-in per level via Nav Visibility), and fixed the real root cause of the OPERATIONS site-card button "turning itself off": saving Nav Visibility for one level was resending every other level from whatever was in that browser tab memory, which could be stale and silently wipe site_ops_btn back out. Saves now read-modify-write against the freshest server copy.';
@@ -1252,7 +1252,35 @@ function _parseEmailAddrs(headerStr,excludeEmail){
 // (From/To/Cc, minus the viewer) pre-filled — works regardless of which
 // mailbox the original email is in, and sidesteps mobile Gmail-app deep-link
 // issues entirely since mailto: is handled natively everywhere.
-function _draftToEveryone(r){
+// Builds a Gmail web-compose URL (view=cm) rather than a mailto: link.
+// mailto: relies on the OS's registered handler, and Gmail (a web app) usually
+// isn't registered there on Windows — hence Outlook/Edge/Chrome showing up in
+// the picker but never Gmail. Linking straight to Gmail's compose page is a
+// normal https link, so no app-picker dialog appears at all, and it opens in
+// whichever Google account is already signed in.
+function _gmailComposeUrl(r){
+  const self=(SESSION&&SESSION.email||'').toLowerCase();
+  const to=_parseEmailAddrs((r.from||'')+','+(r.to||''),self);
+  const cc=_parseEmailAddrs(r.cc||'',self);
+  const subject='Re: '+(r.subject||'');
+  const body='Following up on this email'+(r.date?(' from '+r.date):'')+':\n\n'+
+    'From: '+(r.from||'')+'\n'+
+    (r.to?'To: '+r.to+'\n':'')+
+    (r.cc?'Cc: '+r.cc+'\n':'')+
+    'Subject: '+(r.subject||'')+'\n\n'+
+    '"'+(r.snippet||'')+'"\n\n---\n\n';
+  const params=new URLSearchParams();
+  params.set('view','cm');
+  params.set('fs','1');
+  params.set('to',to.join(','));
+  if(cc.length)params.set('cc',cc.join(','));
+  params.set('su',subject);
+  params.set('body',body);
+  if(self)params.set('authuser',self);
+  return 'https://mail.google.com/mail/?'+params.toString();
+}
+// Fallback mailto: link for anyone not using Gmail as their default mail app.
+function _mailtoUrl(r){
   const self=(SESSION&&SESSION.email||'').toLowerCase();
   const to=_parseEmailAddrs((r.from||'')+','+(r.to||''),self);
   const cc=_parseEmailAddrs(r.cc||'',self);
@@ -1267,7 +1295,7 @@ function _draftToEveryone(r){
   if(cc.length)params.set('cc',cc.join(','));
   params.set('subject',subject);
   params.set('body',body);
-  window.location.href='mailto:'+encodeURIComponent(to.join(','))+'?'+params.toString();
+  return 'mailto:'+encodeURIComponent(to.join(','))+'?'+params.toString();
 }
 function searchTeamEmailsFor(email){
   if(!email)return;
@@ -1302,19 +1330,17 @@ function searchTeamEmailsFor(email){
           ${r.cc?`<div class="esm-meta">Cc: ${escHtml(r.cc)}</div>`:''}
           ${r.bcc?`<div class="esm-meta">Bcc: ${escHtml(r.bcc)}</div>`:''}
           <div class="esm-snippet">${escHtml(r.snippet)}</div>
-          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             ${canOpen?`<a class="cta" target="_blank" rel="noopener" href="https://mail.google.com/mail/?authuser=${encodeURIComponent(selfEmail)}#${_gmailFolderFor(openLabelIds)}/${encodeURIComponent(openThreadId)}">↗ Open in Gmail</a>`:''}
             ${(!canOpen)?`<button type="button" class="cta esm-forward-btn" data-idx="${i}">✉ Ask ${escHtml(r.mailbox)} to Forward</button>`:''}
-            <button type="button" class="cta esm-draft-btn" data-idx="${i}">📝 Draft to Everyone</button>
+            <a class="cta" target="_blank" rel="noopener" href="${_gmailComposeUrl(r)}">📝 Draft to Everyone</a>
+            <a href="${_mailtoUrl(r)}" style="font-size:12px;color:var(--silver,#999)">or use default mail app</a>
           </div>
         </div>`;
       }).join('')
         +(errs.length?`<div class="esm-error" style="margin-top:10px">Could not search: ${errs.map(e=>escHtml(e.mailbox)).join(', ')}</div>`:'');
       body.querySelectorAll('.esm-forward-btn').forEach(btn=>{
         btn.addEventListener('click',()=>_requestEmailForward(items[Number(btn.dataset.idx)],email,btn));
-      });
-      body.querySelectorAll('.esm-draft-btn').forEach(btn=>{
-        btn.addEventListener('click',()=>_draftToEveryone(items[Number(btn.dataset.idx)]));
       });
     }catch(e){
       if(modal.classList.contains('open'))body.innerHTML='<div class="esm-error">⚠ Could not reach server.</div>';
