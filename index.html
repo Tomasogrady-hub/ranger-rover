@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.91 | BUILDITALL: 2026-07-30 12:20 PT | Ranger Rover PWA -->
+<!-- v9.92 | BUILDITALL: 2026-07-30 13:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,10 +1008,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.91';
+const APP_VERSION='v9.92';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-30 Reach page: simplified {{YourOpenChores}}/{{ChoresForMe}} tokens to bare "Task — Site" lines only (no heading/count/urgency), school name hotlinked in email. Also added {{ReplyToMyEmail}}/{{ReplyToMyMobile}} sender-contact tokens, and fixed a bug where Master Ranger was silently miscategorized as plain "Ranger" internally, which made the Master Ranger filter chip on the Reach and People tabs always return zero results.';
+const BUILD_STAMP='2026-07-30 Fixed {{YourOpenChores}}/{{ChoresForMe}} showing the raw Site Key (e.g. "ey56qum") instead of the school name — Chores.Site sometimes stores the site Key rather than the Name, so lookup now matches Key OR Name and always displays the resolved Name, hotlinked in email.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -6350,19 +6350,23 @@ function _schoolListBlock(heading, links, escFn, wrapLink) {
 // Builds "Task — Site" — one open chore per line, just the task and the
 // school name (school name deep-linked back into the app in emails). No
 // heading, count, or other fields — kept deliberately bare per request.
+// The Chores sheet's "Site" column sometimes holds the site's Key (7-char
+// alphanumeric) rather than its Name, so resolve against both — always
+// display the resolved Name, never a raw Key.
 // Used by the {{YourOpenChores}} / {{ChoresForMe}} tokens.
 function _choreListBlock(chores, escFn, wrapLink) {
   chores = chores || [];
   if (!chores.length) return '';
   const lines = chores.map(c => {
-    const task      = c.Task || c.task || '';
-    const siteName  = c.Site || c.site || '';
-    const siteRow   = siteName ? DATA.sites.find(s => sf(s,'Name','name') === siteName) : null;
-    const key       = siteRow ? sf(siteRow,'Key','key') : '';
-    const siteDisp  = (wrapLink && key)
-      ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(key)}">${escFn(siteName)}</a>`
-      : escFn(siteName);
-    return escFn(task) + (siteName ? ' — ' + siteDisp : '');
+    const task     = c.Task || c.task || '';
+    const siteRaw  = c.Site || c.site || '';
+    const siteRow  = siteRaw ? DATA.sites.find(s => sf(s,'Key','key') === siteRaw || sf(s,'Name','name') === siteRaw) : null;
+    const dispName = siteRow ? (sf(siteRow,'Name','name') || siteRaw) : siteRaw;
+    const key      = siteRow ? sf(siteRow,'Key','key') : '';
+    const siteDisp = (wrapLink && key)
+      ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(key)}">${escFn(dispName)}</a>`
+      : escFn(dispName);
+    return escFn(task) + (dispName ? ' — ' + siteDisp : '');
   });
   return lines.join('\n');
 }
