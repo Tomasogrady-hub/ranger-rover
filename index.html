@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.89 | BUILDITALL: 2026-07-28 21:50 PT | Ranger Rover PWA -->
+<!-- v9.90 | BUILDITALL: 2026-07-30 12:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,10 +1008,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.89';
+const APP_VERSION='v9.90';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-28 Added Team Email Search (Gmail API across enrichla.org mailboxes, opt-in per level via Nav Visibility), and fixed the real root cause of the OPERATIONS site-card button "turning itself off": saving Nav Visibility for one level was resending every other level from whatever was in that browser tab memory, which could be stale and silently wipe site_ops_btn back out. Saves now read-modify-write against the freshest server copy.';
+const BUILD_STAMP='2026-07-30 Reach page: added 4 new merge tokens — {{ReplyToMyEmail}}/{{ReplyToMyMobile}} (hotlinked sender contact, works in all modes) and {{YourOpenChores}}/{{ChoresForMe}} (recipient\'s open chores, Individually mode only, site names hotlinked in email). Also fixed a bug where Master Ranger was silently miscategorized as plain "Ranger" internally, which made the Master Ranger filter chip on the Reach and People tabs always return zero results.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1080,7 +1080,7 @@ function normCat(c){return(c||'').toLowerCase().replace(/[\s\-]+/g,'_').trim();}
 // column) fixes this and prevents it recurring if the sheet is re-edited.
 const CANONICAL_ROLE_CATS={
   'ranger':'ranger',
-  'master_ranger':'ranger',
+  'master_ranger':'master_ranger',
   'garden_keeper':'garden_keeper',
   'ranger_applicant':'ranger_applicant',
   'ranger_past':'ranger_past',
@@ -6292,17 +6292,47 @@ const MEMOS_ID = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
 const REACH_APP_URL     = 'https://tomasogrady-hub.github.io/ranger-rover/';
 const REACH_WEBSITE_URL = 'https://www.enrichla.org/';
 
+// ── Sender reply-contact tokens ─────────────────────────────────────────────
+// {{ReplyToMyEmail}} / {{ReplyToMyMobile}} insert the SIGNED-IN sender's own
+// email/mobile (never the recipient's), with a real hotlink and a short note
+// telling the recipient not to reply to the sending address/number itself
+// (e.g. a shared or no-reply Gmail/Twilio address) and to reach the sender
+// directly instead. Same value for every recipient, so — like AppLink/
+// WebsiteLink — these work in both "Individually" and "Together" modes.
+function _reachSenderEmail()  { return (SESSION && SESSION.email) || ''; }
+function _reachSenderMobile() { return (SESSION && SESSION.email) ? hm(SESSION.email) : ''; }
+function _replyToEmailPlain() {
+  const em = _reachSenderEmail();
+  return em ? `Please do not reply to this message — please reply directly to me at ${em}.` : '';
+}
+function _replyToEmailHtml() {
+  const em = _reachSenderEmail();
+  return em ? `Please do not reply to this message — please reply directly to me at <a href="mailto:${em}">${em}</a>.` : '';
+}
+function _replyToMobilePlain() {
+  const mo = _reachSenderMobile();
+  return mo ? `Please do not reply to this number — please reply directly to my mobile at ${mo}.` : '';
+}
+function _replyToMobileHtml() {
+  const mo = _reachSenderMobile();
+  return mo ? `Please do not reply to this number — please reply directly to my mobile at <a href="tel:${mo}">${mo}</a>.` : '';
+}
+
 // {{AppLink}} / {{WebsiteLink}} are static (same for every recipient), so they
 // work in both "Individually" and "Together" modes, email or text.
 function _reachStaticPlain(str) {
   return String(str)
     .replace(/\{\{AppLink\}\}/gi,     REACH_APP_URL)
-    .replace(/\{\{WebsiteLink\}\}/gi, REACH_WEBSITE_URL);
+    .replace(/\{\{WebsiteLink\}\}/gi, REACH_WEBSITE_URL)
+    .replace(/\{\{ReplyToMyEmail\}\}/gi,  _replyToEmailPlain())
+    .replace(/\{\{ReplyToMyMobile\}\}/gi, _replyToMobilePlain());
 }
 function _reachStaticHtml(str) {
   return String(str)
     .replace(/\{\{AppLink\}\}/gi,     `<a href="${REACH_APP_URL}">Ranger Rover App</a>`)
-    .replace(/\{\{WebsiteLink\}\}/gi, `<a href="${REACH_WEBSITE_URL}">EnrichLA.org</a>`);
+    .replace(/\{\{WebsiteLink\}\}/gi, `<a href="${REACH_WEBSITE_URL}">EnrichLA.org</a>`)
+    .replace(/\{\{ReplyToMyEmail\}\}/gi,  _replyToEmailHtml())
+    .replace(/\{\{ReplyToMyMobile\}\}/gi, _replyToMobileHtml());
 }
 
 // Builds "Heading (N):\nSchool A\nSchool B" — one school per line, with a
@@ -6315,6 +6345,46 @@ function _schoolListBlock(heading, links, escFn, wrapLink) {
     ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(sl.key||'')}">${escFn(sl.name)}</a>`
     : escFn(sl.name));
   return escFn(heading) + ' (' + links.length + '):\n' + lines.join('\n');
+}
+
+// Builds "Heading (N):\nTask — Site (Urgency)" — one open chore per line, with
+// the Site name deep-linked back into the app (email only, same pattern as
+// _schoolListBlock). Used by the {{YourOpenChores}} / {{ChoresForMe}} tokens.
+function _choreListBlock(heading, chores, escFn, wrapLink) {
+  chores = chores || [];
+  if (!chores.length) return escFn(heading) + ' (0): —';
+  const lines = chores.map(c => {
+    const task      = c.Task || c.task || '(no task listed)';
+    const siteName  = c.Site || c.site || '';
+    const siteRow   = siteName ? DATA.sites.find(s => sf(s,'Name','name') === siteName) : null;
+    const key       = siteRow ? sf(siteRow,'Key','key') : '';
+    const urgency   = c.Urgency || c.urgency || '';
+    const siteDisp  = (wrapLink && key)
+      ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(key)}">${escFn(siteName)}</a>`
+      : escFn(siteName);
+    return escFn(task) + (siteName ? ' — ' + siteDisp : '') + (urgency ? ' (' + escFn(urgency) + ')' : '');
+  });
+  return escFn(heading) + ' (' + chores.length + '):\n' + lines.join('\n');
+}
+
+// Open chores this recipient originally asked for (Asked by = recipient),
+// still open — mirrors the "Asked by Me" filter used elsewhere in the app.
+function openChoresAskedByEmail(email) {
+  if (!email) return [];
+  const e = email.toLowerCase();
+  return (DATA.chores || []).filter(c =>
+    (c['Asked by'] || c.AskedBy || '').toLowerCase() === e &&
+    (c.Status || c.status || '').toLowerCase() === 'open');
+}
+
+// Subset of the above that the recipient specifically asked of (or assigned
+// to) the signed-in sender — i.e. "chores you've asked me to do".
+function openChoresAskedOfSender(email, senderEmail) {
+  if (!email || !senderEmail) return [];
+  const se = senderEmail.toLowerCase();
+  return openChoresAskedByEmail(email).filter(c =>
+    (c['Asked of']    || c.AskedOf    || '').toLowerCase() === se ||
+    (c['Assigned to'] || c.AssignedTo || '').toLowerCase() === se);
 }
 
 // ── module state ──────────────────────────────────────────────────────────────
@@ -6464,6 +6534,7 @@ function _buildTarget() {
     const email = h.Email || h.email || '';
     const rangerLinks = rangerSchoolLinksForEmail(email);
     const gkLinks      = gkSchoolLinksForEmail(email);
+    const senderEmail  = SESSION ? SESSION.email : '';
     return {
       name:      fullName(h) || email || '?',
       firstName: h['First Name'] || h.firstName || (fullName(h)||'').split(' ')[0] || '',
@@ -6479,6 +6550,8 @@ function _buildTarget() {
       gkSchoolLinks:     gkLinks,
       rangerSchools:     rangerLinks.map(s=>s.name).join(', '),
       gkSchools:         gkLinks.map(s=>s.name).join(', '),
+      openChores:        openChoresAskedByEmail(email),
+      choresForMe:       openChoresAskedOfSender(email, senderEmail),
       role:              h.Role || h.role || ''
     };
   });
@@ -6579,6 +6652,8 @@ async function _sendViaTwilio(together){
           .replace(/\{\{Role\}\}/gi,      r.role||'')
           .replace(/\{\{RangerSchools\}\}/gi,       _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, s=>s, false))
           .replace(/\{\{GardenKeeperSchools\}\}/gi, _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     s=>s, false))
+          .replace(/\{\{YourOpenChores\}\}/gi,      _choreListBlock('Your Open Chores', r.openChores,  s=>s, false))
+          .replace(/\{\{ChoresForMe\}\}/gi,         _choreListBlock('Chores For Me',     r.choresForMe, s=>s, false))
           .replace(/\{\{FromName\}\}/gi,  _fromNameSms);
         return {to:r.mobile, body};
       });
@@ -6623,6 +6698,8 @@ async function _sendMailMerge(together){
               .replace(/\{\{Role\}\}/gi,      r.role||'')
               .replace(/\{\{RangerSchools\}\}/gi,       _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, s=>s, false))
               .replace(/\{\{GardenKeeperSchools\}\}/gi, _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     s=>s, false))
+              .replace(/\{\{YourOpenChores\}\}/gi,      _choreListBlock('Your Open Chores', r.openChores,  s=>s, false))
+              .replace(/\{\{ChoresForMe\}\}/gi,         _choreListBlock('Chores For Me',     r.choresForMe, s=>s, false))
               .replace(/\{\{FromName\}\}/gi,  _fromName);
   };
   // HTML substitution — used for the email body. {{School}}, {{RangerSchools}},
@@ -6634,6 +6711,8 @@ async function _sendMailMerge(together){
     const schoolHtml = (r.schoolLinks && r.schoolLinks.length) ? _linksHtml(r.schoolLinks) : _escHtml(r.school||'');
     const rangerHtml = _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, _escHtml, true);
     const gkHtml     = _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     _escHtml, true);
+    const openChoresHtml  = _choreListBlock('Your Open Chores', r.openChores,  _escHtml, true);
+    const choresForMeHtml = _choreListBlock('Chores For Me',    r.choresForMe, _escHtml, true);
     return _reachStaticHtml(_escHtml(str))
       .replace(/\{\{FirstName\}\}/gi, _escHtml(fname))
       .replace(/\{\{LastName\}\}/gi,  _escHtml(r.lastName||''))
@@ -6642,6 +6721,8 @@ async function _sendMailMerge(together){
       .replace(/\{\{Role\}\}/gi,      _escHtml(r.role||''))
       .replace(/\{\{RangerSchools\}\}/gi,       rangerHtml)
       .replace(/\{\{GardenKeeperSchools\}\}/gi, gkHtml)
+      .replace(/\{\{YourOpenChores\}\}/gi,      openChoresHtml)
+      .replace(/\{\{ChoresForMe\}\}/gi,         choresForMeHtml)
       .replace(/\{\{FromName\}\}/gi,  _escHtml(_fromName))
       .replace(/\n/g, '<br>');
   };
@@ -6737,9 +6818,13 @@ function openReachCompose(mode) {
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{School}}')">School</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Role}}')">Role</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{RangerSchools}}')">Garden Ranger Schools</button>
-          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeperSchools}}')">Garden Keeper Schools</button>` : ''}
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeperSchools}}')">Garden Keeper Schools</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{YourOpenChores}}')">🧹 Your Open Chores</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ChoresForMe}}')">🧹 Chores For Me</button>` : ''}
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyEmail}}')">📧 Reply To My Email</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyMobile}}')">☎️ Reply To My Mobile</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('\\n\\nSincerely,\\n{{FromName}}')">🙏 Greeting From You</button>
         </div>
         <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor${isEmail?' (works in Subject or Message)':''}${!isTogether?' — each person gets their own version filled in automatically when sent':''}.</div>
