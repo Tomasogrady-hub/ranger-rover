@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.90 | BUILDITALL: 2026-07-30 12:00 PT | Ranger Rover PWA -->
+<!-- v9.91 | BUILDITALL: 2026-07-30 12:20 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,10 +1008,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.90';
+const APP_VERSION='v9.91';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-30 Reach page: added 4 new merge tokens — {{ReplyToMyEmail}}/{{ReplyToMyMobile}} (hotlinked sender contact, works in all modes) and {{YourOpenChores}}/{{ChoresForMe}} (recipient\'s open chores, Individually mode only, site names hotlinked in email). Also fixed a bug where Master Ranger was silently miscategorized as plain "Ranger" internally, which made the Master Ranger filter chip on the Reach and People tabs always return zero results.';
+const BUILD_STAMP='2026-07-30 Reach page: simplified {{YourOpenChores}}/{{ChoresForMe}} tokens to bare "Task — Site" lines only (no heading/count/urgency), school name hotlinked in email. Also added {{ReplyToMyEmail}}/{{ReplyToMyMobile}} sender-contact tokens, and fixed a bug where Master Ranger was silently miscategorized as plain "Ranger" internally, which made the Master Ranger filter chip on the Reach and People tabs always return zero results.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -6347,24 +6347,24 @@ function _schoolListBlock(heading, links, escFn, wrapLink) {
   return escFn(heading) + ' (' + links.length + '):\n' + lines.join('\n');
 }
 
-// Builds "Heading (N):\nTask — Site (Urgency)" — one open chore per line, with
-// the Site name deep-linked back into the app (email only, same pattern as
-// _schoolListBlock). Used by the {{YourOpenChores}} / {{ChoresForMe}} tokens.
-function _choreListBlock(heading, chores, escFn, wrapLink) {
+// Builds "Task — Site" — one open chore per line, just the task and the
+// school name (school name deep-linked back into the app in emails). No
+// heading, count, or other fields — kept deliberately bare per request.
+// Used by the {{YourOpenChores}} / {{ChoresForMe}} tokens.
+function _choreListBlock(chores, escFn, wrapLink) {
   chores = chores || [];
-  if (!chores.length) return escFn(heading) + ' (0): —';
+  if (!chores.length) return '';
   const lines = chores.map(c => {
-    const task      = c.Task || c.task || '(no task listed)';
+    const task      = c.Task || c.task || '';
     const siteName  = c.Site || c.site || '';
     const siteRow   = siteName ? DATA.sites.find(s => sf(s,'Name','name') === siteName) : null;
     const key       = siteRow ? sf(siteRow,'Key','key') : '';
-    const urgency   = c.Urgency || c.urgency || '';
     const siteDisp  = (wrapLink && key)
       ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(key)}">${escFn(siteName)}</a>`
       : escFn(siteName);
-    return escFn(task) + (siteName ? ' — ' + siteDisp : '') + (urgency ? ' (' + escFn(urgency) + ')' : '');
+    return escFn(task) + (siteName ? ' — ' + siteDisp : '');
   });
-  return escFn(heading) + ' (' + chores.length + '):\n' + lines.join('\n');
+  return lines.join('\n');
 }
 
 // Open chores this recipient originally asked for (Asked by = recipient),
@@ -6652,8 +6652,8 @@ async function _sendViaTwilio(together){
           .replace(/\{\{Role\}\}/gi,      r.role||'')
           .replace(/\{\{RangerSchools\}\}/gi,       _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, s=>s, false))
           .replace(/\{\{GardenKeeperSchools\}\}/gi, _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     s=>s, false))
-          .replace(/\{\{YourOpenChores\}\}/gi,      _choreListBlock('Your Open Chores', r.openChores,  s=>s, false))
-          .replace(/\{\{ChoresForMe\}\}/gi,         _choreListBlock('Chores For Me',     r.choresForMe, s=>s, false))
+          .replace(/\{\{YourOpenChores\}\}/gi,      _choreListBlock(r.openChores,  s=>s, false))
+          .replace(/\{\{ChoresForMe\}\}/gi,         _choreListBlock(r.choresForMe, s=>s, false))
           .replace(/\{\{FromName\}\}/gi,  _fromNameSms);
         return {to:r.mobile, body};
       });
@@ -6698,8 +6698,8 @@ async function _sendMailMerge(together){
               .replace(/\{\{Role\}\}/gi,      r.role||'')
               .replace(/\{\{RangerSchools\}\}/gi,       _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, s=>s, false))
               .replace(/\{\{GardenKeeperSchools\}\}/gi, _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     s=>s, false))
-              .replace(/\{\{YourOpenChores\}\}/gi,      _choreListBlock('Your Open Chores', r.openChores,  s=>s, false))
-              .replace(/\{\{ChoresForMe\}\}/gi,         _choreListBlock('Chores For Me',     r.choresForMe, s=>s, false))
+              .replace(/\{\{YourOpenChores\}\}/gi,      _choreListBlock(r.openChores,  s=>s, false))
+              .replace(/\{\{ChoresForMe\}\}/gi,         _choreListBlock(r.choresForMe, s=>s, false))
               .replace(/\{\{FromName\}\}/gi,  _fromName);
   };
   // HTML substitution — used for the email body. {{School}}, {{RangerSchools}},
@@ -6711,8 +6711,8 @@ async function _sendMailMerge(together){
     const schoolHtml = (r.schoolLinks && r.schoolLinks.length) ? _linksHtml(r.schoolLinks) : _escHtml(r.school||'');
     const rangerHtml = _schoolListBlock('Garden Ranger Schools', r.rangerSchoolLinks, _escHtml, true);
     const gkHtml     = _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     _escHtml, true);
-    const openChoresHtml  = _choreListBlock('Your Open Chores', r.openChores,  _escHtml, true);
-    const choresForMeHtml = _choreListBlock('Chores For Me',    r.choresForMe, _escHtml, true);
+    const openChoresHtml  = _choreListBlock(r.openChores,  _escHtml, true);
+    const choresForMeHtml = _choreListBlock(r.choresForMe, _escHtml, true);
     return _reachStaticHtml(_escHtml(str))
       .replace(/\{\{FirstName\}\}/gi, _escHtml(fname))
       .replace(/\{\{LastName\}\}/gi,  _escHtml(r.lastName||''))
