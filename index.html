@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.92 | BUILDITALL: 2026-07-30 13:00 PT | Ranger Rover PWA -->
+<!-- v9.93 | BUILDITALL: 2026-07-30 14:00 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,10 +1008,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.92';
+const APP_VERSION='v9.93';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-30 Fixed {{YourOpenChores}}/{{ChoresForMe}} showing the raw Site Key (e.g. "ey56qum") instead of the school name — Chores.Site sometimes stores the site Key rather than the Name, so lookup now matches Key OR Name and always displays the resolved Name, hotlinked in email.';
+const BUILD_STAMP='2026-07-30 Reach compose modal: Cancel/Send/Twilio button row was plain inline content at the bottom of the scrollable area (not pinned), so on iOS the auto-focused message field'+"'"+'s keyboard kept pushing it out of view — swiping up briefly revealed it before it "swung back" out of sight. Converted it to a sticky bottom footer (same pattern already used for the Reach list'+"'"+'s action bar), so it now stays visible regardless of scroll position or keyboard state.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -6834,7 +6834,8 @@ function openReachCompose(mode) {
         <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor${isEmail?' (works in Subject or Message)':''}${!isTogether?' — each person gets their own version filled in automatically when sent':''}.</div>
       </div>
       <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+    </div>
+    <div id="reachComposeActions" style="position:sticky;bottom:0;left:0;right:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px calc(10px + var(--safe-bottom));display:flex;gap:8px;flex-wrap:wrap;z-index:5">
         <button onclick="closeReachCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink);flex:1;min-width:70px">Cancel</button>
         ${!isEmail ? `<button id="reachTwilioBtn" class="reach-action-btn"
           style="flex:2;min-width:130px;background:var(--enrich-dark);color:#fff"
@@ -6853,7 +6854,6 @@ function openReachCompose(mode) {
           📱 Device SMS
         </a>`}
       </div>
-    </div>
   </div>`;
 
   setTimeout(() => { const el = document.getElementById('reachMessage'); if(el) el.focus(); }, 150);
