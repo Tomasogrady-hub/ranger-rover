@@ -420,9 +420,10 @@ function _decodeHtmlEntities(s) {
     .replace(/&amp;/g, '&'); // must be last, or it double-unescapes "&amp;lt;" etc.
 }
 
-function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
+function _gmailSearchTeamMailboxes(contactEmail, requesterEmail, maxPerMailbox) {
   maxPerMailbox = maxPerMailbox || 4;
   var results = [];
+  requesterEmail = (requesterEmail || '').trim().toLowerCase();
 
   GMAIL_SEARCH_TEAM_EMAILS.forEach(function(mailbox) {
     try {
@@ -438,7 +439,10 @@ function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
 
       listData.messages.forEach(function(m) {
         var msgUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + m.id +
-          '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date';
+          '?format=metadata' +
+          '&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To' +
+          '&metadataHeaders=Cc&metadataHeaders=Bcc&metadataHeaders=Date' +
+          '&metadataHeaders=Message-Id';
         var msgResp = UrlFetchApp.fetch(msgUrl, {
           headers: { Authorization: 'Bearer ' + token },
           muteHttpExceptions: true
@@ -448,17 +452,42 @@ function _gmailSearchTeamMailboxes(contactEmail, maxPerMailbox) {
         (msg.payload && msg.payload.headers || []).forEach(function(h) { headers[h.name] = h.value; });
 
         results.push({
-          mailbox:  mailbox,
-          threadId: m.threadId,
-          subject:  _decodeHtmlEntities(headers.Subject || '(no subject)'),
-          from:     _decodeHtmlEntities(headers.From || ''),
-          date:     headers.Date || '',
-          snippet:  _decodeHtmlEntities(msg.snippet || ''),
-          labelIds: msg.labelIds || []
+          mailbox:   mailbox,
+          threadId:  m.threadId,
+          messageId: headers['Message-Id'] || headers['Message-ID'] || '',
+          subject:   _decodeHtmlEntities(headers.Subject || '(no subject)'),
+          from:      _decodeHtmlEntities(headers.From || ''),
+          to:        _decodeHtmlEntities(headers.To || ''),
+          cc:        _decodeHtmlEntities(headers.Cc || ''),
+          bcc:       _decodeHtmlEntities(headers.Bcc || ''),
+          date:      headers.Date || '',
+          snippet:   _decodeHtmlEntities(msg.snippet || ''),
+          labelIds:  msg.labelIds || []
         });
       });
     } catch (err) {
       results.push({ mailbox: mailbox, error: String(err) });
+    }
+  });
+
+  // Cross-reference: build a map of the REQUESTER's own copies (by Message-ID),
+  // so a message that landed in someone else's mailbox but was ALSO sent to/cc'd
+  // to the requester can link to the requester's own copy instead — which
+  // reliably opens, since they're always signed into their own account.
+  var ownCopyByMsgId = {};
+  results.forEach(function(r) {
+    if (r.error || !r.messageId) return;
+    if (r.mailbox === requesterEmail) {
+      ownCopyByMsgId[r.messageId] = { threadId: r.threadId, labelIds: r.labelIds };
+    }
+  });
+  results.forEach(function(r) {
+    if (r.error) return;
+    var participants = ((r.from || '') + ' ' + (r.to || '') + ' ' + (r.cc || '') + ' ' + (r.bcc || '')).toLowerCase();
+    r.viewerIsParticipant = !!requesterEmail && participants.indexOf(requesterEmail) !== -1;
+    if (r.mailbox !== requesterEmail && r.messageId && ownCopyByMsgId[r.messageId]) {
+      r.ownCopyThreadId = ownCopyByMsgId[r.messageId].threadId;
+      r.ownCopyLabelIds = ownCopyByMsgId[r.messageId].labelIds;
     }
   });
 
@@ -496,7 +525,7 @@ function handleSearchTeamEmails(p) {
     return { ok: false, error: 'Missing or invalid contactEmail' };
   }
   try {
-    var results = _gmailSearchTeamMailboxes(contactEmail);
+    var results = _gmailSearchTeamMailboxes(contactEmail, p.actor || p.requesterEmail || '');
     return { ok: true, results: results };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -544,6 +573,8 @@ function handleRequestEmailForward(p) {
   // decode defensively here too in case a caller passes raw values.
   var subjectTxt = _decodeHtmlEntities(p.subject || '(no subject)');
   var fromTxt    = _decodeHtmlEntities(p.from || '');
+  var toTxt      = _decodeHtmlEntities(p.to || '');
+  var ccTxt      = _decodeHtmlEntities(p.cc || '');
   var snippetTxt = _decodeHtmlEntities(p.snippet || '');
 
   var plainBody =
@@ -552,6 +583,8 @@ function handleRequestEmailForward(p) {
     'Could you forward it to ' + requester + ' when you get a chance?\n\n' +
     'Subject: ' + subjectTxt + '\n' +
     (fromTxt ? 'From: ' + fromTxt + '\n' : '') +
+    (toTxt ? 'To: ' + toTxt + '\n' : '') +
+    (ccTxt ? 'Cc: ' + ccTxt + '\n' : '') +
     (p.date ? 'Date: ' + p.date + '\n' : '') +
     (snippetTxt ? '\nPreview: "' + snippetTxt + '"\n' : '') +
     (gmailLink ? '\nOpen it here: ' + gmailLink + '\n' : '') +
