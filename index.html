@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.93 | BUILDITALL: 2026-07-30 14:00 PT | Ranger Rover PWA -->
+<!-- v9.95 | BUILDITALL: 2026-07-31 20:21 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1008,7 +1008,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.94';
+const APP_VERSION='v9.95';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
 const BUILD_STAMP='2026-07-31 All remaining plain mailto: Email buttons/links (site card CTA row, contact detail sheet link + CTA, Reach mail-merge fallback paths) were still triggering the Windows OS app-picker (Outlook/Edge/Chrome, never Gmail) whenever no default mail handler is registered. Replaced every admin-facing mailto: with a gmailUrl() helper that links straight to Gmail'+"'"+'s web compose view (mail.google.com/mail/?view=cm...) — a normal https link, so no app-picker ever appears, and it opens signed-in to the current account. Left the one mailto: that appears inside outgoing message text for external recipients (\"reply directly to me at...\") untouched, since that'+"'"+'s the recipient'+"'"+'s device, not the admin'+"'"+'s.';
@@ -1111,6 +1111,18 @@ function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.
 function fullName(h){if(!h)return '';const fn=h['First Name']||h.FirstName||'',ln=h['Last Name']||h.LastName||'';if(fn||ln)return(fn+' '+ln).trim();return h.Name||h.name||h.Email||h.email||'';}
 function hn(e){const h=gh(e);return h?(fullName(h)||e):e;}
 function hm(e){const h=gh(e);return h?String(h.Mobile||h.mobile||''):''; }
+// Normalizes a raw phone string (e.g. "323-377-6320") to E.164 (+13233776320)
+// for maximum auto-linkability across Android/iOS/Windows messaging clients.
+// Falls back to the original trimmed string if it doesn't look like a
+// standard 10-digit US/CA number (never throws, never blanks a real number).
+function toE164US(raw){
+  const s=String(raw||'').trim();
+  if(!s)return '';
+  const digits=s.replace(/\D/g,'');
+  if(digits.length===10)return '+1'+digits;
+  if(digits.length===11 && digits[0]==='1')return '+'+digits;
+  return s;
+}
 
 function getImgSrc(url){
   if(!url||typeof url!=='string'||url.trim()==='')return '';
@@ -6318,7 +6330,7 @@ const REACH_WEBSITE_URL = 'https://www.enrichla.org/';
 // directly instead. Same value for every recipient, so — like AppLink/
 // WebsiteLink — these work in both "Individually" and "Together" modes.
 function _reachSenderEmail()  { return (SESSION && SESSION.email) || ''; }
-function _reachSenderMobile() { return (SESSION && SESSION.email) ? hm(SESSION.email) : ''; }
+function _reachSenderMobile() { return (SESSION && SESSION.email) ? toE164US(hm(SESSION.email)) : ''; }
 function _replyToEmailPlain() {
   const em = _reachSenderEmail();
   return em ? `Please do not reply to this message — please reply directly to me at ${em}.` : '';
