@@ -1008,10 +1008,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.93';
+const APP_VERSION='v9.94';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-30 Reach compose modal: Cancel/Send/Twilio button row was plain inline content at the bottom of the scrollable area (not pinned), so on iOS the auto-focused message field'+"'"+'s keyboard kept pushing it out of view — swiping up briefly revealed it before it "swung back" out of sight. Converted it to a sticky bottom footer (same pattern already used for the Reach list'+"'"+'s action bar), so it now stays visible regardless of scroll position or keyboard state.';
+const BUILD_STAMP='2026-07-31 All remaining plain mailto: Email buttons/links (site card CTA row, contact detail sheet link + CTA, Reach mail-merge fallback paths) were still triggering the Windows OS app-picker (Outlook/Edge/Chrome, never Gmail) whenever no default mail handler is registered. Replaced every admin-facing mailto: with a gmailUrl() helper that links straight to Gmail'+"'"+'s web compose view (mail.google.com/mail/?view=cm...) — a normal https link, so no app-picker ever appears, and it opens signed-in to the current account. Left the one mailto: that appears inside outgoing message text for external recipients (\"reply directly to me at...\") untouched, since that'+"'"+'s the recipient'+"'"+'s device, not the admin'+"'"+'s.';
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -1279,6 +1279,24 @@ function _gmailComposeUrl(r){
   if(self)params.set('authuser',self);
   return 'https://mail.google.com/mail/?'+params.toString();
 }
+// General-purpose Gmail web-compose link for any "Email" button in the app
+// (site cards, contact detail sheets, Reach). Plain mailto: links trigger the
+// Windows OS app-picker (Outlook/Edge/Chrome) whenever no default mail app is
+// registered — a normal https link to Gmail's compose view never does that,
+// and it opens straight into the signed-in Google account.
+function gmailUrl(to,subject,body,cc,bcc){
+  const params=new URLSearchParams();
+  params.set('view','cm');
+  params.set('fs','1');
+  params.set('to',to||'');
+  if(cc)params.set('cc',cc);
+  if(bcc)params.set('bcc',bcc);
+  if(subject)params.set('su',subject);
+  if(body)params.set('body',body);
+  const self=(SESSION&&SESSION.email||'').toLowerCase();
+  if(self)params.set('authuser',self);
+  return 'https://mail.google.com/mail/?'+params.toString();
+}
 // Fallback mailto: link for anyone not using Gmail as their default mail app.
 function _mailtoUrl(r){
   const self=(SESSION&&SESSION.email||'').toLowerCase();
@@ -1384,7 +1402,7 @@ async function _requestEmailForward(r,contactEmail,btn){
 function ctaRow(mobile,email){
   let b='';
   if(mobile){const tel=cleanPhone(mobile);b+=`<a class="cta primary" href="tel:${tel}" onclick="event.stopPropagation()">📞 ${mobile}</a>`;b+=`<a class="cta sms-btn" href="sms:${tel}" onclick="event.stopPropagation()">💬 Text</a>`;}
-  if(email)b+=`<a class="cta" href="mailto:${email}" onclick="event.stopPropagation()">✉ Email</a>`;
+  if(email)b+=`<a class="cta" href="${gmailUrl(email)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">✉ Email</a>`;
   if(email&&SESSION&&_teamEmailSearchAllowed(SESSION.accessLevel))b+=`<button type="button" class="cta" onclick="event.stopPropagation();searchTeamEmailsFor('${ea(email)}')">🔎 Team Emails</button>`;
   return b;
 }
@@ -3592,7 +3610,7 @@ function renderPD(h,edit){
       ${rangerSchools?`<div class="ds"><div class="dl">Garden Ranger School(s)</div><div class="dv">${rangerSchools}</div></div>`:''}
       ${gkSchools?`<div class="ds"><div class="dl">Garden Keeper School(s)</div><div class="dv">${gkSchools}</div></div>`:''}
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
-      ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="mailto:${email}">${email}</a></div></div>`:''}
+      ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="${gmailUrl(email)}" target="_blank" rel="noopener">${email}</a></div></div>`:''}
       ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${cleanPhone(mobile)}">${mobile}</a></div></div>`:''}
       ${SESSION&&SESSION.accessLevel<=2?`<div id="pd-comments-section" style="padding:0 20px 4px">
         <button id="pd-comments-btn" class="btn-cancel" style="width:100%;margin-top:8px" onclick="fetchPersonComments('${ea(email)}')">🔒 Retrieve Confidential Notes</button>
@@ -3601,7 +3619,7 @@ function renderPD(h,edit){
       <div class="detail-ctas">
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
-        ${email?`<a class="dcta" href="mailto:${email}">✉ Email</a>`:''}
+        ${email?`<a class="dcta" href="${gmailUrl(email)}" target="_blank" rel="noopener">✉ Email</a>`:''}
       </div>
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
@@ -6961,11 +6979,7 @@ function _prepReach(el) {
   if (isTog) {
     if (isEmail) {
       const toStr = _reachTarget.map(r => r.email).filter(Boolean).join(',');
-      url = 'mailto:' + toStr
-          + '?subject=' + encodeURIComponent(subj)
-          + '&body='    + encodeURIComponent(msg);
-      if (cc)  url += '&cc='  + encodeURIComponent(cc);
-      if (bcc) url += '&bcc=' + encodeURIComponent(bcc);
+      url = gmailUrl(toStr, subj, msg, cc, bcc);
     } else {
       const nums = _reachTarget.map(r => r.mobile).filter(Boolean).join(',');
       if (!nums) { if(statusEl) statusEl.textContent = '⚠ No mobile numbers found'; if(el) el.href='#'; return false; }
@@ -6995,11 +7009,7 @@ function _prepReach(el) {
     const stepQueue = isEmail
       ? _reachTarget.filter(r => r.email).map(r => ({
           label: r.name, info: r.email,
-          href:  'mailto:' + r.email
-               + '?subject=' + encodeURIComponent(subj)
-               + '&body='    + encodeURIComponent(msg)
-               + (cc  ? '&cc='  + encodeURIComponent(cc)  : '')
-               + (bcc ? '&bcc=' + encodeURIComponent(bcc) : '')
+          href:  gmailUrl(r.email, subj, msg, cc, bcc)
         }))
       : _reachTarget.filter(r => r.mobile).map(r => ({
           label: r.name, info: r.mobile,
