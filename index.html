@@ -1008,6 +1008,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </label>
         <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver)">0 selected</span>
         <select id="dataPeopleBulkLevel" class="settings-input" style="margin:0;width:110px">
+          <option value="">None</option>
           <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
           <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
           <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
@@ -1049,10 +1050,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.98';
+const APP_VERSION='v9.99';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-31 (4) Data > People: added a centered "Adjust" heading above the Select All / bulk-apply bar, and expanded the top-right Access Level filter dropdown from a flat 1-9 list into All Levels (now specifically means everyone with a non-blank Access Level), All Active (anyone with a password recorded in Humans column O — i.e. has actually set one up), None (blank Access Level), and Level 1-9.';
+const BUILD_STAMP='2026-07-31 (5) Data > People: both the individual per-row Access Level selector and the bulk "Apply to Selected" selector now have a None option, so an admin can clear someone'+"'"+'s Access Level back to blank (not just set it to 1-9). Saves an empty string to the Humans sheet via the existing generic edit handler.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -7350,7 +7351,8 @@ function _dataPersonRowHtml(h){
       <div style="font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
       <div style="font-size:13px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
     </div>
-    <select class="settings-input" style="margin:0;width:84px;flex:none;padding:8px" onchange="setDataPersonAccessLevel('${ea(email)}',this.value)">
+    <select class="settings-input" style="margin:0;width:96px;flex:none;padding:8px" onchange="setDataPersonAccessLevel('${ea(email)}',this.value)">
+      <option value="" ${String(lvl).trim()===''?'selected':''}>None</option>
       ${[1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(lvl)===String(n)?'selected':''}>${n}</option>`).join('')}
     </select>
   </div>`;
@@ -7382,11 +7384,15 @@ function _updateDataPeopleSelCount(){
 }
 
 // Individual access-level change — saves immediately via the generic Humans-sheet edit handler
+function _dataLevelValue(level){ return String(level||'').trim()===''?'':parseInt(level); }
+function _dataLevelLabel(level){ return String(level||'').trim()===''?'None':'Level '+level; }
+
 async function setDataPersonAccessLevel(email,level){
+  const val=_dataLevelValue(level);
   try{
-    await gasPost({sheet:'Humans',key:email,updates:{'Access Level':parseInt(level)},actor:(SESSION&&SESSION.email)||''});
+    await gasPost({sheet:'Humans',key:email,updates:{'Access Level':val},actor:(SESSION&&SESSION.email)||''});
     const h=(DATA.humans||[]).find(x=>(x.Email||x.email||'')===email);
-    if(h)h['Access Level']=parseInt(level);
+    if(h)h['Access Level']=val;
     showSaveToast('✓ Access level updated');
   }catch(e){
     showSaveToast('⚠ Could not update access level');
@@ -7396,6 +7402,7 @@ async function setDataPersonAccessLevel(email,level){
 // Bulk access-level change across every checked person
 async function applyDataPeopleBulkAccess(){
   const level=document.getElementById('dataPeopleBulkLevel')?.value;
+  const val=_dataLevelValue(level);
   const statusEl=document.getElementById('dataPeopleBulkStatus');
   const emails=Array.from(_dataPeopleSelected);
   if(!emails.length){if(statusEl)statusEl.textContent='Select at least one person first';return;}
@@ -7403,14 +7410,14 @@ async function applyDataPeopleBulkAccess(){
   let done=0;
   for(const email of emails){
     try{
-      await gasPost({sheet:'Humans',key:email,updates:{'Access Level':parseInt(level)},actor:(SESSION&&SESSION.email)||''});
+      await gasPost({sheet:'Humans',key:email,updates:{'Access Level':val},actor:(SESSION&&SESSION.email)||''});
       const h=(DATA.humans||[]).find(x=>(x.Email||x.email||'')===email);
-      if(h)h['Access Level']=parseInt(level);
+      if(h)h['Access Level']=val;
     }catch(e){/* keep going — report final count below */}
     done++;
     if(statusEl)statusEl.textContent='Saving '+done+'/'+emails.length+'…';
   }
-  if(statusEl)statusEl.textContent='✅ Updated '+emails.length+' people to Level '+level;
+  if(statusEl)statusEl.textContent='✅ Updated '+emails.length+' people to '+_dataLevelLabel(level);
   setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
   renderDataPeople();
 }
