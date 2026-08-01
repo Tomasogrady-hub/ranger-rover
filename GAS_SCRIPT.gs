@@ -1681,7 +1681,7 @@ function handleSaveAppSettings(p) {
     var settings = p.settings || {};
     // Sanitise navVisibility: keys 1-9, values = arrays of known tab strings
     var KNOWN_TABS = ['notes','schools','map','chores','latest','rangers','people',
-                      'plants','action','operations','reach','settings','control',
+                      'plants','action','operations','reach','settings','data',
                       'site_ops_btn','team_email_search_btn'];
     var navVis = {};
     var rawVis = settings.navVisibility || {};
@@ -1693,20 +1693,9 @@ function handleSaveAppSettings(p) {
         navVis[key] = rawVis[i].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
       }
     }
-    // Sanitise row3Slots: array of {label, tab, visibleLevels}
-    var rawSlots = Array.isArray(rawVis.row3Slots) ? rawVis.row3Slots : [];
-    var safeSlots = [];
-    for (var si = 0; si < 6; si++) {
-      var rs = rawSlots[si] || {};
-      safeSlots.push({
-        label: String(rs.label || '').slice(0, 30),
-        tab: String(rs.tab || '').replace(/[^a-z0-9_-]/g, '').slice(0, 30),
-        visibleLevels: Array.isArray(rs.visibleLevels)
-          ? rs.visibleLevels.filter(function(lv){ return lv >= 1 && lv <= 9; })
-          : []
-      });
-    }
-    navVis.row3Slots = safeSlots;
+    // Row 3 Future Slots feature was removed — row3Slots is no longer sanitised or
+    // persisted here. Any leftover row3Slots value from an older save is simply
+    // dropped on the next save since navVis is rebuilt from scratch above.
     // Preserve the one-time migration tracker — without this, every save (even an
     // unrelated one like Broadcast or Twilio) wiped it, which made the client think
     // newly-introduced toggle keys (like "operations" for a level with an already-
