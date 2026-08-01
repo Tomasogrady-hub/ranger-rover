@@ -992,7 +992,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <select id="dataPeopleRoleFilter" class="settings-input" style="margin:0;flex:1;min-width:150px" onchange="renderDataPeople()">
           <option value="">All Roles</option>
         </select>
-        <select id="dataPeopleAccessFilter" class="settings-input" style="margin:0;width:170px" onchange="renderDataPeople()">
+        <select id="dataPeopleAccessFilter" class="settings-input" style="margin:0;width:190px" onchange="renderDataPeople()">
           <option value="__all__">All Levels</option>
           <option value="__active__">All Active</option>
           <option value="__none__">None</option>
@@ -1002,19 +1002,21 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </select>
       </div>
       <div style="text-align:center;font-family:var(--font-b);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em;margin:12px 0 8px">Adjust</div>
-      <div style="padding:0 16px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--mist)">
-        <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone)">
-          <input type="checkbox" id="dataPeopleSelectAll" onchange="toggleDataPeopleSelectAll(this.checked)"> Select all
-        </label>
-        <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver)">0 selected</span>
-        <select id="dataPeopleBulkLevel" class="settings-input" style="margin:0;width:110px">
-          <option value="">None</option>
-          <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
-          <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
-          <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
-        </select>
-        <button class="settings-btn" style="margin:0;padding:10px 14px" onclick="applyDataPeopleBulkAccess()">Apply to Selected</button>
-        <span id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage)"></span>
+      <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:nowrap;overflow-x:auto">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
+            <input type="checkbox" id="dataPeopleSelectAll" onchange="toggleDataPeopleSelectAll(this.checked)"> Select all
+          </label>
+          <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
+          <select id="dataPeopleBulkLevel" class="settings-input" style="margin:0;width:100px;flex:none" disabled>
+            <option value="">None</option>
+            <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
+            <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
+            <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
+          </select>
+          <button id="dataPeopleApplyBtn" class="settings-btn" style="margin:0 0 0 auto;padding:10px 14px;flex:none;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkAccess()" disabled>Apply to Selected</button>
+        </div>
+        <div id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
       </div>
       <div id="dataPeopleList" style="padding:0"><div class="spinner"></div></div>
     </div>
@@ -1050,10 +1052,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.99';
+const APP_VERSION='v10.0';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-31 (5) Data > People: both the individual per-row Access Level selector and the bulk "Apply to Selected" selector now have a None option, so an admin can clear someone'+"'"+'s Access Level back to blank (not just set it to 1-9). Saves an empty string to the Humans sheet via the existing generic edit handler.';
+const BUILD_STAMP='2026-07-31 (6) Data > People overhaul: (a) fixed the All Active filter — it was checking a Password field the backend never sends to the client for security; GAS now computes a boolean Has Password flag server-side (still never exposing the actual value) and the filter uses that. (b) Every filter option in both the Role and Access Level dropdowns now shows a live count, e.g. "Ranger (18)", "All Levels (142)", "None (6)". (c) The Apply to Selected button and the bulk Access Level selector are greyed out and disabled until at least one person is checked. (d) Both individual per-row changes and bulk changes now show "Updating…" (with a live X/Y counter for bulk) followed by "✅ Access Level Updated" once the save completes. (e) Redesigned the Adjust toolbar: Select All, selected count, the bulk level picker, and Apply to Selected all sit on one line inside a single rounded bordered box, with Apply pushed to the right edge.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -7304,25 +7306,53 @@ function _dataPeopleRoleOptions(){
   return Array.from(set).sort((a,b)=>a.localeCompare(b));
 }
 
+// Counts for every filter option, computed once per render off the full unfiltered
+// Humans list (not cross-filtered against the other dropdown's current selection).
+function _dataPeopleFilterCounts(){
+  const all=(DATA.humans||[]);
+  const roleCounts={};
+  let none=0, active=0, allLevels=0;
+  const levelCounts={1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0};
+  all.forEach(h=>{
+    const r=(h.Role||h.role||'').trim(); if(r)roleCounts[r]=(roleCounts[r]||0)+1;
+    const ra=(h['Role Additional']||'').trim(); if(ra && ra!==r)roleCounts[ra]=(roleCounts[ra]||0)+1;
+    const lvlRaw=String(h['Access Level']||'').trim();
+    if(lvlRaw===''){ none++; } else { allLevels++; if(levelCounts[lvlRaw]!==undefined)levelCounts[lvlRaw]++; }
+    if(h['Has Password'])active++;
+  });
+  return {total:all.length, roleCounts, none, active, allLevels, levelCounts};
+}
+
 function renderDataPeople(){
+  const counts=_dataPeopleFilterCounts();
   const roleSel=document.getElementById('dataPeopleRoleFilter');
   // Populate role options once (first render / whenever it's still just the default)
   if(roleSel && roleSel.options.length<=1){
+    roleSel.options[0].textContent=`All Roles (${counts.total})`;
     _dataPeopleRoleOptions().forEach(r=>{
-      const o=document.createElement('option');o.value=r;o.textContent=r;roleSel.appendChild(o);
+      const o=document.createElement('option');o.value=r;o.textContent=`${r} (${counts.roleCounts[r]||0})`;roleSel.appendChild(o);
+    });
+  }
+  // Access Level filter counts are refreshed every render (cheap, fixed option set)
+  const lvlSel=document.getElementById('dataPeopleAccessFilter');
+  if(lvlSel){
+    Array.from(lvlSel.options).forEach(o=>{
+      if(o.value==='__all__')o.textContent=`All Levels (${counts.allLevels})`;
+      else if(o.value==='__active__')o.textContent=`All Active (${counts.active})`;
+      else if(o.value==='__none__')o.textContent=`None (${counts.none})`;
+      else if(o.value)o.textContent=`Level ${o.value} (${counts.levelCounts[o.value]||0})`;
     });
   }
   const roleF=roleSel?roleSel.value:'';
-  const lvlF=document.getElementById('dataPeopleAccessFilter')?.value||'__all__';
+  const lvlF=lvlSel?lvlSel.value:'__all__';
   let people=(DATA.humans||[]).filter(h=>{
     if(roleF){
       const r=h.Role||h.role||'', ra=h['Role Additional']||'';
       if(r!==roleF && ra!==roleF)return false;
     }
     const lvlRaw=String(h['Access Level']||'').trim();
-    const pwRaw=String(h.Password||h.password||'').trim();
     if(lvlF==='__none__'){ if(lvlRaw!=='')return false; }
-    else if(lvlF==='__active__'){ if(!pwRaw)return false; }
+    else if(lvlF==='__active__'){ if(!h['Has Password'])return false; }
     else if(lvlF==='__all__'){ if(lvlRaw==='')return false; }
     else if(lvlF){ if(lvlRaw!==lvlF)return false; }
     return true;
@@ -7381,6 +7411,19 @@ function _updateDataPeopleSelCount(){
     const rows=document.querySelectorAll('#dataPeopleList .data-person-row').length;
     all.checked = rows>0 && _dataPeopleSelected.size>=rows;
   }
+  // Grey out Apply to Selected + the bulk level selector until at least one person is checked
+  const hasSel=_dataPeopleSelected.size>0;
+  const applyBtn=document.getElementById('dataPeopleApplyBtn');
+  const bulkSel=document.getElementById('dataPeopleBulkLevel');
+  if(applyBtn){
+    applyBtn.disabled=!hasSel;
+    applyBtn.style.opacity=hasSel?'1':'.45';
+    applyBtn.style.cursor=hasSel?'pointer':'not-allowed';
+  }
+  if(bulkSel){
+    bulkSel.disabled=!hasSel;
+    bulkSel.style.opacity=hasSel?'1':'.6';
+  }
 }
 
 // Individual access-level change — saves immediately via the generic Humans-sheet edit handler
@@ -7389,24 +7432,29 @@ function _dataLevelLabel(level){ return String(level||'').trim()===''?'None':'Le
 
 async function setDataPersonAccessLevel(email,level){
   const val=_dataLevelValue(level);
+  const statusEl=document.getElementById('dataPeopleBulkStatus');
+  if(statusEl)statusEl.textContent='Updating…';
   try{
     await gasPost({sheet:'Humans',key:email,updates:{'Access Level':val},actor:(SESSION&&SESSION.email)||''});
     const h=(DATA.humans||[]).find(x=>(x.Email||x.email||'')===email);
     if(h)h['Access Level']=val;
-    showSaveToast('✓ Access level updated');
+    if(statusEl)statusEl.textContent='✅ Access Level Updated';
+    else showSaveToast('✓ Access Level Updated');
   }catch(e){
-    showSaveToast('⚠ Could not update access level');
+    if(statusEl)statusEl.textContent='⚠ Could not update access level';
+    else showSaveToast('⚠ Could not update access level');
   }
+  if(statusEl)setTimeout(()=>{if(statusEl.textContent.indexOf('Updating')===-1)statusEl.textContent='';},3000);
 }
 
 // Bulk access-level change across every checked person
 async function applyDataPeopleBulkAccess(){
+  if(!_dataPeopleSelected.size)return; // button is disabled in this state, but guard anyway
   const level=document.getElementById('dataPeopleBulkLevel')?.value;
   const val=_dataLevelValue(level);
   const statusEl=document.getElementById('dataPeopleBulkStatus');
   const emails=Array.from(_dataPeopleSelected);
-  if(!emails.length){if(statusEl)statusEl.textContent='Select at least one person first';return;}
-  if(statusEl)statusEl.textContent='Saving 0/'+emails.length+'…';
+  if(statusEl)statusEl.textContent='Updating… (0/'+emails.length+')';
   let done=0;
   for(const email of emails){
     try{
@@ -7415,10 +7463,10 @@ async function applyDataPeopleBulkAccess(){
       if(h)h['Access Level']=val;
     }catch(e){/* keep going — report final count below */}
     done++;
-    if(statusEl)statusEl.textContent='Saving '+done+'/'+emails.length+'…';
+    if(statusEl)statusEl.textContent='Updating… ('+done+'/'+emails.length+')';
   }
-  if(statusEl)statusEl.textContent='✅ Updated '+emails.length+' people to '+_dataLevelLabel(level);
-  setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
+  if(statusEl)statusEl.textContent='✅ Access Level Updated — '+emails.length+' people set to '+_dataLevelLabel(level);
+  setTimeout(()=>{if(statusEl)statusEl.textContent='';},3500);
   renderDataPeople();
 }
 
