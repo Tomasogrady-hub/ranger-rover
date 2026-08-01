@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.95 | BUILDITALL: 2026-07-31 20:21 PT | Ranger Rover PWA -->
+<!-- v9.97 | BUILDITALL: 2026-07-31 22:10 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -109,7 +109,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="chores"]   {background:#F06B8A;color:#fff}
 .nav-btn[data-tab="plants"]   {background:#3B9E8E;color:#fff}
 .nav-btn[data-tab="settings"] {background:#F0C040;color:#1e3a1e}
-.nav-btn[data-tab="control"]  {background:#6B4E9B;color:#fff}
+.nav-btn[data-tab="data"]  {background:#6B4E9B;color:#fff}
 .nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
 
 /* ── CONTENT ── */
@@ -414,14 +414,6 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nv-toggle input:checked+.nv-slider{background:var(--grove)}
 .nv-toggle input:checked+.nv-slider:before{transform:translateX(16px)}
 
-/* ── Row 3 Slot Editor ── */
-.r3-slot{background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px}
-.r3-slot-title{font-family:var(--font-b);font-size:12px;font-weight:700;color:var(--silver);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
-.r3-slot-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.r3-slot-input{flex:1;min-width:90px;padding:7px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;color:var(--ink);background:#fff;outline:none}
-.r3-level-check{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.r3-lc{display:flex;align-items:center;gap:3px;font-family:var(--font-b);font-size:12px;font-weight:600;cursor:pointer}
-.r3-lc input{width:14px;height:14px;cursor:pointer}
 </style>
 
 </head>
@@ -949,32 +941,21 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <div id="twilioSaveStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:18px"></div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- CONTROL PANEL (access level 1 only) -->
-  <div class="tab-pane" id="tab-control">
-    <div class="page-header"><span class="page-title">Control Panel</span></div>
-    <div class="settings-section">
-
-      <!-- Nav Visibility by Access Level -->
-      <div class="dl" style="margin-bottom:8px;margin-top:4px">🧭 Nav Visibility by Access Level</div>
+      <!-- Nav Visibility by Access Level (moved in from the former Control Panel) -->
+      <div class="dl" style="margin-bottom:8px;margin-top:18px">🧭 Nav Visibility by Access Level</div>
       <div class="settings-group">
         <div class="settings-row">
           <div class="settings-note" style="margin-bottom:12px">Choose an access level, then toggle which nav squares are visible for users at that level. Changes save immediately.</div>
           <div class="nv-level-tabs" id="nvLevelTabs"></div>
           <div class="nv-grid" id="nvGrid"></div>
-          <!-- Row 3 Future Slots -->
-          <div class="dl" style="margin-top:14px;margin-bottom:8px">🔲 Row 3 Future Slots (Levels 1 &amp; 2 only)</div>
-          <div class="settings-note" style="margin-bottom:10px">Define up to 6 future nav squares in row 3. Give each a label, a tab key (e.g. <em>reports</em>), and choose which access levels can see it.</div>
-          <div id="nvRow3Slots"></div>
           <button class="settings-btn" onclick="saveNavVisibility()">Save Nav Visibility</button>
           <div id="nvSaveStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:20px"></div>
         </div>
       </div>
 
-      <!-- Broadcast message -->
-      <div class="dl" style="margin-bottom:8px;margin-top:4px">📢 Broadcast Message</div>
+      <!-- Broadcast message (moved in from the former Control Panel) -->
+      <div class="dl" style="margin-bottom:8px;margin-top:18px">📢 Broadcast Message</div>
       <div class="settings-group">
         <div class="settings-row">
           <div class="settings-note" style="margin-bottom:10px">Appears at the top of the Notes screen for ALL users. Leave blank to hide it.</div>
@@ -984,6 +965,63 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- DATA (access level 1 only) -->
+  <div class="tab-pane" id="tab-data">
+    <!-- Menu -->
+    <div id="data-menu" style="display:block">
+      <div class="page-header"><span class="page-title">Data</span></div>
+      <div style="padding:4px 16px 28px;display:flex;flex-direction:column;gap:12px">
+        <button class="reach-menu-btn" onclick="showDataPage('people')">👥 People</button>
+        <button class="reach-menu-btn" onclick="showDataPage('schools')">🏫 Schools</button>
+        <button class="reach-menu-btn" disabled style="opacity:.45;cursor:default">▫ Empty</button>
+        <button class="reach-menu-btn" disabled style="opacity:.45;cursor:default">▫ Empty</button>
+      </div>
+    </div>
+
+    <!-- People -->
+    <div id="data-people" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">People</span>
+        <span class="page-count" id="dataPeopleCount"></span>
+      </div>
+      <div style="padding:0 16px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select id="dataPeopleRoleFilter" class="settings-input" style="margin:0;flex:1;min-width:150px" onchange="renderDataPeople()">
+          <option value="">All Roles</option>
+        </select>
+        <select id="dataPeopleAccessFilter" class="settings-input" style="margin:0;width:150px" onchange="renderDataPeople()">
+          <option value="">All Levels</option>
+          <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
+          <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
+          <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
+        </select>
+      </div>
+      <div style="padding:0 16px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--mist)">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone)">
+          <input type="checkbox" id="dataPeopleSelectAll" onchange="toggleDataPeopleSelectAll(this.checked)"> Select all
+        </label>
+        <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver)">0 selected</span>
+        <select id="dataPeopleBulkLevel" class="settings-input" style="margin:0;width:110px">
+          <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
+          <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
+          <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
+        </select>
+        <button class="settings-btn" style="margin:0;padding:10px 14px" onclick="applyDataPeopleBulkAccess()">Apply to Selected</button>
+        <span id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage)"></span>
+      </div>
+      <div id="dataPeopleList" style="padding:0"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Schools (placeholder) -->
+    <div id="data-schools" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Schools</span>
+      </div>
+      <div style="padding:40px 24px;text-align:center;color:var(--silver)">Coming soon</div>
     </div>
   </div>
 
@@ -1008,10 +1046,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.96';
+const APP_VERSION='v9.97';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-31 (2) Reach fixes: (a) Bottom action buttons (Send via Twilio, Send Email, Cancel, etc.) were still getting clipped by Safari'+"'"+'s bottom toolbar on iPhone even after the safe-area padding fix, because env(safe-area-inset-bottom) only accounts for the home-indicator, not Safari'+"'"+'s own collapsible chrome. Added a visualViewport listener that measures the live gap and feeds it into --safe-bottom globally, so every sticky/fixed bottom bar in the app (Reach compose, nav, modals, toast) now clears the real visible viewport on iOS, installed or in-browser. (b) Diagnosed the intermittent missing-phone-number bug in the {{ReplyToMyMobile}} SMS token (worked for some recipients, not others, same device type): the reply-to sentence and the school/chore list tokens used em dashes, which force the whole SMS into UCS-2 encoding (67 chars/segment instead of 153). Recipients with longer personalised bodies (more schools/chores) pushed past the safe segment count and lost trailing content — often the phone number at the end. Replaced the em dashes in all SMS-bound text builders with plain hyphens to keep messages in GSM-7 encoding and give much more headroom before multi-segment carrier issues kick in.';
+const BUILD_STAMP='2026-07-31 (3) Merged Control Panel into Settings (Nav Visibility + Broadcast Message now live under one Settings page) and removed the Row 3 Future Slots configurator entirely. Replaced the old Control nav button with a new DATA page (Level 1 only): a menu with People, Schools, and two reserved Empty slots. The People tab lists every row in the Humans sheet as a clean single-line list, with a top-left dropdown to filter by Role/Role Additional and a top-right dropdown to filter by Access Level, plus a per-row Access Level selector for instant individual changes and a Select All + bulk-apply bar to change Access Level for many people at once. Schools is a placeholder for now.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1581,28 +1619,14 @@ function buildNav(lvl){
     if(lvl===1&&_navTabAllowed('settings',lvl)) row2tabs.push(_navBtn('settings','Settings'));
     row2.innerHTML=row2tabs.join('');
     row2.style.display='flex';
-    // Row 3: Control (lvl1) + Reach row (always 7 buttons: Reach + 6 empty)
+    // Row 3: Data (lvl1) + Reach
     const row3=document.getElementById('navRow3');
     if(row3){
-      // Build row3 dynamically: Control(lvl1) + Reach + up to 6 configurable future slots
-      const slots = (_appSettings.navVisibility && _appSettings.navVisibility.row3Slots) || [];
-      const controlVisible = lvl===1 && _navTabAllowed('control',lvl);
-      let r3html = controlVisible ? _navBtn('control','Control') : '';
-      r3html += _navTabAllowed('reach',lvl) ? _navBtn('reach','Reach') : '';
-      let slotCount = 0;
-      for(let si=0; si<6; si++){
-        const slot = slots[si] || {};
-        const slotKey = slot.tab || '';
-        const slotLabel = slot.label || '';
-        const slotVisible = slot.visibleLevels ? slot.visibleLevels.includes(lvl) : false;
-        if(slotKey && slotLabel && slotVisible){
-          r3html += _navBtn(slotKey, slotLabel);
-          slotCount++;
-        }
-      }
-      // Show row3 if Control is visible, Reach is visible, or at least one slot is active
+      const dataVisible = lvl===1 && _navTabAllowed('data',lvl);
       const reachVisible = _navTabAllowed('reach',lvl);
-      if(controlVisible || reachVisible || slotCount > 0){
+      let r3html = dataVisible ? _navBtn('data','Data') : '';
+      r3html += reachVisible ? _navBtn('reach','Reach') : '';
+      if(dataVisible || reachVisible){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
@@ -2786,7 +2810,6 @@ function _renderDirtyTab(tab){
   else if(tab==='chores'){renderChores();_tabDirty.chores=false;}
   else if(tab==='action'){renderAction();_tabDirty.action=false;}
   else if(tab==='operations'){if(_opsCurrentPage==='home')renderOperationsHome();_tabDirty.operations=false;}
-  else if(tab==='control'){renderNavVisibilityPanel();}
   else if(tab==='reach'){/* reach renders on demand */;_tabDirty.reach=false;}
 }
 
@@ -4747,7 +4770,8 @@ function switchTab(tab,initMapFlag=false){const ct=document.getElementById("cont
   }
   if(tab==='plants')initPlants();
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
-  if(tab==='control'){setTimeout(renderNavVisibilityPanel,0);}
+  if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
+  if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
   if(tab==='action')renderAction();
   if(tab==='operations')showOperationsPage(_opsCurrentPage||'home');
   if(tab==='latest'){
@@ -5965,8 +5989,13 @@ function _sanitizeNavVisibility(){
   // this migration thought it had already handled it. Now that KNOWN_TABS
   // includes 'site_ops_btn', re-run the backfill once more under a new marker
   // name so it actually sticks this time.
-  const toBackfill=['site_ops_btn_v2','operations'].filter(k=>!v.__migratedKeys.includes(k));
-  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn'};
+  // 'data_v1' backfill: the former 'control' nav key was renamed to 'data' when
+  // Control Panel was merged into Settings and replaced with the new Data page.
+  // Anyone whose per-level array already had 'control' explicitly toggled on/off
+  // needs that carried over to 'data' once, so the rename doesn't silently hide
+  // the new page for levels that had it customized.
+  const toBackfill=['site_ops_btn_v2','operations','data_v1'].filter(k=>!v.__migratedKeys.includes(k));
+  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data'};
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
@@ -7133,7 +7162,7 @@ const NAV_ALL_TABS = [
   {key:'operations', label:'🧭 Operations'},
   {key:'reach',    label:'📡 Reach'},
   {key:'settings', label:'⚙️ Settings'},
-  {key:'control',  label:'🎛 Control'},
+  {key:'data',     label:'🗂 Data'},
   {key:'site_ops_btn', label:'📍 Site Card: OPERATIONS Button'},
   {key:'team_email_search_btn', label:'🔎 Contact Row: Team Email Search Button'},
 ];
@@ -7187,29 +7216,6 @@ function renderNavVisibilityPanel(){
       </label>`;
     gridEl.appendChild(tile);
   });
-
-  // Row 3 slot editor
-  const slotsEl = document.getElementById('nvRow3Slots');
-  if(slotsEl){
-    const slots = (_appSettings.navVisibility && _appSettings.navVisibility.row3Slots) || [];
-    let sh = '';
-    for(let si=0; si<6; si++){
-      const sl = slots[si] || {};
-      const levChecks = [1,2,3,4,5,6,7,8,9].map(lv=>{
-        const chk = sl.visibleLevels && sl.visibleLevels.includes(lv) ? 'checked' : '';
-        return `<label class="r3-lc"><input type="checkbox" data-slot="${si}" data-lv="${lv}" class="r3lv-chk" ${chk}>${lv}</label>`;
-      }).join('');
-      sh += `<div class="r3-slot">
-        <div class="r3-slot-title">Slot ${si+1}</div>
-        <div class="r3-slot-row">
-          <input class="r3-slot-input" data-slot="${si}" data-field="label" placeholder="Label (e.g. Reports)" value="${sl.label||''}">
-          <input class="r3-slot-input" data-slot="${si}" data-field="tab" placeholder="Tab key (e.g. reports)" value="${sl.tab||''}">
-        </div>
-        <div class="r3-level-check">${levChecks}</div>
-      </div>`;
-    }
-    slotsEl.innerHTML = sh;
-  }
 }
 
 async function saveNavVisibility(){
@@ -7218,21 +7224,6 @@ async function saveNavVisibility(){
   const checks=gridEl.querySelectorAll('input[type=checkbox]');
   const visible=[];
   checks.forEach(c=>{if(c.checked)visible.push(c.dataset.tab);});
-
-  // Collect row3 slot data
-  const slots=[];
-  for(let si=0;si<6;si++){
-    const labelEl=document.querySelector(`.r3-slot-input[data-slot="${si}"][data-field="label"]`);
-    const tabEl=document.querySelector(`.r3-slot-input[data-slot="${si}"][data-field="tab"]`);
-    const lvChks=document.querySelectorAll(`.r3lv-chk[data-slot="${si}"]`);
-    const visibleLevels=[];
-    lvChks.forEach(c=>{if(c.checked)visibleLevels.push(parseInt(c.dataset.lv));});
-    slots.push({
-      label:(labelEl?labelEl.value.trim():''),
-      tab:(tabEl?tabEl.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,''):''),
-      visibleLevels
-    });
-  }
 
   const statusEl=document.getElementById('nvSaveStatus');
   if(statusEl)statusEl.textContent='Saving…';
@@ -7250,7 +7241,6 @@ async function saveNavVisibility(){
     const freshSettings=(fresh&&fresh.ok&&fresh.settings)?fresh.settings:_appSettings;
     if(!freshSettings.navVisibility)freshSettings.navVisibility={};
     freshSettings.navVisibility[_nvCurrentLevel]=visible;
-    freshSettings.navVisibility.row3Slots=slots;
     _appSettings=freshSettings;
     localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
     await gasPost({action:'saveAppSettings',settings:_appSettings});
@@ -7284,6 +7274,138 @@ function _teamEmailSearchAllowed(lvl){
   return Array.isArray(entry) && entry.includes('team_email_search_btn');
 }
 
+
+// ── DATA page (People management) ──────────────────────────────────────────
+let _dataCurrentPage = 'menu';
+let _dataPeopleSelected = new Set(); // emails checked for bulk access-level change
+
+function showDataPage(page){
+  _dataCurrentPage = page;
+  ['menu','people','schools'].forEach(p=>{
+    const el=document.getElementById('data-'+p);
+    if(el)el.style.display='none';
+  });
+  const target=document.getElementById('data-'+page);
+  if(target)target.style.display='block';
+  if(page==='people')renderDataPeople();
+}
+
+// Distinct values across Role + Role Additional, for the top filter dropdown
+function _dataPeopleRoleOptions(){
+  const set=new Set();
+  (DATA.humans||[]).forEach(h=>{
+    const r=(h.Role||h.role||'').trim(); if(r)set.add(r);
+    const ra=(h['Role Additional']||'').trim(); if(ra)set.add(ra);
+  });
+  return Array.from(set).sort((a,b)=>a.localeCompare(b));
+}
+
+function renderDataPeople(){
+  const roleSel=document.getElementById('dataPeopleRoleFilter');
+  // Populate role options once (first render / whenever it's still just the default)
+  if(roleSel && roleSel.options.length<=1){
+    _dataPeopleRoleOptions().forEach(r=>{
+      const o=document.createElement('option');o.value=r;o.textContent=r;roleSel.appendChild(o);
+    });
+  }
+  const roleF=roleSel?roleSel.value:'';
+  const lvlF=document.getElementById('dataPeopleAccessFilter')?.value||'';
+  let people=(DATA.humans||[]).filter(h=>{
+    if(roleF){
+      const r=h.Role||h.role||'', ra=h['Role Additional']||'';
+      if(r!==roleF && ra!==roleF)return false;
+    }
+    if(lvlF && String(h['Access Level']||'')!==lvlF)return false;
+    return true;
+  });
+  people=people.slice().sort((a,b)=>(fullName(a)||'').localeCompare(fullName(b)||''));
+  const countEl=document.getElementById('dataPeopleCount');
+  if(countEl)countEl.textContent=people.length+' people';
+  const listEl=document.getElementById('dataPeopleList');
+  if(!listEl)return;
+  if(!people.length){listEl.innerHTML=empty('—','No results','');return;}
+  listEl.innerHTML=people.map(_dataPersonRowHtml).join('');
+  _updateDataPeopleSelCount();
+}
+
+function _dataPersonRowHtml(h){
+  const email=h.Email||h.email||'';
+  const name=fullName(h)||email;
+  const role=h.Role||h.role||'';
+  const roleAdd=h['Role Additional']||'';
+  const lvl=h['Access Level']||'';
+  const checked=_dataPeopleSelected.has(email);
+  const sub=[role,roleAdd,email].filter(Boolean).join(' · ');
+  return `<div class="data-person-row" data-email="${ea(email)}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--mist)">
+    <input type="checkbox" ${checked?'checked':''} onchange="toggleDataPersonSelect('${ea(email)}',this.checked)" style="flex:none;width:18px;height:18px">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+      <div style="font-size:13px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
+    </div>
+    <select class="settings-input" style="margin:0;width:84px;flex:none;padding:8px" onchange="setDataPersonAccessLevel('${ea(email)}',this.value)">
+      ${[1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(lvl)===String(n)?'selected':''}>${n}</option>`).join('')}
+    </select>
+  </div>`;
+}
+
+function toggleDataPersonSelect(email,checked){
+  if(checked)_dataPeopleSelected.add(email);else _dataPeopleSelected.delete(email);
+  _updateDataPeopleSelCount();
+}
+
+function toggleDataPeopleSelectAll(checked){
+  document.querySelectorAll('#dataPeopleList .data-person-row').forEach(row=>{
+    const email=row.dataset.email;
+    const cb=row.querySelector('input[type=checkbox]');
+    if(cb)cb.checked=checked;
+    if(checked)_dataPeopleSelected.add(email);else _dataPeopleSelected.delete(email);
+  });
+  _updateDataPeopleSelCount();
+}
+
+function _updateDataPeopleSelCount(){
+  const c=document.getElementById('dataPeopleSelCount');
+  if(c)c.textContent=_dataPeopleSelected.size+' selected';
+  const all=document.getElementById('dataPeopleSelectAll');
+  if(all){
+    const rows=document.querySelectorAll('#dataPeopleList .data-person-row').length;
+    all.checked = rows>0 && _dataPeopleSelected.size>=rows;
+  }
+}
+
+// Individual access-level change — saves immediately via the generic Humans-sheet edit handler
+async function setDataPersonAccessLevel(email,level){
+  try{
+    await gasPost({sheet:'Humans',key:email,updates:{'Access Level':parseInt(level)},actor:(SESSION&&SESSION.email)||''});
+    const h=(DATA.humans||[]).find(x=>(x.Email||x.email||'')===email);
+    if(h)h['Access Level']=parseInt(level);
+    showSaveToast('✓ Access level updated');
+  }catch(e){
+    showSaveToast('⚠ Could not update access level');
+  }
+}
+
+// Bulk access-level change across every checked person
+async function applyDataPeopleBulkAccess(){
+  const level=document.getElementById('dataPeopleBulkLevel')?.value;
+  const statusEl=document.getElementById('dataPeopleBulkStatus');
+  const emails=Array.from(_dataPeopleSelected);
+  if(!emails.length){if(statusEl)statusEl.textContent='Select at least one person first';return;}
+  if(statusEl)statusEl.textContent='Saving 0/'+emails.length+'…';
+  let done=0;
+  for(const email of emails){
+    try{
+      await gasPost({sheet:'Humans',key:email,updates:{'Access Level':parseInt(level)},actor:(SESSION&&SESSION.email)||''});
+      const h=(DATA.humans||[]).find(x=>(x.Email||x.email||'')===email);
+      if(h)h['Access Level']=parseInt(level);
+    }catch(e){/* keep going — report final count below */}
+    done++;
+    if(statusEl)statusEl.textContent='Saving '+done+'/'+emails.length+'…';
+  }
+  if(statusEl)statusEl.textContent='✅ Updated '+emails.length+' people to Level '+level;
+  setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
+  renderDataPeople();
+}
 
 function openImgLightbox(src){if(!src)return;var lb=document.getElementById('img-lightbox');var img=document.getElementById('img-lightbox-img');if(!lb||!img)return;img.src=src;lb.classList.add('open');document.body.style.overflow='hidden';}
 function closeImgLightbox(){var lb=document.getElementById('img-lightbox');if(lb)lb.classList.remove('open');document.body.style.overflow='';var img=document.getElementById('img-lightbox-img');if(img)setTimeout(function(){img.src='';},300);}
