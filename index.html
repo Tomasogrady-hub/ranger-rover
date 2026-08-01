@@ -1052,10 +1052,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.0';
+const APP_VERSION='v10.1';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-31 (6) Data > People overhaul: (a) fixed the All Active filter — it was checking a Password field the backend never sends to the client for security; GAS now computes a boolean Has Password flag server-side (still never exposing the actual value) and the filter uses that. (b) Every filter option in both the Role and Access Level dropdowns now shows a live count, e.g. "Ranger (18)", "All Levels (142)", "None (6)". (c) The Apply to Selected button and the bulk Access Level selector are greyed out and disabled until at least one person is checked. (d) Both individual per-row changes and bulk changes now show "Updating…" (with a live X/Y counter for bulk) followed by "✅ Access Level Updated" once the save completes. (e) Redesigned the Adjust toolbar: Select All, selected count, the bulk level picker, and Apply to Selected all sit on one line inside a single rounded bordered box, with Apply pushed to the right edge.';
+const BUILD_STAMP='2026-08-01 Roles lockdown: (a) "+ Add new role…" is now restricted to access levels 1–2 everywhere it can appear, including the Add Contact for Site form reached from Edit Site (previously the only place a level-3 user could slip through and create a role) — the option is hidden from the UI for level 3 and the action is also rejected client-side and server-side (GAS) for anyone above level 2. (b) Role-name duplicate checking is now case-insensitive and whitespace-trimmed everywhere a role can be added, so "ranger" / "Ranger " / "RANGER" are treated as the same role instead of creating near-duplicate entries. (c) GAS handleAddRole rejects unauthorized requests and skips the insert if a matching role (case-insensitive) already exists, instead of trusting the client.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1244,6 +1244,11 @@ function ea(s){s=s==null||s===''?'':String(s);return s.replace(/"/g,'&quot;').re
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function empty(g,h,p){return `<div class="empty"><div class="empty-glyph">${g}</div><h3>${h}</h3><p>${p}</p></div>`;}
 function canEdit(){return SESSION&&SESSION.accessLevel<=2;}
+// Adding new Roles (to the Roles sheet) is restricted to access levels 1–2 (admin/ops).
+// Access level 3 (field rangers) can still SELECT an existing role, just not create new ones.
+function canManageRoles(){return SESSION&&SESSION.accessLevel<=2;}
+// Case-insensitive, whitespace-trimmed lookup so "plant manager" and "Plant Manager " are treated as the same role.
+function _roleExistsCI(name){const n=(name||'').trim().toLowerCase();return DATA.roles.some(r=>(r.name||'').trim().toLowerCase()===n);}
 function togglePw(id,btn){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';btn.textContent=i.type==='password'?'👁':'🙈';}
 function fmtDate(ts){if(!ts)return '';try{return new Date(ts).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'});}catch(e){return '';}}
 
@@ -1806,7 +1811,7 @@ async function saveToSheet(sheet,key,updates){
   localStorage.setItem(CFG.CK,JSON.stringify(DATA));
 }
 async function addHumanToSheet(data){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'addHuman',data,actor:SESSION?SESSION.email:''});if(!j.ok)throw new Error(j.error||'Add failed');DATA.humans.push(data);localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
-async function addRoleToSheet(role){if(!CFG.URL)throw new Error('No API URL');await gasPost({action:'addRole',role});if(!DATA.roles.some(r=>r.name===role))DATA.roles.push({name:role,description:'',category:''});localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
+async function addRoleToSheet(role){if(!CFG.URL)throw new Error('No API URL');if(!canManageRoles())throw new Error('Only access level 1–2 can add new roles.');const j=await gasPost({action:'addRole',role,accessLevel:SESSION?SESSION.accessLevel:3,actor:SESSION?SESSION.email:''});if(j&&j.ok===false)throw new Error(j.error||'Add role failed');if(!_roleExistsCI(role))DATA.roles.push({name:role,description:'',category:''});localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function reassignChore(choreId,newAssignee){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'reassignChore',choreId,newAssignee});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c['Assigned to']=newAssignee;localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function closeChoreApi(choreId){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'closeChore',choreId,actor:SESSION?SESSION.email:'',closedBy:SESSION?SESSION.email:''});if(!j.ok)throw new Error(j.error||'Failed');const c=DATA.chores.find(x=>(x.ID||x.id)===choreId);if(c)c.Status='Closed';localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
 async function updateChoreApi(choreId,updates){if(!CFG.URL)throw new Error('No API URL');const j=await gasPost({action:'updateChore',choreId,updates,actor:SESSION?SESSION.email:''});if(!j.ok)throw new Error(j.error||'Update failed');}
@@ -3755,7 +3760,7 @@ function addNewRoleAdditional(){
   if(inp)inp.value=v;
   if(panel)panel.classList.remove('open');
 }
-async function addNewRole(){const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(DATA.roles.some(x=>x.name===r)){alert('Role already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
+async function addNewRole(){if(!canManageRoles()){alert('Only access level 1–2 can add new roles.');return;}const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(_roleExistsCI(r)){alert('Role "'+r+'" already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
 function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
 
 async function savePerson(orig){
@@ -3908,7 +3913,7 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
           <div class="dropdown-panel" id="acfs-role-dd">
             <div class="dropdown-search"><input placeholder="Search roles…" oninput="filterDropdownItems('acfs-role-dd',this.value)"></div>
             <div class="dropdown-list">${roleOptions}</div>
-            <div class="dropdown-add" onclick="addNewRoleAcfs()">+ Add new role…</div>
+            ${canManageRoles()?`<div class="dropdown-add" onclick="addNewRoleAcfs()">+ Add new role…</div>`:''}
           </div>
         </div>
       </div>
@@ -3930,10 +3935,11 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
 }
 
 async function addNewRoleNc(){
+  if(!canManageRoles()){alert('Only access level 1–2 can add new roles.');return;}
   const role=prompt('Enter new role name:');
   if(!role||!role.trim())return;
   const r=role.trim();
-  if(DATA.roles.some(x=>x.name===r)){alert('Role "'+r+'" already exists.');return;}
+  if(_roleExistsCI(r)){alert('Role "'+r+'" already exists.');return;}
   try{
     await addRoleToSheet(r);
     const list=document.querySelector('#nc-role-dd .dropdown-list');
@@ -3945,10 +3951,11 @@ async function addNewRoleNc(){
 }
 
 async function addNewRoleAcfs(){
+  if(!canManageRoles()){alert('Only access level 1–2 can add new roles.');return;}
   const role=prompt('Enter new role name:');
   if(!role||!role.trim())return;
   const r=role.trim();
-  if(DATA.roles.some(x=>x.name===r)){alert('Role "'+r+'" already exists.');return;}
+  if(_roleExistsCI(r)){alert('Role "'+r+'" already exists.');return;}
   try{
     await addRoleToSheet(r);
     const list=document.querySelector('#acfs-role-dd .dropdown-list');
