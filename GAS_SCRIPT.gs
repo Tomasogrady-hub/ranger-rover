@@ -934,15 +934,38 @@ function handleAddHuman(p) {
 }
 
 function handleAddRole(p) {
+  // Only access levels 1–2 (admin/ops) may add new roles. Level 3 (field rangers) can
+  // still select from existing roles, they just can't create new ones. This mirrors the
+  // client-side gating in index.html (canManageRoles()) but is enforced here too since
+  // the client can't be trusted alone.
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (accessLevel > 2) return { ok: false, error: 'Not authorized' };
+
+  var roleName = String(p.role || '').trim();
+  if (!roleName) return { ok: false, error: 'Role name is required' };
+
   var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Roles')
            || SpreadsheetApp.openById(HUMANS_ID).insertSheet('Roles');
-  var headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
-  var roleIdx = headers.indexOf('Role');
+  var headers  = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  var roleIdx  = headers.indexOf('Role');
+  var nameCol  = roleIdx === -1 ? 0 : roleIdx;
+
+  // Case-insensitive, trimmed duplicate check — "Ranger", "ranger ", and "RANGER" are
+  // all treated as the same role so the sheet doesn't accumulate near-duplicates.
+  var data = sheet.getDataRange().getValues();
+  var lowerName = roleName.toLowerCase();
+  for (var r = 1; r < data.length; r++) {
+    var existing = String(data[r][nameCol] || '').trim().toLowerCase();
+    if (existing && existing === lowerName) {
+      return { ok: true, alreadyExists: true }; // silently no-op; treat as success
+    }
+  }
+
   if (roleIdx === -1) {
-    sheet.appendRow([p.role]);
+    sheet.appendRow([roleName]);
   } else {
     var row = headers.map(function(h) {
-      if (h === 'Role')     return p.role;
+      if (h === 'Role')     return roleName;
       if (h === 'Category') return p.category || '';
       return '';
     });
