@@ -29,6 +29,11 @@ const IMG_PREFIX_MAP = {
 const BLOCKED_H = ['Comments', 'Rating 1', 'Rating 2', 'Rating 3', 'Password'];
 const BLOCKED_S = ['Comments'];
 
+// Password itself stays blocked (see BLOCKED_H) but the Data > People "All Active"
+// filter needs to know whether someone has a password recorded at all, without
+// ever exposing the value — so readSheet() converts it into a boolean flag.
+const HUMANS_FLAG_COLS = { 'Password': 'Has Password' };
+
 // ── PLANT FIELD CONFIG ────────────────────────────────────────────────────────
 const PLANT_CARD_FIELDS = [
   'Common Name', 'Botanical Name', 'Plant type',
@@ -178,7 +183,7 @@ function doGet(e) {
 
   if (type === 'humans') {
     var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
-    var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap);
+    var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap, HUMANS_FLAG_COLS);
     var roles  = getRoles();
     return respond({ humans: humans, roles: roles });
   }
@@ -188,7 +193,7 @@ function doGet(e) {
   var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
   var choresMap = getFolderIndex(CHORES_IMG_FOLDER);
   var sites  = readSheet(SITES_ID,  'Sites',  BLOCKED_S, SITES_IMG_COLS,  sitesMap);
-  var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap);
+  var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap, HUMANS_FLAG_COLS);
   var roles  = getRoles();
   var chores = getOpenChores(choresMap);
   return respond({ sites: sites, humans: humans, roles: roles, chores: chores });
@@ -2064,12 +2069,20 @@ function recalcSiteFinancials(sheet, headers, r) {
   return { programCost: cost, totalCost: total, amountOwed: owed };
 }
 
-function readSheet(id, tab, blocked, imgCols, imgMap) {
+function readSheet(id, tab, blocked, imgCols, imgMap, flagCols) {
   var data    = SpreadsheetApp.openById(id).getSheetByName(tab).getDataRange().getValues();
   var headers = data[0];
   return data.slice(1).map(function(row) {
     var obj = {};
     headers.forEach(function(k, i) {
+      // Some blocked columns (e.g. Password) can still expose a boolean
+      // "has a value" flag under a different key, without ever sending the
+      // real value to the client.
+      if (flagCols && flagCols[k]) {
+        var raw = row[i];
+        obj[flagCols[k]] = !(raw === '' || raw === null || raw === undefined);
+        return;
+      }
       if (blocked.indexOf(k) !== -1) return;
       var val = row[i];
       if (imgCols && imgCols.indexOf(k) >= 0 && val && typeof val === 'string') {
