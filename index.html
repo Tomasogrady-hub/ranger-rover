@@ -31,7 +31,7 @@
   --font-d:'Cormorant Garamond',Georgia,serif;
   --font-b:'Outfit',system-ui,sans-serif;
   --r-xs:3px; --r-sm:8px; --r-md:12px; --r-lg:18px; --r-xl:26px;
-  --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-top:env(safe-area-inset-top,0px); --safe-bottom:calc(env(safe-area-inset-bottom,0px) + var(--vv-gap,0px));
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -1008,10 +1008,26 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v9.95';
+const APP_VERSION='v9.96';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-07-31 All remaining plain mailto: Email buttons/links (site card CTA row, contact detail sheet link + CTA, Reach mail-merge fallback paths) were still triggering the Windows OS app-picker (Outlook/Edge/Chrome, never Gmail) whenever no default mail handler is registered. Replaced every admin-facing mailto: with a gmailUrl() helper that links straight to Gmail'+"'"+'s web compose view (mail.google.com/mail/?view=cm...) — a normal https link, so no app-picker ever appears, and it opens signed-in to the current account. Left the one mailto: that appears inside outgoing message text for external recipients (\"reply directly to me at...\") untouched, since that'+"'"+'s the recipient'+"'"+'s device, not the admin'+"'"+'s.';
+const BUILD_STAMP='2026-07-31 (2) Reach fixes: (a) Bottom action buttons (Send via Twilio, Send Email, Cancel, etc.) were still getting clipped by Safari'+"'"+'s bottom toolbar on iPhone even after the safe-area padding fix, because env(safe-area-inset-bottom) only accounts for the home-indicator, not Safari'+"'"+'s own collapsible chrome. Added a visualViewport listener that measures the live gap and feeds it into --safe-bottom globally, so every sticky/fixed bottom bar in the app (Reach compose, nav, modals, toast) now clears the real visible viewport on iOS, installed or in-browser. (b) Diagnosed the intermittent missing-phone-number bug in the {{ReplyToMyMobile}} SMS token (worked for some recipients, not others, same device type): the reply-to sentence and the school/chore list tokens used em dashes, which force the whole SMS into UCS-2 encoding (67 chars/segment instead of 153). Recipients with longer personalised bodies (more schools/chores) pushed past the safe segment count and lost trailing content — often the phone number at the end. Replaced the em dashes in all SMS-bound text builders with plain hyphens to keep messages in GSM-7 encoding and give much more headroom before multi-segment carrier issues kick in.';
+// ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
+// account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
+// sticky/fixed footers can still sit partly behind it on iPhone. This tracks
+// the live gap between the layout viewport and the visual viewport and
+// exposes it as --vv-gap, which --safe-bottom (see CSS :root) adds on top of
+// the safe-area inset automatically for every bottom bar in the app.
+function _syncViewportGap(){
+  if(!window.visualViewport)return;
+  const gap=Math.max(0, window.innerHeight - (window.visualViewport.height + window.visualViewport.offsetTop));
+  document.documentElement.style.setProperty('--vv-gap', gap+'px');
+}
+if(window.visualViewport){
+  visualViewport.addEventListener('resize', _syncViewportGap);
+  visualViewport.addEventListener('scroll', _syncViewportGap);
+  _syncViewportGap();
+}
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
@@ -6333,19 +6349,19 @@ function _reachSenderEmail()  { return (SESSION && SESSION.email) || ''; }
 function _reachSenderMobile() { return (SESSION && SESSION.email) ? toE164US(hm(SESSION.email)) : ''; }
 function _replyToEmailPlain() {
   const em = _reachSenderEmail();
-  return em ? `Please do not reply to this message — please reply directly to me at ${em}.` : '';
+  return em ? `Please do not reply to this message - please reply directly to me at ${em}.` : '';
 }
 function _replyToEmailHtml() {
   const em = _reachSenderEmail();
-  return em ? `Please do not reply to this message — please reply directly to me at <a href="mailto:${em}">${em}</a>.` : '';
+  return em ? `Please do not reply to this message - please reply directly to me at <a href="mailto:${em}">${em}</a>.` : '';
 }
 function _replyToMobilePlain() {
   const mo = _reachSenderMobile();
-  return mo ? `Please do not reply to this number — please reply directly to my mobile at ${mo}.` : '';
+  return mo ? `Please do not reply to this number - please reply directly to my mobile at ${mo}.` : '';
 }
 function _replyToMobileHtml() {
   const mo = _reachSenderMobile();
-  return mo ? `Please do not reply to this number — please reply directly to my mobile at <a href="tel:${mo}">${mo}</a>.` : '';
+  return mo ? `Please do not reply to this number - please reply directly to my mobile at <a href="tel:${mo}">${mo}</a>.` : '';
 }
 
 // {{AppLink}} / {{WebsiteLink}} are static (same for every recipient), so they
@@ -6370,7 +6386,7 @@ function _reachStaticHtml(str) {
 // have. wrapLink=true makes each school name a real clickable link (email only).
 function _schoolListBlock(heading, links, escFn, wrapLink) {
   links = links || [];
-  if (!links.length) return escFn(heading) + ' (0): —';
+  if (!links.length) return escFn(heading) + ' (0): -';
   const lines = links.map(sl => wrapLink
     ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(sl.key||'')}">${escFn(sl.name)}</a>`
     : escFn(sl.name));
@@ -6396,7 +6412,7 @@ function _choreListBlock(chores, escFn, wrapLink) {
     const siteDisp = (wrapLink && key)
       ? `<a href="${REACH_APP_URL}#school=${encodeURIComponent(key)}">${escFn(dispName)}</a>`
       : escFn(dispName);
-    return escFn(task) + (dispName ? ' — ' + siteDisp : '');
+    return escFn(task) + (dispName ? ' - ' + siteDisp : '');
   });
   return lines.join('\n');
 }
