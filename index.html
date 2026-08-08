@@ -1052,10 +1052,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.3';
+const APP_VERSION='v10.4';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-07 Forward button fix: the chore Forward button was hanging with no visible action on networks that block or stall CDN requests (common on school WiFi filters), because the html2canvas script load had no timeout - if neither onload nor onerror ever fired, the button just sat there forever waiting. Added a 4s timeout on the library load and a 10s overall timeout on the screenshot-plus-upload step, both falling back to a text-only forward (chore link, no image) instead of hanging. Also wrapped the whole handler in try/catch so any unexpected error still surfaces a toast instead of doing nothing. Button label changed to "Forward This to Other Folks".';
+const BUILD_STAMP='2026-08-07 Forward button — real fix: the previous fix still gated the button behind an async chain (screenshot capture -> Cloudinary upload) before it did anything visible, so any stall in that chain still made the tap look dead. Restructured so the click is fully synchronous up front — it stages the message, closes the chore sheet, switches to Reach, and opens the EnrichLA picker immediately, with zero dependency on network or CDN calls. The screenshot is now a true fire-and-forget bonus that runs after navigation and, if it finishes in time, quietly attaches itself to the still-staged draft or the open compose textarea without touching anything the user has already typed.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2038,43 +2038,60 @@ async function forwardChoreToReach(choreId) {
   const task   = c.Task || c.task || '';
   const site   = siteNameFromKey(c.Site || c.site || '');
   const status = c.Status || c.status || '';
+  const link   = `${REACH_APP_URL}#chore=${encodeURIComponent(choreId)}`;
+  const baseMsg = `Chore: ${task || '(no title)'}\nSite: ${site || '-'}\nStatus: ${status || '-'}\n\nView in app: ${link}`;
 
-  showToast('📤 Preparing forward…');
+  // Stage the message and navigate FIRST, synchronously — the tap must always
+  // visibly do something immediately, with zero dependency on network/CDN
+  // calls. The screenshot (below) is a pure best-effort bonus layered on top;
+  // it must never gate or delay this part.
+  _reachForwardPrefill = { subject: `Chore: ${task || site || 'Ranger Rover'}`, message: baseMsg };
+  const captureCard = document.getElementById('choreCaptureArea'); // grab while sheet is still open/visible
 
+  try {
+    closeDetail();
+    switchTab('reach');
+    showReachPage('people');
+    showReachPage('enrichla');
+    showToast('📤 Pick who to forward this to');
+  } catch (e) {
+    console.error('Forward chore navigation failed:', e);
+    showToast('⚠ Could not open Reach — try again');
+    return;
+  }
+
+  // Best-effort screenshot, attached after the fact if it finishes in time.
+  // Never awaited by anything above, so it can never block the button.
+  if (captureCard) _attachChoreScreenshot(captureCard, baseMsg);
+}
+
+async function _attachChoreScreenshot(card, baseMsg) {
   let imageUrl = '';
   try {
-    const captureWithTimeout = (async () => {
+    const work = (async () => {
       await _ensureHtml2Canvas();
-      const card = document.getElementById('choreCaptureArea');
-      if (!card || !window.html2canvas) return '';
+      if (!window.html2canvas) return '';
       const canvas = await html2canvas(card, { backgroundColor: '#ffffff', useCORS: true, scale: 2 });
       const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
       if (!blob) return '';
       return await _uploadImageToCloudinaryXHR(blob);
     })();
-    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Screenshot step timed out')), 10000));
-    imageUrl = await Promise.race([captureWithTimeout, timeout]);
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Screenshot step timed out')), 8000));
+    imageUrl = await Promise.race([work, timeout]);
   } catch (e) {
-    console.warn('Chore screenshot failed, forwarding without image:', e);
+    console.warn('Chore screenshot skipped, forward already sent without image:', e);
+    return;
   }
-
-  try {
-    const link = `${REACH_APP_URL}#chore=${encodeURIComponent(choreId)}`;
-    let msg = `Chore: ${task || '(no title)'}\nSite: ${site || '-'}\nStatus: ${status || '-'}\n`;
-    if (imageUrl) msg += `\nScreenshot: ${imageUrl}\n`;
-    msg += `\nView in app: ${link}`;
-
-    _reachForwardPrefill = { subject: `Chore: ${task || site || 'Ranger Rover'}`, message: msg };
-
-    closeDetail();
-    switchTab('reach');
-    showReachPage('people');
-    showReachPage('enrichla');
-    showToast(imageUrl ? '📤 Screenshot ready — pick who to forward to' : '📤 Pick who to forward to');
-  } catch (e) {
-    console.error('Forward chore failed:', e);
-    showToast('⚠ Could not start forward — try again');
+  if (!imageUrl) return;
+  const withImage = baseMsg.replace('\n\nView in app:', `\n\nScreenshot: ${imageUrl}\n\nView in app:`);
+  // If the compose sheet hasn't opened yet, patch the still-staged prefill.
+  if (_reachForwardPrefill && _reachForwardPrefill.message === baseMsg) {
+    _reachForwardPrefill.message = withImage;
   }
+  // If the compose sheet is already open and the user hasn't edited the
+  // message yet, patch the live textarea too (never overwrite their edits).
+  const msgEl = document.getElementById('reachMessage');
+  if (msgEl && msgEl.value === baseMsg) msgEl.value = withImage;
 }
 
 /* ═══ CHORE PHOTO SLOTS ═══ */
