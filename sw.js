@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ranger-rover-v10';
+const CACHE_NAME = 'ranger-rover-v10-2';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -16,16 +16,18 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Never intercept POST or non-GET requests
   if (e.request.method !== 'GET') return;
 
   const url = new URL(e.request.url);
 
+  // Always go straight to network for GAS API calls
   if (url.hostname.includes('script.google.com')) {
     e.respondWith(fetch(e.request));
     return;
   }
 
-  // HTML — always network first, never serve stale index.html
+  // HTML — network first, fall back to cache for offline
   if (e.request.destination === 'document' ||
       url.pathname.endsWith('.html') ||
       url.pathname.endsWith('/')) {
