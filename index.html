@@ -1052,10 +1052,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.2';
+const APP_VERSION='v10.3';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-07 Chore Forward: added a 5th button to the chore detail card, Forward, alongside Edit / Mark as Closed / Delete / Reassign. Tapping it screenshots the chore card (lazy-loaded html2canvas, uploads to Cloudinary), builds a deep link back to that exact chore (new #chore= hash route, mirrors the existing #school= pattern), stages both as a draft message, then hands off to the Reach EnrichLA people picker so the user can choose who to forward it to by email or text. If the screenshot fails (offline, blocked, etc) it degrades gracefully to a text-only forward with just the chore link.';
+const BUILD_STAMP='2026-08-07 Forward button fix: the chore Forward button was hanging with no visible action on networks that block or stall CDN requests (common on school WiFi filters), because the html2canvas script load had no timeout - if neither onload nor onerror ever fired, the button just sat there forever waiting. Added a 4s timeout on the library load and a 10s overall timeout on the screenshot-plus-upload step, both falling back to a text-only forward (chore link, no image) instead of hanging. Also wrapped the whole handler in try/catch so any unexpected error still surfaces a toast instead of doing nothing. Button label changed to "Forward This to Other Folks".';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1977,7 +1977,7 @@ function renderChoreDetail(c,editMode){
         ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Mark as Closed</button>`:''}
         ${SESSION&&id?`<button class="dcta" onclick="deleteChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--danger);color:var(--danger)">🗑 Delete</button>`:''}
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
-        ${SESSION&&id?`<button class="dcta" onclick="forwardChoreToReach('${ea(id)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>`:''}
+        ${SESSION&&id?`<button class="dcta" onclick="forwardChoreToReach('${ea(id)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward This to Other Folks</button>`:''}
         ${SESSION&&SESSION.accessLevel===1?`<button class="dcta" onclick="showChoreDebug()" style="border-color:var(--silver);color:var(--silver);font-size:12px">🔍 Debug</button>`:''}
       </div>
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
@@ -1992,14 +1992,20 @@ function renderChoreDetail(c,editMode){
    is loaded lazily (only when Forward is first tapped) to keep normal app
    load fast. */
 let _html2canvasPromise = null;
-function _ensureHtml2Canvas() {
+function _ensureHtml2Canvas(timeoutMs) {
+  timeoutMs = timeoutMs || 4000;
   if (window.html2canvas) return Promise.resolve();
   if (_html2canvasPromise) return _html2canvasPromise;
   _html2canvasPromise = new Promise((resolve, reject) => {
+    let done = false;
+    const finish = fn => { if (done) return; done = true; fn(); };
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => { _html2canvasPromise = null; reject(new Error('Could not load screenshot library')); };
+    s.onload = () => finish(resolve);
+    s.onerror = () => { _html2canvasPromise = null; finish(() => reject(new Error('Could not load screenshot library'))); };
+    // Networks that block/stall CDN requests (common on school WiFi filters) would
+    // otherwise hang this forever with neither onload nor onerror ever firing.
+    setTimeout(() => { if (!done) { _html2canvasPromise = null; finish(() => reject(new Error('Screenshot library timed out'))); } }, timeoutMs);
     document.head.appendChild(s);
   });
   return _html2canvasPromise;
@@ -2037,29 +2043,38 @@ async function forwardChoreToReach(choreId) {
 
   let imageUrl = '';
   try {
-    await _ensureHtml2Canvas();
-    const card = document.getElementById('choreCaptureArea');
-    if (card && window.html2canvas) {
+    const captureWithTimeout = (async () => {
+      await _ensureHtml2Canvas();
+      const card = document.getElementById('choreCaptureArea');
+      if (!card || !window.html2canvas) return '';
       const canvas = await html2canvas(card, { backgroundColor: '#ffffff', useCORS: true, scale: 2 });
       const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
-      if (blob) imageUrl = await _uploadImageToCloudinaryXHR(blob);
-    }
+      if (!blob) return '';
+      return await _uploadImageToCloudinaryXHR(blob);
+    })();
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Screenshot step timed out')), 10000));
+    imageUrl = await Promise.race([captureWithTimeout, timeout]);
   } catch (e) {
     console.warn('Chore screenshot failed, forwarding without image:', e);
   }
 
-  const link = `${REACH_APP_URL}#chore=${encodeURIComponent(choreId)}`;
-  let msg = `Chore: ${task || '(no title)'}\nSite: ${site || '-'}\nStatus: ${status || '-'}\n`;
-  if (imageUrl) msg += `\nScreenshot: ${imageUrl}\n`;
-  msg += `\nView in app: ${link}`;
+  try {
+    const link = `${REACH_APP_URL}#chore=${encodeURIComponent(choreId)}`;
+    let msg = `Chore: ${task || '(no title)'}\nSite: ${site || '-'}\nStatus: ${status || '-'}\n`;
+    if (imageUrl) msg += `\nScreenshot: ${imageUrl}\n`;
+    msg += `\nView in app: ${link}`;
 
-  _reachForwardPrefill = { subject: `Chore: ${task || site || 'Ranger Rover'}`, message: msg };
+    _reachForwardPrefill = { subject: `Chore: ${task || site || 'Ranger Rover'}`, message: msg };
 
-  closeDetail();
-  switchTab('reach');
-  showReachPage('people');
-  showReachPage('enrichla');
-  showToast(imageUrl ? '📤 Screenshot ready — pick who to forward to' : '📤 Pick who to forward to');
+    closeDetail();
+    switchTab('reach');
+    showReachPage('people');
+    showReachPage('enrichla');
+    showToast(imageUrl ? '📤 Screenshot ready — pick who to forward to' : '📤 Pick who to forward to');
+  } catch (e) {
+    console.error('Forward chore failed:', e);
+    showToast('⚠ Could not start forward — try again');
+  }
 }
 
 /* ═══ CHORE PHOTO SLOTS ═══ */
