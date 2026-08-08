@@ -1052,10 +1052,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.1';
+const APP_VERSION='v10.2';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-01 Roles lockdown: (a) "+ Add new role…" is now restricted to access levels 1–2 everywhere it can appear, including the Add Contact for Site form reached from Edit Site (previously the only place a level-3 user could slip through and create a role) — the option is hidden from the UI for level 3 and the action is also rejected client-side and server-side (GAS) for anyone above level 2. (b) Role-name duplicate checking is now case-insensitive and whitespace-trimmed everywhere a role can be added, so "ranger" / "Ranger " / "RANGER" are treated as the same role instead of creating near-duplicate entries. (c) GAS handleAddRole rejects unauthorized requests and skips the insert if a matching role (case-insensitive) already exists, instead of trusting the client.';
+const BUILD_STAMP='2026-08-07 Chore Forward: added a 5th button to the chore detail card, Forward, alongside Edit / Mark as Closed / Delete / Reassign. Tapping it screenshots the chore card (lazy-loaded html2canvas, uploads to Cloudinary), builds a deep link back to that exact chore (new #chore= hash route, mirrors the existing #school= pattern), stages both as a draft message, then hands off to the Reach EnrichLA people picker so the user can choose who to forward it to by email or text. If the screenshot fails (offline, blocked, etc) it degrades gracefully to a text-only forward with just the chore link.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1945,6 +1945,7 @@ function renderChoreDetail(c,editMode){
     window._currentEditSaveFn=()=>saveChoreEdit(id);
   } else {
     document.getElementById('detail-content').innerHTML=`
+      <div id="choreCaptureArea" style="background:var(--paper)">
       <div class="sheet-head">
         <div style="flex:1;min-width:0">
           <div class="sheet-title" style="font-size:22px;line-height:1.3">${site}</div>
@@ -1970,16 +1971,95 @@ function renderChoreDetail(c,editMode){
           ${img3Src?`<div style="margin-top:6px"><button onclick="var w=this.nextElementSibling;w.style.display='block';this.style.display='none';var i=w.querySelector('img');if(i&&i.dataset.lazy){i.src=i.dataset.lazy;delete i.dataset.lazy;i.style.opacity='0';i.onload=function(){i.style.transition='opacity .3s';i.style.opacity='1';}}" style="padding:8px 14px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:13px;cursor:pointer;color:var(--stone);width:100%">Show Photo 3</button><div style="display:none"><img data-lazy="${img3Src}" src="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--r-sm);cursor:zoom-in" onclick="openImgLightbox(this.src||this.dataset.lazy)" onerror="this.style.display='none'"></div></div>` :''}
         </div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div>${videoLinkHtml(videoSrc)}</div>`:''}
+      </div>
       <div class="detail-ctas">
         ${SESSION&&id?`<button class="dcta filled" onclick="renderChoreDetail(window._currentChore,true)">✏ Edit</button>`:''}
         ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Mark as Closed</button>`:''}
         ${SESSION&&id?`<button class="dcta" onclick="deleteChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--danger);color:var(--danger)">🗑 Delete</button>`:''}
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
+        ${SESSION&&id?`<button class="dcta" onclick="forwardChoreToReach('${ea(id)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>`:''}
         ${SESSION&&SESSION.accessLevel===1?`<button class="dcta" onclick="showChoreDebug()" style="border-color:var(--silver);color:var(--silver);font-size:12px">🔍 Debug</button>`:''}
       </div>
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
     window._currentChore=c;
   }
+}
+
+/* ═══ FORWARD CHORE → REACH ═══
+   Screenshots the chore detail card, uploads it to Cloudinary, and hands the
+   user off to the Reach recipient picker with the message pre-filled with
+   the screenshot link and a deep link back to this exact chore. html2canvas
+   is loaded lazily (only when Forward is first tapped) to keep normal app
+   load fast. */
+let _html2canvasPromise = null;
+function _ensureHtml2Canvas() {
+  if (window.html2canvas) return Promise.resolve();
+  if (_html2canvasPromise) return _html2canvasPromise;
+  _html2canvasPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => { _html2canvasPromise = null; reject(new Error('Could not load screenshot library')); };
+    document.head.appendChild(s);
+  });
+  return _html2canvasPromise;
+}
+
+function _uploadImageToCloudinaryXHR(blob) {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append('file', blob, 'chore-forward.jpg');
+    fd.append('upload_preset', CFG.CLOUDINARY_PRESET);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CFG.CLOUDINARY_CLOUD}/image/upload`);
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (data.secure_url) resolve(data.secure_url);
+        else reject(new Error((data.error && data.error.message) || 'Image upload failed'));
+      } catch (e) { reject(new Error('Image upload failed — bad response from server')); }
+    };
+    xhr.onerror = () => reject(new Error('Network error during image upload'));
+    xhr.timeout = 60000;
+    xhr.ontimeout = () => reject(new Error('Image upload timed out'));
+    xhr.send(fd);
+  });
+}
+
+async function forwardChoreToReach(choreId) {
+  const c = DATA.chores.find(x => (x.ID || x.id) === choreId);
+  if (!c) { showToast('Chore not found'); return; }
+  const task   = c.Task || c.task || '';
+  const site   = siteNameFromKey(c.Site || c.site || '');
+  const status = c.Status || c.status || '';
+
+  showToast('📤 Preparing forward…');
+
+  let imageUrl = '';
+  try {
+    await _ensureHtml2Canvas();
+    const card = document.getElementById('choreCaptureArea');
+    if (card && window.html2canvas) {
+      const canvas = await html2canvas(card, { backgroundColor: '#ffffff', useCORS: true, scale: 2 });
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+      if (blob) imageUrl = await _uploadImageToCloudinaryXHR(blob);
+    }
+  } catch (e) {
+    console.warn('Chore screenshot failed, forwarding without image:', e);
+  }
+
+  const link = `${REACH_APP_URL}#chore=${encodeURIComponent(choreId)}`;
+  let msg = `Chore: ${task || '(no title)'}\nSite: ${site || '-'}\nStatus: ${status || '-'}\n`;
+  if (imageUrl) msg += `\nScreenshot: ${imageUrl}\n`;
+  msg += `\nView in app: ${link}`;
+
+  _reachForwardPrefill = { subject: `Chore: ${task || site || 'Ranger Rover'}`, message: msg };
+
+  closeDetail();
+  switchTab('reach');
+  showReachPage('people');
+  showReachPage('enrichla');
+  showToast(imageUrl ? '📤 Screenshot ready — pick who to forward to' : '📤 Pick who to forward to');
 }
 
 /* ═══ CHORE PHOTO SLOTS ═══ */
@@ -6344,15 +6424,31 @@ if(_saved){try{SESSION=JSON.parse(_saved);showApp();_tryDeepLink(25);}catch(e){l
 // emails so a school name is a real clickable link) opens straight to that
 // school's detail once Sites data has loaded, instead of just the home tab.
 function _tryDeepLink(retries){
-  const m=/[#&]school=([^&]+)/.exec(location.hash);
-  if(!m)return;
-  const key=decodeURIComponent(m[1]);
-  if(DATA.sites&&DATA.sites.length){
-    switchTab('schools');
-    showSchoolDetailByKey(key);
-    try{history.replaceState(null,'',location.pathname);}catch(e){}
-  }else if(retries>0){
-    setTimeout(()=>_tryDeepLink(retries-1),400);
+  const ms=/[#&]school=([^&]+)/.exec(location.hash);
+  if(ms){
+    const key=decodeURIComponent(ms[1]);
+    if(DATA.sites&&DATA.sites.length){
+      switchTab('schools');
+      showSchoolDetailByKey(key);
+      try{history.replaceState(null,'',location.pathname);}catch(e){}
+    }else if(retries>0){
+      setTimeout(()=>_tryDeepLink(retries-1),400);
+    }
+    return;
+  }
+  // Deep link: .../ranger-rover/#chore=abc12345 (used by the "Forward" button on
+  // a chore card to build a shareable link back to that exact chore).
+  const mc=/[#&]chore=([^&]+)/.exec(location.hash);
+  if(mc){
+    const id=decodeURIComponent(mc[1]);
+    if(DATA.chores&&DATA.chores.length){
+      switchTab('chores');
+      showChoreDetail(id);
+      try{history.replaceState(null,'',location.pathname);}catch(e){}
+    }else if(retries>0){
+      setTimeout(()=>_tryDeepLink(retries-1),400);
+    }
+    return;
   }
 }
 
@@ -6486,6 +6582,7 @@ let _reachAllMode     = 'ranger'; // for reach-peopleall: 'ranger' | 'keeper'
 let _reachSelected    = new Set();   // emails of checked people
 let _reachTarget      = [];          // [{name,email,mobile}] built in doReach()
 let _reachMode        = '';          // current action mode
+let _reachForwardPrefill = null;     // {subject,message} staged by forwardChoreToReach(), consumed once by openReachCompose()
 
 // ── page routing ──────────────────────────────────────────────────────────────
 function showReachPage(page, mode) {
@@ -6943,6 +7040,16 @@ function openReachCompose(mode) {
         </a>`}
       </div>
   </div>`;
+
+  // If the user got here via the "Forward" button on a chore card, drop the
+  // staged subject/message in now (one-time use, then clear it).
+  if (_reachForwardPrefill) {
+    const subjEl = document.getElementById('reachSubject');
+    const msgEl  = document.getElementById('reachMessage');
+    if (subjEl && _reachForwardPrefill.subject) subjEl.value = _reachForwardPrefill.subject;
+    if (msgEl) msgEl.value = _reachForwardPrefill.message || '';
+    _reachForwardPrefill = null;
+  }
 
   setTimeout(() => { const el = document.getElementById('reachMessage'); if(el) el.focus(); }, 150);
 }
