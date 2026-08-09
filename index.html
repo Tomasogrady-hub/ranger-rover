@@ -732,8 +732,20 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
       </div>
       <div id="ops-tab3" style="display:none">
-        <div class="page-header"><span class="page-title">Operations</span></div>
-        <div class="ops-empty-page">Coming soon</div>
+        <div class="page-header"><span class="page-title">Forms</span></div>
+        <div id="formsListView">
+          <div class="card-list" id="formsList" style="padding:0 16px 28px"></div>
+        </div>
+        <div id="formsFillView" style="display:none;padding:0 16px 28px">
+          <button class="settings-btn" style="margin-bottom:10px" onclick="_formsBackToList()">← Back to Forms</button>
+          <div id="formsFillFields"></div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button class="settings-btn" onclick="_formsSaveAnswers()">💾 Save</button>
+            <button class="settings-btn" onclick="_formsPreviewPdf()">👁 Preview PDF</button>
+            <button class="settings-btn" onclick="_formsEmailPdf()">✉️ Send via Email</button>
+          </div>
+          <div id="formsFillStatus" style="margin-top:10px;font-family:var(--font-b);font-size:14px;color:var(--stone)"></div>
+        </div>
       </div>
       <div id="ops-tab4" style="display:none">
         <div class="page-header"><span class="page-title">Operations</span></div>
@@ -752,7 +764,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <div class="ops-subnav" id="opsSubnav">
         <button class="ops-subnav-btn active" data-ops="home" onclick="showOperationsPage('home')">🏠 Home</button>
         <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">📝 Notes</button>
-        <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">Tab 3</button>
+        <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">📋 Forms</button>
         <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">Tab 4</button>
         <button class="ops-subnav-btn" data-ops="tab5" onclick="showOperationsPage('tab5')">Tab 5</button>
         <button class="ops-subnav-btn" data-ops="tab6" onclick="showOperationsPage('tab6')">Tab 6</button>
@@ -1053,10 +1065,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.5';
+const APP_VERSION='v10.6';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-09 Chores tab: school name and chore name now hotlink separately. Tapping the school name on a chore card (list view) opens the school card; tapping the chore task opens the chore card, same as before. Inside an open chore card, the school name at the top is now also tappable and opens the school card.';
+const BUILD_STAMP='2026-08-09 Operations tab: new Forms sub-tab (was placeholder Tab 3). Browse form records, fill in fields, preview a generated PDF, and email it. Backed by the Rover Forms sheet and a Google Doc template with merge tokens.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4724,6 +4736,10 @@ function showOperationsPage(sub){
     const ta=document.getElementById('opsSharedNotes');
     if(ta)ta.value=_appSettings.opsNotes||'';
   }
+  if(sub==='tab3'){
+    _formsBackToList();
+    loadFormsList();
+  }
 }
 async function saveOpsSharedNotes(){
   const ta=document.getElementById('opsSharedNotes');
@@ -4740,6 +4756,127 @@ async function saveOpsSharedNotes(){
     if(statusEl)statusEl.textContent='❌ Error saving';
   }
 }
+/* ═══ FORMS (Operations > Forms) ═══ */
+let _formsCache=null;      // {forms, yesNoCols, textCols} from getForms
+let _formsCurrentId=null;  // ID of the form currently open in the fill view
+
+async function loadFormsList(){
+  const listEl=document.getElementById('formsList');
+  if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">Loading…</div>';
+  try{
+    const res=await gasPost({action:'getForms'});
+    _formsCache=res;
+    renderFormsList();
+  }catch(e){
+    if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">Could not load forms.</div>';
+  }
+}
+function renderFormsList(){
+  const listEl=document.getElementById('formsList');
+  if(!listEl||!_formsCache)return;
+  const forms=_formsCache.forms||[];
+  if(!forms.length){
+    listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No forms yet.</div>';
+    return;
+  }
+  listEl.innerHTML=forms.map(f=>{
+    const filled=(_formsCache.textCols||[]).filter(c=>f[c]).length + (_formsCache.yesNoCols||[]).filter(c=>f[c]).length;
+    const total=(_formsCache.textCols||[]).length + (_formsCache.yesNoCols||[]).length;
+    const status=filled===0?'Not started':(filled>=total?'Complete':filled+' of '+total+' fields filled');
+    return `<div class="action-row" onclick="_formsOpenFill('${ea(f.ID)}')">
+      <div style="font-weight:700">${ea(f['Form Name']||'Untitled Form')}</div>
+      <div style="font-size:13px;color:var(--stone)">${ea(f.School||'No school set')} · ${ea(status)}</div>
+    </div>`;
+  }).join('');
+}
+function _formsFindById(id){
+  return (_formsCache&&_formsCache.forms||[]).find(f=>String(f.ID)===String(id));
+}
+function _formsOpenFill(id){
+  _formsCurrentId=id;
+  document.getElementById('formsListView').style.display='none';
+  document.getElementById('formsFillView').style.display='block';
+  document.getElementById('formsFillStatus').textContent='';
+  renderFormsFillFields();
+}
+function _formsBackToList(){
+  _formsCurrentId=null;
+  const lv=document.getElementById('formsListView'), fv=document.getElementById('formsFillView');
+  if(lv)lv.style.display='block';
+  if(fv)fv.style.display='none';
+}
+function renderFormsFillFields(){
+  const wrap=document.getElementById('formsFillFields');
+  if(!wrap||!_formsCache)return;
+  const f=_formsFindById(_formsCurrentId)||{};
+  let html='';
+  (_formsCache.textCols||[]).forEach(col=>{
+    html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
+      <input class="edit-input" id="ff-${ea(col)}" value="${ea(f[col]||'')}"></div>`;
+  });
+  (_formsCache.yesNoCols||[]).forEach(col=>{
+    const v=String(f[col]||'');
+    html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
+      <select class="edit-input" id="ff-${ea(col)}">
+        <option value="" ${v?'':'selected'}>— Select —</option>
+        <option value="Yes" ${v==='Yes'?'selected':''}>Yes</option>
+        <option value="No" ${v==='No'?'selected':''}>No</option>
+      </select></div>`;
+  });
+  wrap.innerHTML=html;
+}
+function _formsCollectAnswers(){
+  const answers={};
+  [...(_formsCache.textCols||[]),...(_formsCache.yesNoCols||[])].forEach(col=>{
+    const el=document.getElementById('ff-'+col);
+    if(el)answers[col]=el.value;
+  });
+  return answers;
+}
+async function _formsSaveAnswers(){
+  const statusEl=document.getElementById('formsFillStatus');
+  if(statusEl)statusEl.textContent='Saving…';
+  try{
+    const answers=_formsCollectAnswers();
+    await gasPost({action:'saveFormAnswers',id:_formsCurrentId,answers});
+    // Update local cache so the list view reflects the new fill-status immediately
+    const f=_formsFindById(_formsCurrentId);
+    if(f)Object.assign(f,answers);
+    if(statusEl)statusEl.textContent='✅ Saved';
+    setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000);
+  }catch(e){
+    if(statusEl)statusEl.textContent='❌ Error saving';
+  }
+}
+async function _formsPreviewPdf(){
+  const statusEl=document.getElementById('formsFillStatus');
+  if(statusEl)statusEl.textContent='Saving and generating preview…';
+  try{
+    await gasPost({action:'saveFormAnswers',id:_formsCurrentId,answers:_formsCollectAnswers()});
+    const res=await gasPost({action:'generateFormPdf',id:_formsCurrentId});
+    if(!res.ok)throw new Error(res.error||'Failed to generate PDF');
+    window.open(res.pdfUrl,'_blank');
+    if(statusEl)statusEl.textContent='';
+  }catch(e){
+    if(statusEl)statusEl.textContent='❌ '+(e.message||'Could not generate preview');
+  }
+}
+async function _formsEmailPdf(){
+  const to=prompt('Send the filled form to which email address?');
+  if(!to)return;
+  const statusEl=document.getElementById('formsFillStatus');
+  if(statusEl)statusEl.textContent='Saving and sending…';
+  try{
+    await gasPost({action:'saveFormAnswers',id:_formsCurrentId,answers:_formsCollectAnswers()});
+    const res=await gasPost({action:'emailFormPdf',id:_formsCurrentId,to});
+    if(!res.ok)throw new Error(res.error||'Failed to send email');
+    if(statusEl)statusEl.textContent='✅ Sent to '+to;
+    setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
+  }catch(e){
+    if(statusEl)statusEl.textContent='❌ '+(e.message||'Could not send email');
+  }
+}
+
 // Appends "Response: X" options to the status filter, once, as soon as the
 // Items All-derived response list is available. Additive only — never
 // touches the existing GRP Started / Responded options already in the list.
