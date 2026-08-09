@@ -6,6 +6,32 @@ const PLANTS_ID = '1FFhvdCupYlTJnPQIyGwWDRmHtuhqKFi2whK9BgjSdHk';
 const MEMOS_ID  = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
 const MASTER_SCHOOLS_ID = '1j1vjThg9FV0dj-qMP3RM8T_Lr-ujR2r6vANqhMPoFm8'; // full LA-area schools database used by "Add New Site" search
 
+// ── FORMS (Operations > Forms) ────────────────────────────────────────────────
+const FORMS_ID        = '1H0Mc9kX6XQElVMkq_ALUexEMlof6sAMYiUir8MpObEE'; // "Rover Forms" spreadsheet
+const FORMS_TAB        = 'Forms';
+const FORMS_PDFS_TAB   = 'PDFS';
+const FORMS_PDF_FOLDER = '1yEYFzstRy9JC3N6zYWBnYqzyeguFpI_4'; // "PDF DERIVED FROM" folder
+
+// Forms-sheet columns that are Yes/No questions, in the same order as the
+// {{Q1_YESBOX}}/{{Q1_NOBOX}} .. {{Q6_YESBOX}}/{{Q6_NOBOX}} tokens in the template doc.
+const FORMS_YESNO_COLS = [
+  "Does the project involve campus greening (tree planting, gardens, etc)?",
+  "Does the project impact asbestos or lead-containing materials (such as paint)?",
+  "Does the project involve sustainable products or technologies?",
+  "Does the project use chemicals or involve playground equipment?",
+  "Does the project require OEHS environmental review?",
+  "Does the project impact emerging technologies systems or products not covered by the District's current specifications?"
+];
+// Forms-sheet columns that map to plain {{Token}} merge fields in the template body.
+const FORMS_TEXT_COL_TOKENS = {
+  'School':              '{{SchoolName}}',
+  'Principal':           '{{PrincipalName}}',
+  'CPM':                 '{{CPMName}}',
+  'Date of Event':       '{{DateOfEvent}}',
+  'Project Proponent':   '{{ProjectProponent}}',
+  'Project Description': '{{ProjectDescription}}'
+};
+
 // ── DRIVE FOLDER IDs (images) ─────────────────────────────────────────────────
 const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
 const HUMANS_IMG_FOLDER = '1PsqHbWRwurrVEpwhT-iRNGhjlf9jPgUx';
@@ -275,6 +301,12 @@ function doPost(e) {
       // ── TEAM EMAIL SEARCH (level 1 only) ─────────────────────────────────────
       case 'searchTeamEmails':    return respond(handleSearchTeamEmails(p));
       case 'requestEmailForward': return respond(handleRequestEmailForward(p));
+
+      // ── FORMS (Operations > Forms) ────────────────────────────────────────────
+      case 'getForms':        return respond(handleGetForms());
+      case 'saveFormAnswers': return respond(handleSaveFormAnswers(p));
+      case 'generateFormPdf': return respond(handleGenerateFormPdf(p));
+      case 'emailFormPdf':    return respond(handleEmailFormPdf(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -2122,6 +2154,166 @@ function respond(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+
+// ── FORMS (Operations > Forms) ─────────────────────────────────────────────────
+// The "Forms" tab in the Rover Forms sheet doubles as both the form-template
+// registry AND the answer store: each row is one form instance. Its "Actual
+// Form" column holds the Drive file ID (or URL) of a Google Doc template that
+// contains {{Token}} merge fields — see FORMS_TEXT_COL_TOKENS / FORMS_YESNO_COLS.
+
+function _formsSheet() {
+  return SpreadsheetApp.openById(FORMS_ID).getSheetByName(FORMS_TAB);
+}
+
+function _extractDriveId(idOrUrl) {
+  var s = String(idOrUrl || '').trim();
+  var m = s.match(/[-\w]{25,}/);
+  return m ? m[0] : s;
+}
+
+function handleGetForms() {
+  var data    = _formsSheet().getDataRange().getValues();
+  var headers = data[0];
+  var rows = data.slice(1)
+    .filter(function(row) { return row.some(function(v) { return v !== '' && v !== null; }); })
+    .map(function(row) {
+      var obj = {};
+      headers.forEach(function(h, i) { obj[h] = row[i]; });
+      return obj;
+    });
+  return {
+    forms: rows,
+    yesNoCols: FORMS_YESNO_COLS,
+    // Fillable free-text columns = every header except ID / Form Name / Actual Form / yes-no cols
+    textCols: headers.filter(function(h) {
+      return ['ID', 'Form Name', 'Actual Form'].indexOf(h) === -1 && FORMS_YESNO_COLS.indexOf(h) === -1;
+    })
+  };
+}
+
+function handleSaveFormAnswers(p) {
+  var id = String(p.id || '').trim();
+  if (!id) return { ok: false, error: 'Missing form id' };
+  var sheet   = _formsSheet();
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idCol   = headers.indexOf('ID');
+  var rowIdx  = -1;
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idCol]) === id) { rowIdx = r; break; }
+  }
+  if (rowIdx === -1) return { ok: false, error: 'Form not found: ' + id };
+
+  var answers = p.answers || {};
+  Object.keys(answers).forEach(function(key) {
+    var colIdx = headers.indexOf(key);
+    if (colIdx === -1) return; // ignore unknown columns
+    sheet.getRange(rowIdx + 1, colIdx + 1).setValue(answers[key]);
+  });
+  return { ok: true };
+}
+
+// Fills a copy of the form's template doc with the row's current answers,
+// exports it as a PDF into the "PDF DERIVED FROM" folder, logs it to the
+// PDFS tab, and returns the PDF's Drive URL/blob for preview or emailing.
+function _generateFilledFormPdf(id) {
+  var data    = _formsSheet().getDataRange().getValues();
+  var headers = data[0];
+  var idCol   = headers.indexOf('ID');
+  var row = null;
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idCol]) === id) { row = data[r]; break; }
+  }
+  if (!row) throw new Error('Form not found: ' + id);
+
+  var rowObj = {};
+  headers.forEach(function(h, i) { rowObj[h] = row[i]; });
+
+  var templateId = _extractDriveId(rowObj['Actual Form']);
+  if (!templateId) throw new Error('This form has no template linked in "Actual Form"');
+
+  var folder   = DriveApp.getFolderById(FORMS_PDF_FOLDER);
+  var baseName = (rowObj['Form Name'] || 'Form') + ' - ' + (rowObj['School'] || 'Untitled') + ' - ' + new Date().toISOString();
+  var copyFile = DriveApp.getFileById(templateId).makeCopy(baseName, folder);
+  var doc      = DocumentApp.openById(copyFile.getId());
+  var body     = doc.getBody();
+
+  function esc(v) { return String(v).replace(/[{}]/g, '\\$&'); }
+  function escVal(v) { return String(v).replace(/\$/g, '$$$$'); } // avoid $1-style backreferences in replacement
+
+  // Plain text merge fields
+  Object.keys(FORMS_TEXT_COL_TOKENS).forEach(function(col) {
+    var token = FORMS_TEXT_COL_TOKENS[col];
+    body.replaceText(esc(token), escVal(rowObj[col] || ''));
+  });
+
+  // Yes/No checkbox tokens, in FORMS_YESNO_COLS order
+  FORMS_YESNO_COLS.forEach(function(col, i) {
+    var n    = i + 1;
+    var ans  = String(rowObj[col] || '').trim().toLowerCase();
+    var yesG = (ans === 'yes') ? '\u2612' : '\u2610';
+    var noG  = (ans === 'no')  ? '\u2612' : '\u2610';
+    body.replaceText('\\{\\{Q' + n + '_YESBOX\\}\\}', yesG);
+    body.replaceText('\\{\\{Q' + n + '_NOBOX\\}\\}',  noG);
+  });
+
+  // The master template highlights unfilled tokens in yellow so they're easy
+  // to spot when editing — strip that (and any stray color) from the filled copy.
+  var text = body.editAsText();
+  if (text.getText().length) {
+    text.setBackgroundColor(0, text.getText().length - 1, null);
+  }
+
+  doc.saveAndClose();
+
+  var pdfBlob = DriveApp.getFileById(copyFile.getId()).getAs(MimeType.PDF);
+  var pdfFile = folder.createFile(pdfBlob).setName(baseName + '.pdf');
+  DriveApp.getFileById(copyFile.getId()).setTrashed(true); // keep only the PDF, not the temp Doc
+
+  var ss = SpreadsheetApp.openById(FORMS_ID);
+  var pdfSheet = ss.getSheetByName(FORMS_PDFS_TAB);
+  if (!pdfSheet) {
+    pdfSheet = ss.insertSheet(FORMS_PDFS_TAB);
+    pdfSheet.appendRow(['Form ID', 'Form Name', 'PDF URL', 'Generated At']);
+    pdfSheet.setFrozenRows(1);
+  }
+  pdfSheet.appendRow([id, rowObj['Form Name'] || '', pdfFile.getUrl(), new Date()]);
+
+  return {
+    pdfUrl:  pdfFile.getUrl(),
+    pdfId:   pdfFile.getId(),
+    pdfBlob: pdfBlob,
+    formName: rowObj['Form Name'] || '',
+    school:   rowObj['School'] || ''
+  };
+}
+
+function handleGenerateFormPdf(p) {
+  var id = String(p.id || '').trim();
+  if (!id) return { ok: false, error: 'Missing form id' };
+  try {
+    var out = _generateFilledFormPdf(id);
+    return { ok: true, pdfUrl: out.pdfUrl };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function handleEmailFormPdf(p) {
+  var id = String(p.id || '').trim();
+  var to = String(p.to || '').trim();
+  if (!id) return { ok: false, error: 'Missing form id' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { ok: false, error: 'Invalid email address' };
+  try {
+    var out     = _generateFilledFormPdf(id);
+    var subject = String(p.subject || (out.formName + (out.school ? ' — ' + out.school : '')) || 'Ranger Rover Form');
+    var body    = String(p.message || 'Please see the attached form.');
+    GmailApp.sendEmail(to, subject, body, { attachments: [out.pdfBlob] });
+    return { ok: true, pdfUrl: out.pdfUrl };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
 
 // ── UTILITY / DEBUG FUNCTIONS ─────────────────────────────────────────────────
 
