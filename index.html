@@ -1070,10 +1070,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.7';
+const APP_VERSION='v10.8';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-09 Operations fix: clearing Ranger 1/Ranger 2/Garden Keeper (choosing None) now correctly clears the Name column too, so the Operations summary stops showing the old ranger. Added a Ranger Assigned / Ranger Not Assigned filter to the Operations home page.';
+const BUILD_STAMP='2026-08-09b Role-change safety: switching a person\u2019s Role to Ranger Applicant or Ranger Past now auto-clears them from Ranger 1 / Ranger 2 / Garden Keeper on any site, and shows a popup listing which schools are now unassigned.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3909,9 +3909,16 @@ async function savePerson(orig){
   const emailChanged=orig&&newEmail&&orig.toLowerCase()!==newEmail.toLowerCase();
   // Update local DATA immediately
   const hRec=DATA.humans.find(h=>(h.Email||h.email||'')===orig);
+  const origRole=hRec?(hRec.Role||hRec.role||''):'';
   if(hRec){Object.keys(updates).forEach(k=>{hRec[k]=updates[k];});if(emailChanged)hRec.Email=newEmail;}
   if(emailChanged)cascadeEmailInData(orig,newEmail);
   const _personDisplayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail||orig;
+  // Did the Role change to Ranger Applicant or Ranger Past? If so, this person
+  // should no longer be assigned as Ranger 1 / Ranger 2 / Garden Keeper on any
+  // site — the backend will clear those columns and tell us which schools were affected.
+  const newRoleCat=_roleCategoryFor(updates['Role']);
+  const roleChangedAwayFromActive=(updates['Role']||'').trim()!==(origRole||'').trim()&&
+    (newRoleCat==='ranger_applicant'||newRoleCat==='ranger_past');
   // Instant: chime → close → go to people list
   _playChime();
   closeDetailImmediate();
@@ -3933,9 +3940,50 @@ async function savePerson(orig){
       }
       const displayName=_personDisplayName;
       showSaveToast('✓ '+displayName+' saved'+(emailChanged?' (email updated everywhere)':''));
+      if(roleChangedAwayFromActive){
+        // Use the pre-change email — that's what's actually stored in the Sites
+        // sheet's Ranger 1 / Ranger 2 / Garden Keeper columns right now.
+        const clearEmail=(orig||newEmail).toLowerCase();
+        const res=await gasPost({action:'clearRangerFromSites',email:clearEmail,actor:SESSION?SESSION.email:''});
+        if(res&&res.ok&&res.affectedSites&&res.affectedSites.length){
+          // Reflect the clear in the local cache immediately so Operations/site
+          // cards don't show a stale ranger until the next full data refresh.
+          res.affectedSites.forEach(a=>{
+            const s=DATA.sites.find(x=>(sf(x,'Name','name')||'')===a.name);
+            if(!s)return;
+            a.roles.forEach(role=>{
+              if(role==='Ranger 1'){s['Ranger 1']='';s['Ranger 1 Name']='';}
+              else if(role==='Ranger 2'){s['Ranger 2']='';s['Ranger 2 Name']='';}
+              else if(role==='Garden Keeper'){s['Garden Keeper']='';s['Garden Keeper Name']='';}
+            });
+          });
+          if(_activeTab==='operations'&&_opsCurrentPage==='home')renderOperationsHome();
+          showRangerClearedModal(_personDisplayName,res.affectedSites);
+        }
+      }
     }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
   })();
 }
+
+// Popup shown after a person's Role changes to Ranger Applicant / Ranger Past,
+// listing which schools just lost that person as Ranger 1, Ranger 2, or Garden
+// Keeper (those columns were just cleared server-side).
+function showRangerClearedModal(personName,affectedSites){
+  const rows=affectedSites.map(a=>
+    `<div style="padding:10px 0;border-bottom:1px solid var(--mist)"><b>${ea(a.name)}</b><div style="font-size:13px;color:var(--stone)">No longer: ${a.roles.map(ea).join(', ')}</div></div>`
+  ).join('');
+  const modal=document.createElement('div');
+  modal.style='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:flex-end';
+  modal.innerHTML=`<div style="background:white;border-radius:26px 26px 0 0;width:100%;max-height:70dvh;overflow-y:auto;padding:20px 20px calc(20px + var(--safe-bottom))">
+    <div style="font-family:var(--font-d);font-size:26px;font-style:italic;margin-bottom:4px">⚠️ Ranger assignments cleared</div>
+    <div style="font-family:var(--font-b);font-size:14px;color:var(--stone);margin-bottom:12px">${ea(personName)}'s role change removed them from ${affectedSites.length} school${affectedSites.length===1?'':'s'} — these ${affectedSites.length===1?'is':'are'} now without a ranger in that slot:</div>
+    <div>${rows}</div>
+    <button onclick="this.closest('[style*=fixed]').remove()" style="margin-top:14px;width:100%;padding:13px;background:var(--evergreen,var(--ink));color:white;border:none;border-radius:8px;font-family:var(--font-b);font-size:15px;cursor:pointer">Got it</button>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+
 
 /* ═══ CHORE ACTIONS ═══ */
 function showReassignChore(choreId,siteName){
