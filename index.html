@@ -713,6 +713,11 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="no_response">No Response</option>
             <option value="has_po">Has PO</option>
           </select>
+          <select id="opsFilterRanger" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="" selected>Ranger: All</option>
+            <option value="ranger_assigned">Ranger Assigned</option>
+            <option value="ranger_not_assigned">Ranger Not Assigned</option>
+          </select>
         </div>
         <div class="card-list" id="opsHomeList" style="padding:0 16px 28px"></div>
       </div>
@@ -1065,10 +1070,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.6';
+const APP_VERSION='v10.7';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-09 Operations tab: new Forms sub-tab (was placeholder Tab 3). Browse form records, fill in fields, preview a generated PDF, and email it. Backed by the Rover Forms sheet and a Google Doc template with merge tokens.';
+const BUILD_STAMP='2026-08-09 Operations fix: clearing Ranger 1/Ranger 2/Garden Keeper (choosing None) now correctly clears the Name column too, so the Operations summary stops showing the old ranger. Added a Ranger Assigned / Ranger Not Assigned filter to the Operations home page.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3506,9 +3511,9 @@ function _collectSiteEditFormValues(){
   if(_cl['ef-Image2']){updates['Image 2']='';updates['Image 2 Info']='';}
   if(_cl['ef-Image3']){updates['Image 3']='';updates['Image 3 Info']='';}
   if(_cl['ef-HelpBeforeImg']){updates['Helpful Before Image']='';updates['Helpful Before Image Info']='';}
-  const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;if(r1v)updates['Ranger 1 Name']=hn(r1v);}
-  const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;if(r2v)updates['Ranger 2 Name']=hn(r2v);}
-  const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;if(gkv)updates['Garden Keeper Name']=hn(gkv);}
+  const r1v=gb('dsb-r1');if(r1v!==null){updates['Ranger 1']=r1v;updates['Ranger 1 Name']=r1v?hn(r1v):'';}
+  const r2v=gb('dsb-r2');if(r2v!==null){updates['Ranger 2']=r2v;updates['Ranger 2 Name']=r2v?hn(r2v):'';}
+  const gkv=gb('dsb-gk');if(gkv!==null){updates['Garden Keeper']=gkv;updates['Garden Keeper Name']=gkv?hn(gkv):'';}
   const pv=gb('dsb-prin');if(pv!==null)updates['Principal']=pv;
   const saav=gb('dsb-saa');if(saav!==null)updates['School Administrative Assistant']=saav;
   const mc1v=gb('dsb-mc1');if(mc1v!==null)updates['Main Contact 1']=mc1v;
@@ -4695,11 +4700,13 @@ async function _dssDelete(key){
 let _opsTargetKey=null;
 let _opsTargetTimer=null;
 function goToOperationsForSite(key){
-  _opsFilterType='all';_opsFilterStatus='';
+  _opsFilterType='all';_opsFilterStatus='';_opsFilterRanger='';
   const selType=document.getElementById('opsFilterType');
   const selStatus=document.getElementById('opsFilterStatus');
+  const selRanger=document.getElementById('opsFilterRanger');
   if(selType)selType.value='all';
   if(selStatus)selStatus.value='';
+  if(selRanger)selRanger.value='';
   _opsTargetKey=key;
   clearTimeout(_opsTargetTimer);
   switchTab('operations');
@@ -4724,6 +4731,7 @@ function goToOperationsForSite(key){
 let _opsCurrentPage='home';
 let _opsFilterType='type_active'; // default: All Active Sites
 let _opsFilterStatus=''; // default: no status sub-filter
+let _opsFilterRanger=''; // default: no ranger-assignment sub-filter
 function showOperationsPage(sub){
   _opsCurrentPage=sub;
   ['home','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
@@ -4896,8 +4904,10 @@ async function _ensureOpsResponseFilterOptions(){
 function filterOperations(){
   const t=document.getElementById('opsFilterType');
   const s=document.getElementById('opsFilterStatus');
+  const rg=document.getElementById('opsFilterRanger');
   _opsFilterType=t?t.value:'type_active';
   _opsFilterStatus=s?s.value:'';
+  _opsFilterRanger=rg?rg.value:'';
   renderOperationsHome();
 }
 function _opsMoney(v){
@@ -4959,6 +4969,14 @@ function renderOperationsHome(){
     sites=sites.filter(s=>(sf(s,'Response')||'')===wanted);
   } else if(fst==='has_po'){
     sites=sites.filter(s=>String(sf(s,'PO Number')||'').trim()!=='');
+  }
+
+  // Tier 3: Ranger Assignment (from Ranger 1 column — has a value = Assigned, empty = Not Assigned)
+  const frg=_opsFilterRanger;
+  if(frg==='ranger_assigned'){
+    sites=sites.filter(s=>String(sf(s,'Ranger 1','Ranger1')||'').trim()!=='');
+  } else if(frg==='ranger_not_assigned'){
+    sites=sites.filter(s=>String(sf(s,'Ranger 1','Ranger1')||'').trim()==='');
   }
   sites=sites.slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
   if(cnt)cnt.textContent=sites.length+' schools';
