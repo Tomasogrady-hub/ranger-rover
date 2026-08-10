@@ -289,6 +289,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .empty h3{font-family:var(--font-d);font-size:28px;font-weight:400;font-style:italic;color:var(--stone);margin-bottom:6px}
 .empty p{font-size:17px;color:var(--silver);line-height:1.5}
 .spinner{width:26px;height:26px;border:2px solid var(--mist);border-top-color:var(--sage);border-radius:50%;animation:spin .8s linear infinite;margin:52px auto}
+.mini-spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── SETTINGS ── */
@@ -1070,10 +1071,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.8';
+const APP_VERSION='v10.9';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-09b Role-change safety: switching a person\u2019s Role to Ranger Applicant or Ranger Past now auto-clears them from Ranger 1 / Ranger 2 / Garden Keeper on any site, and shows a popup listing which schools are now unassigned.';
+const BUILD_STAMP='2026-08-09c Added a small spinner toast ("Checking schools for ranger assignments\u2026") that shows while the Role-change ranger-clear check runs in the background, right before the affected-schools popup appears.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3944,7 +3945,9 @@ async function savePerson(orig){
         // Use the pre-change email — that's what's actually stored in the Sites
         // sheet's Ranger 1 / Ranger 2 / Garden Keeper columns right now.
         const clearEmail=(orig||newEmail).toLowerCase();
+        showPersistentToast('Checking schools for ranger assignments…');
         const res=await gasPost({action:'clearRangerFromSites',email:clearEmail,actor:SESSION?SESSION.email:''});
+        hidePersistentToast();
         if(res&&res.ok&&res.affectedSites&&res.affectedSites.length){
           // Reflect the clear in the local cache immediately so Operations/site
           // cards don't show a stale ranger until the next full data refresh.
@@ -4245,8 +4248,25 @@ function closeDetailBtnChime(){window._isNewSiteDraft=false;window._newSiteDraft
 function showSaveToast(msg){
   let t=document.getElementById('_saveToast');
   if(!t){t=document.createElement('div');t.id='_saveToast';t.style='position:fixed;bottom:calc(var(--nav-h,120px) + var(--safe-bottom) + 8px);left:50%;transform:translateX(-50%);background:var(--grove);color:white;padding:11px 20px;border-radius:99px;font-family:var(--font-b);font-size:15px;font-weight:500;z-index:20000;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .3s';document.body.appendChild(t);}
-  t.textContent=msg;t.style.opacity='1';clearTimeout(t._tid);
+  t.innerHTML='';t.textContent=msg;t.style.display='block';t.style.opacity='1';clearTimeout(t._tid);
   t._tid=setTimeout(()=>{t.style.opacity='0';},2800);
+}
+// Persistent (no auto-dismiss) spinner toast for a short background check the
+// user should know is still running — e.g. "checking schools for ranger
+// assignments" after a Role change. Call hidePersistentToast() when done.
+function showPersistentToast(msg){
+  let t=document.getElementById('_saveToast');
+  if(!t){t=document.createElement('div');t.id='_saveToast';t.style='position:fixed;bottom:calc(var(--nav-h,120px) + var(--safe-bottom) + 8px);left:50%;transform:translateX(-50%);background:var(--grove);color:white;padding:11px 20px;border-radius:99px;font-family:var(--font-b);font-size:15px;font-weight:500;z-index:20000;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .3s';document.body.appendChild(t);}
+  clearTimeout(t._tid);
+  t.style.display='flex';t.style.alignItems='center';t.style.gap='9px';
+  t.innerHTML='<span class="mini-spinner"></span><span>'+msg+'</span>';
+  t.style.opacity='1';
+}
+function hidePersistentToast(){
+  const t=document.getElementById('_saveToast');
+  if(!t)return;
+  t.style.opacity='0';
+  setTimeout(()=>{if(t&&t.style.opacity==='0'){t.style.display='none';t.innerHTML='';}},300);
 }
 // Full-screen blocking overlay for actions that must not be interrupted
 // (e.g. creating/deleting a site) — disables the screen and shows a spinner
