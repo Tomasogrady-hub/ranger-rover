@@ -292,6 +292,9 @@ function doPost(e) {
       // ── CASCADE EMAIL CHANGE ─────────────────────────────────────────────────
       case 'cascadeEmail': return respond(handleCascadeEmail(p));
 
+      // ── CLEAR RANGER/GARDEN KEEPER ASSIGNMENTS (role changed away from active Ranger) ──
+      case 'clearRangerFromSites': return respond(handleClearRangerFromSites(p));
+
       // ── REACH / MEMOS ────────────────────────────────────────────────────────
       case 'sendMemo':      return respond(handleSendMemo(p));
       case 'listMemos':     return respond(handleListMemos(p));
@@ -1390,6 +1393,55 @@ function handleCascadeEmail(p) {
   });
 
   return { ok: true, siteChanges: siteChanges, choreChanges: choreChanges };
+}
+
+// ── CLEAR RANGER / GARDEN KEEPER ASSIGNMENTS ────────────────────────────────
+// Called when a person's Role is changed away from active Ranger duty (e.g. to
+// "Ranger Applicant" or "Ranger Past"). Scans the Sites sheet for that email in
+// Ranger 1, Ranger 2, or Garden Keeper and blanks both the email and Name
+// columns so the site no longer shows a ranger who is no longer active. Returns
+// the list of affected schools (and which role(s) were cleared on each) so the
+// client can show the admin exactly what changed.
+var RANGER_ROLE_COLS = [
+  { emailCol: 'Ranger 1',       nameCol: 'Ranger 1 Name',       label: 'Ranger 1' },
+  { emailCol: 'Ranger 2',       nameCol: 'Ranger 2 Name',       label: 'Ranger 2' },
+  { emailCol: 'Garden Keeper',  nameCol: 'Garden Keeper Name',  label: 'Garden Keeper' }
+];
+function handleClearRangerFromSites(p) {
+  var email = String((p && p.email) || '').trim().toLowerCase();
+  if (!email) return { ok: false, error: 'email required' };
+
+  var sheet   = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ni      = headers.indexOf('Name');
+
+  var colIdx = RANGER_ROLE_COLS.map(function (c) {
+    return { emailCi: headers.indexOf(c.emailCol), nameCi: headers.indexOf(c.nameCol), label: c.label };
+  });
+
+  var affected = []; // [{name, roles:[...]}]
+  for (var r = 1; r < data.length; r++) {
+    var clearedRoles = [];
+    colIdx.forEach(function (c) {
+      if (c.emailCi === -1) return;
+      var cell = String(data[r][c.emailCi] || '').trim().toLowerCase();
+      if (cell !== email) return;
+      sheet.getRange(r + 1, c.emailCi + 1).setValue('');
+      if (c.nameCi > -1) sheet.getRange(r + 1, c.nameCi + 1).setValue('');
+      clearedRoles.push(c.label);
+    });
+    if (clearedRoles.length) {
+      affected.push({ name: ni > -1 ? String(data[r][ni] || '') : '', roles: clearedRoles });
+    }
+  }
+
+  if (affected.length) {
+    var subjDetail = affected.map(function (a) { return a.name + ' (' + a.roles.join(', ') + ')'; }).join('; ');
+    logActivity(p.actor || '', 'role change cleared ranger assignment', email, 'person', subjDetail);
+  }
+
+  return { ok: true, affectedSites: affected };
 }
 
 // ── ADD NEW SITE ──────────────────────────────────────────────────────────────
