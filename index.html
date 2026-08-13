@@ -561,14 +561,15 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <!-- RANGERS -->
   <div class="tab-pane" id="tab-rangers">
     <div class="filter-row" id="rangerFilters">
-      <button class="chip active" data-filter="all"              onclick="filterRangers('all')">All</button>
-      <button class="chip"        data-filter="ranger"           onclick="filterRangers('ranger')">Ranger</button>
-      <button class="chip"        data-filter="master_ranger"    onclick="filterRangers('master_ranger')">Master Ranger</button>
-      <button class="chip"        data-filter="garden_keeper"    onclick="filterRangers('garden_keeper')">Garden Keeper</button>
-      <button class="chip"        data-filter="ranger_applicant" onclick="filterRangers('ranger_applicant')">Ranger Applicant</button>
-      <button class="chip"        data-filter="ranger_past"      onclick="filterRangers('ranger_past')">Ranger Past</button>
+      <button class="chip active" data-filter="all"                              data-label="Rangers"           onclick="filterRangers('all')">All</button>
+      <button class="chip"        data-filter="ranger"                           data-label="Rangers"           onclick="filterRangers('ranger')">Ranger</button>
+      <button class="chip"        data-filter="master_ranger"                    data-label="Master Rangers"    onclick="filterRangers('master_ranger')">Master Ranger</button>
+      <button class="chip"        data-filter="garden_keeper"                    data-label="Garden Keepers"    onclick="filterRangers('garden_keeper')">Garden Keeper</button>
+      <button class="chip"        data-filter="ranger_applicant"                 data-label="Ranger Applicants" onclick="filterRangers('ranger_applicant')">Ranger Applicant</button>
+      <button class="chip"        data-filter="ranger_past"                      data-label="Ranger Past"       onclick="filterRangers('ranger_past')">Ranger Past</button>
+      <button class="chip"        data-filter="ranger_applicant_did_not_work_out" data-label="Did Not Work Out" onclick="filterRangers('ranger_applicant_did_not_work_out')">Did Not Work Out</button>
     </div>
-    <div class="page-header"><span class="page-title">Rangers</span><span class="page-count" id="rangerCount"></span></div>
+    <div class="page-header"><span class="page-title" id="rangerPageTitle">Rangers</span><span class="page-count" id="rangerCount"></span></div>
     <div class="card-list" id="rangerList"><div class="spinner"></div></div>
   </div>
 
@@ -1071,10 +1072,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.9';
+const APP_VERSION='v10.10';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-09c Added a small spinner toast ("Checking schools for ranger assignments\u2026") that shows while the Role-change ranger-clear check runs in the background, right before the affected-schools popup appears.';
+const BUILD_STAMP='2026-08-13 Rangers page: added Did Not Work Out filter chip, page title now matches the active filter, Zip Code shown beside each name, and Resume + Zip Code added to the person card and edit form.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1163,6 +1164,7 @@ const CANONICAL_ROLE_CATS={
   'garden_keeper':'garden_keeper',
   'ranger_applicant':'ranger_applicant',
   'ranger_past':'ranger_past',
+  'ranger_applicant_did_not_work_out':'ranger_applicant_did_not_work_out',
   'principal':'principal',
   'plant_manager':'plant_manager',
   'school_administrative_assistant':'saa'
@@ -1185,7 +1187,7 @@ function humanRoleCats(h){
   return cats.filter(Boolean);
 }
 function humanRoleCat(h){return humanRoleCats(h)[0]||'';}
-const RANGER_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past'];
+const RANGER_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past','ranger_applicant_did_not_work_out'];
 function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase())||null;}
 function fullName(h){if(!h)return '';const fn=h['First Name']||h.FirstName||'',ln=h['Last Name']||h.LastName||'';if(fn||ln)return(fn+' '+ln).trim();return h.Name||h.name||h.Email||h.email||'';}
 function hn(e){const h=gh(e);return h?(fullName(h)||e):e;}
@@ -2764,11 +2766,12 @@ function renderRangers(){
 
 function _rangerCardHtml(h){
   const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'';
+  const zip=sf(h,'Zip Code','ZipCode');
   const role=h.Role||h.role||'';
   const roleAdd=h['Role Additional']||h.RoleAdditional||'';
   const cats=humanRoleCats(h);
   const isGK=cats.includes('garden_keeper');
-  const isPrimary=cats.some(c=>c==='ranger'||c==='master_ranger'||c==='ranger_applicant'||c==='ranger_past');
+  const isPrimary=cats.some(c=>c==='ranger'||c==='master_ranger'||c==='ranger_applicant'||c==='ranger_past'||c==='ranger_applicant_did_not_work_out');
   const rangerSites=DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email);
   const gkSites=DATA.sites.filter(s=>sf(s,'Garden Keeper','GardenKeeper')===email);
   const sLink=(s)=>{const n=sf(s,'Name','name');const k=sf(s,'Key','key');return `<button class="school-link-btn" onclick="showSchoolDetailByKey('${ea(k)}');event.stopPropagation()">${n}</button>`;};
@@ -2787,7 +2790,7 @@ function _rangerCardHtml(h){
   return `<div class="people-card" onclick="showPersonDetail('${esc(email||name)}')">
     ${avatarHtml(h)}
     <div class="people-info">
-      <div class="people-name">${name}</div>
+      <div class="people-name">${name}${zip?` <span style="font-weight:400;color:var(--stone);font-size:14px">· ${ea(zip)}</span>`:''}</div>
       ${roleBlock}
       <div class="card-contacts">${ctaRow(mobile,email)}</div>
       ${openC>0?`<div class="chore-pill">⚠ ${openC} open chore${openC>1?'s':''}</div>`:''}
@@ -2903,7 +2906,7 @@ function updateMapFilterCounts(){
 
 function updateRangerFilterCounts(){
   if(SESSION&&SESSION.accessLevel>=3)return;
-  const counts={all:0,ranger:0,master_ranger:0,garden_keeper:0,ranger_applicant:0,ranger_past:0};
+  const counts={all:0,ranger:0,master_ranger:0,garden_keeper:0,ranger_applicant:0,ranger_past:0,ranger_applicant_did_not_work_out:0};
   DATA.humans.forEach(h=>{
     const cats=humanRoleCats(h);
     const rangerCats=cats.filter(c=>RANGER_CATS.includes(c));
@@ -2912,7 +2915,7 @@ function updateRangerFilterCounts(){
       rangerCats.forEach(c=>{if(counts[c]!==undefined)counts[c]++;});
     }
   });
-  const labels={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Ranger Applicant',ranger_past:'Ranger Past'};
+  const labels={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Ranger Applicant',ranger_past:'Ranger Past',ranger_applicant_did_not_work_out:'Did Not Work Out'};
   document.querySelectorAll('#rangerFilters .chip').forEach(c=>{
     const f=c.dataset.filter,n=counts[f]!==undefined?counts[f]:0;
     c.textContent=`${labels[f]||f} (${n})`;
@@ -3729,6 +3732,9 @@ function hidePersonComments(){
 
 function renderPD(h,edit){
   const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
+  const resume=sf(h,'Resume','resume');
+  const zipCode=sf(h,'Zip Code','ZipCode');
+  const resumeIsUrl=/^https?:\/\//i.test(resume.trim());
   const imgUrl=getImgSrc(h['Main Image']||h.MainImage||'');
   const _siteLink=s=>{
     const _k=sf(s,'Key','key'),_n=sf(s,'Name','name');
@@ -3752,6 +3758,8 @@ function renderPD(h,edit){
       <div class="edit-wrap"><div class="edit-label">First Name</div><input class="edit-input" id="ef-FirstName" value="${ea(h['First Name']||h.FirstName||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Last Name</div><input class="edit-input" id="ef-LastName" value="${ea(h['Last Name']||h.LastName||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Mobile</div><input class="edit-input" id="ef-Mobile" type="tel" value="${ea(mobile)}"></div>
+      <div class="edit-wrap"><div class="edit-label">Zip Code</div><input class="edit-input" id="ef-ZipCode" value="${ea(zipCode)}" placeholder="Zip"></div>
+      <div class="edit-wrap"><div class="edit-label">Resume</div><input class="edit-input" id="ef-Resume" value="${ea(resume)}" placeholder="Paste Google Drive or resume URL…"></div>
       <div class="edit-wrap"><div class="edit-label">Email</div>${SESSION&&SESSION.accessLevel<=2?`<input class="edit-input" id="ef-Email" type="email" value="${ea(email)}">`:`<div style="padding:10px 0;color:var(--stone);font-size:15px">${email}<input type="hidden" id="ef-Email" value="${ea(email)}"></div>`}</div>
       <div class="edit-wrap" style="position:relative;z-index:50">
         <div class="edit-label">Role</div>
@@ -3803,6 +3811,7 @@ function renderPD(h,edit){
       ${rangerSchools?`<div class="ds"><div class="dl">Garden Ranger School(s)</div><div class="dv">${rangerSchools}</div></div>`:''}
       ${gkSchools?`<div class="ds"><div class="dl">Garden Keeper School(s)</div><div class="dv">${gkSchools}</div></div>`:''}
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
+      ${resume?`<div class="ds"><div class="dl">Resume</div><div class="dv">${resumeIsUrl?`<a class="dlink" href="${ea(resume)}" target="_blank" rel="noopener">📄 View Resume</a>`:ea(resume)}</div></div>`:''}
       ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="${gmailUrl(email)}" target="_blank" rel="noopener">${email}</a></div></div>`:''}
       ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${cleanPhone(mobile)}">${mobile}</a></div></div>`:''}
       ${SESSION&&SESSION.accessLevel<=2?`<div id="pd-comments-section" style="padding:0 20px 4px">
@@ -3901,6 +3910,8 @@ async function savePerson(orig){
     'First Name':(document.getElementById('ef-FirstName')||{value:''}).value.trim(),
     'Last Name':(document.getElementById('ef-LastName')||{value:''}).value.trim(),
     'Mobile':(document.getElementById('ef-Mobile')||{value:''}).value.trim(),
+    'Zip Code':(document.getElementById('ef-ZipCode')||{value:''}).value.trim(),
+    'Resume':(document.getElementById('ef-Resume')||{value:''}).value.trim(),
     'Email':(document.getElementById('ef-Email')||{value:''}).value.trim(),
     'Role':roleBtn?roleBtn.dataset.value||roleBtn.textContent:'',
     'Role Additional':(document.getElementById('ef-RoleAdditional')||{value:''}).value.trim(),
@@ -3914,12 +3925,13 @@ async function savePerson(orig){
   if(hRec){Object.keys(updates).forEach(k=>{hRec[k]=updates[k];});if(emailChanged)hRec.Email=newEmail;}
   if(emailChanged)cascadeEmailInData(orig,newEmail);
   const _personDisplayName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim()||newEmail||orig;
-  // Did the Role change to Ranger Applicant or Ranger Past? If so, this person
-  // should no longer be assigned as Ranger 1 / Ranger 2 / Garden Keeper on any
-  // site — the backend will clear those columns and tell us which schools were affected.
+  // Did the Role change to Ranger Applicant, Ranger Past, or Ranger Applicant
+  // Did Not Work Out? If so, this person should no longer be assigned as
+  // Ranger 1 / Ranger 2 / Garden Keeper on any site — the backend will clear
+  // those columns and tell us which schools were affected.
   const newRoleCat=_roleCategoryFor(updates['Role']);
   const roleChangedAwayFromActive=(updates['Role']||'').trim()!==(origRole||'').trim()&&
-    (newRoleCat==='ranger_applicant'||newRoleCat==='ranger_past');
+    (newRoleCat==='ranger_applicant'||newRoleCat==='ranger_past'||newRoleCat==='ranger_applicant_did_not_work_out');
   // Instant: chime → close → go to people list
   _playChime();
   closeDetailImmediate();
@@ -5140,7 +5152,18 @@ function filterSchools(f){
   else{document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));}
   renderSchools();
 }
-function filterRangers(f){crf=f;document.querySelectorAll('#rangerFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderRangers();_initLazyImages();}
+function filterRangers(f){
+  crf=f;
+  let matchedLabel='Rangers';
+  document.querySelectorAll('#rangerFilters .chip').forEach(c=>{
+    const active=c.dataset.filter===f;
+    c.classList.toggle('active',active);
+    if(active)matchedLabel=c.dataset.label||'Rangers';
+  });
+  const titleEl=document.getElementById('rangerPageTitle');
+  if(titleEl)titleEl.textContent=matchedLabel;
+  renderRangers();_initLazyImages();
+}
 function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();_initLazyImages();}
 let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();},200);});
 
