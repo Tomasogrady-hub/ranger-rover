@@ -283,6 +283,21 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
 .leaflet-tooltip.map-label::before{display:none}
 
+/* ── SMART MAP (Operations) ── */
+#smartMapWrap{position:relative;height:70vh;min-height:420px;border-radius:var(--r-md);overflow:hidden;margin:0 16px 16px;box-shadow:0 1px 6px rgba(0,0,0,.12)}
+#smartMap{position:absolute;inset:0;background:var(--fog)}
+#smartMapFilters{position:absolute;top:8px;left:8px;right:8px;z-index:1000;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+#smartMapFilters>*{pointer-events:all}
+.smartmap-layer-chip{padding:7px 13px;border:none;border-radius:99px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap;background:rgba(255,255,255,.93);color:var(--stone);box-shadow:0 2px 8px rgba(0,0,0,.2);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.smartmap-layer-chip.active[data-layer="sites"]{background:var(--grove);color:#fff}
+.smartmap-layer-chip.active[data-layer="rangers"]{background:#6a4fb3;color:#fff}
+.smartmap-layer-chip.active[data-rfilter]{background:#6a4fb3;color:#fff}
+.smartmap-select{padding:8px 10px;border:none;border-radius:8px;background:rgba(255,255,255,.93);font-family:var(--font-b);font-size:12px;color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.18);outline:none;cursor:pointer}
+.smartmap-status{background:rgba(255,255,255,.93);border-radius:8px;padding:6px 10px;font-size:12px;font-family:var(--font-b);color:var(--stone);display:none;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.smartmap-legend{position:absolute;bottom:10px;left:8px;z-index:1000;background:rgba(255,255,255,.93);border-radius:8px;padding:6px 10px;font-size:11px;font-family:var(--font-b);color:var(--stone);box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;gap:10px;flex-wrap:wrap;max-width:calc(100% - 16px)}
+.smartmap-legend span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.smartmap-legend i{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+
 /* ── STATES ── */
 .empty{text-align:center;padding:52px 24px}
 .empty-glyph{font-family:var(--font-d);font-size:52px;font-weight:300;font-style:italic;color:var(--mist);margin-bottom:10px}
@@ -755,8 +770,54 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
       </div>
       <div id="ops-tab4" style="display:none">
-        <div class="page-header"><span class="page-title">Operations</span></div>
-        <div class="ops-empty-page">Coming soon</div>
+        <div class="page-header"><span class="page-title">Smart Map</span></div>
+        <div style="padding:0 16px 6px;color:var(--stone);font-family:var(--font-b);font-size:13px">
+          Layer sites and ranger home locations to see coverage at a glance. Tap a ranger marker to see which sites they're connected to.
+        </div>
+        <div id="smartMapWrap">
+          <div id="smartMapFilters">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="smartmap-layer-chip active" data-layer="sites" onclick="toggleSmartMapLayer('sites')">🏫 Sites</button>
+              <button class="smartmap-layer-chip" data-layer="rangers" onclick="toggleSmartMapLayer('rangers')">🧑‍🌾 Rangers</button>
+            </div>
+            <div id="smartMapSiteFilters" style="display:flex;gap:6px;flex-wrap:wrap">
+              <select id="smFilterType" class="smartmap-select" onchange="refreshSmartMap()">
+                <option value="type_active" selected>All Active Sites</option>
+                <option value="type_future">Future Ranger Program</option>
+                <option value="type_inactive">Inactive Ranger Program</option>
+                <option value="type_possible">Possible Ranger Program</option>
+                <option value="all">All Types</option>
+              </select>
+              <select id="smFilterStatus" class="smartmap-select" onchange="refreshSmartMap()">
+                <option value="" selected>All Statuses</option>
+                <option value="grp_started">GRP Started</option>
+                <option value="grp_not_started">GRP NOT Started</option>
+                <option value="responded">Responded</option>
+                <option value="no_response">No Response</option>
+                <option value="has_po">Has PO</option>
+              </select>
+              <select id="smFilterRanger" class="smartmap-select" onchange="refreshSmartMap()">
+                <option value="" selected>Ranger: All</option>
+                <option value="assigned">🌿 Assigned</option>
+                <option value="unassigned">◻ Unassigned</option>
+              </select>
+            </div>
+            <div id="smartMapRangerFilters" style="display:none;gap:6px;flex-wrap:wrap">
+              <button class="smartmap-layer-chip active" data-rfilter="active" onclick="toggleSmartMapRangerFilter('active')">🌿 Active Rangers</button>
+              <button class="smartmap-layer-chip" data-rfilter="other" onclick="toggleSmartMapRangerFilter('other')">Applicants / Past</button>
+            </div>
+            <div class="smartmap-status" id="smartMapStatus"></div>
+          </div>
+          <div id="smartMap"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div></div>
+          <div class="smartmap-legend" id="smartMapLegend">
+            <span><i style="background:#1e3a1e"></i>Active site</span>
+            <span><i style="background:#c07000"></i>Open chores</span>
+            <span><i style="background:#6a4fb3"></i>Ranger</span>
+            <span><i style="background:#b8860b"></i>Master Ranger</span>
+            <span><i style="background:#00838f"></i>Garden Keeper</span>
+            <span><i style="background:#9e9e9e"></i>Applicant/Past</span>
+          </div>
+        </div>
       </div>
       <div id="ops-tab5" style="display:none">
         <div class="page-header"><span class="page-title">Operations</span></div>
@@ -772,7 +833,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <button class="ops-subnav-btn active" data-ops="home" onclick="showOperationsPage('home')">🏠 Home</button>
         <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">📝 Notes</button>
         <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">📋 Forms</button>
-        <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">Tab 4</button>
+        <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">🗺 Smart Map</button>
         <button class="ops-subnav-btn" data-ops="tab5" onclick="showOperationsPage('tab5')">Tab 5</button>
         <button class="ops-subnav-btn" data-ops="tab6" onclick="showOperationsPage('tab6')">Tab 6</button>
       </div>
@@ -1072,10 +1133,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.10';
+const APP_VERSION='v10.11';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-13 Rangers page: added Did Not Work Out filter chip, page title now matches the active filter, Zip Code shown beside each name, and Resume + Zip Code added to the person card and edit form.';
+const BUILD_STAMP='2026-08-15 Operations Tab 4 is now Smart Map: layered map with a Sites layer (existing filters plus Ranger Assigned/Unassigned) and a new Rangers layer showing where rangers live, geocoded and cached from their Humans sheet address. Tap a ranger pin to draw lines to their assigned sites.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2962,17 +3023,27 @@ function _renderDirtyTab(tab){
 let _leafletMap=null;
 function shortLabel(n){return n.replace(/ Elementary$/,'').replace(/ Middle School$/,'').replace(/ Charter$/,' Ch.').replace(/ Academy$/,'').slice(0,22);}
 
-function initMap(){
-  if(mapInited)return;mapInited=true;
+/* Shared Leaflet loader — safe to call from multiple map instances (Map tab, Smart Map). */
+function _loadLeaflet(cb){
+  if(window.L){cb();return;}
+  window._leafletCbs=window._leafletCbs||[];
+  window._leafletCbs.push(cb);
+  if(window._leafletLoading)return;
+  window._leafletLoading=true;
   const link=document.createElement('link');link.rel='stylesheet';link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(link);
   const script=document.createElement('script');script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-  script.onload=()=>{
+  script.onload=()=>{const cbs=window._leafletCbs||[];window._leafletCbs=[];cbs.forEach(f=>f());};
+  document.head.appendChild(script);
+}
+
+function initMap(){
+  if(mapInited)return;mapInited=true;
+  _loadLeaflet(()=>{
     _leafletMap=L.map('map',{zoomControl:true}).setView([34.05,-118.35],10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(_leafletMap);
     buildMapMarkers();
     setTimeout(()=>_leafletMap.invalidateSize(),150);
-  };
-  document.head.appendChild(script);
+  });
 }
 
 function buildMapMarkers(){
@@ -3025,6 +3096,203 @@ function refreshMapChores(){
   _leafletMap.eachLayer(l=>{if(l instanceof L.Marker)_leafletMap.removeLayer(l);});
   buildMapMarkers();
   if(_userLat!==null)_placeUserMarker();
+}
+
+/* ═══ SMART MAP (Operations) — layered Sites + Ranger-home-location map ═══ */
+let _smartMapInited=false;
+let _smartMapLeaflet=null;
+let _smartMapLayers={sites:true,rangers:false};
+let _smartMapRangerFilter={active:true,other:false};
+let _smartMapSiteMarkers=[];
+let _smartMapRangerMarkers=[];
+let _smartMapConnLines=[];
+let _rangerLocs=null;        // cached geocoded ranger homes: [{email,name,role,lat,lng}]
+let _rangerLocsLoading=false;
+
+function initSmartMap(){
+  if(_smartMapInited)return;_smartMapInited=true;
+  _loadLeaflet(()=>{
+    _smartMapLeaflet=L.map('smartMap',{zoomControl:true}).setView([34.05,-118.35],10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(_smartMapLeaflet);
+    buildSmartMapSiteMarkers();
+    document.getElementById('smartMapLegend').style.display='flex';
+    setTimeout(()=>_smartMapLeaflet.invalidateSize(),150);
+  });
+}
+
+function toggleSmartMapLayer(layer){
+  _smartMapLayers[layer]=!_smartMapLayers[layer];
+  document.querySelectorAll('.smartmap-layer-chip[data-layer]').forEach(b=>{
+    if(b.dataset.layer===layer)b.classList.toggle('active',_smartMapLayers[layer]);
+  });
+  const rf=document.getElementById('smartMapRangerFilters');
+  if(rf)rf.style.display=_smartMapLayers.rangers?'flex':'none';
+  if(layer==='sites')buildSmartMapSiteMarkers();
+  if(layer==='rangers'){
+    if(_smartMapLayers.rangers){loadRangerLocations();}
+    else{_clearSmartMapRangerMarkers();_clearSmartMapConnLines();
+      const st=document.getElementById('smartMapStatus');if(st)st.style.display='none';}
+  }
+}
+
+function toggleSmartMapRangerFilter(key){
+  _smartMapRangerFilter[key]=!_smartMapRangerFilter[key];
+  document.querySelectorAll('.smartmap-layer-chip[data-rfilter]').forEach(b=>{
+    if(b.dataset.rfilter===key)b.classList.toggle('active',_smartMapRangerFilter[key]);
+  });
+  buildSmartMapRangerMarkers();
+}
+
+function refreshSmartMap(){buildSmartMapSiteMarkers();}
+
+function buildSmartMapSiteMarkers(){
+  if(!_smartMapLeaflet)return;
+  _smartMapSiteMarkers.forEach(m=>_smartMapLeaflet.removeLayer(m));
+  _smartMapSiteMarkers=[];
+  if(!_smartMapLayers.sites)return;
+  let sites=getMySchools()||DATA.sites;
+  const typeSel=document.getElementById('smFilterType'),statusSel=document.getElementById('smFilterStatus'),rangerSel=document.getElementById('smFilterRanger');
+  const typeF=typeSel?typeSel.value:'type_active';
+  const statusF=statusSel?statusSel.value:'';
+  const rangerF=rangerSel?rangerSel.value:'';
+  sites=sites.filter(s=>{
+    const t=(sf(s,'Type','type')||'').toLowerCase();
+    if(typeF==='type_active'&&t!=='active ranger program')return false;
+    if(typeF==='type_future'&&t!=='future ranger program')return false;
+    if(typeF==='type_inactive'&&t!=='inactive ranger program')return false;
+    if(typeF==='type_possible'&&t!=='possible ranger program')return false;
+    if(statusF){
+      const started=String(sf(s,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true';
+      const responded=String(sf(s,'Any Response?','AnyResponse','anyResponse')||'').toLowerCase()==='true';
+      const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+      if(statusF==='grp_started'&&!started)return false;
+      if(statusF==='grp_not_started'&&started)return false;
+      if(statusF==='responded'&&!responded)return false;
+      if(statusF==='no_response'&&responded)return false;
+      if(statusF==='has_po'&&!hasPO)return false;
+    }
+    const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim();
+    if(rangerF==='assigned'&&!r1)return false;
+    if(rangerF==='unassigned'&&r1)return false;
+    return true;
+  });
+  sites.forEach(s=>{
+    const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
+    const parts=ll.toString().split(',');if(parts.length<2)return;
+    const lat=parseFloat(parts[0]),lng=parseFloat(parts[1]);if(isNaN(lat)||isNaN(lng))return;
+    const name=sf(s,'Name','name');
+    const key=sf(s,'Key','key');
+    const t=(sf(s,'Type','type')||'').toLowerCase();
+    const openC=openChoresForSite(key).length;
+    const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim();
+    const label=shortLabel(name)+(openC>0?` (${openC}⚠)`:'')+(!r1?' ◻':'');
+    const dotColor=openC>0?'#c07000':t.includes('future')?'#1a5f8a':t.includes('inactive')?'#9e9e9e':t.includes('possible')?'#b87333':'#1e3a1e';
+    const ringCss=r1?'':'outline:2px solid #d33;outline-offset:1px;';
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:14px;height:14px;background:${dotColor};border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer;${ringCss}"></div>`,
+      iconSize:[14,14],iconAnchor:[7,7]
+    });
+    const marker=L.marker([lat,lng],{icon}).addTo(_smartMapLeaflet);
+    const openHandler=()=>{showSchoolDetailByKey(key||'');};
+    marker.on('click',openHandler);
+    marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-10],interactive:true});
+    marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
+    _smartMapSiteMarkers.push(marker);
+  });
+}
+
+async function loadRangerLocations(){
+  const statusEl=document.getElementById('smartMapStatus');
+  if(_rangerLocs){buildSmartMapRangerMarkers();return;}
+  if(_rangerLocsLoading)return;
+  _rangerLocsLoading=true;
+  if(statusEl){statusEl.style.display='block';statusEl.textContent='📍 Locating rangers…';}
+  try{
+    let all=[],remaining=1,guard=0;
+    while(remaining>0&&guard<12){
+      const j=await gasPost({action:'getRangerLocations'});
+      if(j&&j.ok===false)throw new Error(j.error||'Failed to load ranger locations');
+      all=all.concat((j&&j.locations)||[]);
+      remaining=(j&&j.remaining)||0;
+      guard++;
+      if(remaining>0&&statusEl)statusEl.textContent=`📍 Locating rangers… (${all.length} found so far)`;
+    }
+    _rangerLocs=all;
+    if(statusEl){
+      statusEl.textContent=`📍 ${all.length} ranger home${all.length===1?'':'s'} mapped`;
+      setTimeout(()=>{if(statusEl&&_smartMapLayers.rangers)statusEl.style.display='none';},2500);
+    }
+  }catch(e){
+    if(statusEl){statusEl.style.display='block';statusEl.textContent='⚠ Could not load ranger locations';}
+  }finally{
+    _rangerLocsLoading=false;
+    buildSmartMapRangerMarkers();
+  }
+}
+
+function _clearSmartMapRangerMarkers(){
+  _smartMapRangerMarkers.forEach(m=>_smartMapLeaflet&&_smartMapLeaflet.removeLayer(m));
+  _smartMapRangerMarkers=[];
+}
+function _clearSmartMapConnLines(){
+  _smartMapConnLines.forEach(l=>_smartMapLeaflet&&_smartMapLeaflet.removeLayer(l));
+  _smartMapConnLines=[];
+}
+
+const RANGER_LAYER_COLORS={ranger:'#6a4fb3',master_ranger:'#b8860b',garden_keeper:'#00838f',ranger_applicant:'#9e9e9e',ranger_past:'#c9c9c9'};
+function buildSmartMapRangerMarkers(){
+  if(!_smartMapLeaflet)return;
+  _clearSmartMapRangerMarkers();
+  _clearSmartMapConnLines();
+  if(!_smartMapLayers.rangers||!_rangerLocs)return;
+  const activeCats=['ranger','master_ranger','garden_keeper'];
+  const otherCats=['ranger_applicant','ranger_past'];
+  const show=_rangerLocs.filter(r=>{
+    if(activeCats.includes(r.role))return _smartMapRangerFilter.active;
+    if(otherCats.includes(r.role))return _smartMapRangerFilter.other;
+    return false;
+  });
+  show.forEach(r=>{
+    if(r.lat==null||r.lng==null||isNaN(r.lat)||isNaN(r.lng))return;
+    const color=RANGER_LAYER_COLORS[r.role]||'#6a4fb3';
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:16px;height:16px;background:${color};border-radius:6px 6px 6px 0;transform:rotate(45deg);border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer"></div>`,
+      iconSize:[16,16],iconAnchor:[8,14]
+    });
+    const marker=L.marker([r.lat,r.lng],{icon}).addTo(_smartMapLeaflet);
+    const label=(r.name||r.email||'Ranger').split(' ')[0];
+    marker.bindTooltip(label,{permanent:false,direction:'top',className:'map-label',offset:[0,-14]});
+    marker.on('click',()=>_smartMapShowRangerConnections(r));
+    _smartMapRangerMarkers.push(marker);
+  });
+}
+
+function _smartMapShowRangerConnections(ranger){
+  _clearSmartMapConnLines();
+  if(!_smartMapLeaflet||!ranger.email)return;
+  const email=ranger.email.toLowerCase();
+  const mySites=(DATA.sites||[]).filter(s=>{
+    const r1=String(sf(s,'Ranger 1','Ranger1')||'').toLowerCase();
+    const r2=String(sf(s,'Ranger 2','Ranger2')||'').toLowerCase();
+    const gk=String(sf(s,'Garden Keeper','GardenKeeper')||'').toLowerCase();
+    return r1===email||r2===email||gk===email;
+  });
+  const names=[];
+  mySites.forEach(s=>{
+    const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
+    const p2=ll.toString().split(',');if(p2.length<2)return;
+    const slat=parseFloat(p2[0]),slng=parseFloat(p2[1]);if(isNaN(slat)||isNaN(slng))return;
+    const line=L.polyline([[ranger.lat,ranger.lng],[slat,slng]],{color:'#6a4fb3',weight:2,opacity:.75,dashArray:'4,6'}).addTo(_smartMapLeaflet);
+    _smartMapConnLines.push(line);
+    names.push(sf(s,'Name','name'));
+  });
+  const statusEl=document.getElementById('smartMapStatus');
+  if(statusEl){
+    statusEl.style.display='block';
+    statusEl.textContent=names.length?`🌿 ${ranger.name||ranger.email}: ${names.join(', ')}`:`${ranger.name||ranger.email}: no site currently assigned`;
+  }
 }
 
 /* ═══ LOCATION TRACKING ═══ */
@@ -4827,6 +5095,12 @@ function showOperationsPage(sub){
   if(sub==='tab3'){
     _formsBackToList();
     loadFormsList();
+  }
+  if(sub==='tab4'){
+    setTimeout(()=>{
+      initSmartMap();
+      if(_smartMapLeaflet)_smartMapLeaflet.invalidateSize();
+    },50);
   }
 }
 async function saveOpsSharedNotes(){
