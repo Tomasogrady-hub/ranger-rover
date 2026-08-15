@@ -187,6 +187,138 @@ function ensureOperationsColumns() {
   }
 }
 
+// ── ONE-TIME MIGRATION: add ranger home-geocode cache columns to Humans sheet ──
+// Adds 'Home LatLng' (cached "lat,lng") and 'Home LatLng Src' (the exact address
+// string that was geocoded to produce it, used to detect when an address has
+// changed and needs re-geocoding). Runs lazily — only when the Smart Map's
+// Rangers layer is first used — so it never slows down normal doGet loads.
+function ensureRangerLatLngColumns(sheet) {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('migration_ranger_latlng_cols_v1') === 'done') return;
+  try {
+    var lastCol = sheet.getLastColumn();
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    var needed = ['Home LatLng', 'Home LatLng Src'];
+    var toAdd = needed.filter(function(h) { return headers.indexOf(h) === -1; });
+    if (toAdd.length) {
+      sheet.getRange(1, lastCol + 1, 1, toAdd.length).setValues([toAdd]);
+      Logger.log('ensureRangerLatLngColumns: added ' + toAdd.join(', '));
+    }
+    props.setProperty('migration_ranger_latlng_cols_v1', 'done');
+  } catch (e) {
+    Logger.log('ensureRangerLatLngColumns error: ' + e.message);
+    // Do NOT set 'done' — will retry next call
+  }
+}
+
+// ── SMART MAP: Rangers layer ────────────────────────────────────────────────
+// Geocodes each ranger's home address (Street Address, City, State, Zip Code,
+// Country — falling back to just Zip Code + Country when no street address is
+// on file) and caches the result directly on the Humans sheet so repeat loads
+// are instant reads instead of repeat geocode calls. Only re-geocodes a row
+// when its address text has actually changed since the last cache write.
+// Processes new/changed addresses in bounded batches (GEOCODE_BATCH_LIMIT) to
+// stay well inside the Apps Script execution time limit; the client calls
+// again (using the returned "remaining" count) until every row is cached.
+var GEOCODE_BATCH_LIMIT = 40;
+var RANGER_ROLE_CATS = {
+  'master ranger':  'master_ranger',
+  'garden keeper':  'garden_keeper',
+  'applicant':      'ranger_applicant',
+  'past':           'ranger_past',
+  'ranger':         'ranger'
+};
+function _rangerRoleCategory(roleText) {
+  var r = String(roleText || '').toLowerCase();
+  if (r.indexOf('master ranger') > -1) return 'master_ranger';
+  if (r.indexOf('garden keeper') > -1) return 'garden_keeper';
+  if (r.indexOf('applicant') > -1)     return 'ranger_applicant';
+  if (r.indexOf('past') > -1)          return 'ranger_past';
+  if (r.indexOf('ranger') > -1)        return 'ranger';
+  return '';
+}
+
+function handleGetRangerLocations(p) {
+  try {
+    var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+    ensureRangerLatLngColumns(sheet);
+
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var idx = {};
+    headers.forEach(function(h, i) { idx[h] = i; });
+
+    var out = [];
+    var toGeocode = [];
+
+    for (var r = 1; r < data.length; r++) {
+      var row = data[r];
+      var roleText = (idx['Role'] !== undefined ? row[idx['Role']] : '') + ' ' +
+                      (idx['Role Additional'] !== undefined ? row[idx['Role Additional']] : '');
+      var cat = _rangerRoleCategory(roleText);
+      if (!cat) continue;
+
+      var street  = idx['Street Address'] !== undefined ? String(row[idx['Street Address']] || '').trim() : '';
+      var city    = idx['City']           !== undefined ? String(row[idx['City']]           || '').trim() : '';
+      var state   = idx['State']          !== undefined ? String(row[idx['State']]          || '').trim() : '';
+      var zip     = idx['Zip Code']       !== undefined ? String(row[idx['Zip Code']]        || '').trim() : '';
+      var country = idx['Country']        !== undefined ? String(row[idx['Country']]         || '').trim() : '';
+
+      var addr;
+      if (street) {
+        addr = [street, city, state, zip, country].filter(function(x){return x;}).join(', ');
+      } else if (zip) {
+        addr = [zip, country || 'USA'].filter(function(x){return x;}).join(', ');
+      } else {
+        continue; // nothing usable to geocode
+      }
+
+      var email = idx['Email'] !== undefined ? String(row[idx['Email']] || '').trim() : '';
+      var fn = idx['First Name'] !== undefined ? row[idx['First Name']] : '';
+      var ln = idx['Last Name']  !== undefined ? row[idx['Last Name']]  : '';
+      var name = (String(fn || '') + ' ' + String(ln || '')).trim();
+      if (!name) name = (idx['Name'] !== undefined ? String(row[idx['Name']] || '') : '') || email;
+
+      var cachedLL  = idx['Home LatLng']     !== undefined ? String(row[idx['Home LatLng']]     || '').trim() : '';
+      var cachedSrc = idx['Home LatLng Src'] !== undefined ? String(row[idx['Home LatLng Src']] || '').trim() : '';
+
+      if (cachedLL && cachedSrc === addr) {
+        var parts = cachedLL.split(',');
+        if (parts.length === 2) {
+          var clat = parseFloat(parts[0]), clng = parseFloat(parts[1]);
+          if (!isNaN(clat) && !isNaN(clng)) {
+            out.push({ email: email, name: name, role: cat, lat: clat, lng: clng });
+            continue;
+          }
+        }
+      }
+      toGeocode.push({ rowNum: r + 1, addr: addr, email: email, name: name, cat: cat });
+    }
+
+    var batch = toGeocode.slice(0, GEOCODE_BATCH_LIMIT);
+    if (batch.length) {
+      var geocoder = Maps.newGeocoder();
+      batch.forEach(function(item) {
+        try {
+          var res = geocoder.geocode(item.addr);
+          if (res && res.status === 'OK' && res.results && res.results.length) {
+            var loc = res.results[0].geometry.location;
+            sheet.getRange(item.rowNum, idx['Home LatLng'] + 1).setValue(loc.lat + ',' + loc.lng);
+            sheet.getRange(item.rowNum, idx['Home LatLng Src'] + 1).setValue(item.addr);
+            out.push({ email: item.email, name: item.name, role: item.cat, lat: loc.lat, lng: loc.lng });
+          }
+        } catch (geoErr) {
+          Logger.log('Geocode failed for "' + item.addr + '": ' + geoErr.message);
+        }
+      });
+    }
+
+    return { ok: true, locations: out, remaining: Math.max(0, toGeocode.length - batch.length) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 // ── doGet ─────────────────────────────────────────────────────────────────────
 function doGet(e) {
   // One-time migration: convert Site Names → Keys in Chores + Humans sheets
@@ -256,6 +388,7 @@ function doPost(e) {
       case 'saveChore':      return respond(handleSaveChore(p));
       case 'deleteChore':    return respond(handleDeleteChore(p));
       case 'getSelfProfile': return respond(handleGetSelfProfile(p));
+      case 'getRangerLocations': return respond(handleGetRangerLocations(p));
       case 'uploadSiteImage':  return respond(handleUploadSiteImage(p));
       case 'uploadHumanImage': return respond(handleUploadHumanImage(p));
 
