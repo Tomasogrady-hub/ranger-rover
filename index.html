@@ -1133,10 +1133,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.12';
+const APP_VERSION='v10.13';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-19 Fixed a bug where Nav Visibility (access-level tab settings) could get silently reverted by unrelated saves, like updating the GAS URL, Broadcast, Twilio, or Ops Notes, if that browser tab had an older copy of settings in memory. Only the Nav Visibility panel itself can change nav visibility now, both on the client and enforced server-side, so other saves can never touch it, stale or not.';
+const BUILD_STAMP='2026-08-19 Fixed Latest feed hotlinks: when someone edits a person (e.g. "Johanna edited Candi Diaz"), the name now links to the person who was edited, not the person who made the edit. Also fixed the same mixup for the comments-edit log entry. (Also includes the v10.12 nav visibility security fix — needs a fresh GAS deployment.)';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4213,7 +4213,12 @@ async function savePerson(orig){
       updates['_logAction']  = 'edited';
       updates['_logSubject'] = _personDisplayName;
       updates['_logSubjType']= 'person';
-      updates['_logDetail']  = '';
+      // Store the edited person's email so the Latest feed can hotlink to
+      // THEM, not the actor who made the edit. Previously this was blank,
+      // so the feed had nothing to go on but the actor's email and used
+      // that for every person-edit row — e.g. "Johanna edited Candi Diaz"
+      // linked "Candi Diaz" to Johanna's own profile.
+      updates['_logDetail']  = newEmail||orig||'';
       await saveToSheet('Humans',orig,updates);
       if(emailChanged){
         // Ask GAS to cascade the email change in Sites + Chores sheets
@@ -6834,6 +6839,7 @@ function activityRowHtml(item){
   const _isChoreType=item.subjectType==='chore';
   const _isSiteType=item.subjectType==='site';
   let subjectLink='',_choreLabel='';
+  let _personEditUsedDetailAsEmail=false; // set below; read further down when deciding whether to render detail text
   if(_isChoreType){
     // subject is a chore ID for most actions, but a Task name for photo uploads.
     // detail stores "Task — SiteKey" (photo uploads store just "SiteKey").
@@ -6875,9 +6881,31 @@ function activityRowHtml(item){
         ?`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(_personEmail)}')">${_personName}</button>`
         :`<span style="font-weight:500">${_personName}</span>`;
     } else {
-      // subject is display name; actor is the email key (legacy behaviour —
-      // used for entries where the actor IS the subject, e.g. first sign-in)
-      subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
+      // Non-"added person" actions (edits, comments, role changes, etc). Some
+      // of these carry the affected person's email in item.detail (edits —
+      // see _logDetail in editPersonSave), some carry it as item.subject
+      // itself (e.g. role-change clearing). Only treat either as an email
+      // link target if it actually looks like one — detail is sometimes
+      // instead genuine descriptive text (e.g. "Site (Ranger 1)") that must
+      // still render as detail, not get swallowed trying to use it as a link.
+      const _emailRe=/^\S+@\S+\.\S+$/;
+      const _detailIsEmail=_emailRe.test((item.detail||'').trim());
+      const _subjIsEmail=_emailRe.test((item.subject||'').trim());
+      const _linkEmail=_detailIsEmail?item.detail.trim():(_subjIsEmail?item.subject.trim():'');
+      _personEditUsedDetailAsEmail=_detailIsEmail; // read below when deciding whether to also show detail text
+      const _linkRow=_linkEmail?DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===_linkEmail.toLowerCase()):null;
+      const _label=(item.subject&&!_subjIsEmail)?item.subject:(_linkRow?fullName(_linkRow):_linkEmail);
+      if(_linkRow){
+        subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(_linkEmail)}')">${_label||item.subject||''}</button>`;
+      } else if(_linkEmail){
+        // Have an email but the person isn't in current DATA (deleted?) — link by search instead of guessing.
+        const _pn=ea(_label||_linkEmail);
+        subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showTab('people');setTimeout(()=>{var _sb=document.getElementById('searchbar');if(_sb){_sb.value='${_pn}';_sb.dispatchEvent(new Event('input'));}},150)">${_label||item.subject||_linkEmail}</button>`;
+      } else {
+        // No email anywhere (legacy entry from before this fix) — actor IS
+        // the subject in this specific case (e.g. first sign-in).
+        subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showPersonDetail('${ea(item.actor||'')}')">${item.subject||''}</button>`;
+      }
     }
   } else {
     subjectLink=`<span style="font-weight:500">${item.subject||''}</span>`;
@@ -6934,6 +6962,9 @@ function activityRowHtml(item){
         ?` <span style="color:var(--stone)">at</span> <button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_sKey)}')">${_sName}</button>`
         :` <span style="color:var(--stone)">at</span> <span style="font-weight:500">${_sName}</span>`);
     }
+  } else if(item.subjectType==='person' && item.action!=='added person' && _personEditUsedDetailAsEmail){
+    // detail was the edited person's email, consumed above for the hotlink —
+    // it's a data carrier here, not human-readable text, so never show it raw.
   } else {
     // Strip noisy column names from detail (site edit field lists)
     const _NOISY_COLS=/\b(Schedule|Ranger 1 Name|Ranger 2 Name|Ranger 1|Ranger 2|Garden Keeper Name|Garden Keeper|Ranger Day Of Week \d|Program Started\?|Any Response\?|Distance|enrollment|Principal Email Raw|Principal First Name Raw|Principal Last Name Raw|Grades&Type|Full Address|Country|Zip Code|CPM|Teachers|Other Contacts|Last Update|Type|Principal|School Administrative Assistant|Main Contact 1|Main Contact 2|Main Contact 3|Plant Manager|Telephone|City|State|Street Address|District)\b,?\s*/gi;
