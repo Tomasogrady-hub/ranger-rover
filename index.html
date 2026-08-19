@@ -756,7 +756,15 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <div id="ops-tab3" style="display:none">
         <div class="page-header"><span class="page-title">Forms</span></div>
         <div id="formsListView">
+          <div style="padding:0 16px 10px">
+            <button class="settings-btn" onclick="_formsOpenTemplatePicker()">➕ New Form</button>
+          </div>
           <div class="card-list" id="formsList" style="padding:0 16px 28px"></div>
+        </div>
+        <div id="formsTemplatePickerView" style="display:none;padding:0 16px 28px">
+          <button class="settings-btn" style="margin-bottom:10px" onclick="_formsBackToList()">← Back to Forms</button>
+          <div style="font-family:var(--font-b);font-weight:700;margin-bottom:8px">Choose a form to fill out</div>
+          <div class="card-list" id="formsTemplateList"></div>
         </div>
         <div id="formsFillView" style="display:none;padding:0 16px 28px">
           <button class="settings-btn" style="margin-bottom:10px" onclick="_formsBackToList()">← Back to Forms</button>
@@ -1133,10 +1141,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.13';
+const APP_VERSION='v10.14';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-19 Fixed Latest feed hotlinks: when someone edits a person (e.g. "Johanna edited Candi Diaz"), the name now links to the person who was edited, not the person who made the edit. Also fixed the same mixup for the comments-edit log entry. (Also includes the v10.12 nav visibility security fix — needs a fresh GAS deployment.)';
+const BUILD_STAMP='2026-08-19 Forms: added New Form button that creates a fresh row per fill-out instead of overwriting the same one. School is now a dropdown pulled from Sites, and picking a school auto-fills Principal and CPM.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5125,14 +5133,20 @@ async function saveOpsSharedNotes(){
 }
 /* ═══ FORMS (Operations > Forms) ═══ */
 let _formsCache=null;      // {forms, yesNoCols, textCols} from getForms
+let _formsSitesCache=null; // {sites:[{name,principal,cpm}]} from getSitesForForms
+let _formsTemplatesCache=null; // {templates:[{name,link}]} from getFormTemplates
 let _formsCurrentId=null;  // ID of the form currently open in the fill view
 
 async function loadFormsList(){
   const listEl=document.getElementById('formsList');
   if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">Loading…</div>';
   try{
-    const res=await gasPost({action:'getForms'});
-    _formsCache=res;
+    const [formsRes,sitesRes]=await Promise.all([
+      gasPost({action:'getForms'}),
+      _formsSitesCache?Promise.resolve(_formsSitesCache):gasPost({action:'getSitesForForms'})
+    ]);
+    _formsCache=formsRes;
+    _formsSitesCache=sitesRes;
     renderFormsList();
   }catch(e){
     if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">Could not load forms.</div>';
@@ -5143,41 +5157,97 @@ function renderFormsList(){
   if(!listEl||!_formsCache)return;
   const forms=_formsCache.forms||[];
   if(!forms.length){
-    listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No forms yet.</div>';
+    listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No forms yet. Tap "+ New Form" to start one.</div>';
     return;
   }
   listEl.innerHTML=forms.map(f=>{
     const filled=(_formsCache.textCols||[]).filter(c=>f[c]).length + (_formsCache.yesNoCols||[]).filter(c=>f[c]).length;
     const total=(_formsCache.textCols||[]).length + (_formsCache.yesNoCols||[]).length;
     const status=filled===0?'Not started':(filled>=total?'Complete':filled+' of '+total+' fields filled');
+    const pdfNote=f['PDF Generated']?' · PDF generated':'';
     return `<div class="action-row" onclick="_formsOpenFill('${ea(f.ID)}')">
       <div style="font-weight:700">${ea(f['Form Name']||'Untitled Form')}</div>
-      <div style="font-size:13px;color:var(--stone)">${ea(f.School||'No school set')} · ${ea(status)}</div>
+      <div style="font-size:13px;color:var(--stone)">${ea(f.School||'No school set')} · ${ea(status)}${pdfNote}</div>
     </div>`;
   }).join('');
 }
 function _formsFindById(id){
   return (_formsCache&&_formsCache.forms||[]).find(f=>String(f.ID)===String(id));
 }
+
+/* ── New Form: template picker ── */
+async function _formsOpenTemplatePicker(){
+  document.getElementById('formsListView').style.display='none';
+  document.getElementById('formsTemplatePickerView').style.display='block';
+  const listEl=document.getElementById('formsTemplateList');
+  listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">Loading…</div>';
+  try{
+    if(!_formsTemplatesCache)_formsTemplatesCache=await gasPost({action:'getFormTemplates'});
+    const templates=_formsTemplatesCache.templates||[];
+    if(!templates.length){
+      listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No form templates set up yet.</div>';
+      return;
+    }
+    listEl.innerHTML=templates.map(t=>`<div class="action-row" onclick="_formsCreateInstance('${ea(t.name)}')">
+      <div style="font-weight:700">${ea(t.name)}</div>
+    </div>`).join('');
+  }catch(e){
+    listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">Could not load form templates.</div>';
+  }
+}
+async function _formsCreateInstance(templateName){
+  const listEl=document.getElementById('formsTemplateList');
+  if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">Creating…</div>';
+  try{
+    const res=await gasPost({action:'createFormInstance',templateName});
+    if(!res.ok)throw new Error(res.error||'Failed to create form');
+    // Refresh the forms list so the new row is in _formsCache, then open it
+    await loadFormsList();
+    document.getElementById('formsTemplatePickerView').style.display='none';
+    _formsOpenFill(res.id);
+  }catch(e){
+    if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">'+ea(e.message||'Could not create form')+'</div>';
+  }
+}
+
 function _formsOpenFill(id){
   _formsCurrentId=id;
   document.getElementById('formsListView').style.display='none';
+  document.getElementById('formsTemplatePickerView').style.display='none';
   document.getElementById('formsFillView').style.display='block';
   document.getElementById('formsFillStatus').textContent='';
   renderFormsFillFields();
 }
 function _formsBackToList(){
   _formsCurrentId=null;
-  const lv=document.getElementById('formsListView'), fv=document.getElementById('formsFillView');
-  if(lv)lv.style.display='block';
-  if(fv)fv.style.display='none';
+  document.getElementById('formsListView').style.display='block';
+  document.getElementById('formsTemplatePickerView').style.display='none';
+  document.getElementById('formsFillView').style.display='none';
+}
+function _formsOnSchoolChange(sel){
+  const site=(_formsSitesCache&&_formsSitesCache.sites||[]).find(s=>s.name===sel.value);
+  const pEl=document.getElementById('ff-Principal'), cEl=document.getElementById('ff-CPM');
+  if(site){
+    if(pEl)pEl.value=site.principal||'';
+    if(cEl)cEl.value=site.cpm||'';
+  }
 }
 function renderFormsFillFields(){
   const wrap=document.getElementById('formsFillFields');
   if(!wrap||!_formsCache)return;
   const f=_formsFindById(_formsCurrentId)||{};
+  const sites=(_formsSitesCache&&_formsSitesCache.sites)||[];
   let html='';
   (_formsCache.textCols||[]).forEach(col=>{
+    if(col==='School'){
+      const cur=f.School||'';
+      html+=`<div class="edit-wrap"><div class="edit-label">School</div>
+        <select class="edit-input" id="ff-School" onchange="_formsOnSchoolChange(this)">
+          <option value="" ${cur?'':'selected'}>— Select a school —</option>
+          ${sites.map(s=>`<option value="${ea(s.name)}" ${s.name===cur?'selected':''}>${ea(s.name)}</option>`).join('')}
+        </select></div>`;
+      return;
+    }
     html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
       <input class="edit-input" id="ff-${ea(col)}" value="${ea(f[col]||'')}"></div>`;
   });
