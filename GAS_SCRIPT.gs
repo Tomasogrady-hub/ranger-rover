@@ -1862,12 +1862,20 @@ function handleSaveComments(p) {
   var data  = sheet.getDataRange().getValues();
   var hdr   = data[0];
   var emailIdx    = hdr.indexOf('Email');
+  var fnIdx       = hdr.indexOf('First Name');
+  var lnIdx       = hdr.indexOf('Last Name');
   var commentsIdx = hdr.indexOf('Comments');
   if (emailIdx === -1 || commentsIdx === -1) return { ok: false, error: 'Column not found' };
   for (var i = 1; i < data.length; i++) {
     if ((data[i][emailIdx] || '').toLowerCase().trim() === email) {
       sheet.getRange(i + 1, commentsIdx + 1).setValue(p.comments || '');
-      logActivity(p.actor || '', 'edited comments', p.email, 'person', '');
+      var _fn = fnIdx > -1 ? String(data[i][fnIdx] || '') : '';
+      var _ln = lnIdx > -1 ? String(data[i][lnIdx] || '') : '';
+      var _displayName = (_fn + ' ' + _ln).trim() || p.email;
+      // subject = display name (for reading), detail = email (for the Latest
+      // feed hotlink) — matches the convention in handleSaveEdit so the feed
+      // links to the person whose comments were edited, not the editor.
+      logActivity(p.actor || '', 'edited comments', _displayName, 'person', p.email);
       return { ok: true };
     }
   }
