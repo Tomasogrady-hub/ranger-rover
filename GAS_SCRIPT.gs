@@ -9,8 +9,11 @@ const MASTER_SCHOOLS_ID = '1j1vjThg9FV0dj-qMP3RM8T_Lr-ujR2r6vANqhMPoFm8'; // ful
 // ── FORMS (Operations > Forms) ────────────────────────────────────────────────
 const FORMS_ID        = '1H0Mc9kX6XQElVMkq_ALUexEMlof6sAMYiUir8MpObEE'; // "Rover Forms" spreadsheet
 const FORMS_TAB        = 'Forms';
-const FORMS_PDFS_TAB   = 'PDFS';
 const FORMS_PDF_FOLDER = '1yEYFzstRy9JC3N6zYWBnYqzyeguFpI_4'; // "PDF DERIVED FROM" folder
+// Each form instance (row) tracks its own most-recently generated PDF, rather
+// than a separate growing log — regenerating overwrites these two columns.
+const FORMS_PDF_URL_COL  = 'PDF Generated';
+const FORMS_PDF_DATE_COL = 'PDF Generated Date';
 
 // Forms-sheet columns that are Yes/No questions, in the same order as the
 // {{Q1_YESBOX}}/{{Q1_NOBOX}} .. {{Q6_YESBOX}}/{{Q6_NOBOX}} tokens in the template doc.
@@ -2397,9 +2400,11 @@ function handleGetForms() {
   return {
     forms: rows,
     yesNoCols: FORMS_YESNO_COLS,
-    // Fillable free-text columns = every header except ID / Form Name / Actual Form / yes-no cols
+    // Fillable free-text columns = every header except ID / Form Name / Actual Form /
+    // yes-no cols / the system-managed PDF-tracking columns.
     textCols: headers.filter(function(h) {
-      return ['ID', 'Form Name', 'Actual Form'].indexOf(h) === -1 && FORMS_YESNO_COLS.indexOf(h) === -1;
+      return ['ID', 'Form Name', 'Actual Form', FORMS_PDF_URL_COL, FORMS_PDF_DATE_COL].indexOf(h) === -1
+        && FORMS_YESNO_COLS.indexOf(h) === -1;
     })
   };
 }
@@ -2427,17 +2432,21 @@ function handleSaveFormAnswers(p) {
 }
 
 // Fills a copy of the form's template doc with the row's current answers,
-// exports it as a PDF into the "PDF DERIVED FROM" folder, logs it to the
-// PDFS tab, and returns the PDF's Drive URL/blob for preview or emailing.
+// exports it as a PDF into the "PDF DERIVED FROM" folder, and writes the
+// result back into that same row (PDF Generated / PDF Generated Date columns)
+// so re-generating after an edit simply replaces the row's live PDF rather
+// than piling up a separate log entry per attempt.
 function _generateFilledFormPdf(id) {
-  var data    = _formsSheet().getDataRange().getValues();
+  var sheet   = _formsSheet();
+  var data    = sheet.getDataRange().getValues();
   var headers = data[0];
   var idCol   = headers.indexOf('ID');
-  var row = null;
+  var rowIdx  = -1;
   for (var r = 1; r < data.length; r++) {
-    if (String(data[r][idCol]) === id) { row = data[r]; break; }
+    if (String(data[r][idCol]) === id) { rowIdx = r; break; }
   }
-  if (!row) throw new Error('Form not found: ' + id);
+  if (rowIdx === -1) throw new Error('Form not found: ' + id);
+  var row = data[rowIdx];
 
   var rowObj = {};
   headers.forEach(function(h, i) { rowObj[h] = row[i]; });
@@ -2483,14 +2492,22 @@ function _generateFilledFormPdf(id) {
   var pdfFile = folder.createFile(pdfBlob).setName(baseName + '.pdf');
   DriveApp.getFileById(copyFile.getId()).setTrashed(true); // keep only the PDF, not the temp Doc
 
-  var ss = SpreadsheetApp.openById(FORMS_ID);
-  var pdfSheet = ss.getSheetByName(FORMS_PDFS_TAB);
-  if (!pdfSheet) {
-    pdfSheet = ss.insertSheet(FORMS_PDFS_TAB);
-    pdfSheet.appendRow(['Form ID', 'Form Name', 'PDF URL', 'Generated At']);
-    pdfSheet.setFrozenRows(1);
+  // Replace this row's live PDF: trash whatever was previously generated for
+  // this form instance so the folder doesn't accumulate old versions.
+  var oldPdfUrl = rowObj[FORMS_PDF_URL_COL];
+  if (oldPdfUrl) {
+    var oldId = _extractDriveId(oldPdfUrl);
+    if (oldId) {
+      try { DriveApp.getFileById(oldId).setTrashed(true); } catch (e) { /* already gone, ignore */ }
+    }
   }
-  pdfSheet.appendRow([id, rowObj['Form Name'] || '', pdfFile.getUrl(), new Date()]);
+
+  var urlCol  = headers.indexOf(FORMS_PDF_URL_COL);
+  var dateCol = headers.indexOf(FORMS_PDF_DATE_COL);
+  if (urlCol  === -1) throw new Error('Forms sheet is missing a "' + FORMS_PDF_URL_COL + '" column');
+  if (dateCol === -1) throw new Error('Forms sheet is missing a "' + FORMS_PDF_DATE_COL + '" column');
+  sheet.getRange(rowIdx + 1, urlCol + 1).setValue(pdfFile.getUrl());
+  sheet.getRange(rowIdx + 1, dateCol + 1).setValue(new Date());
 
   return {
     pdfUrl:  pdfFile.getUrl(),
