@@ -442,10 +442,13 @@ function doPost(e) {
       case 'requestEmailForward': return respond(handleRequestEmailForward(p));
 
       // ── FORMS (Operations > Forms) ────────────────────────────────────────────
-      case 'getForms':        return respond(handleGetForms());
-      case 'saveFormAnswers': return respond(handleSaveFormAnswers(p));
-      case 'generateFormPdf': return respond(handleGenerateFormPdf(p));
-      case 'emailFormPdf':    return respond(handleEmailFormPdf(p));
+      case 'getForms':          return respond(handleGetForms());
+      case 'getFormTemplates':  return respond(handleGetFormTemplates());
+      case 'createFormInstance':return respond(handleCreateFormInstance(p));
+      case 'getSitesForForms':  return respond(handleGetSitesForForms());
+      case 'saveFormAnswers':   return respond(handleSaveFormAnswers(p));
+      case 'generateFormPdf':   return respond(handleGenerateFormPdf(p));
+      case 'emailFormPdf':      return respond(handleEmailFormPdf(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -2385,6 +2388,92 @@ function _extractDriveId(idOrUrl) {
   var s = String(idOrUrl || '').trim();
   var m = s.match(/[-\w]{25,}/);
   return m ? m[0] : s;
+}
+
+// Reads the "Actual Forms" tab (Form Name | Actual Form) — the registry of
+// available form templates, used both for the sheet's own dropdown on
+// column P and for the app's "+ New Form" template picker.
+function handleGetFormTemplates() {
+  var sheet = SpreadsheetApp.openById(FORMS_ID).getSheetByName('Actual Forms');
+  if (!sheet) return { templates: [] };
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var nameCol = headers.indexOf('Form Name');
+  var linkCol = headers.indexOf('Actual Form');
+  var templates = data.slice(1)
+    .filter(function(row) { return nameCol > -1 && String(row[nameCol] || '').trim(); })
+    .map(function(row) { return { name: row[nameCol], link: linkCol > -1 ? row[linkCol] : '' }; });
+  return { templates: templates };
+}
+
+// Creates a brand-new row (new form instance) in the Forms tab for the given
+// template, so every fill-out gets its own record instead of overwriting an
+// existing one. Returns the new row's ID so the app can open it immediately.
+function handleCreateFormInstance(p) {
+  var templateName = String(p.templateName || '').trim();
+  if (!templateName) return { ok: false, error: 'Missing templateName' };
+
+  var templates = handleGetFormTemplates().templates;
+  var match = templates.filter(function(t) { return t.name === templateName; })[0];
+  if (!match) return { ok: false, error: 'Unknown template: ' + templateName };
+
+  var sheet   = _formsSheet();
+  var headers = sheet.getDataRange().getValues()[0];
+  var newId = Utilities.base64Encode(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,
+      String(Date.now()) + String(Math.random()))
+  ).substring(0, 8).replace(/[+/=]/g, 'x');
+
+  var row = headers.map(function(h) {
+    if (h === 'ID')          return newId;
+    if (h === 'Form Name')   return templateName;
+    if (h === 'Actual Form') return match.link;
+    return '';
+  });
+  sheet.appendRow(row);
+  return { ok: true, id: newId };
+}
+
+// Returns every site's name plus its Principal and CPM, for the School
+// dropdown in the Forms fill view and auto-filling Principal/CPM on selection.
+function handleGetSitesForForms() {
+  var sitesData = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues();
+  var sh = sitesData[0];
+  var nameCol  = sh.indexOf('Name');
+  var princCol = sh.indexOf('Principal');
+  var firstCol = sh.indexOf('Principal First Name Raw');
+  var lastCol  = sh.indexOf('Principal Last Name Raw');
+  var cpmCol   = sh.indexOf('CPM');
+
+  // Email -> display name, to resolve a Principal email into a readable name
+  // when the site doesn't already have Principal First/Last Name Raw filled in.
+  var humansData = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans').getDataRange().getValues();
+  var hh = humansData[0];
+  var hEmailCol = hh.indexOf('Email');
+  var hNameCol  = hh.indexOf('Name');
+  var emailToName = {};
+  if (hEmailCol > -1 && hNameCol > -1) {
+    for (var hr = 1; hr < humansData.length; hr++) {
+      var em = String(humansData[hr][hEmailCol] || '').trim().toLowerCase();
+      if (em) emailToName[em] = humansData[hr][hNameCol];
+    }
+  }
+
+  var sites = [];
+  for (var r = 1; r < sitesData.length; r++) {
+    var row = sitesData[r];
+    var name = nameCol > -1 ? String(row[nameCol] || '').trim() : '';
+    if (!name) continue;
+    var first = firstCol > -1 ? String(row[firstCol] || '').trim() : '';
+    var last  = lastCol  > -1 ? String(row[lastCol]  || '').trim() : '';
+    var principalEmail = princCol > -1 ? String(row[princCol] || '').trim() : '';
+    var principal = (first || last)
+      ? (first + ' ' + last).trim()
+      : (emailToName[principalEmail.toLowerCase()] || principalEmail);
+    var cpm = cpmCol > -1 ? row[cpmCol] : '';
+    sites.push({ name: name, principal: principal, cpm: cpm });
+  }
+  return { sites: sites };
 }
 
 function handleGetForms() {
