@@ -1924,46 +1924,66 @@ function handleGetAppSettings() {
 function handleSaveAppSettings(p) {
   try {
     var settings = p.settings || {};
-    // Sanitise navVisibility: keys 1-9, values = arrays of known tab strings
-    var KNOWN_TABS = ['notes','schools','map','chores','latest','rangers','people',
-                      'plants','action','operations','reach','settings','data',
-                      'site_ops_btn','team_email_search_btn'];
-    var navVis = {};
-    var rawVis = settings.navVisibility || {};
-    for (var i = 1; i <= 9; i++) {
-      var key = String(i);
-      if (Array.isArray(rawVis[key])) {
-        navVis[key] = rawVis[key].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
-      } else if (Array.isArray(rawVis[i])) {
-        navVis[key] = rawVis[i].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
+    var props = PropertiesService.getScriptProperties();
+
+    // navVisibility controls per-access-level security (what Level 3 field
+    // rangers can and can't see) so it gets special protection: it is ONLY
+    // ever changed when the caller explicitly sets p.updateNavVisibility===true
+    // (the Nav Visibility panel, and the one-time migration backfill). Every
+    // other save path here — Broadcast, Twilio, GAS URL, Ops Notes — always
+    // sends its own full local copy of _appSettings as a convenience, and that
+    // copy's navVisibility can be stale (e.g. this browser tab loaded settings
+    // before another admin/session changed them). Previously this function
+    // trusted whatever navVisibility arrived in the payload, so any one of
+    // those unrelated saves could silently revert nav visibility to an old
+    // snapshot — access toggles "changing themselves" with no one touching
+    // them. Now unrelated saves always re-read and re-write the CURRENT
+    // stored navVisibility untouched, so only an explicit nav-visibility save
+    // can ever change it.
+    var existingRaw = props.getProperty('app_settings');
+    var existing    = existingRaw ? JSON.parse(existingRaw) : {};
+    var navVis      = existing.navVisibility || {};
+
+    if (p.updateNavVisibility === true) {
+      // Sanitise navVisibility: keys 1-9, values = arrays of known tab strings
+      var KNOWN_TABS = ['notes','schools','map','chores','latest','rangers','people',
+                        'plants','action','operations','reach','settings','data',
+                        'site_ops_btn','team_email_search_btn'];
+      var rawVis = settings.navVisibility || {};
+      navVis = {};
+      for (var i = 1; i <= 9; i++) {
+        var key = String(i);
+        if (Array.isArray(rawVis[key])) {
+          navVis[key] = rawVis[key].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
+        } else if (Array.isArray(rawVis[i])) {
+          navVis[key] = rawVis[i].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
+        }
       }
+      // Row 3 Future Slots feature was removed — row3Slots is no longer sanitised or
+      // persisted here. Any leftover row3Slots value from an older save is simply
+      // dropped since navVis is rebuilt from scratch above when updating.
+      // Preserve the one-time migration tracker so newly-introduced toggle keys
+      // (like "operations") don't look like they need backfilling on every load.
+      navVis.__migratedKeys = Array.isArray(rawVis.__migratedKeys)
+        ? rawVis.__migratedKeys.filter(function(t){ return typeof t === 'string'; }).slice(0, 50)
+        : (Array.isArray(existing.navVisibility && existing.navVisibility.__migratedKeys)
+            ? existing.navVisibility.__migratedKeys : []);
     }
-    // Row 3 Future Slots feature was removed — row3Slots is no longer sanitised or
-    // persisted here. Any leftover row3Slots value from an older save is simply
-    // dropped on the next save since navVis is rebuilt from scratch above.
-    // Preserve the one-time migration tracker — without this, every save (even an
-    // unrelated one like Broadcast or Twilio) wiped it, which made the client think
-    // newly-introduced toggle keys (like "operations" for a level with an already-
-    // customized list) still needed backfilling on every single load. That's the
-    // root cause behind the Operations nav tab appearing to "keep turning itself off".
-    navVis.__migratedKeys = Array.isArray(rawVis.__migratedKeys)
-      ? rawVis.__migratedKeys.filter(function(t){ return typeof t === 'string'; }).slice(0, 50)
-      : [];
+
     var safe = {
       plantsEnabled: settings.plantsEnabled !== false,
       broadcast: String(settings.broadcast || '').slice(0, 500),
       opsNotes: String(settings.opsNotes || '').slice(0, 20000),
       navVisibility: navVis
     };
-    PropertiesService.getScriptProperties().setProperty('app_settings', JSON.stringify(safe));
+    props.setProperty('app_settings', JSON.stringify(safe));
     // Store Twilio credentials separately (never bundled into app_settings)
-    var props = PropertiesService.getScriptProperties();
     if (settings.twilioSid)       props.setProperty('twilio_sid',        String(settings.twilioSid).trim());
     if (settings.twilioKeySid)    props.setProperty('twilio_key_sid',    String(settings.twilioKeySid).trim());
     if (settings.twilioKeySecret) props.setProperty('twilio_key_secret', String(settings.twilioKeySecret).trim());
     if (settings.twilioFrom)      props.setProperty('twilio_from',       String(settings.twilioFrom).trim());
     if (p.gasUrl) {
-      PropertiesService.getScriptProperties().setProperty('gas_url', String(p.gasUrl).trim());
+      props.setProperty('gas_url', String(p.gasUrl).trim());
     }
     return { ok: true };
   } catch(e) {
