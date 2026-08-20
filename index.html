@@ -609,14 +609,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 
   <!-- MAP -->
   <div class="tab-pane" id="tab-map" style="height:100%;position:relative">
-    <div id="mapTypeFilters">
-      <button class="map-chip active" data-filter="all"        onclick="filterMap('all')">All</button>
-      <button class="map-chip"        data-filter="active"     onclick="filterMap('active')">🟢 Active</button>
-      <button class="map-chip"        data-filter="future"     onclick="filterMap('future')">🔵 Future</button>
-      <button class="map-chip"        data-filter="inactive"   onclick="filterMap('inactive')">⚫ Inactive</button>
-      <button class="map-chip"        data-filter="possible"   onclick="filterMap('possible')">🟡 Possible</button>
-      <button class="map-chip"        data-filter="open-chores" onclick="filterMap('open-chores')">⚠ Open Chores</button>
-    </div>
+    <div id="mapTypeFilters"></div>
     <div id="mapContainer"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div><div id="map"></div></div>
     <button id="locateBtn" title="My location" onclick="locateMe()" style="display:none">📍</button>
     <div id="nearMeToast">
@@ -1141,10 +1134,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.18';
+const APP_VERSION='v10.19';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 Added Remove for Main Image/W9/TB Test/Ranger Contract (trashes the Drive file + clears the sheet). App now freezes with a countdown during any of these uploads or removals so a stray tap can\'t cause a mistake.';
+const BUILD_STAMP='2026-08-20 Map now has Mine/All Active Schools filters for Level 3 (Mine is the default). Schools opened under All Active Schools show a basics-only card — image, address, directions — with no editing.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3069,6 +3062,10 @@ function _loadLeaflet(cb){
 
 function initMap(){
   if(mapInited)return;mapInited=true;
+  // Level 3 defaults to their own assigned schools; levels 1-2 keep the
+  // existing type-based filter set, defaulting to "All" as before.
+  if(SESSION&&SESSION.accessLevel>=3)cmf='mine';
+  _renderMapFilterChips();
   _loadLeaflet(()=>{
     _leafletMap=L.map('map',{zoomControl:true}).setView([34.05,-118.35],10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(_leafletMap);
@@ -3077,22 +3074,58 @@ function initMap(){
   });
 }
 
+// Level 3 gets exactly two filters — Mine (default) and All Active Schools.
+// Levels 1-2 keep the full type-based filter set used for site management.
+function _renderMapFilterChips(){
+  const wrap=document.getElementById('mapTypeFilters');
+  if(!wrap)return;
+  if(SESSION&&SESSION.accessLevel>=3){
+    wrap.innerHTML=`
+      <button class="map-chip${cmf==='mine'?' active':''}" data-filter="mine" onclick="filterMap('mine')">📍 Mine</button>
+      <button class="map-chip${cmf==='all-active'?' active':''}" data-filter="all-active" onclick="filterMap('all-active')">🟢 All Active Schools</button>`;
+  } else {
+    wrap.innerHTML=`
+      <button class="map-chip${cmf==='all'?' active':''}" data-filter="all" onclick="filterMap('all')">All</button>
+      <button class="map-chip${cmf==='active'?' active':''}" data-filter="active" onclick="filterMap('active')">🟢 Active</button>
+      <button class="map-chip${cmf==='future'?' active':''}" data-filter="future" onclick="filterMap('future')">🔵 Future</button>
+      <button class="map-chip${cmf==='inactive'?' active':''}" data-filter="inactive" onclick="filterMap('inactive')">⚫ Inactive</button>
+      <button class="map-chip${cmf==='possible'?' active':''}" data-filter="possible" onclick="filterMap('possible')">🟡 Possible</button>
+      <button class="map-chip${cmf==='open-chores'?' active':''}" data-filter="open-chores" onclick="filterMap('open-chores')">⚠ Open Chores</button>`;
+  }
+}
+
 function buildMapMarkers(){
   if(!_leafletMap)return;
-  /* level 3 sees only their schools; levels 1+2 can also filter by type */
-  let sites=getMySchools()||DATA.sites;
-  if(cmf!=='all'&&SESSION&&SESSION.accessLevel<=2){
-    sites=sites.filter(s=>{
-      const t=(sf(s,'Type','type')||'').toLowerCase();
-      const name=sf(s,'Name','name');
-      if(cmf==='open-chores')return openChoresForSite(sf(s,'Key','key')).length>0;
-      if(cmf==='active')return t.includes('active') && !t.includes('inactive');
-      if(cmf==='future')return t.includes('future');
-      if(cmf==='inactive')return t.includes('inactive');
-      if(cmf==='possible')return t.includes('possible');
-      return true;
-    });
+  const lvl3=SESSION&&SESSION.accessLevel>=3;
+  let sites;
+  if(lvl3){
+    // "Mine": schools where I'm Ranger 1, Ranger 2, or Garden Keeper.
+    // "All Active Schools": every active site, regardless of assignment.
+    if(cmf==='all-active'){
+      sites=DATA.sites.filter(s=>{
+        const t=(sf(s,'Type','type')||'').toLowerCase();
+        return t.includes('active')&&!t.includes('inactive');
+      });
+    } else {
+      sites=getMySchools()||[];
+    }
+  } else {
+    sites=DATA.sites;
+    if(cmf!=='all'){
+      sites=sites.filter(s=>{
+        const t=(sf(s,'Type','type')||'').toLowerCase();
+        if(cmf==='open-chores')return openChoresForSite(sf(s,'Key','key')).length>0;
+        if(cmf==='active')return t.includes('active') && !t.includes('inactive');
+        if(cmf==='future')return t.includes('future');
+        if(cmf==='inactive')return t.includes('inactive');
+        if(cmf==='possible')return t.includes('possible');
+        return true;
+      });
+    }
   }
+  // Level 3 viewing "All Active Schools" only gets the basics — no edit
+  // ability — since these aren't necessarily their own assigned sites.
+  const useBasicCard=lvl3&&cmf==='all-active';
   sites.forEach(s=>{
     const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
     const parts=ll.toString().split(',');if(parts.length<2)return;
@@ -3109,7 +3142,9 @@ function buildMapMarkers(){
       iconSize:[14,14],iconAnchor:[7,7]
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
-    const openHandler=()=>{showSchoolDetailByKey(sf(s,'Key','key')||'');};
+    const openHandler=useBasicCard
+      ?()=>{showSchoolBasicByKey(sf(s,'Key','key')||'');}
+      :()=>{showSchoolDetailByKey(sf(s,'Key','key')||'');};
     marker.on('click',openHandler);
     marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-10],interactive:true});
     marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
@@ -3459,6 +3494,28 @@ function showSiteChores(siteKey){
 function showSchoolDetail(idx){const site=(window._fs||DATA.sites)[idx];if(!site)return;renderSchoolDetail(site,false);openDetail();}
 function showSchoolDetailByKey(key){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;window._opsEditMode=false;renderSchoolDetail(site,false);openDetail();}
 function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name','name')===name);if(!site)return;renderSchoolDetail(site,false);openDetail();}
+
+// Stripped-down, non-editable school card — Main Image, Address, Directions
+// only. Used on the Map's "All Active Schools" filter for level 3, since
+// those sites aren't necessarily the ranger's own to view/edit in full.
+function showSchoolBasicByKey(key){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolBasic(site);openDetail();}
+function renderSchoolBasic(site){
+  const name=sf(site,'Name','name');
+  const addr=sf(site,'FullAddress','Full Address','address')||[sf(site,'Street Address','StreetAddress'),sf(site,'City','city'),sf(site,'State','state'),sf(site,'Zip Code','ZipCode')].filter(Boolean).join(', ');
+  const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
+  const maps=addr?`https://maps.google.com/?q=${encodeURIComponent(addr)}`:`https://maps.google.com/?q=${encodeURIComponent(name+' Los Angeles')}`;
+  document.getElementById('detail-content').innerHTML=`
+    <div class="sheet-head">
+      <div class="sheet-title" style="font-size:26px">${escHtml(name)}</div>
+      <button class="sheet-x" onclick="closeDetailBtnChime()">✕</button>
+    </div>
+    ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" style="width:100%;aspect-ratio:1;object-fit:cover;object-position:top center;border-radius:var(--r-sm);opacity:0;transition:opacity .3s;background:var(--fog)" onerror="this.parentElement.style.display='none'"></div>`:''}
+    ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv">${escHtml(addr)}</div></div>`:''}
+    <div class="detail-ctas">
+      <a class="dcta filled" href="${maps}" target="_blank" rel="noopener">🧭 Directions</a>
+    </div>
+    <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
+}
 
 function renderSchoolDetail(site,editMode,opsMode){
   opsMode=!!opsMode;
