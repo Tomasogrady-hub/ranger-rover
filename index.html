@@ -507,13 +507,13 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <!-- 2: Version — narrow, vertical text -->
   <div class="hdr-ver" id="appVersionLabel">v3.2</div>
   <!-- 3: Avatar square — user photo fills full cell, purple fallback -->
-  <button id="headerNameBtn" class="hdr-btn" onclick="showSelfEdit()" style="flex:0 0 58px;padding:0;overflow:hidden;background:#9B6BB5;border-right:1px solid rgba(255,255,255,.12)">
+  <button id="headerNameBtn" class="hdr-btn" onclick="showSelfProfile()" style="flex:0 0 58px;padding:0;overflow:hidden;background:#9B6BB5;border-right:1px solid rgba(255,255,255,.12)">
     <div id="hdrAvatarWrap" class="hdr-avatar-init-sq">?</div>
   </button>
   <!-- 4: Spacer square — same color as name cell, gives name more breathing room -->
   <div style="background:#4CBFAD;flex:0 0 10px;border-right:1px solid rgba(255,255,255,.12)"></div>
   <!-- 5: Name -->
-  <button class="hdr-name-cell" onclick="showSelfEdit()" style="border:none;cursor:pointer;pointer-events:all">
+  <button class="hdr-name-cell" onclick="showSelfProfile()" style="border:none;cursor:pointer;pointer-events:all">
     <span class="hdr-name-text" id="hdrNameLabel"></span>
   </button>
   <!-- 6: Refresh — icon only -->
@@ -1141,10 +1141,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.15';
+const APP_VERSION='v10.16';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-19 5:30 PM: Added Ranger Documents (W-9, TB Test, Ranger Contract uploads + Ranger Live Scan status) and mailing address fields to the Humans card, shown only for Ranger/Ranger Onboarding/Ranger Applicant/Ranger Past/Master Ranger/Garden Keeper roles.';
+const BUILD_STAMP='2026-08-20 My Profile now opens to a read-only card first (Edit button to change it) with the full field set for Level 3. File uploads (Main Image, W9, TB Test, Ranger Contract) now save with human-readable names: FirstLast+Field+Date.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5704,6 +5704,60 @@ async function showPlantDetail(rowIndex){
 }
 
 /* ═══ SELF EDIT (own profile from header) ═══ */
+async function showSelfProfile(){
+  document.getElementById('detail-content').innerHTML='<div class="spinner" style="margin-top:80px"></div>';
+  openDetail();
+  try{
+    const data=await gasPost({action:'getSelfProfile',email:SESSION.email});
+    if(!data.ok)throw new Error(data.error||'Could not load profile');
+    const p=data.profile;
+    const existingH=DATA.humans.find(h=>(h.Email||'').toLowerCase()===SESSION.email.toLowerCase());
+    const resolvedImg=existingH?getImgSrc(existingH['Main Image']||''):'';
+    const name=((p['First Name']||'')+' '+(p['Last Name']||'')).trim()||SESSION.name||p['Email']||'';
+    const initials=inits(name||'?');
+    const smsConsent=String(p['SMS Consent']||'').trim().toUpperCase()==='TRUE';
+    const smsConsentDate=p['SMS Consent Date']?new Date(p['SMS Consent Date']).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    const resume=p['Resume']||'';
+    const resumeIsUrl=/^https?:\/\//i.test(String(resume).trim());
+    const addressLine=[p['Street Address'],p['City'],p['State'],p['Zip Code'],p['Country']].filter(Boolean).join(', ');
+    document.getElementById('detail-content').innerHTML=`
+      <div class="sheet-head">
+        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+          <div style="width:54px;height:54px;border-radius:50%;overflow:hidden;border:1px solid var(--mist);background:var(--fog);flex-shrink:0;display:flex;align-items:center;justify-content:center">
+            ${resolvedImg?`<img src="${resolvedImg}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-family:var(--font-d);font-size:20px;color:var(--silver)\\'>${initials}</span>'">`:`<span style="font-family:var(--font-d);font-size:20px;color:var(--silver)">${initials}</span>`}
+          </div>
+          <div class="sheet-title" style="font-size:28px">My Profile</div>
+        </div>
+        <button class="sheet-x" onclick="closeDetailBtnChime()">✕</button>
+      </div>
+      <div class="ds"><div class="dl">First Name</div><div class="dv">${escHtml(p['First Name']||'—')}</div></div>
+      <div class="ds"><div class="dl">Last Name</div><div class="dv">${escHtml(p['Last Name']||'—')}</div></div>
+      <div class="ds"><div class="dl">Email</div><div class="dv">${p['Email']?`<a class="dlink" href="${gmailUrl(p['Email'])}" target="_blank" rel="noopener">${escHtml(p['Email'])}</a>`:'—'}</div></div>
+      <div class="ds"><div class="dl">Mobile</div><div class="dv">${p['Mobile']?`<a class="dlink" href="tel:${cleanPhone(p['Mobile'])}">${escHtml(p['Mobile'])}</a>`:'—'}</div></div>
+      <div class="ds"><div class="dl">Role</div><div class="dv">${escHtml(p['Role']||'—')}</div></div>
+      <div class="ds"><div class="dl">Role Additional</div><div class="dv">${escHtml(p['Role Additional']||'—')}</div></div>
+      <div class="ds"><div class="dl">Resume</div><div class="dv">${resume?(resumeIsUrl?`<a class="dlink" href="${ea(resume)}" target="_blank" rel="noopener">📄 View Resume</a>`:escHtml(resume)):'—'}</div></div>
+      <div class="ds"><div class="dl">Address</div><div class="dv">${addressLine?escHtml(addressLine):'—'}</div></div>
+      <div class="edit-wrap" style="background:var(--fog);border-radius:var(--r-sm);padding:14px 16px">
+        <div style="font-size:13px;font-weight:600;color:var(--stone);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px">SMS Consent</div>
+        <div style="font-size:14px;color:var(--stone);margin-bottom:2px">Status: <strong>${smsConsent?'Opted in':'Not opted in'}</strong></div>
+        ${smsConsentDate?`<div style="font-size:12px;color:var(--silver)">Last updated: ${escHtml(smsConsentDate)}</div>`:''}
+      </div>
+      <div class="ds"><div class="dl">Ranger Live Scan</div><div class="dv">${escHtml(p['Ranger Live Scan']||'—')}</div></div>
+      <div class="ds"><div class="dl">Ranger Documents</div><div class="dv">
+        ${p['W9']?`<a class="dlink" href="${ea(p['W9'])}" target="_blank" rel="noopener">📄 W-9</a>`:'W-9: not uploaded'}<br>
+        ${p['TB Test']?`<a class="dlink" href="${ea(p['TB Test'])}" target="_blank" rel="noopener">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
+        ${p['Ranger Contract']?`<a class="dlink" href="${ea(p['Ranger Contract'])}" target="_blank" rel="noopener">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}
+      </div></div>
+      <button class="btn-edit" onclick="showSelfEdit()">✏ Edit</button>
+      <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
+  }catch(e){
+    document.getElementById('detail-content').innerHTML=`
+      <div class="sheet-head"><div class="sheet-title">My Profile</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+      <div class="ds"><div class="dv" style="color:var(--danger)">${escHtml(e.message)}</div></div>`;
+  }
+}
+
 async function showSelfEdit(){
   document.getElementById('detail-content').innerHTML='<div class="spinner" style="margin-top:80px"></div>';
   openDetail();
@@ -5755,9 +5809,21 @@ async function showSelfEdit(){
         <textarea class="edit-textarea" id="self-Comments">${ea(p['Comments']||'')}</textarea></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Profile Image URL</div>
         <input class="edit-input" id="self-MainImage" value="${ea(p['Main Image']||'')}" placeholder="or paste Google Drive or image URL…"></div>
+      <hr class="section-divider">
+      <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Mailing Address</div>
+      <div class="edit-wrap"><div class="edit-label">Street Address</div><input class="edit-input" id="self-StreetAddress" value="${ea(p['Street Address']||'')}"></div>
+      <div class="edit-wrap"><div class="edit-label">City</div><input class="edit-input" id="self-City" value="${ea(p['City']||'')}"></div>
+      <div class="edit-wrap"><div class="edit-label">State</div><input class="edit-input" id="self-State" value="${ea(p['State']||'')}"></div>
+      <div class="edit-wrap"><div class="edit-label">Zip Code</div><input class="edit-input" id="self-ZipCode" value="${ea(p['Zip Code']||'')}" placeholder="Zip"></div>
+      <div class="edit-wrap"><div class="edit-label">Country</div><input class="edit-input" id="self-Country" value="${ea(p['Country']||'')}"></div>
+      <hr class="section-divider">
+      <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Ranger Documents</div>
+      ${_docUploadRow(p,'W9')}
+      ${_docUploadRow(p,'TBTest')}
+      ${_docUploadRow(p,'RangerContract')}
       <div class="edit-actions">
         <button class="btn-save" onclick="saveSelfEdit('${ea(SESSION.email)}')">Save</button>
-        <button class="btn-cancel" onclick="closeDetailBtnChime()">Cancel</button>
+        <button class="btn-cancel" onclick="showSelfProfile()">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
   }catch(e){
@@ -5777,6 +5843,11 @@ async function saveSelfEdit(email){
     'Main Image':(document.getElementById('self-MainImage')||{value:''}).value.trim(),
   };
   if(lvl<=2){const cel=document.getElementById('self-Comments');if(cel)updates['Comments']=cel.value.trim();}
+  const streetEl=document.getElementById('self-StreetAddress');if(streetEl)updates['Street Address']=streetEl.value.trim();
+  const cityEl=document.getElementById('self-City');if(cityEl)updates['City']=cityEl.value.trim();
+  const stateEl=document.getElementById('self-State');if(stateEl)updates['State']=stateEl.value.trim();
+  const zipEl=document.getElementById('self-ZipCode');if(zipEl)updates['Zip Code']=zipEl.value.trim();
+  const countryEl=document.getElementById('self-Country');if(countryEl)updates['Country']=countryEl.value.trim();
   const pendingPhoto=window._pendingSelfPhoto;
   window._pendingSelfPhoto=null;
   // Update session name immediately so header reflects change without waiting
