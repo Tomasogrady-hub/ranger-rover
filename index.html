@@ -1134,10 +1134,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.20';
+const APP_VERSION='v10.21';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 Map now shows a large 🏠 home-address marker for the logged-in user (geocoded from their Street Address/City/State/Zip/Country), on top of everything from v10.19.';
+const BUILD_STAMP='2026-08-20 Fix: a leftover login-time line was force-hiding the whole map filter bar for Level 3, which is why the Mine/All Active Schools chips from v10.19 never appeared. Filter bar now shows for every access level.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1771,7 +1771,7 @@ function showApp(){
   buildNav(lvl); // Nav Visibility settings (incl. Plants) are applied by loadAppSettings once loaded
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
   document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
-  const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display=lvl<=2?'flex':'none';
+  const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display='flex';
   document.getElementById('searchInput').placeholder='Search…';
   const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
   _updateHdrAvatar();
