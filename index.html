@@ -1141,10 +1141,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.16';
+const APP_VERSION='v10.17';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 My Profile now opens to a read-only card first (Edit button to change it) with the full field set for Level 3. File uploads (Main Image, W9, TB Test, Ranger Contract) now save with human-readable names: FirstLast+Field+Date.';
+const BUILD_STAMP='2026-08-20 Ranger document uploads (W9/TB Test/Ranger Contract) now grant the ranger view access to their own uploaded file only, without opening the restricted Drive folder itself to anyone.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6564,7 +6564,7 @@ async function _uploadHumanDoc(email,file,docType){
       try{
         const base64=e.target.result.split(',')[1];
         const j=await gasPost({action:'uploadHumanDoc',email,docType,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
-        j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
+        j.ok?resolve({url:j.url,sharedWithOwner:j.sharedWithOwner!==false}):reject(new Error(j.error||'Upload failed'));
       }catch(err){reject(err);}
     };
     reader.onerror=()=>reject(new Error('File read error'));
@@ -6577,13 +6577,14 @@ async function handleHumanDocFile(input,docType,email){
   const statusEl=document.getElementById('doc-status-'+docType);
   if(statusEl)statusEl.textContent='Uploading…';
   try{
-    const url=await _uploadHumanDoc(email,file,docType);
+    const {url,sharedWithOwner}=await _uploadHumanDoc(email,file,docType);
     const col=DOC_TYPE_COLS[docType];
     const h=DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase()===email.toLowerCase());
     if(h&&col)h[col]=url;
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    if(statusEl)statusEl.innerHTML=`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a>`;
-    showSaveToast('✓ '+label+' uploaded');
+    if(statusEl)statusEl.innerHTML=`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a>`+
+      (sharedWithOwner?'':'<div style="color:var(--danger);font-size:12px;margin-top:4px">⚠ Uploaded, but couldn\'t grant this person view access — an admin should check Drive sharing.</div>');
+    showSaveToast(sharedWithOwner?'✓ '+label+' uploaded':'⚠ '+label+' uploaded but sharing failed');
   }catch(e){
     if(statusEl)statusEl.textContent='⚠ Upload failed: '+e.message;
     showSaveToast('⚠ '+label+' upload failed — '+e.message);
