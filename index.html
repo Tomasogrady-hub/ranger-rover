@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v9.97 | BUILDITALL: 2026-07-31 22:10 PT | Ranger Rover PWA -->
+<!-- v10.23 | BUILDITALL: 2026-08-20 13:16 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1134,10 +1134,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.22';
+const APP_VERSION='v10.23';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 Home marker now shows a permanent "🏠 [Name]" label (not just on hover) and surfaces any real lookup error as a toast, so a missing GAS redeploy shows up on screen instead of failing silently.';
+const BUILD_STAMP='2026-08-20 13:16 PT — Fixed Data > People role filter: it now includes every role from the Roles tab (not just roles already assigned to someone) and rebuilds whenever the role list changes, instead of only populating once.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -8441,9 +8441,12 @@ function showDataPage(page){
   if(page==='people')renderDataPeople();
 }
 
-// Distinct values across Role + Role Additional, for the top filter dropdown
+// Distinct values for the top filter dropdown — union of the Roles tab (so brand-new
+// roles show up even before anyone is assigned to them) and whatever's actually in use
+// across Role + Role Additional (covers legacy/free-text values not in the Roles tab).
 function _dataPeopleRoleOptions(){
   const set=new Set();
+  (DATA.roles||[]).forEach(r=>{const n=(r.name||'').trim(); if(n)set.add(n);});
   (DATA.humans||[]).forEach(h=>{
     const r=(h.Role||h.role||'').trim(); if(r)set.add(r);
     const ra=(h['Role Additional']||'').trim(); if(ra)set.add(ra);
@@ -8471,12 +8474,29 @@ function _dataPeopleFilterCounts(){
 function renderDataPeople(){
   const counts=_dataPeopleFilterCounts();
   const roleSel=document.getElementById('dataPeopleRoleFilter');
-  // Populate role options once (first render / whenever it's still just the default)
-  if(roleSel && roleSel.options.length<=1){
-    roleSel.options[0].textContent=`All Roles (${counts.total})`;
-    _dataPeopleRoleOptions().forEach(r=>{
-      const o=document.createElement('option');o.value=r;o.textContent=`${r} (${counts.roleCounts[r]||0})`;roleSel.appendChild(o);
-    });
+  // Rebuild the option list whenever the set of available roles has actually changed
+  // (new role added to the Roles tab, or a new Role/Role Additional value shows up),
+  // not just on first render — otherwise newly-added roles never appear until a full
+  // app reload. Cheap to compare via a joined-names fingerprint on the <select>.
+  if(roleSel){
+    const opts=_dataPeopleRoleOptions();
+    const fp=opts.join('|');
+    if(roleSel.dataset.optFp!==fp){
+      const prevVal=roleSel.value;
+      roleSel.innerHTML='<option value="">All Roles</option>';
+      opts.forEach(r=>{
+        const o=document.createElement('option');o.value=r;o.textContent=`${r} (${counts.roleCounts[r]||0})`;roleSel.appendChild(o);
+      });
+      roleSel.options[0].textContent=`All Roles (${counts.total})`;
+      if(prevVal && Array.from(roleSel.options).some(o=>o.value===prevVal))roleSel.value=prevVal;
+      roleSel.dataset.optFp=fp;
+    }else{
+      // Same role set — just refresh the counts in the existing option labels.
+      roleSel.options[0].textContent=`All Roles (${counts.total})`;
+      Array.from(roleSel.options).forEach(o=>{
+        if(o.value)o.textContent=`${o.value} (${counts.roleCounts[o.value]||0})`;
+      });
+    }
   }
   // Access Level filter counts are refreshed every render (cheap, fixed option set)
   const lvlSel=document.getElementById('dataPeopleAccessFilter');
