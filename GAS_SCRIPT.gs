@@ -422,6 +422,7 @@ function doPost(e) {
       case 'uploadSiteImage':  return respond(handleUploadSiteImage(p));
       case 'uploadHumanImage': return respond(handleUploadHumanImage(p));
       case 'uploadHumanDoc':   return respond(handleUploadHumanDoc(p));
+      case 'removeHumanFile':  return respond(handleRemoveHumanFile(p));
 
       // ── PUBLIC SMS CONSENT PAGE (no login; token-verified) ───────────────────
       case 'publicSmsOptInStatus': return respond(handlePublicSmsOptInStatus(p));
@@ -1589,6 +1590,62 @@ function handleUploadHumanDoc(p) {
     var displayName = (firstName + ' ' + lastName).trim() || p.email;
     logActivity(p.actor || '', 'uploaded ' + docInfo.col, displayName, 'person', docInfo.col);
     return { ok: true, url: url, sharedWithOwner: sharedWithOwner };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Removes a previously-uploaded Main Image / W9 / TB Test / Ranger Contract:
+// trashes the underlying Drive file (best-effort — a missing/already-trashed
+// file won't fail the whole operation) and clears the sheet cell. Reuses
+// _extractDriveId (defined further down, in the Forms section) to pull the
+// file ID back out of whichever URL format that column was saved in.
+var HUMANS_REMOVABLE_FILE_COLS = {
+  'MainImage':      'Main Image',
+  'W9':             'W9',
+  'TBTest':         'TB Test',
+  'RangerContract': 'Ranger Contract'
+};
+function handleRemoveHumanFile(p) {
+  try {
+    var col = HUMANS_REMOVABLE_FILE_COLS[p.fieldKey];
+    if (!col) return { ok: false, error: 'Unknown fieldKey: ' + p.fieldKey };
+    if (!p.email) return { ok: false, error: 'Missing email' };
+
+    var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+    var data  = sheet.getDataRange().getValues();
+    var h     = data[0];
+    var ei    = h.indexOf('Email');
+    var ci    = h.indexOf(col);
+    var fni   = h.indexOf('First Name'), lni = h.indexOf('Last Name');
+    if (ei === -1) return { ok: false, error: 'Email column not found' };
+    if (ci === -1) return { ok: false, error: 'Column "' + col + '" not found on Humans sheet' };
+
+    var targetRow = -1, currentUrl = '', firstName = '', lastName = '';
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][ei]).toLowerCase().trim() === String(p.email).toLowerCase().trim()) {
+        targetRow  = r;
+        currentUrl = String(data[r][ci] || '');
+        firstName  = fni > -1 ? String(data[r][fni] || '') : '';
+        lastName   = lni > -1 ? String(data[r][lni] || '') : '';
+        break;
+      }
+    }
+    if (targetRow === -1) return { ok: false, error: 'Person not found: ' + p.email };
+
+    var fileId = _extractDriveId(currentUrl);
+    if (fileId) {
+      try {
+        DriveApp.getFileById(fileId).setTrashed(true);
+      } catch (delErr) {
+        Logger.log('handleRemoveHumanFile: could not trash file ' + fileId + ': ' + delErr.message);
+      }
+    }
+
+    sheet.getRange(targetRow + 1, ci + 1).setValue('');
+    var displayName = (firstName + ' ' + lastName).trim() || p.email;
+    logActivity(p.actor || '', 'removed ' + col, displayName, 'person', col);
+    return { ok: true };
   } catch(e) {
     return { ok: false, error: e.message };
   }
