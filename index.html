@@ -1141,10 +1141,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.17';
+const APP_VERSION='v10.18';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 Ranger document uploads (W9/TB Test/Ranger Contract) now grant the ranger view access to their own uploaded file only, without opening the restricted Drive folder itself to anyone.';
+const BUILD_STAMP='2026-08-20 Added Remove for Main Image/W9/TB Test/Ranger Contract (trashes the Drive file + clears the sheet). App now freezes with a countdown during any of these uploads or removals so a stray tap can\'t cause a mistake.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1275,7 +1275,9 @@ function _docUploadRow(h,docType){
   return `<div class="edit-wrap">
     <div class="edit-label">${label}</div>
     <input type="file" accept="application/pdf,image/*" onchange="handleHumanDocFile(this,'${docType}','${ea(email)}')" style="margin-bottom:6px">
-    <div id="${statusId}" style="font-size:13px;color:var(--stone)">${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a>`:'No file uploaded yet'}</div>
+    <div id="${statusId}" style="font-size:13px;color:var(--stone)">
+      ${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeHumanFile('${docType}','${ea(email)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet'}
+    </div>
   </div>`;
 }
 function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase())||null;}
@@ -4095,8 +4097,9 @@ function renderPD(h,edit){
       <hr class="section-divider">
       <div class="edit-wrap">
         <div class="edit-label">Profile Image URL</div>
-        ${imgUrl?`<div class="img-preview"><img data-lazy="${imgUrl}" src="" loading="lazy" style="opacity:0;width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'"></div>`:`<div class="img-preview"><div class="img-placeholder-text">${inits(name)}</div></div>`}
+        <div id="ef-ImgPreview" class="img-preview">${imgUrl?`<img data-lazy="${imgUrl}" src="" loading="lazy" style="opacity:0;width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'">`:`<div class="img-placeholder-text">${inits(name)}</div>`}</div>
         <input class="edit-input" id="ef-Img" value="${ea(h['Main Image']||h.MainImage||'')}" placeholder="Paste Google Drive or image URL…" style="margin-top:8px">
+        ${imgUrl?`<button type="button" onclick="removeHumanFile('MainImage','${ea(email)}',{imgInputId:'ef-Img',previewId:'ef-ImgPreview'})" style="margin-top:8px;display:inline-flex;align-items:center;gap:4px;padding:8px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);background:var(--danger-bg);color:var(--danger);font-size:13px;cursor:pointer;font-family:var(--font-b)">🗑 Remove Photo</button>`:''}
       </div>
       ${showsDocs?`
       <hr class="section-divider">
@@ -5782,9 +5785,7 @@ async function showSelfEdit(){
           </div>
           <div>
             <div class="sheet-title" style="font-size:28px">My Profile</div>
-            <button type="button" onclick="showPhotoOptions(f=>previewSelfPhotoFile(f))" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:8px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);font-size:13px;color:var(--sage);cursor:pointer;font-family:var(--font-b)">
-              📷 ${resolvedImg?'Replace':'Add'} photo
-            </button>
+            <div id="self-photo-btn-row" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">${_selfPhotoButtonsHtml(SESSION.email,!!resolvedImg)}</div>
           </div>
         </div>
         <button class="sheet-x" onclick="closeDetailBtnChime()">✕</button>
@@ -5848,8 +5849,8 @@ async function saveSelfEdit(email){
   const stateEl=document.getElementById('self-State');if(stateEl)updates['State']=stateEl.value.trim();
   const zipEl=document.getElementById('self-ZipCode');if(zipEl)updates['Zip Code']=zipEl.value.trim();
   const countryEl=document.getElementById('self-Country');if(countryEl)updates['Country']=countryEl.value.trim();
-  const pendingPhoto=window._pendingSelfPhoto;
-  window._pendingSelfPhoto=null;
+  // Note: Main Image now uploads immediately on pick (see handleSelfPhotoFile)
+  // rather than being queued for Save, so it's already saved by this point.
   // Update session name immediately so header reflects change without waiting
   const newName=((updates['First Name']||'')+' '+(updates['Last Name']||'')).trim();
   if(newName){SESSION.name=newName;localStorage.setItem(CFG.SK,JSON.stringify(SESSION));const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=newName;}
@@ -5860,13 +5861,6 @@ async function saveSelfEdit(email){
   switchTab('rangers');
   // Save in background
   (async()=>{
-    // Upload pending profile photo if any
-    if(pendingPhoto){
-      try{
-        const url=await _uploadHumanPhoto(email,pendingPhoto);
-        if(url)updates['Main Image']=url;
-      }catch(pe){console.warn('Profile photo upload failed:',pe);}
-    }
     try{
       await saveToSheet('Humans',email,updates);
       const h=DATA.humans.find(x=>(x.Email||'').toLowerCase()===email.toLowerCase());
@@ -6248,6 +6242,37 @@ function previewSelfPhotoFile(file){
   reader.readAsDataURL(file);
 }
 
+/* My Profile photo: uploads immediately on pick (freezes the app via
+   _blockAppDuringUpload) rather than queuing for Save, so it can't be lost
+   to a stray tap mid-upload. */
+function _selfPhotoButtonsHtml(email,hasPhoto){
+  return `<button type="button" onclick="showPhotoOptions(f=>handleSelfPhotoFile(f,'${ea(email)}'))" style="display:inline-flex;align-items:center;gap:4px;padding:8px 13px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);font-size:13px;color:var(--sage);cursor:pointer;font-family:var(--font-b)">📷 ${hasPhoto?'Replace':'Add'} photo</button>`+
+    (hasPhoto?` <button type="button" onclick="removeHumanFile('MainImage','${ea(email)}',{imgInputId:'self-MainImage',previewId:'self-avatar-wrap',btnRowId:'self-photo-btn-row'})" style="display:inline-flex;align-items:center;gap:4px;padding:8px 13px;border:1px solid var(--danger-bg);border-radius:var(--r-sm);background:var(--danger-bg);color:var(--danger);font-size:13px;cursor:pointer;font-family:var(--font-b)">🗑 Remove</button>`:'');
+}
+async function handleSelfPhotoFile(file,email){
+  if(!file)return;
+  _blockAppDuringUpload('Uploading photo… Please give us a moment.');
+  try{
+    const url=await _uploadHumanPhoto(email,file);
+    if(!url)throw new Error('Upload failed');
+    await saveToSheet('Humans',email,{'Main Image':url});
+    const h=DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase()===email.toLowerCase());
+    if(h)h['Main Image']=url;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    const imgInput=document.getElementById('self-MainImage');if(imgInput)imgInput.value=url;
+    const wrap=document.getElementById('self-avatar-wrap');
+    if(wrap)wrap.innerHTML=`<img id="self-img-preview" src="${getImgSrc(url)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`;
+    const btnRow=document.getElementById('self-photo-btn-row');
+    if(btnRow)btnRow.innerHTML=_selfPhotoButtonsHtml(email,true);
+    setTimeout(_updateHdrAvatar,300);
+    showSaveToast('✓ Photo uploaded');
+  }catch(e){
+    showSaveToast('⚠ Photo upload failed — '+e.message);
+  }finally{
+    _unblockAppAfterUpload();
+  }
+}
+
 /* ═══ PHOTO UPLOAD HELPERS ═══ */
 function previewSitePhoto(input,previewId,fieldKey){
   const file=input.files[0];if(!file)return;
@@ -6551,6 +6576,34 @@ async function _uploadHumanPhoto(email,file){
   });
 }
 
+/* ═══ UPLOAD/REMOVE FREEZE OVERLAY ═══
+   Blocks the whole app (full-screen, click-through-proof) while a file
+   upload or removal is in flight, with a live elapsed-time counter, so a
+   stray tap mid-upload can't cause a half-saved state. */
+let _uploadBlockTimer=null,_uploadBlockSeconds=0;
+function _blockAppDuringUpload(message){
+  document.getElementById('upload-block-overlay')?.remove();
+  if(_uploadBlockTimer){clearInterval(_uploadBlockTimer);_uploadBlockTimer=null;}
+  _uploadBlockSeconds=0;
+  const overlay=document.createElement('div');
+  overlay.id='upload-block-overlay';
+  overlay.style='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;pointer-events:all';
+  overlay.innerHTML=`
+    <div class="spinner" style="margin:0"></div>
+    <div style="font-family:var(--font-d);font-size:24px;font-style:italic;color:#fff;text-align:center;padding:0 30px">${escHtml(message||'Uploading…')}</div>
+    <div style="font-size:15px;color:#fff;opacity:.85">Please give us a moment — <span id="upload-block-timer">0</span>s</div>`;
+  document.body.appendChild(overlay);
+  _uploadBlockTimer=setInterval(()=>{
+    _uploadBlockSeconds++;
+    const t=document.getElementById('upload-block-timer');
+    if(t)t.textContent=_uploadBlockSeconds;
+  },1000);
+}
+function _unblockAppAfterUpload(){
+  if(_uploadBlockTimer){clearInterval(_uploadBlockTimer);_uploadBlockTimer=null;}
+  document.getElementById('upload-block-overlay')?.remove();
+}
+
 /* ═══ RANGER DOCUMENTS (W-9 / TB Test / Ranger Contract) ═══
    Uploads immediately on file pick — writes straight to the sheet + local
    DATA cache via GAS 'uploadHumanDoc', same pattern as site photo uploads.
@@ -6576,18 +6629,61 @@ async function handleHumanDocFile(input,docType,email){
   const label=DOC_TYPE_LABELS[docType]||docType;
   const statusEl=document.getElementById('doc-status-'+docType);
   if(statusEl)statusEl.textContent='Uploading…';
+  _blockAppDuringUpload('Uploading '+label+'… Please give us a moment.');
   try{
     const {url,sharedWithOwner}=await _uploadHumanDoc(email,file,docType);
     const col=DOC_TYPE_COLS[docType];
     const h=DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase()===email.toLowerCase());
     if(h&&col)h[col]=url;
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
-    if(statusEl)statusEl.innerHTML=`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a>`+
+    if(statusEl)statusEl.innerHTML=`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeHumanFile('${docType}','${ea(email)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`+
       (sharedWithOwner?'':'<div style="color:var(--danger);font-size:12px;margin-top:4px">⚠ Uploaded, but couldn\'t grant this person view access — an admin should check Drive sharing.</div>');
     showSaveToast(sharedWithOwner?'✓ '+label+' uploaded':'⚠ '+label+' uploaded but sharing failed');
   }catch(e){
     if(statusEl)statusEl.textContent='⚠ Upload failed: '+e.message;
     showSaveToast('⚠ '+label+' upload failed — '+e.message);
+  }finally{
+    _unblockAppAfterUpload();
+  }
+}
+
+/* Removes a Main Image / W-9 / TB Test / Ranger Contract: GAS trashes the
+   underlying Drive file and clears the sheet cell; this updates the local
+   cache + whichever form (admin Humans card or My Profile) is currently
+   open. `opts.imgInputId`/`opts.previewId` are only used for MainImage. */
+async function removeHumanFile(fieldKey,email,opts){
+  opts=opts||{};
+  const label=fieldKey==='MainImage'?'Profile Photo':(DOC_TYPE_LABELS[fieldKey]||fieldKey);
+  if(!confirm('Remove '+label+'? This cannot be undone.'))return;
+  _blockAppDuringUpload('Removing '+label+'… Please give us a moment.');
+  try{
+    const j=await gasPost({action:'removeHumanFile',email,fieldKey,actor:SESSION?SESSION.email:''});
+    if(!j.ok)throw new Error(j.error||'Remove failed');
+    const col=fieldKey==='MainImage'?'Main Image':DOC_TYPE_COLS[fieldKey];
+    const h=DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase()===email.toLowerCase());
+    if(h&&col)h[col]='';
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    if(fieldKey==='MainImage'){
+      if(opts.imgInputId){const el=document.getElementById(opts.imgInputId);if(el)el.value='';}
+      if(opts.previewId){
+        const prev=document.getElementById(opts.previewId);
+        const nm=(h&&fullName(h))||SESSION.name||'?';
+        if(prev)prev.innerHTML=`<div class="img-placeholder-text">${inits(nm)}</div>`;
+      }
+      if(opts.btnRowId){
+        const btnRow=document.getElementById(opts.btnRowId);
+        if(btnRow)btnRow.innerHTML=_selfPhotoButtonsHtml(email,false);
+      }
+      setTimeout(_updateHdrAvatar,300);
+    }else{
+      const statusEl=document.getElementById('doc-status-'+fieldKey);
+      if(statusEl)statusEl.textContent='No file uploaded yet';
+    }
+    showSaveToast('✓ '+label+' removed');
+  }catch(e){
+    showSaveToast('⚠ Remove failed — '+e.message);
+  }finally{
+    _unblockAppAfterUpload();
   }
 }
 
