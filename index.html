@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.25 | BUILDITALL: 2026-08-20 14:20 PT | Ranger Rover PWA -->
+<!-- v10.26 | BUILDITALL: 2026-08-20 15:05 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1149,10 +1149,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.25';
+const APP_VERSION='v10.26';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 14:20 PT — Rangers page: added Ranger Onboarding and Ranger Offered filter chips. Nav Visibility: removed the hardcoded KNOWN_TABS whitelist on the GAS side (root cause of the Data button repeatedly losing itself) in favor of shape-only validation, and added a Live Backend Build readout in Settings so a stale GAS deployment is visible instead of silent.';
+const BUILD_STAMP='2026-08-20 15:05 PT — Found the actual Data-button bug: buildNav() hardcoded Data to Level 1 only ("lvl===1 && ...") regardless of what the Nav Visibility panel said, so toggling it on for Level 2 there did nothing — the setting was never read. Now Data visibility for Level 1/2 is governed purely by the Nav Visibility toggle, same as Operations/Action/Reach. Note: Data page can bulk-edit Access Level with no separate server-side gate, so granting it to Level 2 gives real write access, not just a locked view.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1755,7 +1755,15 @@ function buildNav(lvl){
     // Row 3: Data (lvl1) + Reach
     const row3=document.getElementById('navRow3');
     if(row3){
-      const dataVisible = lvl===1 && _navTabAllowed('data',lvl);
+      // Data page includes bulk access-level editing for Humans (who can change
+      // someone's access level) — a genuinely sensitive capability. It used to
+      // be hardcoded to lvl===1 regardless of what the Nav Visibility panel
+      // said, which is why toggling it on for Level 2 there had no effect: the
+      // panel wrote a setting this code never actually read for any level but
+      // 1. Now it's governed purely by the toggle, same as every other Row
+      // 2/3 tab (Operations, Action, Reach, etc.) — so it's back in Tomas's
+      // control via the panel instead of being silently unreachable.
+      const dataVisible = _navTabAllowed('data',lvl);
       const reachVisible = _navTabAllowed('reach',lvl);
       let r3html = dataVisible ? _navBtn('data','Data') : '';
       r3html += reachVisible ? _navBtn('reach','Reach') : '';
