@@ -40,6 +40,20 @@ const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
 const HUMANS_IMG_FOLDER = '1PsqHbWRwurrVEpwhT-iRNGhjlf9jPgUx';
 const CHORES_IMG_FOLDER = '1f_B10hFEsPg5WUHwpcbS86lq2EcPu_si';
 
+// ── DRIVE FOLDER IDs (sensitive Ranger documents) ─────────────────────────────
+// These folders are intentionally NOT set to "anyone with link" — files stay
+// restricted to whoever the folder is already shared with (see
+// handleUploadHumanDoc). The script writes into them under its own "Execute
+// as: Me" identity, so end users never get Drive-level access.
+const HUMANS_W9_FOLDER       = '1bGprCIDIYBoRd0-gXBD6EVlAwV-BbRii';
+const HUMANS_TB_FOLDER       = '1JJgJAWD3GK-IXUjSIfh5_edO1Uv9tcW0';
+const HUMANS_CONTRACT_FOLDER = '1xYFUnpOzVMM1_QpFmy2rsXOqHMUTQ8nF';
+const HUMANS_DOC_TYPE_MAP = {
+  'W9':             { folder: HUMANS_W9_FOLDER,       col: 'W9' },
+  'TBTest':         { folder: HUMANS_TB_FOLDER,       col: 'TB Test' },
+  'RangerContract': { folder: HUMANS_CONTRACT_FOLDER, col: 'Ranger Contract' }
+};
+
 // ── IMAGE COLUMNS per sheet ───────────────────────────────────────────────────
 const SITES_IMG_COLS  = ['Main Image','Image 2','Image 3',
                           'Helpful Image 1','Helpful Image 2','Helpful Before Image'];
@@ -394,6 +408,7 @@ function doPost(e) {
       case 'getRangerLocations': return respond(handleGetRangerLocations(p));
       case 'uploadSiteImage':  return respond(handleUploadSiteImage(p));
       case 'uploadHumanImage': return respond(handleUploadHumanImage(p));
+      case 'uploadHumanDoc':   return respond(handleUploadHumanDoc(p));
 
       // ── PUBLIC SMS CONSENT PAGE (no login; token-verified) ───────────────────
       case 'publicSmsOptInStatus': return respond(handlePublicSmsOptInStatus(p));
@@ -1477,6 +1492,59 @@ function handleUploadHumanImage(p) {
         }
       }
     }
+    return { ok: true, url: url };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Uploads a W-9 / TB Test / Ranger Contract for a Ranger. Unlike site/human
+// photos, these files are NOT set to "anyone with link" — they land in a
+// restricted Drive folder and inherit that folder's sharing, so only people
+// Tomas has already shared the folder with can open them. The script writes
+// the file under its own identity ("Execute as: Me" deployment), so end
+// users never receive Drive-level permissions themselves.
+function handleUploadHumanDoc(p) {
+  try {
+    var docInfo = HUMANS_DOC_TYPE_MAP[p.docType];
+    if (!docInfo) return { ok: false, error: 'Unknown docType: ' + p.docType };
+    if (!p.email) return { ok: false, error: 'Missing email' };
+
+    var decoded  = Utilities.base64Decode(p.base64);
+    var mime     = p.mimeType || 'application/pdf';
+    var ext      = /pdf/i.test(mime) ? '.pdf' : (/png/i.test(mime) ? '.png' : (/heic|heif/i.test(mime) ? '.jpg' : '.jpg'));
+    var safeMime = /heic|heif/i.test(mime) ? 'image/jpeg' : mime;
+    var stamp    = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyyMMdd_HHmmss');
+    var safeName = p.email + '.' + docInfo.col + '.' + stamp + ext;
+
+    var blob   = Utilities.newBlob(decoded, safeMime, safeName);
+    var folder = DriveApp.getFolderById(docInfo.folder);
+    var file   = folder.createFile(blob);
+    var url    = file.getUrl();
+
+    var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+    var data  = sheet.getDataRange().getValues();
+    var h     = data[0];
+    var ei    = h.indexOf('Email');
+    var ci    = h.indexOf(docInfo.col);
+    if (ei === -1) return { ok: false, error: 'Email column not found' };
+    if (ci === -1) return { ok: false, error: 'Column "' + docInfo.col + '" not found on Humans sheet — add it first.' };
+
+    var rowFound = false, displayName = p.email;
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][ei]).toLowerCase().trim() === String(p.email).toLowerCase().trim()) {
+        sheet.getRange(r + 1, ci + 1).setValue(url);
+        var fni = h.indexOf('First Name'), lni = h.indexOf('Last Name');
+        var fn = fni > -1 ? String(data[r][fni] || '') : '';
+        var ln = lni > -1 ? String(data[r][lni] || '') : '';
+        displayName = (fn + ' ' + ln).trim() || p.email;
+        rowFound = true;
+        break;
+      }
+    }
+    if (!rowFound) return { ok: false, error: 'Person not found: ' + p.email };
+
+    logActivity(p.actor || '', 'uploaded ' + docInfo.col, displayName, 'person', docInfo.col);
     return { ok: true, url: url };
   } catch(e) {
     return { ok: false, error: e.message };
