@@ -1141,10 +1141,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.14';
+const APP_VERSION='v10.15';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-19 Forms: added New Form button that creates a fresh row per fill-out instead of overwriting the same one. School is now a dropdown pulled from Sites, and picking a school auto-fills Principal and CPM.';
+const BUILD_STAMP='2026-08-19 5:30 PM: Added Ranger Documents (W-9, TB Test, Ranger Contract uploads + Ranger Live Scan status) and mailing address fields to the Humans card, shown only for Ranger/Ranger Onboarding/Ranger Applicant/Ranger Past/Master Ranger/Garden Keeper roles.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1234,6 +1234,7 @@ const CANONICAL_ROLE_CATS={
   'ranger_applicant':'ranger_applicant',
   'ranger_past':'ranger_past',
   'ranger_applicant_did_not_work_out':'ranger_applicant_did_not_work_out',
+  'ranger_onboarding':'ranger_onboarding',
   'principal':'principal',
   'plant_manager':'plant_manager',
   'school_administrative_assistant':'saa'
@@ -1257,6 +1258,26 @@ function humanRoleCats(h){
 }
 function humanRoleCat(h){return humanRoleCats(h)[0]||'';}
 const RANGER_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past','ranger_applicant_did_not_work_out'];
+
+// Roles that get the Ranger Documents / mailing address section on the Humans
+// card (W-9, TB Test, Ranger Contract, Ranger Live Scan, Street Address/City/
+// State/Zip/Country). Section is also gated to access level 1-2 (see renderPD)
+// since these fields carry sensitive personal info (e.g. SSN on a W-9).
+const RANGER_DOC_ROLE_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past','ranger_applicant_did_not_work_out','ranger_onboarding'];
+function _showsRangerDocs(h){return humanRoleCats(h).some(c=>RANGER_DOC_ROLE_CATS.includes(c));}
+const DOC_TYPE_COLS={W9:'W9',TBTest:'TB Test',RangerContract:'Ranger Contract'};
+const DOC_TYPE_LABELS={W9:'W-9',TBTest:'TB Test',RangerContract:'Ranger Contract'};
+function _docUploadRow(h,docType){
+  const col=DOC_TYPE_COLS[docType],label=DOC_TYPE_LABELS[docType];
+  const url=h[col]||'';
+  const email=h.Email||h.email||'';
+  const statusId='doc-status-'+docType;
+  return `<div class="edit-wrap">
+    <div class="edit-label">${label}</div>
+    <input type="file" accept="application/pdf,image/*" onchange="handleHumanDocFile(this,'${docType}','${ea(email)}')" style="margin-bottom:6px">
+    <div id="${statusId}" style="font-size:13px;color:var(--stone)">${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a>`:'No file uploaded yet'}</div>
+  </div>`;
+}
 function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase())||null;}
 function fullName(h){if(!h)return '';const fn=h['First Name']||h.FirstName||'',ln=h['Last Name']||h.LastName||'';if(fn||ln)return(fn+' '+ln).trim();return h.Name||h.name||h.Email||h.email||'';}
 function hn(e){const h=gh(e);return h?(fullName(h)||e):e;}
@@ -4010,6 +4031,13 @@ function renderPD(h,edit){
   const name=fullName(h)||h.Email,email=h.Email||h.email||'',mobile=h.Mobile||h.mobile||'',role=h.Role||h.role||'';
   const resume=sf(h,'Resume','resume');
   const zipCode=sf(h,'Zip Code','ZipCode');
+  const streetAddress=sf(h,'Street Address','StreetAddress');
+  const city=sf(h,'City','city');
+  const state=sf(h,'State','state');
+  const country=sf(h,'Country','country');
+  const liveScan=sf(h,'Ranger Live Scan','RangerLiveScan');
+  const showsDocs=_showsRangerDocs(h)&&SESSION&&SESSION.accessLevel<=2;
+  const addressLine=[streetAddress,city,state,zipCode,country].filter(Boolean).join(', ');
   const resumeIsUrl=/^https?:\/\//i.test(resume.trim());
   const imgUrl=getImgSrc(h['Main Image']||h.MainImage||'');
   const _siteLink=s=>{
@@ -4034,7 +4062,6 @@ function renderPD(h,edit){
       <div class="edit-wrap"><div class="edit-label">First Name</div><input class="edit-input" id="ef-FirstName" value="${ea(h['First Name']||h.FirstName||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Last Name</div><input class="edit-input" id="ef-LastName" value="${ea(h['Last Name']||h.LastName||'')}"></div>
       <div class="edit-wrap"><div class="edit-label">Mobile</div><input class="edit-input" id="ef-Mobile" type="tel" value="${ea(mobile)}"></div>
-      <div class="edit-wrap"><div class="edit-label">Zip Code</div><input class="edit-input" id="ef-ZipCode" value="${ea(zipCode)}" placeholder="Zip"></div>
       <div class="edit-wrap"><div class="edit-label">Resume</div><input class="edit-input" id="ef-Resume" value="${ea(resume)}" placeholder="Paste Google Drive or resume URL…"></div>
       <div class="edit-wrap"><div class="edit-label">Email</div>${SESSION&&SESSION.accessLevel<=2?`<input class="edit-input" id="ef-Email" type="email" value="${ea(email)}">`:`<div style="padding:10px 0;color:var(--stone);font-size:15px">${email}<input type="hidden" id="ef-Email" value="${ea(email)}"></div>`}</div>
       <div class="edit-wrap" style="position:relative;z-index:50">
@@ -4071,6 +4098,27 @@ function renderPD(h,edit){
         ${imgUrl?`<div class="img-preview"><img data-lazy="${imgUrl}" src="" loading="lazy" style="opacity:0;width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'"></div>`:`<div class="img-preview"><div class="img-placeholder-text">${inits(name)}</div></div>`}
         <input class="edit-input" id="ef-Img" value="${ea(h['Main Image']||h.MainImage||'')}" placeholder="Paste Google Drive or image URL…" style="margin-top:8px">
       </div>
+      ${showsDocs?`
+      <hr class="section-divider">
+      <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Mailing Address</div>
+      <div class="edit-wrap"><div class="edit-label">Street Address</div><input class="edit-input" id="ef-StreetAddress" value="${ea(streetAddress)}"></div>
+      <div class="edit-wrap"><div class="edit-label">City</div><input class="edit-input" id="ef-City" value="${ea(city)}"></div>
+      <div class="edit-wrap"><div class="edit-label">State</div><input class="edit-input" id="ef-State" value="${ea(state)}"></div>
+      <div class="edit-wrap"><div class="edit-label">Zip Code</div><input class="edit-input" id="ef-ZipCode" value="${ea(zipCode)}" placeholder="Zip"></div>
+      <div class="edit-wrap"><div class="edit-label">Country</div><input class="edit-input" id="ef-Country" value="${ea(country)}"></div>
+      <hr class="section-divider">
+      <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Ranger Documents</div>
+      ${_docUploadRow(h,'W9')}
+      ${_docUploadRow(h,'TBTest')}
+      ${_docUploadRow(h,'RangerContract')}
+      <div class="edit-wrap"><div class="edit-label">Ranger Live Scan</div>
+        <select class="edit-input" id="ef-LiveScan">
+          <option value=""${!liveScan?' selected':''}>— Select —</option>
+          <option value="Approved"${liveScan==='Approved'?' selected':''}>Approved</option>
+          <option value="Rejected"${liveScan==='Rejected'?' selected':''}>Rejected</option>
+          <option value="Not Complete"${liveScan==='Not Complete'?' selected':''}>Not Complete</option>
+        </select>
+      </div>`:''}
       <div class="edit-actions">
         <button class="btn-save" onclick="savePerson('${ea(email)}')">Save</button>
         <button class="btn-cancel" onclick="showPersonDetail('${ea(email||name)}')">Cancel</button>
@@ -4090,6 +4138,14 @@ function renderPD(h,edit){
       ${resume?`<div class="ds"><div class="dl">Resume</div><div class="dv">${resumeIsUrl?`<a class="dlink" href="${ea(resume)}" target="_blank" rel="noopener">📄 View Resume</a>`:ea(resume)}</div></div>`:''}
       ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="${gmailUrl(email)}" target="_blank" rel="noopener">${email}</a></div></div>`:''}
       ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${cleanPhone(mobile)}">${mobile}</a></div></div>`:''}
+      ${showsDocs?`
+      ${addressLine?`<div class="ds"><div class="dl">Address</div><div class="dv">${escHtml(addressLine)}</div></div>`:''}
+      <div class="ds"><div class="dl">Ranger Live Scan</div><div class="dv">${liveScan||'—'}</div></div>
+      <div class="ds"><div class="dl">Ranger Documents</div><div class="dv">
+        ${h['W9']?`<a class="dlink" href="${ea(h['W9'])}" target="_blank" rel="noopener">📄 W-9</a>`:'W-9: not uploaded'}<br>
+        ${h['TB Test']?`<a class="dlink" href="${ea(h['TB Test'])}" target="_blank" rel="noopener">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
+        ${h['Ranger Contract']?`<a class="dlink" href="${ea(h['Ranger Contract'])}" target="_blank" rel="noopener">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}
+      </div></div>`:''}
       ${SESSION&&SESSION.accessLevel<=2?`<div id="pd-comments-section" style="padding:0 20px 4px">
         <button id="pd-comments-btn" class="btn-cancel" style="width:100%;margin-top:8px" onclick="fetchPersonComments('${ea(email)}')">🔒 Retrieve Confidential Notes</button>
         <div id="pd-comments-body" style="display:none"></div>
@@ -4186,13 +4242,21 @@ async function savePerson(orig){
     'First Name':(document.getElementById('ef-FirstName')||{value:''}).value.trim(),
     'Last Name':(document.getElementById('ef-LastName')||{value:''}).value.trim(),
     'Mobile':(document.getElementById('ef-Mobile')||{value:''}).value.trim(),
-    'Zip Code':(document.getElementById('ef-ZipCode')||{value:''}).value.trim(),
     'Resume':(document.getElementById('ef-Resume')||{value:''}).value.trim(),
     'Email':(document.getElementById('ef-Email')||{value:''}).value.trim(),
     'Role':roleBtn?roleBtn.dataset.value||roleBtn.textContent:'',
     'Role Additional':(document.getElementById('ef-RoleAdditional')||{value:''}).value.trim(),
   };
   const imgEl=document.getElementById('ef-Img');if(imgEl)updates['Main Image']=imgEl.value.trim();
+  // Ranger Documents / mailing address section only renders for eligible roles
+  // (see _showsRangerDocs) — only send these if the fields were actually shown,
+  // so saving a non-eligible person's card never blanks out their Zip Code etc.
+  const streetEl=document.getElementById('ef-StreetAddress');if(streetEl)updates['Street Address']=streetEl.value.trim();
+  const cityEl=document.getElementById('ef-City');if(cityEl)updates['City']=cityEl.value.trim();
+  const stateEl=document.getElementById('ef-State');if(stateEl)updates['State']=stateEl.value.trim();
+  const zipEl=document.getElementById('ef-ZipCode');if(zipEl)updates['Zip Code']=zipEl.value.trim();
+  const countryEl=document.getElementById('ef-Country');if(countryEl)updates['Country']=countryEl.value.trim();
+  const liveScanEl=document.getElementById('ef-LiveScan');if(liveScanEl)updates['Ranger Live Scan']=liveScanEl.value;
   const newEmail=updates['Email']||orig;
   const emailChanged=orig&&newEmail&&orig.toLowerCase()!==newEmail.toLowerCase();
   // Update local DATA immediately
@@ -6414,6 +6478,45 @@ async function _uploadHumanPhoto(email,file){
     reader.onerror=()=>reject(new Error('File read error'));
     reader.readAsDataURL(file);
   });
+}
+
+/* ═══ RANGER DOCUMENTS (W-9 / TB Test / Ranger Contract) ═══
+   Uploads immediately on file pick — writes straight to the sheet + local
+   DATA cache via GAS 'uploadHumanDoc', same pattern as site photo uploads.
+   Files land in a restricted Drive folder (no ANYONE_WITH_LINK sharing —
+   see handleUploadHumanDoc in GAS) since these can carry sensitive info
+   like an SSN on a W-9. */
+async function _uploadHumanDoc(email,file,docType){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      try{
+        const base64=e.target.result.split(',')[1];
+        const j=await gasPost({action:'uploadHumanDoc',email,docType,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
+        j.ok?resolve(j.url):reject(new Error(j.error||'Upload failed'));
+      }catch(err){reject(err);}
+    };
+    reader.onerror=()=>reject(new Error('File read error'));
+    reader.readAsDataURL(file);
+  });
+}
+async function handleHumanDocFile(input,docType,email){
+  const file=input.files[0];if(!file)return;
+  const label=DOC_TYPE_LABELS[docType]||docType;
+  const statusEl=document.getElementById('doc-status-'+docType);
+  if(statusEl)statusEl.textContent='Uploading…';
+  try{
+    const url=await _uploadHumanDoc(email,file,docType);
+    const col=DOC_TYPE_COLS[docType];
+    const h=DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase()===email.toLowerCase());
+    if(h&&col)h[col]=url;
+    localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+    if(statusEl)statusEl.innerHTML=`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a>`;
+    showSaveToast('✓ '+label+' uploaded');
+  }catch(e){
+    if(statusEl)statusEl.textContent='⚠ Upload failed: '+e.message;
+    showSaveToast('⚠ '+label+' upload failed — '+e.message);
+  }
 }
 
 
