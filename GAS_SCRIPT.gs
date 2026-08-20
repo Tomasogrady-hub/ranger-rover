@@ -49,10 +49,23 @@ const HUMANS_W9_FOLDER       = '1bGprCIDIYBoRd0-gXBD6EVlAwV-BbRii';
 const HUMANS_TB_FOLDER       = '1JJgJAWD3GK-IXUjSIfh5_edO1Uv9tcW0';
 const HUMANS_CONTRACT_FOLDER = '1xYFUnpOzVMM1_QpFmy2rsXOqHMUTQ8nF';
 const HUMANS_DOC_TYPE_MAP = {
-  'W9':             { folder: HUMANS_W9_FOLDER,       col: 'W9' },
-  'TBTest':         { folder: HUMANS_TB_FOLDER,       col: 'TB Test' },
-  'RangerContract': { folder: HUMANS_CONTRACT_FOLDER, col: 'Ranger Contract' }
+  'W9':             { folder: HUMANS_W9_FOLDER,       col: 'W9',              label: 'W9' },
+  'TBTest':         { folder: HUMANS_TB_FOLDER,       col: 'TB Test',         label: 'TBTest' },
+  'RangerContract': { folder: HUMANS_CONTRACT_FOLDER, col: 'Ranger Contract', label: 'RangerContract' }
 };
+
+// Human-facing filenames for Main Image / W9 / TB Test / Ranger Contract:
+// "<FirstLast><FieldLabel><M-d-yyyy>" e.g. "JennyJonesW98-20-2026.pdf" —
+// slashes in the requested "8/20/2026" format aren't legal in filenames, so
+// dashes are used instead. Non-alphanumeric characters in the name are
+// stripped so the file always lands with a clean, predictable name.
+function _humanFileNamePrefix(firstName, lastName) {
+  var raw = String(firstName || '').trim() + String(lastName || '').trim();
+  return raw.replace(/[^A-Za-z0-9]/g, '') || 'Human';
+}
+function _humanFileDateStamp() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'M-d-yyyy');
+}
 
 // ── IMAGE COLUMNS per sheet ───────────────────────────────────────────────────
 const SITES_IMG_COLS  = ['Main Image','Image 2','Image 3',
@@ -1475,22 +1488,38 @@ function handleUploadSiteImage(p) {
 
 function handleUploadHumanImage(p) {
   try {
-    var decoded = Utilities.base64Decode(p.base64);
-    var blob    = Utilities.newBlob(decoded, p.mimeType || 'image/jpeg', p.filename || 'profile.jpg');
+    // Look up the person first so the filename can carry their real name
+    // instead of the phone/camera's generic filename.
+    var firstName = '', lastName = '', targetRow = -1, sheet, data, h, ei, mi;
+    if (p.email) {
+      sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+      data  = sheet.getDataRange().getValues();
+      h     = data[0];
+      ei    = h.indexOf('Email');
+      mi    = h.indexOf('Main Image');
+      var fni = h.indexOf('First Name'), lni = h.indexOf('Last Name');
+      for (var r = 1; r < data.length; r++) {
+        if (String(data[r][ei]).toLowerCase() === p.email.toLowerCase()) {
+          targetRow = r;
+          firstName = fni > -1 ? String(data[r][fni] || '') : '';
+          lastName  = lni > -1 ? String(data[r][lni] || '') : '';
+          break;
+        }
+      }
+    }
+
+    var decoded  = Utilities.base64Decode(p.base64);
+    var safeMime = p.mimeType || 'image/jpeg';
+    var ext      = /png/i.test(safeMime) ? '.png' : '.jpg';
+    var safeName = _humanFileNamePrefix(firstName, lastName) + 'MainImage' + _humanFileDateStamp() + ext;
+
+    var blob = Utilities.newBlob(decoded, safeMime, safeName);
     var folder  = DriveApp.getFolderById(HUMANS_IMG_FOLDER);
     var file    = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     var url = 'https://lh3.googleusercontent.com/d/' + file.getId();
-    if (p.email) {
-      var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
-      var data  = sheet.getDataRange().getValues(), h = data[0];
-      var ei    = h.indexOf('Email'), mi = h.indexOf('Main Image');
-      for (var r = 1; r < data.length; r++) {
-        if (String(data[r][ei]).toLowerCase() === p.email.toLowerCase() && mi > -1) {
-          sheet.getRange(r + 1, mi + 1).setValue(url);
-          break;
-        }
-      }
+    if (targetRow > -1 && mi > -1) {
+      sheet.getRange(targetRow + 1, mi + 1).setValue(url);
     }
     return { ok: true, url: url };
   } catch(e) {
@@ -1510,40 +1539,40 @@ function handleUploadHumanDoc(p) {
     if (!docInfo) return { ok: false, error: 'Unknown docType: ' + p.docType };
     if (!p.email) return { ok: false, error: 'Missing email' };
 
+    var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+    var data  = sheet.getDataRange().getValues();
+    var h     = data[0];
+    var ei    = h.indexOf('Email');
+    var ci    = h.indexOf(docInfo.col);
+    var fni   = h.indexOf('First Name'), lni = h.indexOf('Last Name');
+    if (ei === -1) return { ok: false, error: 'Email column not found' };
+    if (ci === -1) return { ok: false, error: 'Column "' + docInfo.col + '" not found on Humans sheet — add it first.' };
+
+    // Look up the person first so the filename can carry their real name.
+    var targetRow = -1, firstName = '', lastName = '';
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][ei]).toLowerCase().trim() === String(p.email).toLowerCase().trim()) {
+        targetRow = r;
+        firstName = fni > -1 ? String(data[r][fni] || '') : '';
+        lastName  = lni > -1 ? String(data[r][lni] || '') : '';
+        break;
+      }
+    }
+    if (targetRow === -1) return { ok: false, error: 'Person not found: ' + p.email };
+
     var decoded  = Utilities.base64Decode(p.base64);
     var mime     = p.mimeType || 'application/pdf';
-    var ext      = /pdf/i.test(mime) ? '.pdf' : (/png/i.test(mime) ? '.png' : (/heic|heif/i.test(mime) ? '.jpg' : '.jpg'));
+    var ext      = /pdf/i.test(mime) ? '.pdf' : '.jpg';
     var safeMime = /heic|heif/i.test(mime) ? 'image/jpeg' : mime;
-    var stamp    = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyyMMdd_HHmmss');
-    var safeName = p.email + '.' + docInfo.col + '.' + stamp + ext;
+    var safeName = _humanFileNamePrefix(firstName, lastName) + docInfo.label + _humanFileDateStamp() + ext;
 
     var blob   = Utilities.newBlob(decoded, safeMime, safeName);
     var folder = DriveApp.getFolderById(docInfo.folder);
     var file   = folder.createFile(blob);
     var url    = file.getUrl();
 
-    var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
-    var data  = sheet.getDataRange().getValues();
-    var h     = data[0];
-    var ei    = h.indexOf('Email');
-    var ci    = h.indexOf(docInfo.col);
-    if (ei === -1) return { ok: false, error: 'Email column not found' };
-    if (ci === -1) return { ok: false, error: 'Column "' + docInfo.col + '" not found on Humans sheet — add it first.' };
-
-    var rowFound = false, displayName = p.email;
-    for (var r = 1; r < data.length; r++) {
-      if (String(data[r][ei]).toLowerCase().trim() === String(p.email).toLowerCase().trim()) {
-        sheet.getRange(r + 1, ci + 1).setValue(url);
-        var fni = h.indexOf('First Name'), lni = h.indexOf('Last Name');
-        var fn = fni > -1 ? String(data[r][fni] || '') : '';
-        var ln = lni > -1 ? String(data[r][lni] || '') : '';
-        displayName = (fn + ' ' + ln).trim() || p.email;
-        rowFound = true;
-        break;
-      }
-    }
-    if (!rowFound) return { ok: false, error: 'Person not found: ' + p.email };
-
+    sheet.getRange(targetRow + 1, ci + 1).setValue(url);
+    var displayName = (firstName + ' ' + lastName).trim() || p.email;
     logActivity(p.actor || '', 'uploaded ' + docInfo.col, displayName, 'person', docInfo.col);
     return { ok: true, url: url };
   } catch(e) {
