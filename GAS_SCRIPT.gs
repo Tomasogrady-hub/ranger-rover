@@ -1,3 +1,13 @@
+// ── BACKEND BUILD STAMP ─────────────────────────────────────────────────────
+// Bump this string on every push to GAS_SCRIPT.gs and returned via
+// getAppSettings so the app's Settings page can show which backend build is
+// actually LIVE. Pushing this file to GitHub does NOT update the running
+// script — that always requires a manual Deploy → New Deployment in the Apps
+// Script editor. Comparing this value against the date below is the fastest
+// way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
+// deployed or just sitting un-deployed in source.
+const GAS_BUILD = 'v10.25 | 2026-08-20';
+
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
 const HUMANS_ID = '19s6gQeFJWeVcAezkE1Lg6MJcZ3C8-h-IdWmZUDT5cHk';
@@ -2165,7 +2175,7 @@ function handleGetAppSettings() {
     settings.twilioKeySid    = props.getProperty('twilio_key_sid')    || '';
     settings.twilioKeySecret = props.getProperty('twilio_key_secret') || '';
     settings.twilioFrom      = props.getProperty('twilio_from')       || '';
-    return { ok: true, settings: settings, gasUrl: gasUrl };
+    return { ok: true, settings: settings, gasUrl: gasUrl, gasBuild: GAS_BUILD };
   } catch(e) {
     return { ok: true, settings: { plantsEnabled: true, broadcast: '' }, gasUrl: '' };
   }
@@ -2195,18 +2205,36 @@ function handleSaveAppSettings(p) {
     var navVis      = existing.navVisibility || {};
 
     if (p.updateNavVisibility === true) {
-      // Sanitise navVisibility: keys 1-9, values = arrays of known tab strings
-      var KNOWN_TABS = ['notes','schools','map','chores','latest','rangers','people',
-                        'plants','action','operations','reach','settings','data',
-                        'site_ops_btn','team_email_search_btn'];
+      // Sanitise navVisibility: keys 1-9, values = arrays of tab-key strings.
+      // NOTE: this used to filter each tab key against a hardcoded KNOWN_TABS
+      // whitelist. That whitelist had to be manually kept in sync with every
+      // new nav key added on the client (NAV_ALL_TABS in index.html), and
+      // twice already ('site_ops_btn', then 'data') a new tab shipped on the
+      // client before this list was updated here — so the very first
+      // Nav-Visibility save after that silently stripped the new tab back out
+      // of EVERY level's array, making a just-added button look like it
+      // "randomly turned itself off". A hardcoded whitelist can only ever be
+      // as current as the last GAS redeploy, and this file's redeploy has
+      // repeatedly lagged behind the client push. Instead of a whitelist,
+      // just validate SHAPE (short, safe, non-empty string) — any tab key the
+      // client legitimately sends already comes from its own NAV_ALL_TABS
+      // list, so there's nothing a whitelist here was actually protecting
+      // beyond that.
+      var _validTabKey = function(t){
+        return typeof t === 'string' && /^[a-z0-9_]{1,40}$/.test(t);
+      };
       var rawVis = settings.navVisibility || {};
       navVis = {};
       for (var i = 1; i <= 9; i++) {
         var key = String(i);
-        if (Array.isArray(rawVis[key])) {
-          navVis[key] = rawVis[key].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
-        } else if (Array.isArray(rawVis[i])) {
-          navVis[key] = rawVis[i].filter(function(t){ return KNOWN_TABS.indexOf(t) !== -1; });
+        var arr = Array.isArray(rawVis[key]) ? rawVis[key] : (Array.isArray(rawVis[i]) ? rawVis[i] : null);
+        if (arr) {
+          var seen = {};
+          navVis[key] = arr.filter(_validTabKey).filter(function(t){
+            if (seen[t]) return false;
+            seen[t] = true;
+            return true;
+          }).slice(0, 50);
         }
       }
       // Row 3 Future Slots feature was removed — row3Slots is no longer sanitised or
