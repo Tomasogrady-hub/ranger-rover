@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.23 | BUILDITALL: 2026-08-20 13:16 PT | Ranger Rover PWA -->
+<!-- v10.24 | BUILDITALL: 2026-08-20 13:36 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1070,22 +1070,31 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <span class="page-title">People</span>
         <span class="page-count" id="dataPeopleCount"></span>
       </div>
-      <div style="padding:0 16px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <select id="dataPeopleRoleFilter" class="settings-input" style="margin:0;flex:1;min-width:150px" onchange="renderDataPeople()">
-          <option value="">All Roles</option>
-        </select>
-        <select id="dataPeopleAccessFilter" class="settings-input" style="margin:0;width:190px" onchange="renderDataPeople()">
-          <option value="__all__">All Levels</option>
-          <option value="__active__">All Active</option>
-          <option value="__none__">None</option>
-          <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
-          <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
-          <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
-        </select>
+      <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:150px;display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Filter by Role</label>
+            <select id="dataPeopleRoleFilter" class="settings-input" style="margin:0" onchange="renderDataPeople()">
+              <option value="">All Roles</option>
+            </select>
+          </div>
+          <div style="width:190px;display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Access Levels</label>
+            <select id="dataPeopleAccessFilter" class="settings-input" style="margin:0" onchange="renderDataPeople()">
+              <option value="__all__">All Access Levels</option>
+              <option value="__active__">All App Users</option>
+              <option value="__none__">No Access Level</option>
+              <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
+              <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
+              <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
+            </select>
+          </div>
+        </div>
+        <div id="dataPeopleFilterSummary" style="font-size:13px;color:var(--stone);line-height:1.4"></div>
       </div>
       <div style="text-align:center;font-family:var(--font-b);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em;margin:12px 0 8px">Adjust</div>
       <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:nowrap;overflow-x:auto">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
             <input type="checkbox" id="dataPeopleSelectAll" onchange="toggleDataPeopleSelectAll(this.checked)"> Select all
           </label>
@@ -1096,8 +1105,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
             <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
           </select>
-          <button id="dataPeopleApplyBtn" class="settings-btn" style="margin:0 0 0 auto;padding:10px 14px;flex:none;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkAccess()" disabled>Apply to Selected</button>
         </div>
+        <button id="dataPeopleApplyBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkAccess()" disabled>Apply to Selected</button>
         <div id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
       </div>
       <div id="dataPeopleList" style="padding:0"><div class="spinner"></div></div>
@@ -1134,10 +1143,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.23';
+const APP_VERSION='v10.24';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 13:16 PT — Fixed Data > People role filter: it now includes every role from the Roles tab (not just roles already assigned to someone) and rebuilds whenever the role list changes, instead of only populating once.';
+const BUILD_STAMP='2026-08-20 13:36 PT — Data > People filters cleaned up: added "Filter by Role" and "Access Levels" headings, a plain-English summary sentence under the filters, renamed dropdown options (All Access Levels / All App Users / No Access Level), and moved "Apply to Selected" to its own line so it stops getting clipped.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -8471,6 +8480,20 @@ function _dataPeopleFilterCounts(){
   return {total:all.length, roleCounts, none, active, allLevels, levelCounts};
 }
 
+// Plain-English explanation of the two People filters currently applied — recomputed
+// on every render so it always matches what's actually showing in the list below.
+function _dataPeopleFilterSummaryText(roleF,lvlF,n){
+  const who=roleF?`the role of ${roleF}`:'All roles';
+  const subj=n===1?'1 person':`${n} people`;
+  const verb=n===1?'has':'have';
+  let action;
+  if(lvlF==='__all__')action=`${verb} an access level assigned`;
+  else if(lvlF==='__active__')action=n===1?'is an active user of this app':'are active users of this app';
+  else if(lvlF==='__none__')action=`${verb} no access level`;
+  else action=`${verb} access level ${lvlF}`;
+  return `For ${who}, ${subj} ${action}.`;
+}
+
 function renderDataPeople(){
   const counts=_dataPeopleFilterCounts();
   const roleSel=document.getElementById('dataPeopleRoleFilter');
@@ -8502,9 +8525,9 @@ function renderDataPeople(){
   const lvlSel=document.getElementById('dataPeopleAccessFilter');
   if(lvlSel){
     Array.from(lvlSel.options).forEach(o=>{
-      if(o.value==='__all__')o.textContent=`All Levels (${counts.allLevels})`;
-      else if(o.value==='__active__')o.textContent=`All Active (${counts.active})`;
-      else if(o.value==='__none__')o.textContent=`None (${counts.none})`;
+      if(o.value==='__all__')o.textContent=`All Access Levels (${counts.allLevels})`;
+      else if(o.value==='__active__')o.textContent=`All App Users (${counts.active})`;
+      else if(o.value==='__none__')o.textContent=`No Access Level (${counts.none})`;
       else if(o.value)o.textContent=`Level ${o.value} (${counts.levelCounts[o.value]||0})`;
     });
   }
@@ -8525,6 +8548,8 @@ function renderDataPeople(){
   people=people.slice().sort((a,b)=>(fullName(a)||'').localeCompare(fullName(b)||''));
   const countEl=document.getElementById('dataPeopleCount');
   if(countEl)countEl.textContent=people.length+' people';
+  const summaryEl=document.getElementById('dataPeopleFilterSummary');
+  if(summaryEl)summaryEl.textContent=_dataPeopleFilterSummaryText(roleF,lvlF,people.length);
   const listEl=document.getElementById('dataPeopleList');
   if(!listEl)return;
   if(!people.length){listEl.innerHTML=empty('—','No results','');return;}
