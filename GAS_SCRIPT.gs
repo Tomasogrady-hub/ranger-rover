@@ -1571,10 +1571,24 @@ function handleUploadHumanDoc(p) {
     var file   = folder.createFile(blob);
     var url    = file.getUrl();
 
+    // Grant view access to THIS ONE FILE ONLY for the ranger it belongs to —
+    // not to the folder. The folder itself stays restricted to admins, so a
+    // ranger can open their own document via this link but can't browse the
+    // folder or see anyone else's. Wrapped in try/catch so a rare sharing
+    // restriction (e.g. a workspace policy) doesn't fail the whole upload —
+    // the file still saves and admins can still see it either way.
+    var sharedWithOwner = true;
+    try {
+      file.addViewer(p.email);
+    } catch (shareErr) {
+      sharedWithOwner = false;
+      Logger.log('handleUploadHumanDoc: could not share file with ' + p.email + ': ' + shareErr.message);
+    }
+
     sheet.getRange(targetRow + 1, ci + 1).setValue(url);
     var displayName = (firstName + ' ' + lastName).trim() || p.email;
     logActivity(p.actor || '', 'uploaded ' + docInfo.col, displayName, 'person', docInfo.col);
-    return { ok: true, url: url };
+    return { ok: true, url: url, sharedWithOwner: sharedWithOwner };
   } catch(e) {
     return { ok: false, error: e.message };
   }
