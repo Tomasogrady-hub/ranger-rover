@@ -349,6 +349,73 @@ function handleGetRangerLocations(p) {
   }
 }
 
+// Geocodes/returns just the requesting person's own home location — used for
+// the "My Home" marker on the regular Map tab. Deliberately scoped to one
+// email (unlike handleGetRangerLocations, which returns every ranger's home
+// address for the admin-only Smart Map) so a Level 3 user calling this from
+// the regular map never receives anyone else's address.
+function handleGetMyLocation(p) {
+  try {
+    var email = String(p.email || '').trim().toLowerCase();
+    if (!email) return { ok: false, error: 'Missing email' };
+
+    var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+    ensureRangerLatLngColumns(sheet);
+    var data    = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var idx = {};
+    headers.forEach(function(h, i) { idx[h] = i; });
+    if (idx['Email'] === undefined) return { ok: false, error: 'Email column not found' };
+
+    for (var r = 1; r < data.length; r++) {
+      var row = data[r];
+      if (String(row[idx['Email']] || '').trim().toLowerCase() !== email) continue;
+
+      var street  = idx['Street Address'] !== undefined ? String(row[idx['Street Address']] || '').trim() : '';
+      var city    = idx['City']           !== undefined ? String(row[idx['City']]           || '').trim() : '';
+      var state   = idx['State']          !== undefined ? String(row[idx['State']]          || '').trim() : '';
+      var zip     = idx['Zip Code']       !== undefined ? String(row[idx['Zip Code']]        || '').trim() : '';
+      var country = idx['Country']        !== undefined ? String(row[idx['Country']]         || '').trim() : '';
+
+      var addr;
+      if (street) {
+        addr = [street, city, state, zip, country].filter(function(x){return x;}).join(', ');
+      } else if (zip) {
+        addr = [zip, country || 'USA'].filter(function(x){return x;}).join(', ');
+      } else {
+        return { ok: false, error: 'No address on file' };
+      }
+
+      var cachedLL  = idx['Home LatLng']     !== undefined ? String(row[idx['Home LatLng']]     || '').trim() : '';
+      var cachedSrc = idx['Home LatLng Src'] !== undefined ? String(row[idx['Home LatLng Src']] || '').trim() : '';
+      if (cachedLL && cachedSrc === addr) {
+        var parts = cachedLL.split(',');
+        if (parts.length === 2) {
+          var clat = parseFloat(parts[0]), clng = parseFloat(parts[1]);
+          if (!isNaN(clat) && !isNaN(clng)) return { ok: true, lat: clat, lng: clng, address: addr };
+        }
+      }
+
+      try {
+        var geocoder = Maps.newGeocoder();
+        var res = geocoder.geocode(addr);
+        if (res && res.status === 'OK' && res.results && res.results.length) {
+          var loc = res.results[0].geometry.location;
+          sheet.getRange(r + 1, idx['Home LatLng'] + 1).setValue(loc.lat + ',' + loc.lng);
+          sheet.getRange(r + 1, idx['Home LatLng Src'] + 1).setValue(addr);
+          return { ok: true, lat: loc.lat, lng: loc.lng, address: addr };
+        }
+        return { ok: false, error: 'Could not geocode address' };
+      } catch (geoErr) {
+        return { ok: false, error: geoErr.message };
+      }
+    }
+    return { ok: false, error: 'Person not found' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 // ── doGet ─────────────────────────────────────────────────────────────────────
 function doGet(e) {
   // One-time migration: convert Site Names → Keys in Chores + Humans sheets
@@ -419,6 +486,7 @@ function doPost(e) {
       case 'deleteChore':    return respond(handleDeleteChore(p));
       case 'getSelfProfile': return respond(handleGetSelfProfile(p));
       case 'getRangerLocations': return respond(handleGetRangerLocations(p));
+      case 'getMyLocation':      return respond(handleGetMyLocation(p));
       case 'uploadSiteImage':  return respond(handleUploadSiteImage(p));
       case 'uploadHumanImage': return respond(handleUploadHumanImage(p));
       case 'uploadHumanDoc':   return respond(handleUploadHumanDoc(p));
