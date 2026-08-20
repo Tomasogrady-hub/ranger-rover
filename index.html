@@ -1134,10 +1134,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.21';
+const APP_VERSION='v10.22';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 Fix: a leftover login-time line was force-hiding the whole map filter bar for Level 3, which is why the Mine/All Active Schools chips from v10.19 never appeared. Filter bar now shows for every access level.';
+const BUILD_STAMP='2026-08-20 Home marker now shows a permanent "🏠 [Name]" label (not just on hover) and surfaces any real lookup error as a toast, so a missing GAS redeploy shows up on screen instead of failing silently.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3167,16 +3167,31 @@ function refreshMapChores(){
 }
 
 /* ═══ MY HOME marker — large house pin for the logged-in person's own
-   address (Street Address/City/State/Zip/Country on their Humans row).
-   Geocoded + cached server-side (handleGetMyLocation), so repeat visits
-   are instant. Silently does nothing if no address is on file. */
+   address (Street Address/City/State/Zip/Country on their Humans row),
+   labeled with their name so it's clear whose home it is. Geocoded +
+   cached server-side (handleGetMyLocation), so repeat visits are instant.
+   Silently does nothing if no address is on file, but surfaces any real
+   error (e.g. backend not yet redeployed) as a toast so it's not a
+   mystery when testing. */
 async function loadMyHomeLocation(){
   if(!SESSION||!SESSION.email||_homeLoc!==null)return;
   try{
     const j=await gasPost({action:'getMyLocation',email:SESSION.email});
-    if(j.ok){_homeLoc={lat:j.lat,lng:j.lng,address:j.address};_placeHomeMarker();}
-    else{_homeLoc=false;}
-  }catch(e){_homeLoc=false;console.warn('Home location lookup failed:',e);}
+    if(j.ok){
+      _homeLoc={lat:j.lat,lng:j.lng,address:j.address};
+      _placeHomeMarker();
+    }else{
+      _homeLoc=false;
+      if(j.error&&j.error!=='No address on file'){
+        console.warn('Home location lookup failed:',j.error);
+        showSaveToast('⚠ Home marker: '+j.error);
+      }
+    }
+  }catch(e){
+    _homeLoc=false;
+    console.warn('Home location lookup failed:',e);
+    showSaveToast('⚠ Home marker failed — '+e.message);
+  }
 }
 function _placeHomeMarker(){
   if(!_leafletMap||!_homeLoc)return;
@@ -3188,8 +3203,9 @@ function _placeHomeMarker(){
     </div>`,
     iconSize:[38,38],iconAnchor:[19,38]
   });
+  const label=(SESSION&&(SESSION.name||SESSION.email))||'My Home';
   _homeMarker=L.marker([_homeLoc.lat,_homeLoc.lng],{icon,zIndexOffset:900}).addTo(_leafletMap);
-  _homeMarker.bindTooltip('🏠 My Home',{direction:'top',offset:[0,-32]});
+  _homeMarker.bindTooltip('🏠 '+label,{permanent:true,direction:'top',className:'map-label',offset:[0,-34],interactive:true});
 }
 
 /* ═══ SMART MAP (Operations) — layered Sites + Ranger-home-location map ═══ */
