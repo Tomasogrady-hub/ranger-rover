@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.29 | BUILDITALL: 2026-08-21 09:10 PT | Ranger Rover PWA -->
+<!-- v10.30 | BUILDITALL: 2026-08-21 09:40 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1100,21 +1100,27 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
         <div id="dataPeopleFilterSummary" style="font-size:13px;color:var(--stone);line-height:1.4"></div>
       </div>
-      <div style="text-align:center;font-family:var(--font-b);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em;margin:12px 0 8px">Adjust</div>
+      <div style="display:flex;justify-content:center;margin:12px 0 8px">
+        <select id="dataPeopleAdjustMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="onDataPeopleAdjustModeChange()">
+          <option value="access">Adjust Access Levels</option>
+          <option value="role">Adjust Roles</option>
+          <option value="roleAdditional">Adjust Role Additional</option>
+        </select>
+      </div>
       <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
             <input type="checkbox" id="dataPeopleSelectAll" onchange="toggleDataPeopleSelectAll(this.checked)"> Select all
           </label>
           <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
-          <select id="dataPeopleBulkLevel" class="settings-input" style="margin:0;width:100px;flex:none" disabled>
+          <select id="dataPeopleBulkValue" class="settings-input" style="margin:0;width:100px;flex:none" disabled>
             <option value="">None</option>
             <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
             <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
             <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
           </select>
         </div>
-        <button id="dataPeopleApplyBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkAccess()" disabled>Apply to Selected</button>
+        <button id="dataPeopleApplyBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkField()" disabled>Apply to Selected</button>
         <div id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
       </div>
       <div id="dataPeopleList" style="padding:0"><div class="spinner"></div></div>
@@ -1151,10 +1157,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.29';
+const APP_VERSION='v10.30';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-21 09:10 PT — Expanded Ranger Documents (W-9, TB Test, Ranger Contract, Ranger Live Scan, Mailing Address) visibility on the Humans card/edit to include Ranger Offered, in addition to the roles that already showed these fields (Ranger, Master Ranger, Garden Keeper, Ranger Applicant, Ranger Past, Ranger Applicant Did Not Work Out, Ranger Onboarding).';
+const BUILD_STAMP='2026-08-21 09:40 PT — Data › People: replaced the static "Adjust" heading with a dropdown (Adjust Access Levels / Adjust Roles / Adjust Role Additional). Adjust Roles and Adjust Role Additional now share the exact same select-all, per-row-select, and bulk-apply logic as Adjust Access Levels — only the target Humans-sheet field and its option list change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -8455,7 +8461,18 @@ function _teamEmailSearchAllowed(lvl){
 
 // ── DATA page (People management) ──────────────────────────────────────────
 let _dataCurrentPage = 'menu';
-let _dataPeopleSelected = new Set(); // emails checked for bulk access-level change
+let _dataPeopleSelected = new Set(); // emails checked for bulk field change
+
+// The "Adjust" panel operates on one of three Humans-sheet fields at a time,
+// chosen via the dataPeopleAdjustMode dropdown. Adjust Roles and Adjust Role
+// Additional reuse the exact same select-all / bulk-apply / per-row-select
+// logic as Adjust Access Levels — only the target field and its option list differ.
+const DATA_PEOPLE_ADJUST_FIELDS = {
+  access:         {sheetField:'Access Level',   label:'Access Level'},
+  role:           {sheetField:'Role',           label:'Role'},
+  roleAdditional: {sheetField:'Role Additional',label:'Role Additional'}
+};
+let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
 function showDataPage(page){
   _dataCurrentPage = page;
@@ -8465,7 +8482,47 @@ function showDataPage(page){
   });
   const target=document.getElementById('data-'+page);
   if(target)target.style.display='block';
-  if(page==='people')renderDataPeople();
+  if(page==='people'){
+    const modeSel=document.getElementById('dataPeopleAdjustMode');
+    if(modeSel)modeSel.value=_dataPeopleAdjustMode;
+    renderDataPeople();
+  }
+}
+
+function onDataPeopleAdjustModeChange(){
+  const sel=document.getElementById('dataPeopleAdjustMode');
+  _dataPeopleAdjustMode = sel?sel.value:'access';
+  // Switching modes mid-selection would silently apply the wrong field to
+  // whatever's checked, so start the selection fresh for the new mode.
+  _dataPeopleSelected.clear();
+  const selectAll=document.getElementById('dataPeopleSelectAll');
+  if(selectAll)selectAll.checked=false;
+  renderDataPeople();
+}
+
+// Distinct existing values for the Role Additional select — mirrors the free-text
+// list already used in the Humans edit card's Role Additional dropdown.
+function _dataPeopleRoleAdditionalOptions(){
+  return Array.from(new Set((DATA.humans||[]).map(p=>p['Role Additional']||p.RoleAdditional||'').filter(v=>v.trim()))).sort((a,b)=>a.localeCompare(b));
+}
+
+// The option list (value===label) for the current Adjust mode's select elements.
+// Access Levels uses the fixed 1-9 numeric list (handled inline where needed);
+// Role and Role Additional pull from the same sources used elsewhere in the app.
+function _dataPeopleFieldOptionsList(mode){
+  if(mode==='role')return (DATA.roles||[]).map(r=>r.name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  if(mode==='roleAdditional')return _dataPeopleRoleAdditionalOptions();
+  return [];
+}
+
+function _dataFieldOptionsHtml(mode,currentVal){
+  if(mode==='access'){
+    return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
+      [1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(currentVal)===String(n)?'selected':''}>Level ${n}</option>`).join('');
+  }
+  const opts=_dataPeopleFieldOptionsList(mode);
+  return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
+    opts.map(v=>`<option value="${ea(v)}" ${currentVal===v?'selected':''}>${escHtml(v)}</option>`).join('');
 }
 
 // Distinct values for the top filter dropdown — union of the Roles tab (so brand-new
@@ -8572,7 +8629,21 @@ function renderDataPeople(){
   if(!listEl)return;
   if(!people.length){listEl.innerHTML=empty('—','No results','');return;}
   listEl.innerHTML=people.map(_dataPersonRowHtml).join('');
+  _populateDataPeopleBulkValueOptions();
   _updateDataPeopleSelCount();
+}
+
+// Populates the bulk-apply select (dataPeopleBulkValue) with the option list
+// for whichever Adjust mode is currently active — same element, same disabled/
+// enabled behavior, just a different value list underneath.
+function _populateDataPeopleBulkValueOptions(){
+  const sel=document.getElementById('dataPeopleBulkValue');
+  if(!sel)return;
+  const mode=_dataPeopleAdjustMode;
+  const prevVal=sel.value;
+  sel.innerHTML=_dataFieldOptionsHtml(mode,'');
+  sel.style.width=mode==='access'?'100px':'160px';
+  if(prevVal && Array.from(sel.options).some(o=>o.value===prevVal))sel.value=prevVal;
 }
 
 function _dataPersonRowHtml(h){
@@ -8583,15 +8654,17 @@ function _dataPersonRowHtml(h){
   const lvl=h['Access Level']||'';
   const checked=_dataPeopleSelected.has(email);
   const sub=[role,roleAdd,email].filter(Boolean).join(' · ');
+  const mode=_dataPeopleAdjustMode;
+  const currentVal = mode==='access'?lvl : mode==='role'?role : roleAdd;
+  const selWidth = mode==='access'?'96px':'150px';
   return `<div class="data-person-row" data-email="${ea(email)}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--mist)">
     <input type="checkbox" ${checked?'checked':''} onchange="toggleDataPersonSelect('${ea(email)}',this.checked)" style="flex:none;width:18px;height:18px">
     <div style="flex:1;min-width:0">
       <div style="font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
       <div style="font-size:13px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
     </div>
-    <select class="settings-input" style="margin:0;width:96px;flex:none;padding:8px" onchange="setDataPersonAccessLevel('${ea(email)}',this.value)">
-      <option value="" ${String(lvl).trim()===''?'selected':''}>None</option>
-      ${[1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(lvl)===String(n)?'selected':''}>${n}</option>`).join('')}
+    <select class="settings-input" style="margin:0;width:${selWidth};flex:none;padding:8px" onchange="setDataPersonField('${ea(email)}','${mode}',this.value)">
+      ${_dataFieldOptionsHtml(mode,currentVal)}
     </select>
   </div>`;
 }
@@ -8619,10 +8692,10 @@ function _updateDataPeopleSelCount(){
     const rows=document.querySelectorAll('#dataPeopleList .data-person-row').length;
     all.checked = rows>0 && _dataPeopleSelected.size>=rows;
   }
-  // Grey out Apply to Selected + the bulk level selector until at least one person is checked
+  // Grey out Apply to Selected + the bulk value selector until at least one person is checked
   const hasSel=_dataPeopleSelected.size>0;
   const applyBtn=document.getElementById('dataPeopleApplyBtn');
-  const bulkSel=document.getElementById('dataPeopleBulkLevel');
+  const bulkSel=document.getElementById('dataPeopleBulkValue');
   if(applyBtn){
     applyBtn.disabled=!hasSel;
     applyBtn.style.opacity=hasSel?'1':'.45';
@@ -8634,46 +8707,55 @@ function _updateDataPeopleSelCount(){
   }
 }
 
-// Individual access-level change — saves immediately via the generic Humans-sheet edit handler
-function _dataLevelValue(level){ return String(level||'').trim()===''?'':parseInt(level); }
-function _dataLevelLabel(level){ return String(level||'').trim()===''?'None':'Level '+level; }
+// Individual field change (Access Level, Role, or Role Additional depending on the
+// active Adjust mode) — saves immediately via the generic Humans-sheet edit handler.
+function _dataFieldValue(mode,value){ return mode==='access'?(String(value||'').trim()===''?'':parseInt(value)):(value||''); }
+function _dataFieldLabel(mode,value){
+  if(mode==='access')return String(value||'').trim()===''?'None':'Level '+value;
+  return value?value:'None';
+}
 
-async function setDataPersonAccessLevel(email,level){
-  const val=_dataLevelValue(level);
+async function setDataPersonField(email,mode,value){
+  const meta=DATA_PEOPLE_ADJUST_FIELDS[mode]||DATA_PEOPLE_ADJUST_FIELDS.access;
+  const val=_dataFieldValue(mode,value);
   const statusEl=document.getElementById('dataPeopleBulkStatus');
   if(statusEl)statusEl.textContent='Updating…';
   try{
-    await gasPost({sheet:'Humans',key:email,updates:{'Access Level':val},actor:(SESSION&&SESSION.email)||''});
+    await gasPost({sheet:'Humans',key:email,updates:{[meta.sheetField]:val},actor:(SESSION&&SESSION.email)||''});
     const h=(DATA.humans||[]).find(x=>(x.Email||x.email||'')===email);
-    if(h)h['Access Level']=val;
-    if(statusEl)statusEl.textContent='✅ Access Level Updated';
-    else showSaveToast('✓ Access Level Updated');
+    if(h)h[meta.sheetField]=val;
+    if(statusEl)statusEl.textContent='✅ '+meta.label+' Updated';
+    else showSaveToast('✓ '+meta.label+' Updated');
   }catch(e){
-    if(statusEl)statusEl.textContent='⚠ Could not update access level';
-    else showSaveToast('⚠ Could not update access level');
+    if(statusEl)statusEl.textContent='⚠ Could not update '+meta.label.toLowerCase();
+    else showSaveToast('⚠ Could not update '+meta.label.toLowerCase());
   }
   if(statusEl)setTimeout(()=>{if(statusEl.textContent.indexOf('Updating')===-1)statusEl.textContent='';},3000);
 }
 
-// Bulk access-level change across every checked person
-async function applyDataPeopleBulkAccess(){
+// Bulk field change across every checked person — same logic for all three Adjust
+// modes (Access Levels, Roles, Role Additional); only the target sheet field and
+// the value list differ, both resolved from DATA_PEOPLE_ADJUST_FIELDS/_dataPeopleAdjustMode.
+async function applyDataPeopleBulkField(){
   if(!_dataPeopleSelected.size)return; // button is disabled in this state, but guard anyway
-  const level=document.getElementById('dataPeopleBulkLevel')?.value;
-  const val=_dataLevelValue(level);
+  const mode=_dataPeopleAdjustMode;
+  const meta=DATA_PEOPLE_ADJUST_FIELDS[mode]||DATA_PEOPLE_ADJUST_FIELDS.access;
+  const rawVal=document.getElementById('dataPeopleBulkValue')?.value;
+  const val=_dataFieldValue(mode,rawVal);
   const statusEl=document.getElementById('dataPeopleBulkStatus');
   const emails=Array.from(_dataPeopleSelected);
   if(statusEl)statusEl.textContent='Updating… (0/'+emails.length+')';
   let done=0;
   for(const email of emails){
     try{
-      await gasPost({sheet:'Humans',key:email,updates:{'Access Level':val},actor:(SESSION&&SESSION.email)||''});
+      await gasPost({sheet:'Humans',key:email,updates:{[meta.sheetField]:val},actor:(SESSION&&SESSION.email)||''});
       const h=(DATA.humans||[]).find(x=>(x.Email||x.email||'')===email);
-      if(h)h['Access Level']=val;
+      if(h)h[meta.sheetField]=val;
     }catch(e){/* keep going — report final count below */}
     done++;
     if(statusEl)statusEl.textContent='Updating… ('+done+'/'+emails.length+')';
   }
-  if(statusEl)statusEl.textContent='✅ Access Level Updated — '+emails.length+' people set to '+_dataLevelLabel(level);
+  if(statusEl)statusEl.textContent='✅ '+meta.label+' Updated — '+emails.length+' people set to '+_dataFieldLabel(mode,rawVal);
   setTimeout(()=>{if(statusEl)statusEl.textContent='';},3500);
   renderDataPeople();
 }
