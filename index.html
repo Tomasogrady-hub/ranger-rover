@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.30 | BUILDITALL: 2026-08-21 09:40 PT | Ranger Rover PWA -->
+<!-- v10.31 | BUILDITALL: 2026-08-21 10:05 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -587,6 +587,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <button class="chip"        data-filter="ranger_offered"                   data-label="Ranger Offered"    onclick="filterRangers('ranger_offered')">Ranger Offered</button>
     </div>
     <div class="page-header"><span class="page-title" id="rangerPageTitle">Rangers</span><span class="page-count" id="rangerCount"></span></div>
+    <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
+      <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
+      <button class="chip" id="rangerViewDetailedBtn" onclick="setRangerViewMode('detailed')">Detailed</button>
+    </div>
     <div class="card-list" id="rangerList"><div class="spinner"></div></div>
   </div>
 
@@ -1157,10 +1161,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.30';
+const APP_VERSION='v10.31';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-21 09:40 PT — Data › People: replaced the static "Adjust" heading with a dropdown (Adjust Access Levels / Adjust Roles / Adjust Role Additional). Adjust Roles and Adjust Role Additional now share the exact same select-all, per-row-select, and bulk-apply logic as Adjust Access Levels — only the target Humans-sheet field and its option list change.';
+const BUILD_STAMP='2026-08-21 10:05 PT — Rangers tab (Level 1/2): added a Summary/Detailed toggle above the list. Detailed mode adds Ranger Documents (W-9, TB Test, Ranger Contract, Ranger Live Scan) and mailing address (Street Address, City, State, Zip Code, Country) to each card; Summary is unchanged and remains the default view.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2867,6 +2871,17 @@ function _renderSchoolBatch(sites,from,batchSize){
 }
 
 /* ═══ RENDER RANGERS ═══ */
+let _rangerViewMode='summary'; // 'summary' | 'detailed' — toggled via the Summary/Detailed buttons above the list
+function setRangerViewMode(mode){
+  if(mode!==_rangerViewMode){
+    _rangerViewMode=mode;
+    const sBtn=document.getElementById('rangerViewSummaryBtn'),dBtn=document.getElementById('rangerViewDetailedBtn');
+    if(sBtn)sBtn.classList.toggle('active',mode==='summary');
+    if(dBtn)dBtn.classList.toggle('active',mode==='detailed');
+    renderRangers();
+  }
+}
+
 function renderRangers(){
   const q=sq.toLowerCase(),f=crf;
   const rangers=DATA.humans.filter(h=>{
@@ -2879,6 +2894,28 @@ function renderRangers(){
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
   if(!rangers.length){document.getElementById('rangerList').innerHTML=empty('—','No results','');return;}
   _renderHumanBatch('rangerList',rangers,0,40,_rangerCardHtml);
+}
+
+// Detailed-mode block: Ranger Documents (W-9, TB Test, Ranger Contract, Ranger Live
+// Scan) + mailing address — same fields shown on the Humans edit card for these
+// roles, surfaced here so Level 1/2 can scan them without opening each person.
+function _rangerDetailBlockHtml(h){
+  const liveScan=sf(h,'Ranger Live Scan','RangerLiveScan');
+  const streetAddress=sf(h,'Street Address','StreetAddress');
+  const city=sf(h,'City','city');
+  const state=sf(h,'State','state');
+  const zipCode=sf(h,'Zip Code','ZipCode');
+  const country=sf(h,'Country','country');
+  const addressLine=[streetAddress,city,state,zipCode,country].filter(Boolean).join(', ');
+  return `<div class="ranger-detail-block" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--mist);font-size:13px;color:var(--stone);line-height:1.6">
+    ${addressLine?`<div><strong>Address:</strong> ${escHtml(addressLine)}</div>`:''}
+    <div><strong>Ranger Live Scan:</strong> ${liveScan||'—'}</div>
+    <div>
+      ${h['W9']?`<a class="dlink" href="${ea(h['W9'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 W-9</a>`:'W-9: not uploaded'}<br>
+      ${h['TB Test']?`<a class="dlink" href="${ea(h['TB Test'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
+      ${h['Ranger Contract']?`<a class="dlink" href="${ea(h['Ranger Contract'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}
+    </div>
+  </div>`;
 }
 
 function _rangerCardHtml(h){
@@ -2911,6 +2948,7 @@ function _rangerCardHtml(h){
       ${roleBlock}
       <div class="card-contacts">${ctaRow(mobile,email)}</div>
       ${openC>0?`<div class="chore-pill">⚠ ${openC} open chore${openC>1?'s':''}</div>`:''}
+      ${_rangerViewMode==='detailed'?_rangerDetailBlockHtml(h):''}
     </div>
   </div>`;
 }
