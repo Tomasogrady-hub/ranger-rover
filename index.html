@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.26 | BUILDITALL: 2026-08-20 15:05 PT | Ranger Rover PWA -->
+<!-- v10.27 | BUILDITALL: 2026-08-20 16:10 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1149,10 +1149,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.26';
+const APP_VERSION='v10.27';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 15:05 PT — Found the actual Data-button bug: buildNav() hardcoded Data to Level 1 only ("lvl===1 && ...") regardless of what the Nav Visibility panel said, so toggling it on for Level 2 there did nothing — the setting was never read. Now Data visibility for Level 1/2 is governed purely by the Nav Visibility toggle, same as Operations/Action/Reach. Note: Data page can bulk-edit Access Level with no separate server-side gate, so granting it to Level 2 gives real write access, not just a locked view.';
+const BUILD_STAMP='2026-08-20 16:10 PT — Removed the Profile Image URL text field from My Profile (self-edit). Users already have Upload/Take Photo buttons there, so the manual URL paste field was redundant. Field is now a hidden input under the hood so the existing upload flow and save logic are unaffected.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5933,8 +5933,7 @@ async function showSelfEdit(){
       </div>
       ${lvl<=2?`<div class="edit-wrap"><div class="edit-label">Comments</div>
         <textarea class="edit-textarea" id="self-Comments">${ea(p['Comments']||'')}</textarea></div>`:''}
-      <div class="edit-wrap"><div class="edit-label">Profile Image URL</div>
-        <input class="edit-input" id="self-MainImage" value="${ea(p['Main Image']||'')}" placeholder="or paste Google Drive or image URL…"></div>
+      <input type="hidden" id="self-MainImage" value="${ea(p['Main Image']||'')}">
       <hr class="section-divider">
       <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Mailing Address</div>
       <div class="edit-wrap"><div class="edit-label">Street Address</div><input class="edit-input" id="self-StreetAddress" value="${ea(p['Street Address']||'')}"></div>
