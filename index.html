@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.27 | BUILDITALL: 2026-08-20 16:10 PT | Ranger Rover PWA -->
+<!-- v10.28 | BUILDITALL: 2026-08-20 16:45 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -884,6 +884,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <button class="chip"        data-filter="garden_keeper"    onclick="filterReach('garden_keeper')">Garden Keeper</button>
         <button class="chip"        data-filter="ranger_applicant" onclick="filterReach('ranger_applicant')">Ranger Applicant</button>
         <button class="chip"        data-filter="ranger_past"      onclick="filterReach('ranger_past')">Ranger Past</button>
+        <button class="chip"        data-filter="ranger_onboarding" onclick="filterReach('ranger_onboarding')">Ranger Onboarding</button>
+        <button class="chip"        data-filter="ranger_offered"   onclick="filterReach('ranger_offered')">Ranger Offered</button>
       </div>
       <div style="display:flex;gap:8px;padding:0 14px 10px">
         <button class="reach-token-chip" onclick="selectAllReach('reachRangerList')">☑ Select All Shown</button>
@@ -1149,10 +1151,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.27';
+const APP_VERSION='v10.28';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-20 16:10 PT — Removed the Profile Image URL text field from My Profile (self-edit). Users already have Upload/Take Photo buttons there, so the manual URL paste field was redundant. Field is now a hidden input under the hood so the existing upload flow and save logic are unaffected.';
+const BUILD_STAMP='2026-08-20 16:45 PT — Added Ranger Onboarding and Ranger Offered filter chips to Reach › People › EnrichLA (matches the chips already on the Rangers/Data tab). Both categories already existed in RANGER_CATS and were included in the underlying data filter, so this just surfaces them as their own buttons for outreach.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
