@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.32 | BUILDITALL: 2026-08-21 11:20 PT | Ranger Rover PWA -->
+<!-- v10.33 | BUILDITALL: 2026-08-21 12:05 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1148,9 +1148,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </div>
       <div style="margin:14px 16px;border:1px solid var(--mist);border-radius:16px;padding:14px">
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:10px">Add New Price</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <input id="dataPriceNewName" class="settings-input" style="flex:2;min-width:140px;margin:0" placeholder="Name" type="text">
-          <input id="dataPriceNewAmount" class="settings-input" style="flex:1;min-width:100px;margin:0" placeholder="Amount" type="number" step="0.01" inputmode="decimal">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input id="dataPriceNewName" class="settings-input" style="flex:2;min-width:140px;margin:0" placeholder="Name" type="text">
+            <input id="dataPriceNewAmount" class="settings-input" style="flex:1;min-width:100px;margin:0" placeholder="Amount" type="number" step="0.01" inputmode="decimal">
+          </div>
+          <textarea id="dataPriceNewDesc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description (optional)"></textarea>
         </div>
         <button id="dataPriceAddBtn" class="settings-btn" style="margin-top:10px;width:100%" onclick="submitNewPrice()">+ Add Price</button>
         <div id="dataPriceAddStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:18px"></div>
@@ -1180,10 +1183,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.32';
+const APP_VERSION='v10.33';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-21 11:20 PT — Data tab: added a 3rd menu item, Prices, pulling from Items All (Type 3 = Our Prices). Lists Name + Amount for each matching row, with an Add New Price form (Name, Amount) that appends a new Items All row tagged Type 3 = Our Prices.';
+const BUILD_STAMP='2026-08-21 12:05 PT — Data > Prices: added unique ID (col 1) on new rows, an Edit button per row (Name/Amount/Description, saved in place), and a Description field on both add and edit. Items All also gets a manual one-time maintenance function, backfillItemsAllIdsAndTrimEmptyRows, to backfill missing IDs and trim trailing empty rows.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -8566,36 +8569,100 @@ async function renderDataPrices(){
   const prices=_dataPricesCache.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   if(countEl)countEl.textContent=prices.length+' price'+(prices.length===1?'':'s');
   if(!prices.length){listEl.innerHTML=empty('—','No prices yet','');return;}
-  listEl.innerHTML=prices.map(pr=>{
-    const amt=(pr.amount===''||pr.amount===undefined||pr.amount===null||isNaN(parseFloat(pr.amount)))?'—':'$'+Number(pr.amount).toFixed(2);
-    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--mist)">
-      <div style="font-size:15px;color:var(--ink);flex:1;min-width:0">${ea(pr.name)}</div>
-      <div style="font-size:15px;font-weight:700;color:var(--sage);flex:none">${amt}</div>
-    </div>`;
-  }).join('');
+  listEl.innerHTML=prices.map(_dataPriceRowHtml).join('');
+}
+
+function _dataPriceFmtAmount(amount){
+  return (amount===''||amount===undefined||amount===null||isNaN(parseFloat(amount)))?'—':'$'+Number(amount).toFixed(2);
+}
+
+function _dataPriceRowHtml(pr){
+  const rid=ea(pr.id||('row'+pr.row));
+  const desc=pr.description||'';
+  const amtVal=(pr.amount===''||pr.amount===undefined||pr.amount===null)?'':pr.amount;
+  return `<div class="data-price-row" data-id="${rid}" style="padding:14px 16px;border-bottom:1px solid var(--mist)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:15px;color:var(--ink);font-weight:600">${ea(pr.name)}</div>
+        ${desc?`<div style="font-size:13px;color:var(--stone);margin-top:2px;line-height:1.4">${ea(desc)}</div>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex:none">
+        <div style="font-size:15px;font-weight:700;color:var(--sage)">${_dataPriceFmtAmount(pr.amount)}</div>
+        <button type="button" onclick="toggleEditPrice('${rid}')" title="Edit" style="border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1">✏️</button>
+      </div>
+    </div>
+    <div id="dataPriceEdit-${rid}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--mist)">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input class="settings-input" id="dpEditName-${rid}" style="margin:0" value="${ea(pr.name)}" placeholder="Name">
+        <input class="settings-input" id="dpEditAmount-${rid}" style="margin:0" type="number" step="0.01" value="${ea(amtVal)}" placeholder="Amount">
+        <textarea class="settings-input" id="dpEditDesc-${rid}" style="margin:0;min-height:60px;resize:vertical" placeholder="Description">${ea(desc)}</textarea>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="settings-btn" style="flex:1" onclick="saveEditPrice('${rid}','${ea(String(pr.id||''))}',${parseInt(pr.row,10)||0})">Save</button>
+          <button type="button" class="settings-btn" style="flex:1;background:var(--mist);color:var(--stone)" onclick="toggleEditPrice('${rid}')">Cancel</button>
+        </div>
+        <div id="dpEditStatus-${rid}" style="font-size:13px;min-height:16px"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleEditPrice(rid){
+  const el=document.getElementById('dataPriceEdit-'+rid);
+  if(!el)return;
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
+async function saveEditPrice(rid,id,row){
+  const nameEl=document.getElementById('dpEditName-'+rid);
+  const amtEl=document.getElementById('dpEditAmount-'+rid);
+  const descEl=document.getElementById('dpEditDesc-'+rid);
+  const statusEl=document.getElementById('dpEditStatus-'+rid);
+  if(!nameEl||!amtEl||!descEl)return;
+  const name=(nameEl.value||'').trim();
+  const amount=amtEl.value!==''?parseFloat(amtEl.value):'';
+  const description=(descEl.value||'').trim();
+  if(!name){if(statusEl){statusEl.style.color='var(--danger)';statusEl.textContent='Name required.';}return;}
+  if(statusEl){statusEl.style.color='var(--sage)';statusEl.textContent='Saving…';}
+  try{
+    const res=await gasPost({action:'updatePriceItem',id,row,name,amount,description,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok){
+      if(statusEl){statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not save.';}
+      return;
+    }
+    if(_dataPricesCache){
+      const item=_dataPricesCache.find(p=>(id&&String(p.id)===String(id))||(!id&&p.row===row));
+      if(item){item.name=name;item.amount=amount;item.description=description;}
+    }
+    toggleEditPrice(rid);
+    renderDataPrices();
+  }catch(e){
+    if(statusEl){statusEl.style.color='var(--danger)';statusEl.textContent='Connection error.';}
+  }
 }
 
 async function submitNewPrice(){
   const nameEl=document.getElementById('dataPriceNewName');
   const amtEl=document.getElementById('dataPriceNewAmount');
+  const descEl=document.getElementById('dataPriceNewDesc');
   const statusEl=document.getElementById('dataPriceAddStatus');
   const btn=document.getElementById('dataPriceAddBtn');
   if(!nameEl||!amtEl||!statusEl||!btn)return;
   const name=(nameEl.value||'').trim();
   const amountRaw=amtEl.value;
   const amount=amountRaw!==''?parseFloat(amountRaw):'';
+  const description=descEl?(descEl.value||'').trim():'';
   if(!name){statusEl.style.color='var(--danger)';statusEl.textContent='Please enter a name.';return;}
   btn.disabled=true;btn.style.opacity='.6';
   statusEl.style.color='var(--sage)';statusEl.textContent='Saving…';
   try{
-    const res=await gasPost({action:'addPriceItem',name,amount,actor:SESSION?SESSION.email:''});
+    const res=await gasPost({action:'addPriceItem',name,amount,description,actor:SESSION?SESSION.email:''});
     if(!res||!res.ok){
       statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not add price.';
       btn.disabled=false;btn.style.opacity='1';
       return;
     }
-    if(_dataPricesCache)_dataPricesCache.push({name,amount});
-    nameEl.value='';amtEl.value='';
+    if(_dataPricesCache)_dataPricesCache.push({id:res.id||'',name,amount,description});
+    nameEl.value='';amtEl.value='';if(descEl)descEl.value='';
     statusEl.style.color='var(--sage)';statusEl.textContent='Added!';
     renderDataPrices();
     setTimeout(()=>{ if(statusEl)statusEl.textContent=''; },2000);
