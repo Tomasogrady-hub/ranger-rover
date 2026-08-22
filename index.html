@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.31 | BUILDITALL: 2026-08-21 10:05 PT | Ranger Rover PWA -->
+<!-- v10.32 | BUILDITALL: 2026-08-21 11:20 PT | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1070,7 +1070,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <div style="padding:4px 16px 28px;display:flex;flex-direction:column;gap:12px">
         <button class="reach-menu-btn" onclick="showDataPage('people')">👥 People</button>
         <button class="reach-menu-btn" onclick="showDataPage('schools')">🏫 Schools</button>
-        <button class="reach-menu-btn" disabled style="opacity:.45;cursor:default">▫ Empty</button>
+        <button class="reach-menu-btn" onclick="showDataPage('prices')">💲 Prices</button>
         <button class="reach-menu-btn" disabled style="opacity:.45;cursor:default">▫ Empty</button>
       </div>
     </div>
@@ -1138,6 +1138,25 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </div>
       <div style="padding:40px 24px;text-align:center;color:var(--silver)">Coming soon</div>
     </div>
+
+    <!-- Prices (Items All, Type 3 = "Our Prices") -->
+    <div id="data-prices" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Prices</span>
+        <span class="page-count" id="dataPricesCount"></span>
+      </div>
+      <div style="margin:14px 16px;border:1px solid var(--mist);border-radius:16px;padding:14px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:10px">Add New Price</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="dataPriceNewName" class="settings-input" style="flex:2;min-width:140px;margin:0" placeholder="Name" type="text">
+          <input id="dataPriceNewAmount" class="settings-input" style="flex:1;min-width:100px;margin:0" placeholder="Amount" type="number" step="0.01" inputmode="decimal">
+        </div>
+        <button id="dataPriceAddBtn" class="settings-btn" style="margin-top:10px;width:100%" onclick="submitNewPrice()">+ Add Price</button>
+        <div id="dataPriceAddStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:18px"></div>
+      </div>
+      <div id="dataPricesList" style="padding:0 0 20px"><div class="spinner"></div></div>
+    </div>
   </div>
 
 
@@ -1161,10 +1180,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.31';
+const APP_VERSION='v10.32';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-21 10:05 PT — Rangers tab (Level 1/2): added a Summary/Detailed toggle above the list. Detailed mode adds Ranger Documents (W-9, TB Test, Ranger Contract, Ranger Live Scan) and mailing address (Street Address, City, State, Zip Code, Country) to each card; Summary is unchanged and remains the default view.';
+const BUILD_STAMP='2026-08-21 11:20 PT — Data tab: added a 3rd menu item, Prices, pulling from Items All (Type 3 = Our Prices). Lists Name + Amount for each matching row, with an Add New Price form (Name, Amount) that appends a new Items All row tagged Type 3 = Our Prices.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -8500,6 +8519,7 @@ function _teamEmailSearchAllowed(lvl){
 // ── DATA page (People management) ──────────────────────────────────────────
 let _dataCurrentPage = 'menu';
 let _dataPeopleSelected = new Set(); // emails checked for bulk field change
+let _dataPricesCache = null; // cached list of {row,name,amount} from Items All (Type 3 = "Our Prices")
 
 // The "Adjust" panel operates on one of three Humans-sheet fields at a time,
 // chosen via the dataPeopleAdjustMode dropdown. Adjust Roles and Adjust Role
@@ -8514,7 +8534,7 @@ let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
 function showDataPage(page){
   _dataCurrentPage = page;
-  ['menu','people','schools'].forEach(p=>{
+  ['menu','people','schools','prices'].forEach(p=>{
     const el=document.getElementById('data-'+p);
     if(el)el.style.display='none';
   });
@@ -8525,6 +8545,64 @@ function showDataPage(page){
     if(modeSel)modeSel.value=_dataPeopleAdjustMode;
     renderDataPeople();
   }
+  if(page==='prices'){
+    renderDataPrices();
+  }
+}
+
+// ── DATA page (Prices) — Items All tab, filtered to Type 3 = "Our Prices" ──
+async function renderDataPrices(){
+  const listEl=document.getElementById('dataPricesList');
+  const countEl=document.getElementById('dataPricesCount');
+  if(!listEl)return;
+  if(!_dataPricesCache){
+    listEl.innerHTML='<div class="spinner"></div>';
+    let res;
+    try{ res=await gasPost({action:'getPrices'}); }
+    catch(e){ listEl.innerHTML=empty('—','Connection error.',''); return; }
+    if(!res||!res.ok){ listEl.innerHTML=empty('—',(res&&res.error)||'Could not load prices.',''); return; }
+    _dataPricesCache=res.prices||[];
+  }
+  const prices=_dataPricesCache.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if(countEl)countEl.textContent=prices.length+' price'+(prices.length===1?'':'s');
+  if(!prices.length){listEl.innerHTML=empty('—','No prices yet','');return;}
+  listEl.innerHTML=prices.map(pr=>{
+    const amt=(pr.amount===''||pr.amount===undefined||pr.amount===null||isNaN(parseFloat(pr.amount)))?'—':'$'+Number(pr.amount).toFixed(2);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--mist)">
+      <div style="font-size:15px;color:var(--ink);flex:1;min-width:0">${ea(pr.name)}</div>
+      <div style="font-size:15px;font-weight:700;color:var(--sage);flex:none">${amt}</div>
+    </div>`;
+  }).join('');
+}
+
+async function submitNewPrice(){
+  const nameEl=document.getElementById('dataPriceNewName');
+  const amtEl=document.getElementById('dataPriceNewAmount');
+  const statusEl=document.getElementById('dataPriceAddStatus');
+  const btn=document.getElementById('dataPriceAddBtn');
+  if(!nameEl||!amtEl||!statusEl||!btn)return;
+  const name=(nameEl.value||'').trim();
+  const amountRaw=amtEl.value;
+  const amount=amountRaw!==''?parseFloat(amountRaw):'';
+  if(!name){statusEl.style.color='var(--danger)';statusEl.textContent='Please enter a name.';return;}
+  btn.disabled=true;btn.style.opacity='.6';
+  statusEl.style.color='var(--sage)';statusEl.textContent='Saving…';
+  try{
+    const res=await gasPost({action:'addPriceItem',name,amount,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok){
+      statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not add price.';
+      btn.disabled=false;btn.style.opacity='1';
+      return;
+    }
+    if(_dataPricesCache)_dataPricesCache.push({name,amount});
+    nameEl.value='';amtEl.value='';
+    statusEl.style.color='var(--sage)';statusEl.textContent='Added!';
+    renderDataPrices();
+    setTimeout(()=>{ if(statusEl)statusEl.textContent=''; },2000);
+  }catch(e){
+    statusEl.style.color='var(--danger)';statusEl.textContent='Connection error.';
+  }
+  btn.disabled=false;btn.style.opacity='1';
 }
 
 function onDataPeopleAdjustModeChange(){
