@@ -532,6 +532,10 @@ function doPost(e) {
       // ── PROGRAMS (Items All → Operations edit card dropdown) ────────────────
       case 'getPrograms':   return respond(handleGetPrograms());
 
+      // ── PRICES (Data tab → Items All, Type 3 = "Our Prices") ─────────────────
+      case 'getPrices':     return respond(handleGetPrices());
+      case 'addPriceItem':  return respond(handleAddPriceItem(p));
+
       // ── CASCADE EMAIL CHANGE ─────────────────────────────────────────────────
       case 'cascadeEmail': return respond(handleCascadeEmail(p));
 
@@ -2530,6 +2534,52 @@ function getRoles() {
         };
       });
   } catch(e) { return []; }
+}
+
+// ── PRICES (Items All → Data tab, Type 3 = "Our Prices") ────────────────────
+// Returns every Items All row tagged Type 3 = "Our Prices" for the Data > Prices
+// list. Row number is included (1-based sheet row) for potential future edit/
+// delete support, though the current UI only lists + appends.
+function handleGetPrices() {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ni  = headers.indexOf('Name');
+  var ai  = headers.indexOf('Amount');
+  var t3i = headers.indexOf('Type 3');
+  if (ni === -1 || ai === -1 || t3i === -1) {
+    return { ok: false, error: 'Expected Name/Amount/Type 3 columns not found in Items All.' };
+  }
+  var out = [];
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][t3i] || '').trim() !== 'Our Prices') continue;
+    out.push({ row: r + 1, name: String(data[r][ni] || ''), amount: data[r][ai] });
+  }
+  return { ok: true, prices: out };
+}
+
+// Appends a new Items All row with Name/Amount, tagged Type 3 = "Our Prices"
+// so it shows up in the Data > Prices list above.
+function handleAddPriceItem(p) {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var headers = sheet.getDataRange().getValues()[0];
+  if (headers.indexOf('Name') === -1 || headers.indexOf('Amount') === -1 || headers.indexOf('Type 3') === -1) {
+    return { ok: false, error: 'Expected Name/Amount/Type 3 columns not found in Items All.' };
+  }
+  var name   = String(p.name || '').trim();
+  var amount = (p.amount === undefined || p.amount === null) ? '' : p.amount;
+  if (!name) return { ok: false, error: 'Name is required.' };
+  var row = headers.map(function(h) {
+    if (h === 'Name')   return name;
+    if (h === 'Amount') return amount;
+    if (h === 'Type 3') return 'Our Prices';
+    return '';
+  });
+  sheet.appendRow(row);
+  logActivity(p.actor || '', 'added price', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
+  return { ok: true };
 }
 
 // ── PROGRAMS + RESPONSE OPTIONS (Items All → Operations dropdowns/filter) ──
