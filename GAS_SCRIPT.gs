@@ -535,6 +535,7 @@ function doPost(e) {
       // ── PRICES (Data tab → Items All, Type 3 = "Our Prices") ─────────────────
       case 'getPrices':     return respond(handleGetPrices());
       case 'addPriceItem':  return respond(handleAddPriceItem(p));
+      case 'updatePriceItem': return respond(handleUpdatePriceItem(p));
 
       // ── CASCADE EMAIL CHANGE ─────────────────────────────────────────────────
       case 'cascadeEmail': return respond(handleCascadeEmail(p));
@@ -2538,29 +2539,44 @@ function getRoles() {
 
 // ── PRICES (Items All → Data tab, Type 3 = "Our Prices") ────────────────────
 // Returns every Items All row tagged Type 3 = "Our Prices" for the Data > Prices
-// list. Row number is included (1-based sheet row) for potential future edit/
-// delete support, though the current UI only lists + appends.
+// list, including ID (col 1) and Description so the client can list + edit them.
 function handleGetPrices() {
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
+  var idi = headers.indexOf('ID');
   var ni  = headers.indexOf('Name');
   var ai  = headers.indexOf('Amount');
   var t3i = headers.indexOf('Type 3');
+  var di  = headers.indexOf('Description');
   if (ni === -1 || ai === -1 || t3i === -1) {
     return { ok: false, error: 'Expected Name/Amount/Type 3 columns not found in Items All.' };
   }
   var out = [];
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][t3i] || '').trim() !== 'Our Prices') continue;
-    out.push({ row: r + 1, name: String(data[r][ni] || ''), amount: data[r][ai] });
+    out.push({
+      row:         r + 1,
+      id:          idi > -1 ? String(data[r][idi] || '') : '',
+      name:        String(data[r][ni] || ''),
+      amount:      data[r][ai],
+      description: di > -1 ? String(data[r][di] || '') : ''
+    });
   }
   return { ok: true, prices: out };
 }
 
-// Appends a new Items All row with Name/Amount, tagged Type 3 = "Our Prices"
-// so it shows up in the Data > Prices list above.
+// 8-char unique ID generator for Items All rows (same pattern as Chores' ID column).
+function _newItemsAllId() {
+  return Utilities.base64Encode(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,
+      String(Date.now()) + String(Math.random()))
+  ).substring(0, 8).replace(/[+/=]/g, 'x');
+}
+
+// Appends a new Items All row with ID/Name/Amount/Description, tagged
+// Type 3 = "Our Prices" so it shows up in the Data > Prices list above.
 function handleAddPriceItem(p) {
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
@@ -2568,18 +2584,112 @@ function handleAddPriceItem(p) {
   if (headers.indexOf('Name') === -1 || headers.indexOf('Amount') === -1 || headers.indexOf('Type 3') === -1) {
     return { ok: false, error: 'Expected Name/Amount/Type 3 columns not found in Items All.' };
   }
-  var name   = String(p.name || '').trim();
-  var amount = (p.amount === undefined || p.amount === null) ? '' : p.amount;
+  var name        = String(p.name || '').trim();
+  var amount      = (p.amount === undefined || p.amount === null) ? '' : p.amount;
+  var description = String(p.description || '').trim();
   if (!name) return { ok: false, error: 'Name is required.' };
+  var newId = _newItemsAllId();
   var row = headers.map(function(h) {
-    if (h === 'Name')   return name;
-    if (h === 'Amount') return amount;
-    if (h === 'Type 3') return 'Our Prices';
+    if (h === 'ID')          return newId;
+    if (h === 'Name')        return name;
+    if (h === 'Amount')      return amount;
+    if (h === 'Type 3')      return 'Our Prices';
+    if (h === 'Description') return description;
     return '';
   });
   sheet.appendRow(row);
   logActivity(p.actor || '', 'added price', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
+  return { ok: true, id: newId };
+}
+
+// Updates an existing Items All "Our Prices" row — matched by ID (col 'ID')
+// primarily, falling back to the sheet row number the client already has
+// cached from handleGetPrices (covers any row that predates the ID backfill).
+function handleUpdatePriceItem(p) {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idi = headers.indexOf('ID');
+  var ni  = headers.indexOf('Name');
+  var ai  = headers.indexOf('Amount');
+  var di  = headers.indexOf('Description');
+
+  var id          = String(p.id  || '').trim();
+  var rowNum      = parseInt(p.row, 10);
+  var name        = String(p.name || '').trim();
+  var amount      = (p.amount === undefined || p.amount === null) ? '' : p.amount;
+  var description = String(p.description || '').trim();
+  if (!name) return { ok: false, error: 'Name is required.' };
+
+  var targetRow = -1;
+  if (id && idi > -1) {
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][idi] || '').trim() === id) { targetRow = r + 1; break; }
+    }
+  }
+  if (targetRow === -1 && rowNum > 1 && rowNum <= data.length) targetRow = rowNum;
+  if (targetRow === -1) return { ok: false, error: 'Price row not found.' };
+
+  if (ni > -1) sheet.getRange(targetRow, ni + 1).setValue(name);
+  if (ai > -1) sheet.getRange(targetRow, ai + 1).setValue(amount);
+  if (di > -1) sheet.getRange(targetRow, di + 1).setValue(description);
+  logActivity(p.actor || '', 'edited price', id || String(targetRow), 'price', name + (amount !== '' ? (' — ' + amount) : ''));
   return { ok: true };
+}
+
+// ── ITEMS ALL MAINTENANCE (one-time / occasional manual cleanup) ────────────
+// Run this manually from the Apps Script editor (select it in the function
+// dropdown, click Run) — it is NOT wired to doPost and does not need a new
+// deployment. Safe to re-run any time:
+//   1. Backfills column 1 (ID) with a unique 8-char ID for any row missing one.
+//   2. Deletes fully-empty rows trailing the bottom of the existing data.
+function backfillItemsAllIdsAndTrimEmptyRows() {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) { Logger.log('"Items All" tab not found.'); return; }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2) { Logger.log('No data rows found.'); return; }
+
+  // Ensure column 1 is headed "ID"
+  var headerCell = sheet.getRange(1, 1);
+  if (String(headerCell.getValue() || '').trim() === '') headerCell.setValue('ID');
+
+  var data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  // 1) Backfill missing IDs (skip fully-empty rows — those get trimmed below)
+  var filled = 0;
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var isBlankRow = row.every(function(c) { return c === '' || c === null; });
+    if (isBlankRow) continue;
+    if (String(row[0] || '').trim() === '') {
+      var newId = Utilities.base64Encode(
+        Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,
+          String(Date.now()) + String(Math.random()) + i)
+      ).substring(0, 8).replace(/[+/=]/g, 'x');
+      sheet.getRange(i + 2, 1).setValue(newId);
+      filled++;
+    }
+  }
+
+  // 2) Trim fully-empty trailing rows
+  var refreshedLastRow = sheet.getLastRow();
+  var checkFrom = refreshedLastRow;
+  while (checkFrom > 1) {
+    var rowVals = sheet.getRange(checkFrom, 1, 1, lastCol).getValues()[0];
+    var allBlank = rowVals.every(function(c) { return c === '' || c === null; });
+    if (!allBlank) break;
+    checkFrom--;
+  }
+  var trimmed = 0;
+  if (checkFrom < refreshedLastRow) {
+    trimmed = refreshedLastRow - checkFrom;
+    sheet.deleteRows(checkFrom + 1, trimmed);
+  }
+
+  Logger.log('Backfilled ' + filled + ' missing ID(s). Trimmed ' + trimmed + ' empty trailing row(s).');
 }
 
 // ── PROGRAMS + RESPONSE OPTIONS (Items All → Operations dropdowns/filter) ──
