@@ -2539,7 +2539,8 @@ function getRoles() {
 
 // ── PRICES (Items All → Data tab, Type 3 = "Our Prices") ────────────────────
 // Returns every Items All row tagged Type 3 = "Our Prices" for the Data > Prices
-// list, including ID (col 1) and Description so the client can list + edit them.
+// list, including ID (col 1), Description, Full day multiplier/Amount, and the
+// Date added or last edited stamp (col 8/H) so the client can list + edit them.
 function handleGetPrices() {
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
@@ -2550,6 +2551,9 @@ function handleGetPrices() {
   var ai  = headers.indexOf('Amount');
   var t3i = headers.indexOf('Type 3');
   var di  = headers.indexOf('Description');
+  var mi  = headers.indexOf('Full day multiplier');
+  var fdi = headers.indexOf('Full day Amount');
+  var dti = headers.indexOf('Date added or last edited');
   if (ni === -1 || ai === -1 || t3i === -1) {
     return { ok: false, error: 'Expected Name/Amount/Type 3 columns not found in Items All.' };
   }
@@ -2557,11 +2561,14 @@ function handleGetPrices() {
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][t3i] || '').trim() !== 'Our Prices') continue;
     out.push({
-      row:         r + 1,
-      id:          idi > -1 ? String(data[r][idi] || '') : '',
-      name:        String(data[r][ni] || ''),
-      amount:      data[r][ai],
-      description: di > -1 ? String(data[r][di] || '') : ''
+      row:               r + 1,
+      id:                idi > -1 ? String(data[r][idi] || '') : '',
+      name:              String(data[r][ni] || ''),
+      amount:            data[r][ai],
+      description:       di  > -1 ? String(data[r][di]  || '') : '',
+      fullDayMultiplier: mi  > -1 ? data[r][mi]  : '',
+      fullDayAmount:     fdi > -1 ? data[r][fdi] : '',
+      dateStamp:         dti > -1 ? data[r][dti] : ''
     });
   }
   return { ok: true, prices: out };
@@ -2575,8 +2582,19 @@ function _newItemsAllId() {
   ).substring(0, 8).replace(/[+/=]/g, 'x');
 }
 
+// Writes "now" into "Date added or last edited" (col 8/H) — matched by header
+// name first, falling back to the literal column 8 position if the header
+// text on this sheet ever drifts from the expected label.
+function _setPriceDateStamp(sheet, headers, targetRow) {
+  var di  = headers.indexOf('Date added or last edited');
+  var col = di > -1 ? di + 1 : 8;
+  sheet.getRange(targetRow, col).setValue(new Date());
+}
+
 // Appends a new Items All row with ID/Name/Amount/Description, tagged
-// Type 3 = "Our Prices" so it shows up in the Data > Prices list above.
+// Type 3 = "Our Prices". Also stamps "Date added or last edited" and computes
+// Full day Amount = Full day multiplier × Amount (multiplier defaults to 1.75
+// but the person can override it).
 function handleAddPriceItem(p) {
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
@@ -2585,26 +2603,39 @@ function handleAddPriceItem(p) {
     return { ok: false, error: 'Expected Name/Amount/Type 3 columns not found in Items All.' };
   }
   var name        = String(p.name || '').trim();
-  var amount      = (p.amount === undefined || p.amount === null) ? '' : p.amount;
-  var description = String(p.description || '').trim();
   if (!name) return { ok: false, error: 'Name is required.' };
+  var amount      = (p.amount === undefined || p.amount === null || p.amount === '') ? '' : parseFloat(p.amount);
+  var description = String(p.description || '').trim();
+  var multiplier  = (p.fullDayMultiplier === undefined || p.fullDayMultiplier === null || p.fullDayMultiplier === '')
+                     ? 1.75 : parseFloat(p.fullDayMultiplier);
+  if (isNaN(multiplier)) multiplier = 1.75;
+  var fullDayAmount = (amount !== '' && !isNaN(amount)) ? (amount * multiplier) : '';
+
   var newId = _newItemsAllId();
+  var now   = new Date();
   var row = headers.map(function(h) {
-    if (h === 'ID')          return newId;
-    if (h === 'Name')        return name;
-    if (h === 'Amount')      return amount;
-    if (h === 'Type 3')      return 'Our Prices';
-    if (h === 'Description') return description;
+    if (h === 'ID')                        return newId;
+    if (h === 'Name')                      return name;
+    if (h === 'Amount')                    return amount;
+    if (h === 'Type 3')                    return 'Our Prices';
+    if (h === 'Description')               return description;
+    if (h === 'Full day multiplier')       return multiplier;
+    if (h === 'Full day Amount')           return fullDayAmount;
+    if (h === 'Date added or last edited') return now;
     return '';
   });
   sheet.appendRow(row);
+  if (headers.indexOf('Date added or last edited') === -1) {
+    _setPriceDateStamp(sheet, headers, sheet.getLastRow());
+  }
   logActivity(p.actor || '', 'added price', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
-  return { ok: true, id: newId };
+  return { ok: true, id: newId, fullDayAmount: fullDayAmount };
 }
 
 // Updates an existing Items All "Our Prices" row — matched by ID (col 'ID')
 // primarily, falling back to the sheet row number the client already has
 // cached from handleGetPrices (covers any row that predates the ID backfill).
+// Recomputes Full day Amount and re-stamps Date added or last edited.
 function handleUpdatePriceItem(p) {
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
@@ -2614,13 +2645,19 @@ function handleUpdatePriceItem(p) {
   var ni  = headers.indexOf('Name');
   var ai  = headers.indexOf('Amount');
   var di  = headers.indexOf('Description');
+  var mi  = headers.indexOf('Full day multiplier');
+  var fdi = headers.indexOf('Full day Amount');
 
   var id          = String(p.id  || '').trim();
   var rowNum      = parseInt(p.row, 10);
   var name        = String(p.name || '').trim();
-  var amount      = (p.amount === undefined || p.amount === null) ? '' : p.amount;
-  var description = String(p.description || '').trim();
   if (!name) return { ok: false, error: 'Name is required.' };
+  var amount      = (p.amount === undefined || p.amount === null || p.amount === '') ? '' : parseFloat(p.amount);
+  var description = String(p.description || '').trim();
+  var multiplier  = (p.fullDayMultiplier === undefined || p.fullDayMultiplier === null || p.fullDayMultiplier === '')
+                     ? 1.75 : parseFloat(p.fullDayMultiplier);
+  if (isNaN(multiplier)) multiplier = 1.75;
+  var fullDayAmount = (amount !== '' && !isNaN(amount)) ? (amount * multiplier) : '';
 
   var targetRow = -1;
   if (id && idi > -1) {
@@ -2631,11 +2668,15 @@ function handleUpdatePriceItem(p) {
   if (targetRow === -1 && rowNum > 1 && rowNum <= data.length) targetRow = rowNum;
   if (targetRow === -1) return { ok: false, error: 'Price row not found.' };
 
-  if (ni > -1) sheet.getRange(targetRow, ni + 1).setValue(name);
-  if (ai > -1) sheet.getRange(targetRow, ai + 1).setValue(amount);
-  if (di > -1) sheet.getRange(targetRow, di + 1).setValue(description);
+  if (ni > -1)  sheet.getRange(targetRow, ni + 1).setValue(name);
+  if (ai > -1)  sheet.getRange(targetRow, ai + 1).setValue(amount);
+  if (di > -1)  sheet.getRange(targetRow, di + 1).setValue(description);
+  if (mi > -1)  sheet.getRange(targetRow, mi + 1).setValue(multiplier);
+  if (fdi > -1) sheet.getRange(targetRow, fdi + 1).setValue(fullDayAmount);
+  _setPriceDateStamp(sheet, headers, targetRow);
+
   logActivity(p.actor || '', 'edited price', id || String(targetRow), 'price', name + (amount !== '' ? (' — ' + amount) : ''));
-  return { ok: true };
+  return { ok: true, fullDayAmount: fullDayAmount };
 }
 
 // ── ITEMS ALL MAINTENANCE (one-time / occasional manual cleanup) ────────────
@@ -2643,53 +2684,67 @@ function handleUpdatePriceItem(p) {
 // dropdown, click Run) — it is NOT wired to doPost and does not need a new
 // deployment. Safe to re-run any time:
 //   1. Backfills column 1 (ID) with a unique 8-char ID for any row missing one.
-//   2. Deletes fully-empty rows trailing the bottom of the existing data.
+//   2. Deletes empty rows trailing the bottom of the existing data.
+//
+// v2: scans the sheet's FULL grid (getMaxRows), not just getLastRow(), and
+// treats an unchecked checkbox (boolean false) or a whitespace-only string as
+// blank — getLastRow() and a strict ''/null check both under-trim when a
+// "blank-looking" row actually has a stray space or a default-false checkbox
+// value sitting in it, which is why the first version left rows behind.
 function backfillItemsAllIdsAndTrimEmptyRows() {
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) { Logger.log('"Items All" tab not found.'); return; }
 
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  if (lastRow < 2) { Logger.log('No data rows found.'); return; }
+  var maxRows = sheet.getMaxRows();
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  if (maxRows < 2) { Logger.log('No data rows found.'); return; }
 
   // Ensure column 1 is headed "ID"
   var headerCell = sheet.getRange(1, 1);
   if (String(headerCell.getValue() || '').trim() === '') headerCell.setValue('ID');
 
-  var data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  function isBlankCell(c) {
+    if (c === null || c === undefined) return true;
+    if (typeof c === 'boolean') return c === false; // unchecked checkbox reads as blank
+    if (typeof c === 'string') return c.trim() === '';
+    return false; // numbers (including 0) count as real content
+  }
 
-  // 1) Backfill missing IDs (skip fully-empty rows — those get trimmed below)
+  // Read the ENTIRE grid below the header, not just up to getLastRow() —
+  // getLastRow() is exactly what missed the leftover rows last time.
+  var allData = sheet.getRange(2, 1, maxRows - 1, lastCol).getValues();
+
+  // Find the true last row with real content, scanning from the bottom.
+  var trueLastRow = 1; // header row, if nothing else is found
+  for (var i = allData.length - 1; i >= 0; i--) {
+    if (!allData[i].every(isBlankCell)) { trueLastRow = i + 2; break; }
+  }
+
+  // 1) Backfill missing IDs on real rows up through trueLastRow
   var filled = 0;
-  for (var i = 0; i < data.length; i++) {
-    var row = data[i];
-    var isBlankRow = row.every(function(c) { return c === '' || c === null; });
-    if (isBlankRow) continue;
-    if (String(row[0] || '').trim() === '') {
+  for (var r = 2; r <= trueLastRow; r++) {
+    var rowVals = allData[r - 2];
+    if (rowVals.every(isBlankCell)) continue; // blank row sandwiched in data — leave alone, don't ID it
+    if (String(rowVals[0] || '').trim() === '') {
       var newId = Utilities.base64Encode(
         Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,
-          String(Date.now()) + String(Math.random()) + i)
+          String(Date.now()) + String(Math.random()) + r)
       ).substring(0, 8).replace(/[+/=]/g, 'x');
-      sheet.getRange(i + 2, 1).setValue(newId);
+      sheet.getRange(r, 1).setValue(newId);
       filled++;
     }
   }
 
-  // 2) Trim fully-empty trailing rows
-  var refreshedLastRow = sheet.getLastRow();
-  var checkFrom = refreshedLastRow;
-  while (checkFrom > 1) {
-    var rowVals = sheet.getRange(checkFrom, 1, 1, lastCol).getValues()[0];
-    var allBlank = rowVals.every(function(c) { return c === '' || c === null; });
-    if (!allBlank) break;
-    checkFrom--;
-  }
+  // 2) Delete every row after trueLastRow, all the way to the sheet's actual
+  // row count — this is the part that was previously being skipped.
   var trimmed = 0;
-  if (checkFrom < refreshedLastRow) {
-    trimmed = refreshedLastRow - checkFrom;
-    sheet.deleteRows(checkFrom + 1, trimmed);
+  var currentMaxRows = sheet.getMaxRows();
+  if (currentMaxRows > trueLastRow) {
+    trimmed = currentMaxRows - trueLastRow;
+    sheet.deleteRows(trueLastRow + 1, trimmed);
   }
 
-  Logger.log('Backfilled ' + filled + ' missing ID(s). Trimmed ' + trimmed + ' empty trailing row(s).');
+  Logger.log('Backfilled ' + filled + ' missing ID(s). Trimmed ' + trimmed + ' empty trailing row(s). True last data row: ' + trueLastRow);
 }
 
 // ── PROGRAMS + RESPONSE OPTIONS (Items All → Operations dropdowns/filter) ──
