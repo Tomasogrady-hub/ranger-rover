@@ -884,6 +884,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <div class="filter-row" id="reachAppUserFilters" style="padding:10px 14px 0">
         <button class="chip" data-appuser="active"   onclick="filterReachAppUsers('active')">All App Users</button>
         <button class="chip" data-appuser="inactive" onclick="filterReachAppUsers('inactive')">All Non App Users</button>
+        <button class="chip" data-appuser="inactiveGranted" onclick="filterReachAppUsers('inactiveGranted')">Non App Users w/ Granted Access</button>
       </div>
       <div class="filter-row" id="reachRangerFilters">
         <button class="chip active" data-filter="all"              onclick="filterReach('all')">All</button>
@@ -1100,6 +1101,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
               <option value="__all__">All Access Levels</option>
               <option value="__active__">All App Users</option>
               <option value="__inactive__">All Non App Users</option>
+              <option value="__inactiveGranted__">Non App Users w/ Granted Access</option>
               <option value="__none__">No Access Level</option>
               <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
               <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
@@ -1198,10 +1200,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.35';
+const APP_VERSION='v10.36';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-23 - Data > People: added an All Non App Users filter option alongside All App Users, with a live count. Reach > People > EnrichLA: added All App Users and All Non App Users buttons at the top of the list so you can quickly narrow to just those who have or have not logged into the app.';
+const BUILD_STAMP='2026-08-23 - Data > People and Reach > People > EnrichLA: added a third filter, Non App Users with Granted Access, for people who have an access level assigned but have not yet logged into the app.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -7778,8 +7780,10 @@ function renderReachRangers() {
     const cats = humanRoleCats(h);
     if (!cats.some(c => RANGER_CATS.includes(c))) return false;
     if (_reachFilter !== 'all' && !cats.includes(_reachFilter)) return false;
+    const lvlRaw = String(h['Access Level']||'').trim();
     if (_reachAppUserFilter === 'active' && !h['Has Password']) return false;
     if (_reachAppUserFilter === 'inactive' && h['Has Password']) return false;
+    if (_reachAppUserFilter === 'inactiveGranted' && (h['Has Password'] || lvlRaw==='')) return false;
     return true;
   });
   const countEl = document.getElementById('reachRangerCount');
@@ -8797,16 +8801,16 @@ function _dataPeopleRoleOptions(){
 function _dataPeopleFilterCounts(){
   const all=(DATA.humans||[]);
   const roleCounts={};
-  let none=0, active=0, inactive=0, allLevels=0;
+  let none=0, active=0, inactive=0, inactiveGranted=0, allLevels=0;
   const levelCounts={1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0};
   all.forEach(h=>{
     const r=(h.Role||h.role||'').trim(); if(r)roleCounts[r]=(roleCounts[r]||0)+1;
     const ra=(h['Role Additional']||'').trim(); if(ra && ra!==r)roleCounts[ra]=(roleCounts[ra]||0)+1;
     const lvlRaw=String(h['Access Level']||'').trim();
     if(lvlRaw===''){ none++; } else { allLevels++; if(levelCounts[lvlRaw]!==undefined)levelCounts[lvlRaw]++; }
-    if(h['Has Password'])active++; else inactive++;
+    if(h['Has Password'])active++; else { inactive++; if(lvlRaw!=='')inactiveGranted++; }
   });
-  return {total:all.length, roleCounts, none, active, inactive, allLevels, levelCounts};
+  return {total:all.length, roleCounts, none, active, inactive, inactiveGranted, allLevels, levelCounts};
 }
 
 // Plain-English explanation of the two People filters currently applied — recomputed
@@ -8819,6 +8823,7 @@ function _dataPeopleFilterSummaryText(roleF,lvlF,n){
   if(lvlF==='__all__')action=`${verb} an access level assigned`;
   else if(lvlF==='__active__')action=n===1?'is an active user of this app':'are active users of this app';
   else if(lvlF==='__inactive__')action=n===1?'is not yet an active user of this app':'are not yet active users of this app';
+  else if(lvlF==='__inactiveGranted__')action=n===1?'has an access level assigned but has not yet logged into the app':'have an access level assigned but have not yet logged into the app';
   else if(lvlF==='__none__')action=`${verb} no access level`;
   else action=`${verb} access level ${lvlF}`;
   return `For ${who}, ${subj} ${action}.`;
@@ -8858,6 +8863,7 @@ function renderDataPeople(){
       if(o.value==='__all__')o.textContent=`All Access Levels (${counts.allLevels})`;
       else if(o.value==='__active__')o.textContent=`All App Users (${counts.active})`;
       else if(o.value==='__inactive__')o.textContent=`All Non App Users (${counts.inactive})`;
+      else if(o.value==='__inactiveGranted__')o.textContent=`Non App Users w/ Granted Access (${counts.inactiveGranted})`;
       else if(o.value==='__none__')o.textContent=`No Access Level (${counts.none})`;
       else if(o.value)o.textContent=`Level ${o.value} (${counts.levelCounts[o.value]||0})`;
     });
@@ -8873,6 +8879,7 @@ function renderDataPeople(){
     if(lvlF==='__none__'){ if(lvlRaw!=='')return false; }
     else if(lvlF==='__active__'){ if(!h['Has Password'])return false; }
     else if(lvlF==='__inactive__'){ if(h['Has Password'])return false; }
+    else if(lvlF==='__inactiveGranted__'){ if(h['Has Password']||lvlRaw==='')return false; }
     else if(lvlF==='__all__'){ if(lvlRaw==='')return false; }
     else if(lvlF){ if(lvlRaw!==lvlF)return false; }
     return true;
