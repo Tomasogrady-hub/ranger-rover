@@ -1200,10 +1200,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.36';
+const APP_VERSION='v10.37';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-23 - Data > People and Reach > People > EnrichLA: added a third filter, Non App Users with Granted Access, for people who have an access level assigned but have not yet logged into the app.';
+const BUILD_STAMP='2026-08-23 - Fixed Rangers Confidential Notes Edit button silently failing when a persons notes contained an apostrophe or quote mark.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4189,32 +4189,43 @@ async function fetchPersonComments(email){
   try{
     const res=await gasPost({action:'getComments',email,accessLevel:SESSION.accessLevel,actor:SESSION.email});
     if(!res.ok){btn.disabled=false;btn.textContent='🔒 Retrieve Confidential Notes';showSaveToast('⚠ '+res.error);return;}
+    // Raw text stashed on the DOM node (not embedded in an onclick string) so
+    // apostrophes/quotes/newlines in the comment can never break inline JS.
+    window._pdCommentsRaw=res.comments||'';
     // Show comments text + Edit / Hide controls
     body.innerHTML=`
       <div id="pd-c-view">
         <div style="font-size:14px;color:var(--silver);margin:10px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Comments</div>
-        <div id="pd-c-text" style="font-size:15px;color:var(--stone);line-height:1.6;white-space:pre-wrap;background:var(--fog);border-radius:var(--r-sm);padding:12px">${res.comments||'<em style="color:var(--silver)">No comments yet.</em>'}</div>
+        <div id="pd-c-text" style="font-size:15px;color:var(--stone);line-height:1.6;white-space:pre-wrap;background:var(--fog);border-radius:var(--r-sm);padding:12px"></div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn-cancel" style="flex:1" onclick="editPersonComments('${ea(email)}','${ea(res.comments||'')}')">✏ Edit</button>
+          <button class="btn-cancel" style="flex:1" onclick="editPersonComments('${ea(email)}')">✏ Edit</button>
           <button class="btn-cancel" style="flex:1" onclick="hidePersonComments()">Hide</button>
         </div>
       </div>`;
+    const textEl=document.getElementById('pd-c-text');
+    if(textEl){
+      if(window._pdCommentsRaw)textEl.textContent=window._pdCommentsRaw;
+      else textEl.innerHTML='<em style="color:var(--silver)">No comments yet.</em>';
+    }
     body.style.display='block';
     btn.style.display='none';
   }catch(e){btn.disabled=false;btn.textContent='🔒 Retrieve Confidential Notes';showSaveToast('⚠ Could not load comments');}
 }
 
-function editPersonComments(email,current){
+function editPersonComments(email){
   const body=document.getElementById('pd-comments-body');
   if(!body)return;
+  const current=window._pdCommentsRaw||'';
   body.innerHTML=`
     <div style="font-size:14px;color:var(--silver);margin:10px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Comments</div>
-    <textarea id="pd-c-edit" class="edit-textarea" style="min-height:120px;margin-bottom:8px">${ea(current)}</textarea>
+    <textarea id="pd-c-edit" class="edit-textarea" style="min-height:120px;margin-bottom:8px"></textarea>
     <div style="display:flex;gap:8px">
       <button class="btn-save" style="flex:1" onclick="savePersonComments('${ea(email)}')">Save</button>
       <button class="btn-cancel" style="flex:1" onclick="hidePersonComments()">Cancel</button>
     </div>
     <div class="save-msg" id="pd-c-msg"></div>`;
+  const ta=document.getElementById('pd-c-edit');
+  if(ta)ta.value=current;
 }
 
 async function savePersonComments(email){
