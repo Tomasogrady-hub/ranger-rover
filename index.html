@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.34 | BUILDITALL: 2026-08-21 13:10 PT | Ranger Rover PWA -->
+<!-- v10.38 | BUILDITALL: 2026-08-23 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -288,6 +288,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 #smartMap{position:absolute;inset:0;background:var(--fog)}
 #smartMapFilters{position:absolute;top:8px;left:8px;right:8px;z-index:1000;display:flex;flex-direction:column;gap:6px;pointer-events:none}
 #smartMapFilters>*{pointer-events:all}
+.smartmap-col{display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1 1 150px}
+#smartMapColumns{display:flex;gap:14px;flex-wrap:wrap}
 .smartmap-layer-chip{padding:7px 13px;border:none;border-radius:99px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap;background:rgba(255,255,255,.93);color:var(--stone);box-shadow:0 2px 8px rgba(0,0,0,.2);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .smartmap-layer-chip.active[data-layer="sites"]{background:var(--grove);color:#fff}
 .smartmap-layer-chip.active[data-layer="rangers"]{background:#6a4fb3;color:#fff}
@@ -783,35 +785,41 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
         <div id="smartMapWrap">
           <div id="smartMapFilters">
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="smartmap-layer-chip active" data-layer="sites" onclick="toggleSmartMapLayer('sites')">🏫 Sites</button>
-              <button class="smartmap-layer-chip" data-layer="rangers" onclick="toggleSmartMapLayer('rangers')">🧑‍🌾 Rangers</button>
-            </div>
-            <div id="smartMapSiteFilters" style="display:flex;gap:6px;flex-wrap:wrap">
-              <select id="smFilterType" class="smartmap-select" onchange="refreshSmartMap()">
-                <option value="type_active" selected>All Active Sites</option>
-                <option value="type_future">Future Ranger Program</option>
-                <option value="type_inactive">Inactive Ranger Program</option>
-                <option value="type_possible">Possible Ranger Program</option>
-                <option value="all">All Types</option>
-              </select>
-              <select id="smFilterStatus" class="smartmap-select" onchange="refreshSmartMap()">
-                <option value="" selected>All Statuses</option>
-                <option value="grp_started">GRP Started</option>
-                <option value="grp_not_started">GRP NOT Started</option>
-                <option value="responded">Responded</option>
-                <option value="no_response">No Response</option>
-                <option value="has_po">Has PO</option>
-              </select>
-              <select id="smFilterRanger" class="smartmap-select" onchange="refreshSmartMap()">
-                <option value="" selected>Ranger: All</option>
-                <option value="assigned">🌿 Assigned</option>
-                <option value="unassigned">◻ Unassigned</option>
-              </select>
-            </div>
-            <div id="smartMapRangerFilters" style="display:none;gap:6px;flex-wrap:wrap">
-              <button class="smartmap-layer-chip active" data-rfilter="active" onclick="toggleSmartMapRangerFilter('active')">🌿 Active Rangers</button>
-              <button class="smartmap-layer-chip" data-rfilter="other" onclick="toggleSmartMapRangerFilter('other')">Applicants / Past</button>
+            <div id="smartMapColumns">
+              <div class="smartmap-col">
+                <button class="smartmap-layer-chip active" data-layer="sites" onclick="toggleSmartMapLayer('sites')">🏫 Sites</button>
+                <div id="smartMapSiteFilters" style="display:flex;gap:6px;flex-wrap:wrap">
+                  <select id="smFilterType" class="smartmap-select" onchange="refreshSmartMap()">
+                    <option value="type_active" selected>All Active Sites</option>
+                    <option value="type_future">Future Ranger Program</option>
+                    <option value="type_inactive">Inactive Ranger Program</option>
+                    <option value="type_possible">Possible Ranger Program</option>
+                    <option value="all">All Types</option>
+                  </select>
+                  <select id="smFilterStatus" class="smartmap-select" onchange="refreshSmartMap()">
+                    <option value="" selected>All Statuses</option>
+                    <option value="grp_started">GRP Started</option>
+                    <option value="grp_not_started">GRP NOT Started</option>
+                    <option value="responded">Responded</option>
+                    <option value="no_response">No Response</option>
+                    <option value="has_po">Has PO</option>
+                  </select>
+                </div>
+              </div>
+              <div class="smartmap-col">
+                <button class="smartmap-layer-chip" data-layer="rangers" onclick="toggleSmartMapLayer('rangers')">🧑‍🌾 Rangers</button>
+                <div id="smartMapRangerFilters" style="display:flex;gap:6px;flex-wrap:wrap">
+                  <select id="smFilterRanger" class="smartmap-select" onchange="refreshSmartMap()">
+                    <option value="" selected>Ranger: All</option>
+                    <option value="assigned">🌿 Assigned</option>
+                    <option value="unassigned">◻ Unassigned</option>
+                  </select>
+                  <select id="smFilterRangerCat" class="smartmap-select" onchange="setSmartMapRangerCatFilter(this.value)">
+                    <option value="active" selected>🌿 Active Rangers</option>
+                    <option value="onboarding">🧭 Rangers Onboarding</option>
+                  </select>
+                </div>
+              </div>
             </div>
             <div class="smartmap-status" id="smartMapStatus"></div>
           </div>
@@ -822,7 +830,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <span><i style="background:#6a4fb3"></i>Ranger</span>
             <span><i style="background:#b8860b"></i>Master Ranger</span>
             <span><i style="background:#00838f"></i>Garden Keeper</span>
-            <span><i style="background:#9e9e9e"></i>Applicant/Past</span>
+            <span><i style="background:#e08a2c"></i>Onboarding</span>
           </div>
         </div>
       </div>
@@ -1200,10 +1208,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.37';
+const APP_VERSION='v10.38';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-23 - Fixed Rangers Confidential Notes Edit button silently failing when a persons notes contained an apostrophe or quote mark.';
+const BUILD_STAMP='2026-08-23 - Smart Map redesigned with Sites and Rangers columns, an Active vs Onboarding ranger dropdown, always-visible ranger name labels, and tap-to-open ranger cards.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3321,7 +3329,7 @@ function _placeHomeMarker(){
 let _smartMapInited=false;
 let _smartMapLeaflet=null;
 let _smartMapLayers={sites:true,rangers:false};
-let _smartMapRangerFilter={active:true,other:false};
+let _smartMapRangerFilter='active';
 let _smartMapSiteMarkers=[];
 let _smartMapRangerMarkers=[];
 let _smartMapConnLines=[];
@@ -3344,8 +3352,6 @@ function toggleSmartMapLayer(layer){
   document.querySelectorAll('.smartmap-layer-chip[data-layer]').forEach(b=>{
     if(b.dataset.layer===layer)b.classList.toggle('active',_smartMapLayers[layer]);
   });
-  const rf=document.getElementById('smartMapRangerFilters');
-  if(rf)rf.style.display=_smartMapLayers.rangers?'flex':'none';
   if(layer==='sites')buildSmartMapSiteMarkers();
   if(layer==='rangers'){
     if(_smartMapLayers.rangers){loadRangerLocations();}
@@ -3354,11 +3360,8 @@ function toggleSmartMapLayer(layer){
   }
 }
 
-function toggleSmartMapRangerFilter(key){
-  _smartMapRangerFilter[key]=!_smartMapRangerFilter[key];
-  document.querySelectorAll('.smartmap-layer-chip[data-rfilter]').forEach(b=>{
-    if(b.dataset.rfilter===key)b.classList.toggle('active',_smartMapRangerFilter[key]);
-  });
+function setSmartMapRangerCatFilter(val){
+  _smartMapRangerFilter=val;
   buildSmartMapRangerMarkers();
 }
 
@@ -3459,18 +3462,17 @@ function _clearSmartMapConnLines(){
   _smartMapConnLines=[];
 }
 
-const RANGER_LAYER_COLORS={ranger:'#6a4fb3',master_ranger:'#b8860b',garden_keeper:'#00838f',ranger_applicant:'#9e9e9e',ranger_past:'#c9c9c9'};
+const RANGER_LAYER_COLORS={ranger:'#6a4fb3',master_ranger:'#b8860b',garden_keeper:'#00838f',ranger_applicant:'#9e9e9e',ranger_past:'#c9c9c9',ranger_onboarding:'#e08a2c',ranger_offered:'#c97a1a'};
 function buildSmartMapRangerMarkers(){
   if(!_smartMapLeaflet)return;
   _clearSmartMapRangerMarkers();
   _clearSmartMapConnLines();
   if(!_smartMapLayers.rangers||!_rangerLocs)return;
   const activeCats=['ranger','master_ranger','garden_keeper'];
-  const otherCats=['ranger_applicant','ranger_past'];
+  const onboardingCats=['ranger_onboarding'];
   const show=_rangerLocs.filter(r=>{
-    if(activeCats.includes(r.role))return _smartMapRangerFilter.active;
-    if(otherCats.includes(r.role))return _smartMapRangerFilter.other;
-    return false;
+    if(_smartMapRangerFilter==='onboarding')return onboardingCats.includes(r.role);
+    return activeCats.includes(r.role);
   });
   show.forEach(r=>{
     if(r.lat==null||r.lng==null||isNaN(r.lat)||isNaN(r.lng))return;
@@ -3481,9 +3483,11 @@ function buildSmartMapRangerMarkers(){
       iconSize:[16,16],iconAnchor:[8,14]
     });
     const marker=L.marker([r.lat,r.lng],{icon}).addTo(_smartMapLeaflet);
-    const label=(r.name||r.email||'Ranger').split(' ')[0];
-    marker.bindTooltip(label,{permanent:false,direction:'top',className:'map-label',offset:[0,-14]});
-    marker.on('click',()=>_smartMapShowRangerConnections(r));
+    const label=r.name||r.email||'Ranger';
+    const openHandler=()=>{if(r.email)showPersonDetail(r.email);};
+    marker.bindTooltip(label,{permanent:true,direction:'top',className:'map-label',offset:[0,-14],interactive:true});
+    marker.on('click',openHandler);
+    marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
     _smartMapRangerMarkers.push(marker);
   });
 }
