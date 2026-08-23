@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.39 | BUILDITALL: 2026-08-23 | Ranger Rover PWA -->
+<!-- v10.40 | BUILDITALL: 2026-08-23 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -264,13 +264,6 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .img-thumb-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--silver);max-width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-thumb-meta{font-size:10px;color:var(--silver);opacity:.75;max-width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-thumb{width:100%;aspect-ratio:1;border-radius:var(--r-sm);object-fit:cover;background:var(--fog);cursor:pointer}
-/* Rangers → Pictures view: 2-across large thumbnails, name burned into the photo */
-.ranger-photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px 16px 16px}
-.ranger-photo-grid .list-sentinel{grid-column:1/-1}
-.ranger-photo-tile{position:relative;aspect-ratio:1;border-radius:var(--r-md);overflow:hidden;background:var(--fog);cursor:pointer}
-.ranger-photo-tile.no-photo{background:var(--grove)}
-.ranger-photo-initials{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:48px;color:#fff;background:var(--grove)}
-.ranger-photo-name{position:absolute;left:0;right:0;bottom:0;padding:20px 10px 8px;font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);background:linear-gradient(to top,rgba(0,0,0,.65),rgba(0,0,0,0));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ── MAP ── */
 #mapContainer{position:absolute;inset:0;top:0}
@@ -306,6 +299,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .smartmap-legend{position:absolute;bottom:10px;left:8px;z-index:1000;background:rgba(255,255,255,.93);border-radius:8px;padding:6px 10px;font-size:11px;font-family:var(--font-b);color:var(--stone);box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;gap:10px;flex-wrap:wrap;max-width:calc(100% - 16px)}
 .smartmap-legend span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .smartmap-legend i{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+#smartMapWrap.smartmap-fs{position:fixed;inset:0;z-index:9999;margin:0;border-radius:0;width:100vw;height:100dvh;max-width:none}
+.smartmap-fs-btn{position:absolute;bottom:10px;right:8px;z-index:1000;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.93);box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;font-size:16px;line-height:1;color:var(--stone);display:flex;align-items:center;justify-content:center}
 
 /* ── STATES ── */
 .empty{text-align:center;padding:52px 24px}
@@ -599,7 +594,6 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
       <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
       <button class="chip" id="rangerViewDetailedBtn" onclick="setRangerViewMode('detailed')">Detailed</button>
-      <button class="chip" id="rangerViewPicturesBtn" onclick="setRangerViewMode('pictures')">Pictures</button>
     </div>
     <div class="card-list" id="rangerList"><div class="spinner"></div></div>
   </div>
@@ -832,6 +826,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <div class="smartmap-status" id="smartMapStatus"></div>
           </div>
           <div id="smartMap"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div></div>
+          <button class="smartmap-fs-btn" id="smartMapFsBtn" onclick="toggleSmartMapFullscreen()" title="Full screen">⛶</button>
           <div class="smartmap-legend" id="smartMapLegend">
             <span><i style="background:#1e3a1e"></i>Active site</span>
             <span><i style="background:#c07000"></i>Open chores</span>
@@ -1219,7 +1214,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 const APP_VERSION='v10.40';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-23 - Added a Pictures view to the Rangers page: large two-across photo thumbnails with each rangers name over the image, tapping opens their card.';
+const BUILD_STAMP='2026-08-23 - Added a full screen toggle to Smart Map so desktop users can expand the map to fill the whole browser window; auto-exits when navigating away.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2926,14 +2921,13 @@ function _renderSchoolBatch(sites,from,batchSize){
 }
 
 /* ═══ RENDER RANGERS ═══ */
-let _rangerViewMode='summary'; // 'summary' | 'detailed' | 'pictures' — toggled via the buttons above the list
+let _rangerViewMode='summary'; // 'summary' | 'detailed' — toggled via the Summary/Detailed buttons above the list
 function setRangerViewMode(mode){
   if(mode!==_rangerViewMode){
     _rangerViewMode=mode;
-    const sBtn=document.getElementById('rangerViewSummaryBtn'),dBtn=document.getElementById('rangerViewDetailedBtn'),pBtn=document.getElementById('rangerViewPicturesBtn');
+    const sBtn=document.getElementById('rangerViewSummaryBtn'),dBtn=document.getElementById('rangerViewDetailedBtn');
     if(sBtn)sBtn.classList.toggle('active',mode==='summary');
     if(dBtn)dBtn.classList.toggle('active',mode==='detailed');
-    if(pBtn)pBtn.classList.toggle('active',mode==='pictures');
     renderRangers();
   }
 }
@@ -2948,28 +2942,8 @@ function renderRangers(){
     return true;
   });
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
-  const listEl=document.getElementById('rangerList');
-  const isPictures=_rangerViewMode==='pictures';
-  listEl.classList.toggle('ranger-photo-grid',isPictures);
-  if(!rangers.length){listEl.innerHTML=empty('—','No results','');return;}
-  _renderHumanBatch('rangerList',rangers,0,40,isPictures?_rangerPictureTileHtml:_rangerCardHtml);
-}
-
-// Pictures-mode tile: large square thumbnail (2-across grid), lazy-loaded like
-// every other photo in the app, ranger's name overlaid at the bottom of the
-// image, whole tile hotlinks to their card (same target as the other views).
-function _rangerPictureTileHtml(h){
-  const name=fullName(h)||h.Email||'';
-  const email=h.Email||h.email||'';
-  const imgUrl=getImgSrc(h['Main Image']||h.MainImage||'');
-  const initials=inits(name);
-  const inner=imgUrl
-    ?`<img data-lazy="${imgUrl}" alt="${initials}" style="width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .25s" onerror="this.style.display='none';this.parentElement.classList.add('no-photo')">`
-    :`<span class="ranger-photo-initials">${initials}</span>`;
-  return `<div class="ranger-photo-tile" onclick="showPersonDetail('${esc(email||name)}')">
-    ${inner}
-    <div class="ranger-photo-name">${escHtml(name)}</div>
-  </div>`;
+  if(!rangers.length){document.getElementById('rangerList').innerHTML=empty('—','No results','');return;}
+  _renderHumanBatch('rangerList',rangers,0,40,_rangerCardHtml);
 }
 
 // Detailed-mode block: Ranger Documents (W-9, TB Test, Ranger Contract, Ranger Live
@@ -3364,6 +3338,24 @@ let _smartMapRangerMarkers=[];
 let _smartMapConnLines=[];
 let _rangerLocs=null;        // cached geocoded ranger homes: [{email,name,role,lat,lng}]
 let _rangerLocsLoading=false;
+
+function toggleSmartMapFullscreen(){
+  const wrap=document.getElementById('smartMapWrap');
+  if(!wrap)return;
+  const isFs=wrap.classList.toggle('smartmap-fs');
+  const btn=document.getElementById('smartMapFsBtn');
+  if(btn){btn.textContent=isFs?'✕':'⛶';btn.title=isFs?'Exit full screen':'Full screen';}
+  setTimeout(()=>{if(_smartMapLeaflet)_smartMapLeaflet.invalidateSize();},220);
+}
+function _exitSmartMapFullscreen(){
+  const wrap=document.getElementById('smartMapWrap');
+  if(!wrap||!wrap.classList.contains('smartmap-fs'))return;
+  wrap.classList.remove('smartmap-fs');
+  const btn=document.getElementById('smartMapFsBtn');
+  if(btn){btn.textContent='⛶';btn.title='Full screen';}
+  setTimeout(()=>{if(_smartMapLeaflet)_smartMapLeaflet.invalidateSize();},220);
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')_exitSmartMapFullscreen();});
 
 function initSmartMap(){
   if(_smartMapInited)return;_smartMapInited=true;
@@ -5420,6 +5412,7 @@ let _opsFilterStatus=''; // default: no status sub-filter
 let _opsFilterRanger=''; // default: no ranger-assignment sub-filter
 function showOperationsPage(sub){
   _opsCurrentPage=sub;
+  if(sub!=='tab4')_exitSmartMapFullscreen();
   ['home','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
     const el=document.getElementById('ops-'+k);
     if(el)el.style.display=(k===sub)?'block':'none';
@@ -5790,6 +5783,7 @@ function renderOperationsHome(){
 }
 
 function switchTab(tab,initMapFlag=false){const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
+  if(tab!=='operations')_exitSmartMapFullscreen();
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
