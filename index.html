@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.41 | BUILDITALL: 2026-08-23 | Ranger Rover PWA -->
+<!-- v10.42 | BUILDITALL: 2026-08-23 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -143,6 +143,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .page-title{font-family:var(--font-d);font-size:45px;font-weight:300;font-style:italic;color:var(--ink)}
 .page-count{font-size:15px;font-weight:400;letter-spacing:0.12em;text-transform:uppercase;color:var(--silver)}
 .card-list{padding:0 16px 28px;display:flex;flex-direction:column}
+.card-list.pictures-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:4px 16px 28px}
+.ranger-pic-card{position:relative;border-radius:var(--r-md);overflow:hidden;cursor:pointer;aspect-ratio:1/1;background:var(--fog);box-shadow:0 1px 5px rgba(0,0,0,.15)}
+.ranger-pic-card:active{opacity:.85}
+.ranger-pic-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:34px;color:var(--stone);background:var(--fog)}
+.ranger-pic-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.ranger-pic-name{position:absolute;left:0;right:0;bottom:0;padding:10px 10px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-family:var(--font-b);font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ── SCHOOL CARDS ── */
 .school-card{border-bottom:1px solid var(--mist);padding:18px 0;cursor:pointer;display:flex;align-items:flex-start;gap:14px}
@@ -281,7 +287,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .map-chip[data-filter="open-chores"].active{background:var(--warn);color:white}
 .leaflet-tooltip.map-label{background:white;border:none;box-shadow:0 1px 5px rgba(0,0,0,.2);border-radius:4px;padding:3px 7px;font-size:13px;font-family:'Outfit',sans-serif;font-weight:500;white-space:nowrap;color:#1a1a1a;pointer-events:auto!important;cursor:pointer}
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
+.leaflet-tooltip.map-label.ranger-label{background:#efe7fa;color:#5a3fa0;font-weight:700}
 .leaflet-tooltip.map-label::before{display:none}
+@keyframes rangerPinPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.ranger-pin-pulse{animation:rangerPinPulse 1.6s ease-in-out infinite}
 
 /* ── SMART MAP (Operations) ── */
 #smartMapWrap{position:relative;height:70vh;min-height:420px;border-radius:var(--r-md);overflow:hidden;margin:0 16px 16px;box-shadow:0 1px 6px rgba(0,0,0,.12)}
@@ -594,6 +603,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
       <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
       <button class="chip" id="rangerViewDetailedBtn" onclick="setRangerViewMode('detailed')">Detailed</button>
+      <button class="chip" id="rangerViewPicturesBtn" onclick="setRangerViewMode('pictures')">Pictures</button>
     </div>
     <div class="card-list" id="rangerList"><div class="spinner"></div></div>
   </div>
@@ -1211,10 +1221,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.41';
+const APP_VERSION='v10.42';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-23 - Fixed Smart Map full screen button being hidden behind the legend box; moved it to the middle of the right edge.';
+const BUILD_STAMP='2026-08-23 - Smart Map ranger pins now pulse gently and their name labels are purple to stand out from schools; added a Pictures view on the Rangers page with large two-across photo tiles.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2921,13 +2931,14 @@ function _renderSchoolBatch(sites,from,batchSize){
 }
 
 /* ═══ RENDER RANGERS ═══ */
-let _rangerViewMode='summary'; // 'summary' | 'detailed' — toggled via the Summary/Detailed buttons above the list
+let _rangerViewMode='summary'; // 'summary' | 'detailed' | 'pictures' — toggled via the buttons above the list
 function setRangerViewMode(mode){
   if(mode!==_rangerViewMode){
     _rangerViewMode=mode;
-    const sBtn=document.getElementById('rangerViewSummaryBtn'),dBtn=document.getElementById('rangerViewDetailedBtn');
+    const sBtn=document.getElementById('rangerViewSummaryBtn'),dBtn=document.getElementById('rangerViewDetailedBtn'),pBtn=document.getElementById('rangerViewPicturesBtn');
     if(sBtn)sBtn.classList.toggle('active',mode==='summary');
     if(dBtn)dBtn.classList.toggle('active',mode==='detailed');
+    if(pBtn)pBtn.classList.toggle('active',mode==='pictures');
     renderRangers();
   }
 }
@@ -2942,8 +2953,10 @@ function renderRangers(){
     return true;
   });
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
-  if(!rangers.length){document.getElementById('rangerList').innerHTML=empty('—','No results','');return;}
-  _renderHumanBatch('rangerList',rangers,0,40,_rangerCardHtml);
+  const listEl=document.getElementById('rangerList');
+  listEl.classList.toggle('pictures-grid',_rangerViewMode==='pictures');
+  if(!rangers.length){listEl.innerHTML=empty('—','No results','');return;}
+  _renderHumanBatch('rangerList',rangers,0,40,_rangerViewMode==='pictures'?_rangerPicCardHtml:_rangerCardHtml);
 }
 
 // Detailed-mode block: Ranger Documents (W-9, TB Test, Ranger Contract, Ranger Live
@@ -3000,6 +3013,18 @@ function _rangerCardHtml(h){
       ${openC>0?`<div class="chore-pill">⚠ ${openC} open chore${openC>1?'s':''}</div>`:''}
       ${_rangerViewMode==='detailed'?_rangerDetailBlockHtml(h):''}
     </div>
+  </div>`;
+}
+
+function _rangerPicCardHtml(h){
+  const name=fullName(h)||h.Email||h.email||'';
+  const email=h.Email||h.email||'';
+  const imgUrl=getImgSrc(h['Main Image']||h.MainImage||'');
+  const initials=inits(name);
+  return `<div class="ranger-pic-card" onclick="showPersonDetail('${esc(email||name)}')">
+    <div class="ranger-pic-fallback">${initials}</div>
+    ${imgUrl?`<img data-lazy="${ea(imgUrl)}" alt="${initials}" style="opacity:0;transition:opacity .25s" onerror="this.style.display='none'">`:''}
+    <div class="ranger-pic-name">${escHtml(name)}</div>
   </div>`;
 }
 
@@ -3505,12 +3530,12 @@ function buildSmartMapRangerMarkers(){
     const avatarInner=photoUrl
       ?`<img loading="lazy" src="${ea(photoUrl)}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.textContent='${initials}'">`
       :initials;
-    const html=`<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;border:2.5px solid ${color};box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-b);font-size:12px;font-weight:700">${avatarInner}</div>`;
+    const html=`<div class="ranger-pin-pulse" style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;border:2.5px solid ${color};box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-b);font-size:12px;font-weight:700">${avatarInner}</div>`;
     const icon=L.divIcon({className:'',html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
     const marker=L.marker([r.lat,r.lng],{icon}).addTo(_smartMapLeaflet);
     const label=r.name||r.email||'Ranger';
     const openHandler=()=>{if(r.email)showPersonDetail(r.email);};
-    marker.bindTooltip(label,{permanent:true,direction:'top',className:'map-label',offset:[0,-(size/2+4)],interactive:true});
+    marker.bindTooltip(label,{permanent:true,direction:'top',className:'map-label ranger-label',offset:[0,-(size/2+4)],interactive:true});
     marker.on('click',openHandler);
     marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
     _smartMapRangerMarkers.push(marker);
