@@ -270,11 +270,14 @@ var RANGER_ROLE_CATS = {
 };
 function _rangerRoleCategory(roleText) {
   var r = String(roleText || '').toLowerCase();
-  if (r.indexOf('master ranger') > -1) return 'master_ranger';
-  if (r.indexOf('garden keeper') > -1) return 'garden_keeper';
-  if (r.indexOf('applicant') > -1)     return 'ranger_applicant';
-  if (r.indexOf('past') > -1)          return 'ranger_past';
-  if (r.indexOf('ranger') > -1)        return 'ranger';
+  if (r.indexOf('master ranger') > -1)     return 'master_ranger';
+  if (r.indexOf('garden keeper') > -1)     return 'garden_keeper';
+  if (r.indexOf('did not work out') > -1)  return 'ranger_applicant_did_not_work_out';
+  if (r.indexOf('onboarding') > -1)        return 'ranger_onboarding';
+  if (r.indexOf('offered') > -1)           return 'ranger_offered';
+  if (r.indexOf('applicant') > -1)         return 'ranger_applicant';
+  if (r.indexOf('past') > -1)              return 'ranger_past';
+  if (r.indexOf('ranger') > -1)            return 'ranger';
   return '';
 }
 
