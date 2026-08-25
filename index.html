@@ -1236,10 +1236,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.47';
+const APP_VERSION='v10.48';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Settings: added "Force Sign-Out + Update (All Users)" — lets Access Level 1 remotely sign every device out and clear its cached app shell, so everyone lands back on the login screen running the latest version next time they open or refresh the app.';
+const BUILD_STAMP='2026-08-25 - Fixed root cause of "access level reverted itself": SESSION.accessLevel was only ever fetched at login, so anyone already signed in kept their OLD level forever even after the Humans sheet was corrected. Now every background Humans refresh (which already runs on every app open/periodically) re-checks the signed-in user\u2019s own row and silently corrects SESSION + nav if the sheet has changed \u2014 no re-login needed. Also added "Force Sign-Out + Update (All Users)" kill switch in Settings for cases needing an immediate, guaranteed fix.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2140,8 +2140,41 @@ async function _loadHumansBackground(){
       _tabDirty.rangers=true;_tabDirty.people=true;_tabDirty.reach=true;
       if(_activeTab==='rangers'||_activeTab==='people')_renderDirtyTab(_activeTab);
       if(SESSION&&SESSION.accessLevel<=2)updateRangerFilterCounts();
+      _resyncOwnAccessLevel();
     }
   }catch(e){setSync(false);}
+}
+
+// ── SELF-HEALING ACCESS LEVEL ────────────────────────────────────────────────
+// SESSION.accessLevel is only ever fetched fresh from the Humans sheet at
+// LOGIN (handleAuth). Once logged in, a device keeps whatever level it was
+// given until it logs out and back in — so if an admin edits someone's Access
+// Level in the sheet, anyone already signed in stays on their OLD level
+// indefinitely, with no visible sign anything is wrong (looks like a stale
+// cache/version bug but isn't — it's a stale in-memory/localStorage SESSION).
+// Every background Humans refresh (_loadHumansBackground, which already runs
+// on every app open and periodically) already has this device's own up-to-date
+// row, so we piggyback here: compare it to SESSION.accessLevel and, if the
+// sheet has changed, correct SESSION in place and rebuild the level-dependent
+// UI — no re-login, no extra network call, no version bump involved.
+function _resyncOwnAccessLevel(){
+  if(!SESSION||!DATA.humans||!DATA.humans.length)return;
+  const meRec=DATA.humans.find(h=>String(h.Email||h.email||'').toLowerCase()===SESSION.email.toLowerCase());
+  if(!meRec)return;
+  const fresh=parseInt(meRec['Access Level'])||SESSION.accessLevel;
+  if(fresh===SESSION.accessLevel)return;
+  SESSION.accessLevel=fresh;
+  localStorage.setItem(CFG.SK,JSON.stringify(SESSION));
+  buildNav(fresh);
+  const acb=document.getElementById('addContactBar');if(acb)acb.style.display=fresh<=2?'flex':'none';
+  const sf=document.getElementById('schoolFilters');if(sf)sf.style.display=fresh>=3?'none':'flex';
+  const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=fresh===1?'block':'none';
+  const flr=document.getElementById('forceLogoutRow');if(flr)flr.style.display=fresh===1?'block':'none';
+  // If their current tab no longer exists at the new level, bounce to Notes
+  // rather than leaving them stranded on a blank/inaccessible pane.
+  if(!_navTabAllowed(_activeTab,fresh)||(_activeTab==='settings'&&fresh!==1)){
+    switchTab('notes');
+  }
 }
 
 // Activity logging is piggybacked onto saveToSheet GAS calls via _log* fields in updates.
@@ -5328,7 +5361,7 @@ async function _refreshAllBackground(){
   try{
     const r2=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
     const j2=await r2.json();
-    if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;}
+    if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;_resyncOwnAccessLevel();}
   }catch(e){}
   const n=Date.now();
   localStorage.setItem(CFG.CK,JSON.stringify(DATA));
