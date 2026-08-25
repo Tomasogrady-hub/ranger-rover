@@ -1236,10 +1236,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.51';
+const APP_VERSION='v10.52';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Root-cause privacy fix: saving your own "My Profile" (header avatar/name \u25b8 Edit \u25b8 Save) unconditionally navigated to switchTab(\'rangers\') afterward \u2014 sending anyone, including Level 3 field rangers, straight into the org-wide Rangers/People admin list with whatever filter (e.g. "Did Not Work Out") happened to be left active, exposing other people\u2019s phone/email/contact info. This had nothing to do with caching, versions, or Nav Visibility \u2014 it was a hardcoded line that fired on every self-profile save for every access level. Now it just closes back to whichever tab you already had open. (The v10.50 tab-eviction fix stays in as a second layer of protection for the unrelated nav-visibility case.)';
+const BUILD_STAMP='2026-08-25 - Audited every switchTab() call in the app for the same class of bug as the v10.51 fix (a universally-reachable action hard-navigating to an access-restricted tab). Found none elsewhere — every other case is either a tab available at every level, or only reachable from inside a screen already gated to the right level. Also reverted an over-broad guard added to switchTab() itself in v10.50: it would have silently broken the "Forward This to Other Folks" chore button for Level 3 (that flow intentionally opens Reach even though Level 3 has no Reach tab). Kept the narrower, correct fix \u2014 evicting a tab that\u2019s already on screen when its access is pulled out from under it \u2014 in _applyAppSettings() and _resyncOwnAccessLevel() only.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6073,18 +6073,6 @@ function renderOperationsHome(){
 }
 
 function switchTab(tab,initMapFlag=false){
-  // Defense-in-depth: never render a tab-pane whose nav button isn't currently
-  // present for this session. buildNav() already encodes both the hardcoded
-  // per-level structure (e.g. Level 3 never gets Rangers/People/Settings) and
-  // the admin's Nav Visibility toggles — so "does a .nav-btn for this tab
-  // exist right now" is the single source of truth for "is this tab currently
-  // allowed", without duplicating that logic here. This guards against stale
-  // event handlers, deep links, or old DOM state trying to render a tab that
-  // was reachable a moment ago but no longer is.
-  if(SESSION&&!document.querySelector('.nav-btn[data-tab="'+tab+'"]')){
-    const fallback=document.querySelector('#navRow1 .nav-btn')||document.querySelector('.nav-btn');
-    tab=fallback?fallback.dataset.tab:'notes';
-  }
   const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   if(tab!=='operations')_exitSmartMapFullscreen();
   _activeTab=tab;
