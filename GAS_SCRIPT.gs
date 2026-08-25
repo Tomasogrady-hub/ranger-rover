@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.25 | 2026-08-20';
+const GAS_BUILD = 'v10.26 | 2026-08-25';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -520,6 +520,7 @@ function doPost(e) {
       // ── APP SETTINGS (control panel) ─────────────────────────────────────────
       case 'getAppSettings':  return respond(handleGetAppSettings());
       case 'saveAppSettings': return respond(handleSaveAppSettings(p));
+      case 'forceLogoutAll':  return respond(handleForceLogoutAll(p));
 
       // ── ADD NEW SITE (search master schools DB + create row) ─────────────────
       case 'searchMasterSchools': return respond(handleSearchMasterSchools(p));
@@ -2179,7 +2180,7 @@ function handleGetAppSettings() {
   try {
     var props    = PropertiesService.getScriptProperties();
     var raw      = props.getProperty('app_settings');
-    var settings = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '', opsNotes: '', navVisibility: {} };
+    var settings = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '', opsNotes: '', navVisibility: {}, forceLogoutToken: '' };
     var gasUrl   = props.getProperty('gas_url') || '';
     // Merge Twilio credentials back in (stored separately for security)
     settings.twilioSid       = props.getProperty('twilio_sid')        || '';
@@ -2263,7 +2264,15 @@ function handleSaveAppSettings(p) {
       plantsEnabled: settings.plantsEnabled !== false,
       broadcast: String(settings.broadcast || '').slice(0, 500),
       opsNotes: String(settings.opsNotes || '').slice(0, 20000),
-      navVisibility: navVis
+      navVisibility: navVis,
+      // forceLogoutToken is a kill-switch set ONLY by handleForceLogoutAll (the
+      // "Force Sign-Out + Update" button). Same protection pattern as
+      // navVisibility above: every other save path here re-sends its own
+      // possibly-stale copy of _appSettings, so we always carry forward
+      // whatever is already stored rather than trusting the payload — otherwise
+      // an unrelated Broadcast/Twilio save could silently erase a pending
+      // forced-logout token before it ever reached every device.
+      forceLogoutToken: existing.forceLogoutToken || ''
     };
     props.setProperty('app_settings', JSON.stringify(safe));
     // Store Twilio credentials separately (never bundled into app_settings)
@@ -2275,6 +2284,28 @@ function handleSaveAppSettings(p) {
       props.setProperty('gas_url', String(p.gasUrl).trim());
     }
     return { ok: true };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Remote kill-switch: bumps forceLogoutToken so every device's next
+// loadAppSettings() check (fired every app open/refresh) sees a mismatch
+// against its locally-stored token, clears its session + cached app shell,
+// and reloads to the login screen. Access Level 1 only. Writes directly to
+// Script Properties rather than going through handleSaveAppSettings, so an
+// in-flight unrelated settings save from some other tab can't race it.
+function handleForceLogoutAll(p) {
+  try {
+    if (Number(p.accessLevel) !== 1) {
+      return { ok: false, error: 'Only Access Level 1 can force a sign-out.' };
+    }
+    var props = PropertiesService.getScriptProperties();
+    var raw = props.getProperty('app_settings');
+    var existing = raw ? JSON.parse(raw) : { plantsEnabled: true, broadcast: '', opsNotes: '', navVisibility: {} };
+    existing.forceLogoutToken = String(Date.now());
+    props.setProperty('app_settings', JSON.stringify(existing));
+    return { ok: true, forceLogoutToken: existing.forceLogoutToken };
   } catch(e) {
     return { ok: false, error: e.message };
   }
@@ -3348,5 +3379,6 @@ function handleGetActivity() {
     return { ok: false, error: e.message };
   }
 }
+
 
 
