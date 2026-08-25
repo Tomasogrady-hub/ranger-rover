@@ -999,6 +999,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <button onclick="clearCache()" style="margin-top:4px;padding:10px 15px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">Clear &amp; Re-fetch</button>
           <div class="settings-note" style="margin-top:10px">If the version number on the home screen looks out of date after a new release, use this instead — it clears the app shell itself, not just the school/chore data.</div>
           <button id="forceUpdateBtn" onclick="forceAppUpdate()" style="margin-top:8px;padding:10px 15px;background:transparent;color:var(--danger);border:1px solid var(--danger);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">↻ Force App Update</button>
+          <div class="settings-note" style="margin-top:6px">The button above only refreshes THIS device. To fix everyone at once (e.g. some folks are stuck on an old version), use the button below.</div>
+        </div>
+        <div class="settings-row" id="forceLogoutRow" style="display:none">
+          <div class="dl" style="margin-bottom:6px">Force Everyone to Update</div>
+          <div class="settings-note">Signs every device out of Ranger Rover and clears its cached app shell. The next time each person opens or refreshes the app, they land on the login screen running the latest version. Doesn't affect Sites/Humans/Chores data — only local session &amp; cache.</div>
+          <button id="forceLogoutAllBtn" onclick="forceLogoutAllUsers()" style="margin-top:8px;padding:10px 15px;background:transparent;color:var(--danger);border:1px solid var(--danger);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">⎋ Force Sign-Out + Update (All Users)</button>
         </div>
       </div>
       <div class="dl" style="margin-bottom:10px">Video Settings</div>
@@ -1230,10 +1236,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.46';
+const APP_VERSION='v10.47';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Data \u25b8 People \u25b8 Adjust: removed Access Level 1 and 2 from the Adjust Access Levels dropdown and bulk-apply selector (those two levels are now managed elsewhere). Levels 3-9 unchanged. The Additional Filter dropdown still shows/filters by all levels 1-9.';
+const BUILD_STAMP='2026-08-25 - Settings: added "Force Sign-Out + Update (All Users)" — lets Access Level 1 remotely sign every device out and clear its cached app shell, so everyone lands back on the login screen running the latest version next time they open or refresh the app.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2016,6 +2022,7 @@ function showApp(){
 
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=lvl===1?'block':'none';
   if(bs)bs.textContent='Built: '+BUILD_STAMP;
+  const flr=document.getElementById('forceLogoutRow');if(flr)flr.style.display=lvl===1?'block':'none';
   switchTab('notes');
   setGreeting();
   loadNotes();
@@ -7451,7 +7458,63 @@ async function forceAppUpdate(){
 /* ═══ CONTROL PANEL ═══ */
 // App settings stored server-side via GAS so all users see the same state.
 // Falls back to localStorage if GAS is unavailable.
-let _appSettings={broadcast:'',navVisibility:{},opsNotes:'',twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:''};
+let _appSettings={broadcast:'',navVisibility:{},opsNotes:'',twilioSid:'',twilioKeySid:'',twilioKeySecret:'',twilioFrom:'',forceLogoutToken:''};
+
+// ── FORCE LOGOUT (remote kill-switch) ───────────────────────────────────────
+// Access Level 1 can press "Force Sign-Out + Update" in Settings, which bumps
+// forceLogoutToken on the server. Every device compares that token against
+// the last one it saw (rr_flt in localStorage) each time loadAppSettings()
+// runs (i.e. every app open/refresh). A mismatch means an admin pulled the
+// lever since this device last checked in, so the device clears its session
+// and cached app shell and reloads straight to the login screen. The very
+// first time a device ever sees a token (rr_flt not set yet) it just records
+// the baseline silently — it does NOT log the user out — so shipping this
+// feature doesn't itself kick anyone out.
+function _checkForceLogout(serverToken){
+  if(!serverToken)return;
+  const stored=localStorage.getItem('rr_flt');
+  if(stored===null){localStorage.setItem('rr_flt',serverToken);return;}
+  if(stored!==serverToken){
+    localStorage.setItem('rr_flt',serverToken);
+    _remoteForceRefresh();
+  }
+}
+async function _remoteForceRefresh(){
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+    if('caches' in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+    localStorage.removeItem(CFG.CK);
+    localStorage.removeItem(CFG.TK);
+    localStorage.removeItem(CFG.SK); // sign the device out
+  }catch(e){/* proceed to reload regardless */}
+  location.href=location.pathname+'?_fu='+Date.now();
+}
+async function forceLogoutAllUsers(){
+  if(!SESSION||SESSION.accessLevel!==1)return;
+  if(!confirm('This signs every device out of Ranger Rover and clears its cached app shell. Everyone will land on the login screen running the latest version next time they open or refresh the app. Continue?'))return;
+  const btn=document.getElementById('forceLogoutAllBtn');
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Working…';}
+  try{
+    const r=await gasPost({action:'forceLogoutAll',accessLevel:SESSION.accessLevel});
+    if(r&&r.ok){
+      localStorage.setItem('rr_flt',r.forceLogoutToken); // ack locally so this admin isn't also kicked
+      alert('Done. Everyone will be signed out and updated next time they open or refresh the app.');
+    }else{
+      alert('Failed: '+((r&&r.error)||'unknown error'));
+    }
+  }catch(e){
+    alert('Failed: '+e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=orig;}
+  }
+}
 // Migration: clean up any empty navVisibility arrays saved by earlier buggy versions,
 // AND backfill newly-introduced toggle keys (like site_ops_btn) into anyone's already-
 // customized (non-empty) per-level list so a brand new feature doesn't silently look
@@ -7517,6 +7580,7 @@ async function loadAppSettings(){
       if(!_appSettings.twilioKeySid)    _appSettings.twilioKeySid    = local.twilioKeySid||'';
       if(!_appSettings.twilioKeySecret) _appSettings.twilioKeySecret = local.twilioKeySecret||'';
       if(!_appSettings.twilioFrom)      _appSettings.twilioFrom      = local.twilioFrom||'';
+      _checkForceLogout(_appSettings.forceLogoutToken);
       _sanitizeNavVisibility();
       localStorage.setItem('rr_app_settings',JSON.stringify(_appSettings));
       _applyAppSettings();
@@ -9394,4 +9458,5 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeImgLigh
     <div class="esm-body" id="esm-body"><div class="esm-loading">Loading…</div></div>
   </div>
 </div>
+
 
