@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.42 | BUILDITALL: 2026-08-23 | Ranger Rover PWA -->
+<!-- v10.45 | BUILDITALL: 2026-08-25 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1117,7 +1117,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             </select>
           </div>
           <div style="width:190px;display:flex;flex-direction:column;gap:4px">
-            <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Access Levels</label>
+            <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Additional Filter</label>
             <select id="dataPeopleAccessFilter" class="settings-input" style="margin:0" onchange="renderDataPeople()">
               <option value="__all__">All Access Levels</option>
               <option value="__active__">All App Users</option>
@@ -1127,16 +1127,25 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
               <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
               <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
               <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
+              <optgroup label="Ranger Number" id="dataPeopleAccessFilterRateGroup"></optgroup>
+              <optgroup label="Ranger Live Scan">
+                <option value="livescan:Approved">Ranger Live Scan Approved</option>
+                <option value="livescan:Rejected">Ranger Live Scan Rejected</option>
+                <option value="livescan:Not Complete">Ranger Live Scan Not Complete</option>
+              </optgroup>
             </select>
           </div>
         </div>
         <div id="dataPeopleFilterSummary" style="font-size:13px;color:var(--stone);line-height:1.4"></div>
       </div>
-      <div style="display:flex;justify-content:center;margin:12px 0 8px">
+      <div class="dl" style="text-align:center;margin:18px 0 0">Adjust</div>
+      <div style="display:flex;justify-content:center;margin:6px 0 8px">
         <select id="dataPeopleAdjustMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="onDataPeopleAdjustModeChange()">
           <option value="access">Adjust Access Levels</option>
           <option value="role">Adjust Roles</option>
           <option value="roleAdditional">Adjust Role Additional</option>
+          <option value="rangerNumber">Adjust Ranger Number</option>
+          <option value="rangerLiveScan">Adjust Ranger Live Scan</option>
         </select>
       </div>
       <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
@@ -1221,10 +1230,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.44';
+const APP_VERSION='v10.45';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-24 - Added a Forward button to the contact card that screenshots the public contact info (photo, role, schools, resume, email, mobile) and opens the native phone share sheet to send it to Messages, WhatsApp, Mail, or AirDrop. Also fixed a bug where the chore forward flow called an undefined toast function.';
+const BUILD_STAMP='2026-08-25 - Data \u25b8 People: added an "Adjust" heading above the Adjust dropdown, plus new Adjust Ranger Number / Adjust Ranger Live Scan modes. Renamed the top filter label to "Additional Filter" and added Ranger Number (pulled live from Items All, Type 2 = Ranger Rate) and Ranger Live Scan (Approved/Rejected/Not Complete) filter options.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1367,12 +1376,22 @@ function _docUploadRow(h,docType){
    (same pattern as _dataPricesCache) rather than bundled into the main
    bulk data load, to keep that load fast. */
 let _rangerRatesCache=null;
+let _rangerRatesLoading=false;
 async function _getRangerRates(){
   if(_rangerRatesCache)return _rangerRatesCache;
+  // If a fetch is already in flight (e.g. the Adjust dropdown and the filter
+  // dropdown both trigger a load on the same render), wait on it instead of
+  // firing a duplicate request.
+  if(_rangerRatesLoading){
+    while(_rangerRatesLoading)await new Promise(r=>setTimeout(r,50));
+    return _rangerRatesCache||[];
+  }
+  _rangerRatesLoading=true;
   try{
     const res=await gasPost({action:'getRangerRates'});
     _rangerRatesCache=(res&&res.ok)?(res.rates||[]):[];
   }catch(e){_rangerRatesCache=[];}
+  _rangerRatesLoading=false;
   return _rangerRatesCache;
 }
 // `prefix` scopes element IDs so the same markup/logic works on both the
@@ -8829,9 +8848,11 @@ let _dataPricesCache = null; // cached list of {row,name,amount} from Items All 
 // Additional reuse the exact same select-all / bulk-apply / per-row-select
 // logic as Adjust Access Levels — only the target field and its option list differ.
 const DATA_PEOPLE_ADJUST_FIELDS = {
-  access:         {sheetField:'Access Level',   label:'Access Level'},
-  role:           {sheetField:'Role',           label:'Role'},
-  roleAdditional: {sheetField:'Role Additional',label:'Role Additional'}
+  access:         {sheetField:'Access Level',    label:'Access Level'},
+  role:           {sheetField:'Role',             label:'Role'},
+  roleAdditional: {sheetField:'Role Additional',  label:'Role Additional'},
+  rangerNumber:   {sheetField:'Ranger Number',    label:'Ranger Number'},
+  rangerLiveScan: {sheetField:'Ranger Live Scan', label:'Ranger Live Scan'}
 };
 let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
@@ -9024,6 +9045,9 @@ function onDataPeopleAdjustModeChange(){
   _dataPeopleSelected.clear();
   const selectAll=document.getElementById('dataPeopleSelectAll');
   if(selectAll)selectAll.checked=false;
+  if(_dataPeopleAdjustMode==='rangerNumber' && !_rangerRatesCache){
+    _getRangerRates().then(()=>{ if(_dataPeopleAdjustMode==='rangerNumber')renderDataPeople(); });
+  }
   renderDataPeople();
 }
 
@@ -9039,6 +9063,13 @@ function _dataPeopleRoleAdditionalOptions(){
 function _dataPeopleFieldOptionsList(mode){
   if(mode==='role')return (DATA.roles||[]).map(r=>r.name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
   if(mode==='roleAdditional')return _dataPeopleRoleAdditionalOptions();
+  // Ranger Number pulls live from Items All (Type 2 = "Ranger Rate") — same
+  // cached list used by the Add/Edit Person Ranger Number dropdown, so new
+  // rate rows show up here automatically without any code change.
+  if(mode==='rangerNumber')return (_rangerRatesCache||[]).map(r=>r.name).filter(Boolean);
+  // Ranger Live Scan is a fixed 3-value status field (mirrors the dropdown on
+  // the Ranger Details section of the Add/Edit Person forms).
+  if(mode==='rangerLiveScan')return ['Approved','Rejected','Not Complete'];
   return [];
 }
 
@@ -9072,14 +9103,18 @@ function _dataPeopleFilterCounts(){
   const roleCounts={};
   let none=0, active=0, inactive=0, inactiveGranted=0, allLevels=0;
   const levelCounts={1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0};
+  const rateCounts={};
+  const liveScanCounts={Approved:0,Rejected:0,'Not Complete':0};
   all.forEach(h=>{
     const r=(h.Role||h.role||'').trim(); if(r)roleCounts[r]=(roleCounts[r]||0)+1;
     const ra=(h['Role Additional']||'').trim(); if(ra && ra!==r)roleCounts[ra]=(roleCounts[ra]||0)+1;
     const lvlRaw=String(h['Access Level']||'').trim();
     if(lvlRaw===''){ none++; } else { allLevels++; if(levelCounts[lvlRaw]!==undefined)levelCounts[lvlRaw]++; }
     if(h['Has Password'])active++; else { inactive++; if(lvlRaw!=='')inactiveGranted++; }
+    const rn=(h['Ranger Number']||'').trim(); if(rn)rateCounts[rn]=(rateCounts[rn]||0)+1;
+    const ls=(h['Ranger Live Scan']||'').trim(); if(ls && liveScanCounts[ls]!==undefined)liveScanCounts[ls]++;
   });
-  return {total:all.length, roleCounts, none, active, inactive, inactiveGranted, allLevels, levelCounts};
+  return {total:all.length, roleCounts, none, active, inactive, inactiveGranted, allLevels, levelCounts, rateCounts, liveScanCounts};
 }
 
 // Plain-English explanation of the two People filters currently applied — recomputed
@@ -9089,7 +9124,9 @@ function _dataPeopleFilterSummaryText(roleF,lvlF,n){
   const subj=n===1?'1 person':`${n} people`;
   const verb=n===1?'has':'have';
   let action;
-  if(lvlF==='__all__')action=`${verb} an access level assigned`;
+  if(lvlF.indexOf('rate:')===0)action=`${verb} a Ranger Number of ${lvlF.slice(5)}`;
+  else if(lvlF.indexOf('livescan:')===0)action=`${verb} a Ranger Live Scan status of ${lvlF.slice(9)}`;
+  else if(lvlF==='__all__')action=`${verb} an access level assigned`;
   else if(lvlF==='__active__')action=n===1?'is an active user of this app':'are active users of this app';
   else if(lvlF==='__inactive__')action=n===1?'is not yet an active user of this app':'are not yet active users of this app';
   else if(lvlF==='__inactiveGranted__')action=n===1?'has an access level assigned but has not yet logged into the app':'have an access level assigned but have not yet logged into the app';
@@ -9125,15 +9162,41 @@ function renderDataPeople(){
       });
     }
   }
-  // Access Level filter counts are refreshed every render (cheap, fixed option set)
+  // Additional Filter dropdown: Access Level options are a fixed set refreshed
+  // every render; the Ranger Number optgroup is rebuilt only when the rate
+  // list itself changes (pulled live from Items All, Type 2 = "Ranger Rate",
+  // so new rate rows show up here automatically).
   const lvlSel=document.getElementById('dataPeopleAccessFilter');
   if(lvlSel){
+    const rateGroup=document.getElementById('dataPeopleAccessFilterRateGroup');
+    if(rateGroup){
+      const rates=_rangerRatesCache||[];
+      const fp=rates.map(r=>r.name).join('|');
+      if(rateGroup.dataset.optFp!==fp){
+        const prevVal=lvlSel.value;
+        rateGroup.innerHTML='';
+        rates.forEach(r=>{
+          if(!r.name)return;
+          const o=document.createElement('option');
+          o.value='rate:'+r.name;
+          rateGroup.appendChild(o);
+        });
+        rateGroup.dataset.optFp=fp;
+        if(prevVal && Array.from(lvlSel.options).some(o=>o.value===prevVal))lvlSel.value=prevVal;
+      }
+      // Kick off (once) the Ranger Rates fetch so this optgroup can populate —
+      // covers landing on People with the filter dropdown before ever opening
+      // Adjust Ranger Number mode.
+      if(!_rangerRatesCache){ _getRangerRates().then(()=>renderDataPeople()); }
+    }
     Array.from(lvlSel.options).forEach(o=>{
       if(o.value==='__all__')o.textContent=`All Access Levels (${counts.allLevels})`;
       else if(o.value==='__active__')o.textContent=`All App Users (${counts.active})`;
       else if(o.value==='__inactive__')o.textContent=`All Non App Users (${counts.inactive})`;
       else if(o.value==='__inactiveGranted__')o.textContent=`Non App Users w/ Granted Access (${counts.inactiveGranted})`;
       else if(o.value==='__none__')o.textContent=`No Access Level (${counts.none})`;
+      else if(o.value.indexOf('rate:')===0){const n=o.value.slice(5);o.textContent=`${n} (${counts.rateCounts[n]||0})`;}
+      else if(o.value.indexOf('livescan:')===0){const k=o.value.slice(9);o.textContent=`Ranger Live Scan ${k} (${counts.liveScanCounts[k]||0})`;}
       else if(o.value)o.textContent=`Level ${o.value} (${counts.levelCounts[o.value]||0})`;
     });
   }
@@ -9143,6 +9206,14 @@ function renderDataPeople(){
     if(roleF){
       const r=h.Role||h.role||'', ra=h['Role Additional']||'';
       if(r!==roleF && ra!==roleF)return false;
+    }
+    if(lvlF.indexOf('rate:')===0){
+      if((h['Ranger Number']||'').trim()!==lvlF.slice(5))return false;
+      return true;
+    }
+    if(lvlF.indexOf('livescan:')===0){
+      if((h['Ranger Live Scan']||'').trim()!==lvlF.slice(9))return false;
+      return true;
     }
     const lvlRaw=String(h['Access Level']||'').trim();
     if(lvlF==='__none__'){ if(lvlRaw!=='')return false; }
@@ -9188,7 +9259,8 @@ function _dataPersonRowHtml(h){
   const checked=_dataPeopleSelected.has(email);
   const sub=[role,roleAdd,email].filter(Boolean).join(' · ');
   const mode=_dataPeopleAdjustMode;
-  const currentVal = mode==='access'?lvl : mode==='role'?role : roleAdd;
+  const currentVal = mode==='access'?lvl : mode==='role'?role : mode==='roleAdditional'?roleAdd
+    : mode==='rangerNumber'?(h['Ranger Number']||'') : mode==='rangerLiveScan'?(h['Ranger Live Scan']||'') : '';
   const selWidth = mode==='access'?'96px':'150px';
   return `<div class="data-person-row" data-email="${ea(email)}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--mist)">
     <input type="checkbox" ${checked?'checked':''} onchange="toggleDataPersonSelect('${ea(email)}',this.checked)" style="flex:none;width:18px;height:18px">
