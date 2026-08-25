@@ -1221,10 +1221,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.43';
+const APP_VERSION='v10.44';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-24 - Add Person and Edit Person now show W-9, TB Test, Ranger Contract, Ranger Live Scan, mailing address, Ranger Number, and TB dates for ranger-category roles; Ranger Number is a dropdown pulled from Items All (Type 2 = Ranger Rate) that auto-fills the Half Day and Full Day cost fields.';
+const BUILD_STAMP='2026-08-24 - Added a Forward button to the contact card that screenshots the public contact info (photo, role, schools, resume, email, mobile) and opens the native phone share sheet to send it to Messages, WhatsApp, Mail, or AirDrop. Also fixed a bug where the chore forward flow called an undefined toast function.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2358,7 +2358,7 @@ function _uploadImageToCloudinaryXHR(blob) {
 
 async function forwardChoreToReach(choreId) {
   const c = DATA.chores.find(x => (x.ID || x.id) === choreId);
-  if (!c) { showToast('Chore not found'); return; }
+  if (!c) { showSaveToast('Chore not found'); return; }
   const task   = c.Task || c.task || '';
   const site   = siteNameFromKey(c.Site || c.site || '');
   const status = c.Status || c.status || '';
@@ -2377,10 +2377,10 @@ async function forwardChoreToReach(choreId) {
     switchTab('reach');
     showReachPage('people');
     showReachPage('enrichla');
-    showToast('📤 Pick who to forward this to');
+    showSaveToast('📤 Pick who to forward this to');
   } catch (e) {
     console.error('Forward chore navigation failed:', e);
-    showToast('⚠ Could not open Reach — try again');
+    showSaveToast('⚠ Could not open Reach — try again');
     return;
   }
 
@@ -4513,6 +4513,7 @@ function renderPD(h,edit){
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">${avatarHtml(h,54)}<div class="sheet-title" style="font-size:28px">${name}</div></div>
         <button class="sheet-x" onclick="closeDetailBtnChime()">✕</button>
       </div>
+      <div id="pd-capture" style="background:var(--paper)">
       ${imgUrl?`<div style="padding:14px 20px 0"><img data-lazy="${imgUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;object-position:top center;border-radius:var(--r-sm);opacity:0;transition:opacity .3s;background:var(--fog)" onerror="this.parentElement.style.display='none'"></div>`:''}
       <div class="ds"><div class="dl">Role</div><div class="dv">${role||'—'}</div></div>
       ${rangerSchools?`<div class="ds"><div class="dl">Garden Ranger School(s)</div><div class="dv">${rangerSchools}</div></div>`:''}
@@ -4521,6 +4522,7 @@ function renderPD(h,edit){
       ${resume?`<div class="ds"><div class="dl">Resume</div><div class="dv">${resumeIsUrl?`<a class="dlink" href="${ea(resume)}" target="_blank" rel="noopener">📄 View Resume</a>`:ea(resume)}</div></div>`:''}
       ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="${gmailUrl(email)}" target="_blank" rel="noopener">${email}</a></div></div>`:''}
       ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${cleanPhone(mobile)}">${mobile}</a></div></div>`:''}
+      </div>
       ${showsDocs?`
       ${addressLine?`<div class="ds"><div class="dl">Address</div><div class="dv">${escHtml(addressLine)}</div></div>`:''}
       <div class="ds"><div class="dl">Ranger Live Scan</div><div class="dv">${liveScan||'—'}</div></div>
@@ -4537,12 +4539,53 @@ function renderPD(h,edit){
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
         ${email?`<a class="dcta" href="${gmailUrl(email)}" target="_blank" rel="noopener">✉ Email</a>`:''}
+        <button class="dcta" id="pd-forward-btn" onclick="forwardContactCard('${ea(email||name)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>
       </div>
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
       ${canEdit()?`<button class="btn-danger" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
+  }
+}
+
+/* ═══ FORWARD CONTACT CARD → NATIVE SHARE SHEET ═══
+   Screenshots the safe/public portion of the contact card (photo, role,
+   schools, resume, email, mobile — never the confidential-notes or
+   ranger-document sections) and hands it to the phone's native share sheet
+   (Messages, WhatsApp, Mail, AirDrop, etc.) so it can go out through
+   whatever channel the user already has, without going through Twilio.
+   html2canvas is the same lazily-loaded shared instance used for chores. */
+async function forwardContactCard(key){
+  const h=DATA.humans.find(p=>(p.Email||p.email||'')===key||fullName(p)===key||(p.Name||p.name||'')===key);
+  if(!h){showSaveToast('⚠ Contact not found');return;}
+  const capEl=document.getElementById('pd-capture');
+  if(!capEl){showSaveToast('⚠ Nothing to forward');return;}
+  const btn=document.getElementById('pd-forward-btn');
+  const origLabel=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Preparing…';}
+  try{
+    await _ensureHtml2Canvas();
+    if(!window.html2canvas)throw new Error('Screenshot library unavailable');
+    const canvas=await html2canvas(capEl,{backgroundColor:'#ffffff',useCORS:true,scale:2});
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.9));
+    if(!blob)throw new Error('Could not create image');
+    const safeName=(fullName(h)||'contact').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+    const file=new File([blob],`${safeName}-card.jpg`,{type:'image/jpeg'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:fullName(h)||'Ranger Rover Contact',text:`Contact card: ${fullName(h)||''}`});
+    } else {
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;a.download=`${safeName}-card.jpg`;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      showSaveToast('📥 Sharing not supported here — image downloaded instead');
+    }
+  }catch(err){
+    if(err&&err.name==='AbortError'){/* user cancelled the share sheet — not an error */}
+    else{console.error('Forward contact card failed:',err);showSaveToast('⚠ Could not forward card — '+String(err.message||err).slice(0,100));}
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=origLabel||'📤 Forward';}
   }
 }
 
