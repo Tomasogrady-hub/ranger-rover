@@ -1221,10 +1221,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.42';
+const APP_VERSION='v10.43';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-23 - Smart Map ranger pins now pulse gently and their name labels are purple to stand out from schools; added a Pictures view on the Rangers page with large two-across photo tiles.';
+const BUILD_STAMP='2026-08-24 - Add Person and Edit Person now show W-9, TB Test, Ranger Contract, Ranger Live Scan, mailing address, Ranger Number, and TB dates for ranger-category roles; Ranger Number is a dropdown pulled from Items All (Type 2 = Ranger Rate) that auto-fills the Half Day and Full Day cost fields.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1360,6 +1360,128 @@ function _docUploadRow(h,docType){
       ${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeHumanFile('${docType}','${ea(email)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet'}
     </div>
   </div>`;
+}
+
+/* ═══ RANGER NUMBER (Items All → Type 2 = "Ranger Rate") ═══
+   Small, rarely-changing list — fetched once and cached for the session
+   (same pattern as _dataPricesCache) rather than bundled into the main
+   bulk data load, to keep that load fast. */
+let _rangerRatesCache=null;
+async function _getRangerRates(){
+  if(_rangerRatesCache)return _rangerRatesCache;
+  try{
+    const res=await gasPost({action:'getRangerRates'});
+    _rangerRatesCache=(res&&res.ok)?(res.rates||[]):[];
+  }catch(e){_rangerRatesCache=[];}
+  return _rangerRatesCache;
+}
+// `prefix` scopes element IDs so the same markup/logic works on both the
+// Edit Person form (prefix 'ef') and the Add Person form (prefix 'nc').
+function _rangerNumberFieldHtml(prefix,currentValue){
+  const btnId=prefix+'-rangerNum-btn',panelId=prefix+'-rangerNum-dd';
+  return `<div class="edit-wrap" style="position:relative;z-index:35">
+    <div class="edit-label">Ranger Number</div>
+    <div class="custom-select">
+      <button type="button" class="custom-select-btn" id="${btnId}" onclick="toggleDropdown('${panelId}')" data-value="${ea(currentValue)}">${currentValue?escHtml(currentValue):'— Select —'}</button>
+      <div class="dropdown-panel" id="${panelId}">
+        <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('${panelId}',this.value)"></div>
+        <div class="dropdown-list" id="${panelId}-list"><div style="padding:10px;color:var(--stone);font-size:13px">Loading…</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+// Called right after the form HTML lands in the DOM to fill the dropdown's
+// options in from the cached/fetched rate list without blocking first paint.
+async function _fillRangerRateDropdown(prefix){
+  const rates=await _getRangerRates();
+  const listEl=document.getElementById(prefix+'-rangerNum-dd-list');
+  if(!listEl)return; // form may have been closed/navigated away already
+  if(!rates.length){listEl.innerHTML='<div style="padding:10px;color:var(--stone);font-size:13px">No Ranger Rates found — add one in Data ▸ Prices (Items All, Type 2 = "Ranger Rate")</div>';return;}
+  listEl.innerHTML=rates.map(r=>`<div class="dropdown-item" data-name="${ea(r.name)}" data-amount="${ea(r.amount)}" data-fullday="${ea(r.fullDayAmount)}" onclick="selectRangerRate(this,'${prefix}')">${escHtml(r.name)}</div>`).join('');
+}
+function selectRangerRate(el,prefix){
+  const btn=document.getElementById(prefix+'-rangerNum-btn');
+  if(btn){btn.textContent=el.dataset.name;btn.dataset.value=el.dataset.name;}
+  const panel=document.getElementById(prefix+'-rangerNum-dd');if(panel)panel.classList.remove('open');
+  const halfEl=document.getElementById(prefix+'-HalfDayCost');if(halfEl)halfEl.value=el.dataset.amount||'';
+  const fullEl=document.getElementById(prefix+'-FullDayCost');if(fullEl)fullEl.value=el.dataset.fullday||'';
+}
+
+/* ═══ RANGER DETAILS SECTION (shared by Add Person + Edit Person) ═══
+   W-9 / TB Test / Ranger Contract / Ranger Live Scan, mailing address,
+   Ranger Number (+ auto-filled Half/Full Day Cost), and TB dates. Gated to
+   ranger-category roles (see RANGER_DOC_ROLE_CATS) and access level 1-2.
+   `h` is the existing Humans row for Edit, or null for Add (docs can't
+   upload yet — no sheet row exists — so those three go through
+   `_docUploadRowDeferred` and stage the File objects instead). */
+function _rangerDetailsSectionHtml(prefix,h){
+  h=h||{};
+  const streetAddress=sf(h,'Street Address','StreetAddress');
+  const city=sf(h,'City','city');
+  const state=sf(h,'State','state');
+  const zipCode=sf(h,'Zip Code','ZipCode');
+  const country=sf(h,'Country','country');
+  const liveScan=sf(h,'Ranger Live Scan','RangerLiveScan');
+  const rangerNumber=sf(h,'Ranger Number','RangerNumber');
+  const halfDayCost=sf(h,'1 Unit ( Half Day ) Cost','HalfDayCost');
+  const fullDayCost=sf(h,'2 Unit ( Full Day ) Cost','FullDayCost');
+  const tbExpiration=sf(h,'TB Expiration Date','TBExpirationDate','TB Expiration');
+  const tbDate=sf(h,'TB Date','TBDate');
+  const deferred=!(h.Email||h.email); // Add Person: no row exists yet, so docs are staged not uploaded
+  const docRow=docType=>deferred?_docUploadRowDeferred(docType):_docUploadRow(h,docType);
+  return `
+    <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Mailing Address</div>
+    <div class="edit-wrap"><div class="edit-label">Street Address</div><input class="edit-input" id="${prefix}-StreetAddress" value="${ea(streetAddress)}"></div>
+    <div class="edit-wrap"><div class="edit-label">City</div><input class="edit-input" id="${prefix}-City" value="${ea(city)}"></div>
+    <div class="edit-wrap"><div class="edit-label">State</div><input class="edit-input" id="${prefix}-State" value="${ea(state)}"></div>
+    <div class="edit-wrap"><div class="edit-label">Zip Code</div><input class="edit-input" id="${prefix}-ZipCode" value="${ea(zipCode)}" placeholder="Zip"></div>
+    <div class="edit-wrap"><div class="edit-label">Country</div><input class="edit-input" id="${prefix}-Country" value="${ea(country)}"></div>
+    <hr class="section-divider">
+    <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Ranger Documents</div>
+    ${docRow('W9')}
+    ${docRow('TBTest')}
+    ${docRow('RangerContract')}
+    <div class="edit-wrap"><div class="edit-label">Ranger Live Scan</div>
+      <select class="edit-input" id="${prefix}-LiveScan">
+        <option value=""${!liveScan?' selected':''}>— Select —</option>
+        <option value="Approved"${liveScan==='Approved'?' selected':''}>Approved</option>
+        <option value="Rejected"${liveScan==='Rejected'?' selected':''}>Rejected</option>
+        <option value="Not Complete"${liveScan==='Not Complete'?' selected':''}>Not Complete</option>
+      </select>
+    </div>
+    <div class="edit-wrap"><div class="edit-label">TB Date</div><input class="edit-input" type="date" id="${prefix}-TBDate" value="${ea(tbDate)}"></div>
+    <div class="edit-wrap"><div class="edit-label">TB Expiration</div><input class="edit-input" type="date" id="${prefix}-TBExpiration" value="${ea(tbExpiration)}"></div>
+    <hr class="section-divider">
+    <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Ranger Rate</div>
+    ${_rangerNumberFieldHtml(prefix,rangerNumber)}
+    <div class="edit-wrap"><div class="edit-label">1 Unit ( Half Day ) Cost</div><input class="edit-input" id="${prefix}-HalfDayCost" value="${ea(halfDayCost)}" readonly placeholder="Auto-filled from Ranger Number"></div>
+    <div class="edit-wrap"><div class="edit-label">2 Unit ( Full Day ) Cost</div><input class="edit-input" id="${prefix}-FullDayCost" value="${ea(fullDayCost)}" readonly placeholder="Auto-filled from Ranger Number"></div>`;
+}
+// Fires the async bits (dropdown fill) once the section above is actually in the DOM.
+function _initRangerDetailsSection(prefix){ _fillRangerRateDropdown(prefix); }
+
+// Add-Person version of _docUploadRow: the person's row doesn't exist in the
+// sheet yet, so a file can't upload immediately (handleUploadHumanDoc looks
+// the row up by email and fails otherwise). Instead the File object is
+// staged in window._ncPendingDocs and uploaded right after the base record
+// is created — same target folder + name-after-the-new-person convention as
+// the normal upload path, just deferred by one step.
+function _docUploadRowDeferred(docType){
+  const label=DOC_TYPE_LABELS[docType];
+  const statusId='nc-doc-status-'+docType;
+  return `<div class="edit-wrap">
+    <div class="edit-label">${label}</div>
+    <input type="file" accept="application/pdf,image/*" onchange="_stageNcDocFile(this,'${docType}')" style="margin-bottom:6px">
+    <div id="${statusId}" style="font-size:13px;color:var(--stone)">Will upload once this person is added</div>
+  </div>`;
+}
+window._ncPendingDocs={};
+function _stageNcDocFile(input,docType){
+  const file=input.files[0];
+  const statusEl=document.getElementById('nc-doc-status-'+docType);
+  if(!file){delete window._ncPendingDocs[docType];if(statusEl)statusEl.textContent='Will upload once this person is added';return;}
+  window._ncPendingDocs[docType]=file;
+  if(statusEl)statusEl.textContent='📎 '+file.name+' — will upload once this person is added';
 }
 function gh(email){if(!email)return null;return DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===email.toLowerCase())||null;}
 function fullName(h){if(!h)return '';const fn=h['First Name']||h.FirstName||'',ln=h['Last Name']||h.LastName||'';if(fn||ln)return(fn+' '+ln).trim();return h.Name||h.name||h.Email||h.email||'';}
@@ -4378,30 +4500,13 @@ function renderPD(h,edit){
       </div>
       ${showsDocs?`
       <hr class="section-divider">
-      <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Mailing Address</div>
-      <div class="edit-wrap"><div class="edit-label">Street Address</div><input class="edit-input" id="ef-StreetAddress" value="${ea(streetAddress)}"></div>
-      <div class="edit-wrap"><div class="edit-label">City</div><input class="edit-input" id="ef-City" value="${ea(city)}"></div>
-      <div class="edit-wrap"><div class="edit-label">State</div><input class="edit-input" id="ef-State" value="${ea(state)}"></div>
-      <div class="edit-wrap"><div class="edit-label">Zip Code</div><input class="edit-input" id="ef-ZipCode" value="${ea(zipCode)}" placeholder="Zip"></div>
-      <div class="edit-wrap"><div class="edit-label">Country</div><input class="edit-input" id="ef-Country" value="${ea(country)}"></div>
-      <hr class="section-divider">
-      <div class="edit-label" style="padding:0 20px 4px;font-weight:600">Ranger Documents</div>
-      ${_docUploadRow(h,'W9')}
-      ${_docUploadRow(h,'TBTest')}
-      ${_docUploadRow(h,'RangerContract')}
-      <div class="edit-wrap"><div class="edit-label">Ranger Live Scan</div>
-        <select class="edit-input" id="ef-LiveScan">
-          <option value=""${!liveScan?' selected':''}>— Select —</option>
-          <option value="Approved"${liveScan==='Approved'?' selected':''}>Approved</option>
-          <option value="Rejected"${liveScan==='Rejected'?' selected':''}>Rejected</option>
-          <option value="Not Complete"${liveScan==='Not Complete'?' selected':''}>Not Complete</option>
-        </select>
-      </div>`:''}
+      ${_rangerDetailsSectionHtml('ef',h)}`:''}
       <div class="edit-actions">
         <button class="btn-save" onclick="savePerson('${ea(email)}')">Save</button>
         <button class="btn-cancel" onclick="showPersonDetail('${ea(email||name)}')">Cancel</button>
       </div>
       <div class="save-msg" id="saveMsg"></div>`;
+    if(showsDocs)_initRangerDetailsSection('ef');
   } else {
     document.getElementById('detail-content').innerHTML=`
       <div class="sheet-head">
@@ -4535,6 +4640,11 @@ async function savePerson(orig){
   const zipEl=document.getElementById('ef-ZipCode');if(zipEl)updates['Zip Code']=zipEl.value.trim();
   const countryEl=document.getElementById('ef-Country');if(countryEl)updates['Country']=countryEl.value.trim();
   const liveScanEl=document.getElementById('ef-LiveScan');if(liveScanEl)updates['Ranger Live Scan']=liveScanEl.value;
+  const tbDateEl=document.getElementById('ef-TBDate');if(tbDateEl)updates['TB Date']=tbDateEl.value;
+  const tbExpEl=document.getElementById('ef-TBExpiration');if(tbExpEl)updates['TB Expiration Date']=tbExpEl.value;
+  const rangerNumBtn=document.getElementById('ef-rangerNum-btn');if(rangerNumBtn)updates['Ranger Number']=rangerNumBtn.dataset.value||'';
+  const halfDayEl=document.getElementById('ef-HalfDayCost');if(halfDayEl)updates['1 Unit ( Half Day ) Cost']=halfDayEl.value;
+  const fullDayEl=document.getElementById('ef-FullDayCost');if(fullDayEl)updates['2 Unit ( Full Day ) Cost']=fullDayEl.value;
   const newEmail=updates['Email']||orig;
   const emailChanged=orig&&newEmail&&orig.toLowerCase()!==newEmail.toLowerCase();
   // Update local DATA immediately
@@ -4664,6 +4774,7 @@ async function closeChore(choreId,description){
 
 /* ═══ ADD CONTACT ═══ */
 function showAddContact(){
+  window._ncPendingDocs={}; // reset any staged doc files from a previous Add
   document.getElementById('detail-content').innerHTML=`
     <div class="sheet-head"><div class="sheet-title">Add Person</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
     <div class="edit-wrap"><div class="edit-label">First Name</div><input class="edit-input" id="nc-FirstName" placeholder="First name"></div>
@@ -4676,10 +4787,14 @@ function showAddContact(){
         <button type="button" class="custom-select-btn" id="nc-role-btn" onclick="toggleDropdown('nc-role-dd')" data-value="">— Select role —</button>
         <div class="dropdown-panel" id="nc-role-dd">
           <div class="dropdown-search"><input placeholder="Search roles…" oninput="filterDropdownItems('nc-role-dd',this.value)"></div>
-          <div class="dropdown-list">${DATA.roles.map(r=>`<div class="dropdown-item" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'nc-role-btn','nc-role-dd')">${r.name}</div>`).join('')}</div>
+          <div class="dropdown-list">${DATA.roles.map(r=>`<div class="dropdown-item" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'nc-role-btn','nc-role-dd');_toggleNcRangerSection();">${r.name}</div>`).join('')}</div>
           <div class="dropdown-add" onclick="addNewRoleNc()">+ Add new role…</div>
         </div>
       </div>
+    </div>
+    <div id="nc-ranger-section" style="display:none">
+      <hr class="section-divider">
+      ${_rangerDetailsSectionHtml('nc',null)}
     </div>
     <div class="edit-actions">
       <button class="btn-save" onclick="saveNewContact()">Add</button>
@@ -4687,6 +4802,20 @@ function showAddContact(){
     </div>
     <div class="save-msg" id="saveMsg"></div>`;
   openDetail();
+}
+// Shows/hides the Ranger Documents/address/rate block on the Add Person form
+// as soon as a ranger-category role is picked — mirrors _showsRangerDocs
+// used on the Edit Person form, just role-only (no row exists yet to also
+// check Role Additional against).
+function _toggleNcRangerSection(){
+  const roleBtn=document.getElementById('nc-role-btn');
+  const role=roleBtn?(roleBtn.dataset.value||''):'';
+  const show=RANGER_DOC_ROLE_CATS.includes(_roleCategoryFor(role));
+  const sec=document.getElementById('nc-ranger-section');
+  if(!sec)return;
+  const wasHidden=sec.style.display==='none';
+  sec.style.display=show?'block':'none';
+  if(show&&wasHidden)_initRangerDetailsSection('nc');
 }
 async function saveNewContact(){
   const email=document.getElementById('nc-Email').value.trim();
@@ -4702,11 +4831,41 @@ async function saveNewContact(){
   }
   const roleBtn=document.getElementById('nc-role-btn');
   const data={'First Name':document.getElementById('nc-FirstName').value.trim(),'Last Name':document.getElementById('nc-LastName').value.trim(),Email:email,Mobile:document.getElementById('nc-Mobile').value.trim(),Role:roleBtn?roleBtn.dataset.value||'':''};
+  // Ranger Documents section fields — only present in the DOM (and thus only
+  // collected) when a ranger-category role made the section visible.
+  const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():undefined;};
+  const street=gv('nc-StreetAddress'),city=gv('nc-City'),state=gv('nc-State'),zip=gv('nc-ZipCode'),country=gv('nc-Country');
+  if(street!==undefined){
+    data['Street Address']=street;data['City']=city;data['State']=state;data['Zip Code']=zip;data['Country']=country;
+    const liveScanEl=document.getElementById('nc-LiveScan');if(liveScanEl)data['Ranger Live Scan']=liveScanEl.value;
+    const tbDateEl=document.getElementById('nc-TBDate');if(tbDateEl)data['TB Date']=tbDateEl.value;
+    const tbExpEl=document.getElementById('nc-TBExpiration');if(tbExpEl)data['TB Expiration Date']=tbExpEl.value;
+    const rangerNumBtn=document.getElementById('nc-rangerNum-btn');if(rangerNumBtn)data['Ranger Number']=rangerNumBtn.dataset.value||'';
+    const halfDayEl=document.getElementById('nc-HalfDayCost');if(halfDayEl)data['1 Unit ( Half Day ) Cost']=halfDayEl.value;
+    const fullDayEl=document.getElementById('nc-FullDayCost');if(fullDayEl)data['2 Unit ( Full Day ) Cost']=fullDayEl.value;
+  }
+  const pendingDocs=Object.assign({},window._ncPendingDocs); // snapshot — form closes below
+  window._ncPendingDocs={};
   _playChime();
   closeDetailImmediate();
   switchTab('people');
-  try{await addHumanToSheet(data);renderAll();showSaveToast('✓ '+((data['First Name']+' '+data['Last Name']).trim()||email)+' added');}
-  catch(e){showSaveToast('⚠ Save failed — '+e.message);}
+  try{
+    await addHumanToSheet(data);
+    renderAll();
+    showSaveToast('✓ '+((data['First Name']+' '+data['Last Name']).trim()||email)+' added');
+    // Now that the row exists, upload any staged W-9/TB Test/Ranger Contract
+    // files — named after this new person, same as the normal edit-form path.
+    const docTypes=Object.keys(pendingDocs);
+    if(docTypes.length){
+      for(const docType of docTypes){
+        try{
+          const {url}=await _uploadHumanDoc(email,pendingDocs[docType],docType);
+          const col=DOC_TYPE_COLS[docType];
+          if(col){data[col]=url;localStorage.setItem(CFG.CK,JSON.stringify(DATA));}
+        }catch(ue){showSaveToast('⚠ '+(DOC_TYPE_LABELS[docType]||docType)+' upload failed — '+ue.message);}
+      }
+    }
+  }catch(e){showSaveToast('⚠ Save failed — '+e.message);}
 }
 
 /* ═══ ADD CONTACT FOR SITE (from site edit dropdown) ═══ */
