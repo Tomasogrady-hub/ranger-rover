@@ -1236,10 +1236,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.53';
+const APP_VERSION='v10.54';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Removed "Forward This to Other Folks" from chores for Level 3 (per admin decision) \u2014 it opened the Reach compose people-picker, which shows the full ranger/applicant roster from DATA.humans unfiltered by site assignment. Button now hidden for Level 3, plus a matching guard inside forwardChoreToReach() itself as a backstop.';
+const BUILD_STAMP='2026-08-25 - Bugfix: the in-app ↺ refresh button (header, orange icon) only ever re-fetched Sites/Chores/Humans data \u2014 it never touched _appSettings, so it never picked up a Force Sign-Out token bump. Only a genuine full page reload (which re-runs the whole boot sequence from scratch) ever caught it, which is why tapping the in-app refresh icon looked like it did nothing. It now also checks settings (and self-heals access level) on every press, matching every other refresh path in the app.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5352,7 +5352,15 @@ async function forceRefresh(){
       .then(j2=>{if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;}
         const n=Date.now();localStorage.setItem(CFG.CK,JSON.stringify(DATA));localStorage.setItem(CFG.TK,n);syncTS(n);
         _updateHdrAvatar();renderAll();setSync(true);
+        _resyncOwnAccessLevel();
       }).catch(()=>{});
+    // This button was the one gap in the Force Sign-Out kill switch: it
+    // refreshed data but never touched _appSettings, so pressing it never
+    // picked up a forceLogoutToken bump — only a genuine full page reload
+    // (which re-runs loadAppSettings() from scratch on boot) ever caught it.
+    // Piggyback the same lightweight settings check here so the in-app
+    // refresh icon catches it too.
+    loadAppSettings();
     renderAll();
     _activityLoaded=false;clearTimeout(_activityTimer);showSaveToast('✓ Data refreshed');
   }catch(e){
