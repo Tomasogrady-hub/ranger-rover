@@ -1236,10 +1236,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.49';
+const APP_VERSION='v10.50';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Bugfix: Force Sign-Out + Update did nothing on its first press. The client special-cased "first token I\u2019ve ever seen" as a silent baseline instead of a kick signal, and every device\u2019s very first check happened to BE that first press (since forceLogoutToken starts empty and only ever becomes non-empty when the button is pressed) \u2014 so the trigger was always mistaken for a baseline. Removed the special case; pressing the button now reliably signs out every device on its next open/refresh, including this first time.';
+const BUILD_STAMP='2026-08-25 - Privacy fix: hiding a tab\u2019s nav button (via Nav Visibility or an access-level change) never evicted a session already mid-render on that tab \u2014 the content pane just stayed on screen with no way back to it but also no push off of it. switchTab() and every nav-rebuild path now check the actual rendered nav and immediately bounce off any tab that no longer has a button, closing that gap. Note: this is a UI-level fix only \u2014 the Humans sheet is still sent in full to every access level by the backend regardless of level, so this does not by itself prevent someone from reading restricted contact data via browser dev tools/local cache; that would need server-side filtering in GAS.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2170,10 +2170,14 @@ function _resyncOwnAccessLevel(){
   const sf=document.getElementById('schoolFilters');if(sf)sf.style.display=fresh>=3?'none':'flex';
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=fresh===1?'block':'none';
   const flr=document.getElementById('forceLogoutRow');if(flr)flr.style.display=fresh===1?'block':'none';
-  // If their current tab no longer exists at the new level, bounce to Notes
-  // rather than leaving them stranded on a blank/inaccessible pane.
-  if(!_navTabAllowed(_activeTab,fresh)||(_activeTab==='settings'&&fresh!==1)){
-    switchTab('notes');
+  // If their current tab no longer exists at the new level, bounce to a safe
+  // tab rather than leaving them stranded on a blank/inaccessible pane. Check
+  // the actual rendered nav (which buildNav just rebuilt above) rather than
+  // re-deriving the rules here, since it already encodes both the hardcoded
+  // per-level structure and the Nav Visibility toggles.
+  if(!document.querySelector('.nav-btn[data-tab="'+_activeTab+'"]')){
+    const fallback=document.querySelector('#navRow1 .nav-btn')||document.querySelector('.nav-btn');
+    switchTab(fallback?fallback.dataset.tab:'notes');
   }
 }
 
@@ -6068,7 +6072,20 @@ function renderOperationsHome(){
   }).join('');
 }
 
-function switchTab(tab,initMapFlag=false){const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
+function switchTab(tab,initMapFlag=false){
+  // Defense-in-depth: never render a tab-pane whose nav button isn't currently
+  // present for this session. buildNav() already encodes both the hardcoded
+  // per-level structure (e.g. Level 3 never gets Rangers/People/Settings) and
+  // the admin's Nav Visibility toggles — so "does a .nav-btn for this tab
+  // exist right now" is the single source of truth for "is this tab currently
+  // allowed", without duplicating that logic here. This guards against stale
+  // event handlers, deep links, or old DOM state trying to render a tab that
+  // was reachable a moment ago but no longer is.
+  if(SESSION&&!document.querySelector('.nav-btn[data-tab="'+tab+'"]')){
+    const fallback=document.querySelector('#navRow1 .nav-btn')||document.querySelector('.nav-btn');
+    tab=fallback?fallback.dataset.tab:'notes';
+  }
+  const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   if(tab!=='operations')_exitSmartMapFullscreen();
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
@@ -7643,8 +7660,20 @@ function _applyAppSettings(){
   const lvl=SESSION?SESSION.accessLevel:3;
   // Rebuild nav so tabs (incl. Plants) reflect current Nav Visibility settings
   buildNav(lvl);
-  // Re-apply active state to current tab
-  if(_activeTab){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===_activeTab));}
+  // If the tab currently on screen no longer has a nav button after that
+  // rebuild — e.g. an admin just turned Rangers off for this person's level
+  // via the Nav Visibility panel — evict off it immediately instead of
+  // leaving whatever was already rendered sitting there with no way back to
+  // it but also no push away from it. This is the fix for a real privacy gap:
+  // hiding a nav button alone does nothing for a session already mid-render
+  // on that tab.
+  if(_activeTab&&!document.querySelector('.nav-btn[data-tab="'+_activeTab+'"]')){
+    const fallback=document.querySelector('#navRow1 .nav-btn')||document.querySelector('.nav-btn');
+    switchTab(fallback?fallback.dataset.tab:'notes');
+  }else if(_activeTab){
+    // Re-apply active state to current tab
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===_activeTab));
+  }
   // Update control panel toggle button
   setTimeout(renderNavVisibilityPanel, 50);
   // Update broadcast textarea if on control panel
