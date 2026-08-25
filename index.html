@@ -1236,10 +1236,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.52';
+const APP_VERSION='v10.53';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Audited every switchTab() call in the app for the same class of bug as the v10.51 fix (a universally-reachable action hard-navigating to an access-restricted tab). Found none elsewhere — every other case is either a tab available at every level, or only reachable from inside a screen already gated to the right level. Also reverted an over-broad guard added to switchTab() itself in v10.50: it would have silently broken the "Forward This to Other Folks" chore button for Level 3 (that flow intentionally opens Reach even though Level 3 has no Reach tab). Kept the narrower, correct fix \u2014 evicting a tab that\u2019s already on screen when its access is pulled out from under it \u2014 in _applyAppSettings() and _resyncOwnAccessLevel() only.';
+const BUILD_STAMP='2026-08-25 - Removed "Forward This to Other Folks" from chores for Level 3 (per admin decision) \u2014 it opened the Reach compose people-picker, which shows the full ranger/applicant roster from DATA.humans unfiltered by site assignment. Button now hidden for Level 3, plus a matching guard inside forwardChoreToReach() itself as a backstop.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2364,7 +2364,7 @@ function renderChoreDetail(c,editMode){
         ${SESSION&&id&&isOpen?`<button class="dcta" onclick="closeChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--sage);color:var(--sage)">✓ Mark as Closed</button>`:''}
         ${SESSION&&id?`<button class="dcta" onclick="deleteChoreFromDetail('${ea(id)}','${ea(task)}')" style="border-color:var(--danger);color:var(--danger)">🗑 Delete</button>`:''}
         ${canEdit()&&id?`<button class="dcta" onclick="showReassignChore('${ea(id)}','${ea(site)}');closeDetail()">↩ Reassign</button>`:''}
-        ${SESSION&&id?`<button class="dcta" onclick="forwardChoreToReach('${ea(id)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward This to Other Folks</button>`:''}
+        ${SESSION&&id&&SESSION.accessLevel<=2?`<button class="dcta" onclick="forwardChoreToReach('${ea(id)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward This to Other Folks</button>`:''}
         ${SESSION&&SESSION.accessLevel===1?`<button class="dcta" onclick="showChoreDebug()" style="border-color:var(--silver);color:var(--silver);font-size:12px">🔍 Debug</button>`:''}
       </div>
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
@@ -2420,6 +2420,13 @@ function _uploadImageToCloudinaryXHR(blob) {
 }
 
 async function forwardChoreToReach(choreId) {
+  // Level 3 field rangers no longer get this — it opens the Reach compose
+  // screen and its people-picker, which shows the full ranger roster
+  // (names/roles from DATA.humans, unfiltered by site assignment). The
+  // button itself is already hidden for Level 3 above; this is just a
+  // narrow, function-specific backstop in case something else ever calls
+  // this directly.
+  if (!SESSION || SESSION.accessLevel >= 3) { showSaveToast('Not available at your access level'); return; }
   const c = DATA.chores.find(x => (x.ID || x.id) === choreId);
   if (!c) { showSaveToast('Chore not found'); return; }
   const task   = c.Task || c.task || '';
