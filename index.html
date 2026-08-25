@@ -1236,10 +1236,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.48';
+const APP_VERSION='v10.49';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Fixed root cause of "access level reverted itself": SESSION.accessLevel was only ever fetched at login, so anyone already signed in kept their OLD level forever even after the Humans sheet was corrected. Now every background Humans refresh (which already runs on every app open/periodically) re-checks the signed-in user\u2019s own row and silently corrects SESSION + nav if the sheet has changed \u2014 no re-login needed. Also added "Force Sign-Out + Update (All Users)" kill switch in Settings for cases needing an immediate, guaranteed fix.';
+const BUILD_STAMP='2026-08-25 - Bugfix: Force Sign-Out + Update did nothing on its first press. The client special-cased "first token I\u2019ve ever seen" as a silent baseline instead of a kick signal, and every device\u2019s very first check happened to BE that first press (since forceLogoutToken starts empty and only ever becomes non-empty when the button is pressed) \u2014 so the trigger was always mistaken for a baseline. Removed the special case; pressing the button now reliably signs out every device on its next open/refresh, including this first time.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -7499,14 +7499,18 @@ let _appSettings={broadcast:'',navVisibility:{},opsNotes:'',twilioSid:'',twilioK
 // the last one it saw (rr_flt in localStorage) each time loadAppSettings()
 // runs (i.e. every app open/refresh). A mismatch means an admin pulled the
 // lever since this device last checked in, so the device clears its session
-// and cached app shell and reloads straight to the login screen. The very
-// first time a device ever sees a token (rr_flt not set yet) it just records
-// the baseline silently — it does NOT log the user out — so shipping this
-// feature doesn't itself kick anyone out.
+// and cached app shell and reloads straight to the login screen.
+// forceLogoutToken stays empty on the server until Access Level 1 presses the
+// button for the first time (guarded by the `if(!serverToken)return` below),
+// so there is no need for a "first sight = just baseline, don't kick" special
+// case — nothing can trigger this before the button is ever pressed. An
+// earlier version of this function DID special-case first sight, which meant
+// literally every device's first-ever check (because rr_flt had never been
+// set) treated the admin's first real button-press token as its baseline
+// instead of as a kick signal — so the very first press silently did nothing.
 function _checkForceLogout(serverToken){
   if(!serverToken)return;
   const stored=localStorage.getItem('rr_flt');
-  if(stored===null){localStorage.setItem('rr_flt',serverToken);return;}
   if(stored!==serverToken){
     localStorage.setItem('rr_flt',serverToken);
     _remoteForceRefresh();
