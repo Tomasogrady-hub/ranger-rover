@@ -540,6 +540,9 @@ function doPost(e) {
       case 'addPriceItem':  return respond(handleAddPriceItem(p));
       case 'updatePriceItem': return respond(handleUpdatePriceItem(p));
 
+      // ── RANGER RATES (People add/edit → Items All, Type 2 = "Ranger Rate") ───
+      case 'getRangerRates': return respond(handleGetRangerRates());
+
       // ── CASCADE EMAIL CHANGE ─────────────────────────────────────────────────
       case 'cascadeEmail': return respond(handleCascadeEmail(p));
 
@@ -2575,6 +2578,36 @@ function handleGetPrices() {
     });
   }
   return { ok: true, prices: out };
+}
+
+// ── RANGER RATES (Items All → People add/edit "Ranger Number" dropdown) ─────
+// Returns every Items All row tagged Type 2 = "Ranger Rate": Name (shown as
+// the Ranger Number option), Amount (→ "1 Unit ( Half Day ) Cost"), and
+// "Full day Amount" (→ "2 Unit ( Full Day ) Cost"). Same tab/shape as the
+// Prices feature above, just a different Type column/value.
+function handleGetRangerRates() {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ni  = headers.indexOf('Name');
+  var ai  = headers.indexOf('Amount');
+  var t2i = headers.indexOf('Type 2');
+  var fdi = headers.indexOf('Full day Amount');
+  if (ni === -1 || ai === -1 || t2i === -1) {
+    return { ok: false, error: 'Expected Name/Amount/Type 2 columns not found in Items All.' };
+  }
+  var out = [];
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][t2i] || '').trim() !== 'Ranger Rate') continue;
+    if (!data[r][ni]) continue;
+    out.push({
+      name:          String(data[r][ni] || ''),
+      amount:        data[r][ai],
+      fullDayAmount: fdi > -1 ? data[r][fdi] : ''
+    });
+  }
+  return { ok: true, rates: out };
 }
 
 // 8-char unique ID generator for Items All rows (same pattern as Chores' ID column).
