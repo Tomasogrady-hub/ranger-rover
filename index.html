@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v10.45 | BUILDITALL: 2026-08-25 | Ranger Rover PWA -->
+<!-- v10.46 | BUILDITALL: 2026-08-25 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1156,7 +1156,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
           <select id="dataPeopleBulkValue" class="settings-input" style="margin:0;width:100px;flex:none" disabled>
             <option value="">None</option>
-            <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
+            <option value="3">Level 3</option>
             <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
             <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
           </select>
@@ -1230,10 +1230,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.45';
+const APP_VERSION='v10.46';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-25 - Data \u25b8 People: added an "Adjust" heading above the Adjust dropdown, plus new Adjust Ranger Number / Adjust Ranger Live Scan modes. Renamed the top filter label to "Additional Filter" and added Ranger Number (pulled live from Items All, Type 2 = Ranger Rate) and Ranger Live Scan (Approved/Rejected/Not Complete) filter options.';
+const BUILD_STAMP='2026-08-25 - Data \u25b8 People \u25b8 Adjust: removed Access Level 1 and 2 from the Adjust Access Levels dropdown and bulk-apply selector (those two levels are now managed elsewhere). Levels 3-9 unchanged. The Additional Filter dropdown still shows/filters by all levels 1-9.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -9075,8 +9075,10 @@ function _dataPeopleFieldOptionsList(mode){
 
 function _dataFieldOptionsHtml(mode,currentVal){
   if(mode==='access'){
+    // Levels 1 & 2 are intentionally excluded here — those are handled
+    // elsewhere, not through this bulk/per-row Adjust control.
     return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
-      [1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(currentVal)===String(n)?'selected':''}>Level ${n}</option>`).join('');
+      [3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(currentVal)===String(n)?'selected':''}>Level ${n}</option>`).join('');
   }
   const opts=_dataPeopleFieldOptionsList(mode);
   return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
