@@ -1237,10 +1237,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.56';
+const APP_VERSION='v10.57';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Forms: renamed New Form to Create New Record, added per-template field filtering (Independent Contractor Agreement shows only its own fields), and a Ranger picker that auto-fills email/address/ranger number/unit cost/full day unit cost from Humans + Items All.';
+const BUILD_STAMP='2026-08-26 - Forms (Independent Contractor Agreement): Date field now a date picker pre-filled to today, Start Date/End Date are also simple date pickers (no timestamps), and removed the Unit field.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5893,6 +5893,20 @@ function _formsOnRangerChange(sel){
     ['RANGER EMAIL','RANGER ADDRESS','Ranger Number','UNIT COST','FULL DAY UNIT COST'].forEach(c=>setVal(c,''));
   }
 }
+function _toDateInputValue(val){
+  if(!val)return'';
+  // Already yyyy-mm-dd (e.g. from a previous date-input save)
+  if(/^\d{4}-\d{2}-\d{2}$/.test(String(val)))return String(val);
+  const d=new Date(val);
+  if(isNaN(d.getTime()))return'';
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function _todayInputValue(){
+  const d=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
 function renderFormsFillFields(){
   const wrap=document.getElementById('formsFillFields');
   if(!wrap||!_formsCache)return;
@@ -5926,14 +5940,18 @@ function renderFormsFillFields(){
         <input type="hidden" id="ff-RANGER NAME" value="${ea(cur?cur.name:(f['RANGER NAME']||''))}"></div>`;
       return;
     }
-    if(col==='Unit'){
-      const cur=f.Unit||'';
-      html+=`<div class="edit-wrap"><div class="edit-label">Unit</div>
-        <select class="edit-input" id="ff-Unit">
-          <option value="" ${cur?'':'selected'}>— Select —</option>
-          <option value="Half Day" ${cur==='Half Day'?'selected':''}>Half Day</option>
-          <option value="Full Day" ${cur==='Full Day'?'selected':''}>Full Day</option>
-        </select></div>`;
+    if(col==='Date'){
+      // Simple date picker, pre-filled to today when this record has no date yet.
+      const cur=_toDateInputValue(f.Date)||_todayInputValue();
+      html+=`<div class="edit-wrap"><div class="edit-label">Date</div>
+        <input type="date" class="edit-input" id="ff-Date" value="${ea(cur)}"></div>`;
+      return;
+    }
+    if(col==='START DATE'||col==='END DATE'){
+      // Plain date pickers — saving stores a simple yyyy-mm-dd, no timestamp.
+      const cur=_toDateInputValue(f[col]);
+      html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
+        <input type="date" class="edit-input" id="ff-${ea(col)}" value="${ea(cur)}"></div>`;
       return;
     }
     if(['RANGER EMAIL','RANGER ADDRESS','Ranger Number','UNIT COST','FULL DAY UNIT COST'].includes(col)){
