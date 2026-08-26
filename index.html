@@ -1237,10 +1237,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.57';
+const APP_VERSION='v10.58';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Forms (Independent Contractor Agreement): Date field now a date picker pre-filled to today, Start Date/End Date are also simple date pickers (no timestamps), and removed the Unit field.';
+const BUILD_STAMP='2026-08-26 - Forms fix: Ranger picker now actually fills RANGER NAME (was a bug), PDF dates print as plain calendar dates instead of full JS timestamps, Form Name shows read-only in the fill screen, and the Forms list title now shows Ranger Name plus the template name plus contract years when available.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5796,9 +5796,11 @@ function renderFormsList(){
     const total=(_formsCache.textCols||[]).length + (_formsCache.yesNoCols||[]).length;
     const status=filled===0?'Not started':(filled>=total?'Complete':filled+' of '+total+' fields filled');
     const pdfNote=f['PDF Generated']?' · PDF generated':'';
+    const title=f['Record Title']||f['Form Name']||'Untitled Form';
+    const subtitle=f.School||f['RANGER NAME']||'No details set';
     return `<div class="action-row" onclick="_formsOpenFill('${ea(f.ID)}')">
-      <div style="font-weight:700">${ea(f['Form Name']||'Untitled Form')}</div>
-      <div style="font-size:13px;color:var(--stone)">${ea(f.School||'No school set')} · ${ea(status)}${pdfNote}</div>
+      <div style="font-weight:700">${ea(title)}</div>
+      <div style="font-size:13px;color:var(--stone)">${ea(subtitle)} · ${ea(status)}${pdfNote}</div>
     </div>`;
   }).join('');
 }
@@ -5884,13 +5886,14 @@ function _formsOnRangerChange(sel){
   const r=rangers.find(x=>x.email===sel.value);
   const setVal=(col,val)=>{ const el=document.getElementById('ff-'+col); if(el)el.value=val==null?'':val; };
   if(r){
+    setVal('RANGER NAME',r.name);
     setVal('RANGER EMAIL',r.email);
     setVal('RANGER ADDRESS',r.address);
     setVal('Ranger Number',r.rangerNumber);
     setVal('UNIT COST',r.unitCost);
     setVal('FULL DAY UNIT COST',r.fullDayUnitCost);
   }else{
-    ['RANGER EMAIL','RANGER ADDRESS','Ranger Number','UNIT COST','FULL DAY UNIT COST'].forEach(c=>setVal(c,''));
+    ['RANGER NAME','RANGER EMAIL','RANGER ADDRESS','Ranger Number','UNIT COST','FULL DAY UNIT COST'].forEach(c=>setVal(c,''));
   }
 }
 function _toDateInputValue(val){
@@ -5924,6 +5927,11 @@ function renderFormsFillFields(){
           <option value="" ${cur?'':'selected'}>— Select a school —</option>
           ${sites.map(s=>`<option value="${ea(s.name)}" ${s.name===cur?'selected':''}>${ea(s.name)}</option>`).join('')}
         </select></div>`;
+      return;
+    }
+    if(col==='Form Name'){
+      html+=`<div class="edit-wrap"><div class="edit-label">Form Name</div>
+        <div class="edit-input" style="opacity:.75;background:var(--sand,#f2f0ea)">${ea(f['Form Name']||'')}</div></div>`;
       return;
     }
     if(col==='RANGER NAME'){
