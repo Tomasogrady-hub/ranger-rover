@@ -1237,10 +1237,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.58';
+const APP_VERSION='v10.59';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Forms fix: Ranger picker now actually fills RANGER NAME (was a bug), PDF dates print as plain calendar dates instead of full JS timestamps, Form Name shows read-only in the fill screen, and the Forms list title now shows Ranger Name plus the template name plus contract years when available.';
+const BUILD_STAMP='2026-08-26 - Forms: record title (Ranger Name + template name + contract years) now computes live in the list without needing a Record Title column, and the saved PDF filename uses the same composed name instead of a timestamp.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5783,6 +5783,26 @@ async function loadFormsList(){
     if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">Could not load forms.</div>';
   }
 }
+function _formsYearOf(val){
+  if(!val)return'';
+  const d=new Date(val);
+  if(!isNaN(d.getTime()))return String(d.getFullYear());
+  const m=String(val).match(/\b(20\d{2})\b/);
+  return m?m[1]:'';
+}
+function _formsComposeTitle(f){
+  // Mirrors _composeFormsRecordTitle on the backend: Ranger Name + template
+  // name + contract years for ranger records, else Form Name - School.
+  if(f['Record Title'])return f['Record Title']; // already computed server-side
+  const rangerName=String(f['RANGER NAME']||'').trim();
+  const formName=String(f['Form Name']||'').trim();
+  const startYear=_formsYearOf(f['START DATE']);
+  const endYear=_formsYearOf(f['END DATE']);
+  const years=startYear?(startYear+(endYear&&endYear!==startYear?'–'+endYear:'')):'';
+  if(rangerName)return[rangerName,formName,years].filter(x=>x).join(' ');
+  const school=String(f.School||'').trim();
+  return[formName,school].filter(x=>x).join(' - ')||formName||'Untitled Form';
+}
 function renderFormsList(){
   const listEl=document.getElementById('formsList');
   if(!listEl||!_formsCache)return;
@@ -5796,7 +5816,7 @@ function renderFormsList(){
     const total=(_formsCache.textCols||[]).length + (_formsCache.yesNoCols||[]).length;
     const status=filled===0?'Not started':(filled>=total?'Complete':filled+' of '+total+' fields filled');
     const pdfNote=f['PDF Generated']?' · PDF generated':'';
-    const title=f['Record Title']||f['Form Name']||'Untitled Form';
+    const title=_formsComposeTitle(f);
     const subtitle=f.School||f['RANGER NAME']||'No details set';
     return `<div class="action-row" onclick="_formsOpenFill('${ea(f.ID)}')">
       <div style="font-weight:700">${ea(title)}</div>
