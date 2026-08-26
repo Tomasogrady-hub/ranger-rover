@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.26 | 2026-08-25';
+const GAS_BUILD = 'v10.27 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -44,6 +44,23 @@ const FORMS_TEXT_COL_TOKENS = {
   'Project Proponent':   '{{ProjectProponent}}',
   'Project Description': '{{ProjectDescription}}'
 };
+
+// ── RANGER CONTRACT (Independent Contractor Agreement, merged from Humans) ───
+// Separate from the generic Forms engine above: this one is keyed off a single
+// Humans row (by email) instead of a typed-answer Forms-tab instance, since a
+// ranger's contract fields (name, address, per-unit rate) already live on
+// their Humans row. Draft v1 — Tomas to tweak wording/rates from here.
+const RANGER_CONTRACT_TEMPLATE_ID = '1zXShiQll00RrnZ30dMtAlD2yvmM690AtaQJEHQomEI8'; // "Garden Ranger Contract TEMPLATE (Merge Fields)" Doc, in Actual Forms folder
+// Contract term dates aren't on the Humans sheet (they're org-wide per season),
+// so they're set here and just need updating once a year.
+const RANGER_CONTRACT_TERM_START = 'September 8, 2026';
+const RANGER_CONTRACT_TERM_END   = 'June 4, 2027';
+// Fallback per-unit rates used only if a ranger's Humans row has no
+// "1 Unit ( Half Day ) Cost" / "2 Unit ( Full Day ) Cost" value set yet.
+const RANGER_CONTRACT_DEFAULT_HALF_DAY_RATE = 130;
+const RANGER_CONTRACT_DEFAULT_FULL_DAY_RATE = 230;
+// The post-probation bump has always been a flat +$10 in every rate on file.
+const RANGER_CONTRACT_PROBATION_BUMP = 10;
 
 // ── DRIVE FOLDER IDs (images) ─────────────────────────────────────────────────
 const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
@@ -567,6 +584,7 @@ function doPost(e) {
       case 'getSitesForForms':  return respond(handleGetSitesForForms());
       case 'saveFormAnswers':   return respond(handleSaveFormAnswers(p));
       case 'generateFormPdf':   return respond(handleGenerateFormPdf(p));
+      case 'generateRangerContract': return respond(handleGenerateRangerContract(p));
       case 'emailFormPdf':      return respond(handleEmailFormPdf(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
@@ -3175,6 +3193,93 @@ function handleEmailFormPdf(p) {
     var body    = String(p.message || 'Please see the attached form.');
     GmailApp.sendEmail(to, subject, body, { attachments: [out.pdfBlob] });
     return { ok: true, pdfUrl: out.pdfUrl };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── RANGER CONTRACT PDF (merged straight from the Humans sheet) ─────────────
+// Looks up the ranger by email, fills a fresh copy of
+// RANGER_CONTRACT_TEMPLATE_ID with their Name / Full Address / per-unit
+// rates, exports it as a PDF into the existing HUMANS_CONTRACT_FOLDER, and
+// writes the resulting link into that same person's "Ranger Contract" column
+// — the same column/folder the manual upload flow (handleUploadHumanDoc)
+// already uses, so the People page's contract field just works either way.
+function handleGenerateRangerContract(p) {
+  try {
+    var email = String(p.email || '').trim();
+    if (!email) return { ok: false, error: 'Missing email' };
+
+    var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+    var data  = sheet.getDataRange().getValues();
+    var h     = data[0];
+    var ei    = h.indexOf('Email');
+    var fni   = h.indexOf('First Name'), lni = h.indexOf('Last Name');
+    var faiCol = h.indexOf('Full Address');
+    var halfCol = h.indexOf('1 Unit ( Half Day ) Cost');
+    var fullCol = h.indexOf('2 Unit ( Full Day ) Cost');
+    var contractCol = h.indexOf('Ranger Contract');
+    if (ei === -1) return { ok: false, error: 'Email column not found on Humans sheet' };
+    if (contractCol === -1) return { ok: false, error: '"Ranger Contract" column not found on Humans sheet' };
+
+    var rowIdx = -1, row = null;
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][ei]).toLowerCase().trim() === email.toLowerCase()) { rowIdx = r; row = data[r]; break; }
+    }
+    if (rowIdx === -1) return { ok: false, error: 'Person not found: ' + email };
+
+    var firstName = fni > -1 ? String(row[fni] || '').trim() : '';
+    var lastName  = lni > -1 ? String(row[lni]  || '').trim() : '';
+    var fullName  = (firstName + ' ' + lastName).trim() || email;
+    var address   = faiCol > -1 ? String(row[faiCol] || '').trim() : '';
+
+    var halfRate = (halfCol > -1 && row[halfCol] !== '' && !isNaN(row[halfCol]))
+      ? Number(row[halfCol]) : RANGER_CONTRACT_DEFAULT_HALF_DAY_RATE;
+    var fullRate = (fullCol > -1 && row[fullCol] !== '' && !isNaN(row[fullCol]))
+      ? Number(row[fullCol]) : RANGER_CONTRACT_DEFAULT_FULL_DAY_RATE;
+
+    var tokens = {
+      '{{ContractorName}}':        fullName,
+      '{{ContractorAddress}}':     address || '________________________',
+      '{{ContractDate}}':          Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'MMMM d, yyyy'),
+      '{{ContractYear}}':          Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyy'),
+      '{{TermStart}}':             RANGER_CONTRACT_TERM_START,
+      '{{TermEnd}}':               RANGER_CONTRACT_TERM_END,
+      '{{HalfDayRate}}':           String(halfRate),
+      '{{HalfDayRateProbation}}':  String(halfRate + RANGER_CONTRACT_PROBATION_BUMP),
+      '{{FullDayRate}}':           String(fullRate),
+      '{{FullDayRateProbation}}':  String(fullRate + RANGER_CONTRACT_PROBATION_BUMP)
+    };
+
+    var folder   = DriveApp.getFolderById(HUMANS_CONTRACT_FOLDER);
+    var baseName = _humanFileNamePrefix(firstName, lastName) + 'RangerContract' + _humanFileDateStamp();
+    var copyFile = DriveApp.getFileById(RANGER_CONTRACT_TEMPLATE_ID).makeCopy(baseName, folder);
+    var doc      = DocumentApp.openById(copyFile.getId());
+    var body     = doc.getBody();
+
+    Object.keys(tokens).forEach(function(token) {
+      var escToken = token.replace(/[{}]/g, '\\$&');
+      var escVal   = String(tokens[token]).replace(/\$/g, '$$$$'); // avoid $1-style backreferences
+      body.replaceText(escToken, escVal);
+    });
+    doc.saveAndClose();
+
+    var pdfBlob = DriveApp.getFileById(copyFile.getId()).getAs(MimeType.PDF);
+    var pdfFile = folder.createFile(pdfBlob).setName(baseName + '.pdf');
+    DriveApp.getFileById(copyFile.getId()).setTrashed(true); // keep only the PDF, not the temp Doc
+
+    // Trash whatever contract PDF this ranger had before, same as a manual re-upload would.
+    var oldUrl = String(row[contractCol] || '');
+    if (oldUrl) {
+      var oldId = _extractDriveId(oldUrl);
+      if (oldId) { try { DriveApp.getFileById(oldId).setTrashed(true); } catch (delErr) { /* already gone, ignore */ } }
+    }
+
+    var url = pdfFile.getUrl();
+    sheet.getRange(rowIdx + 1, contractCol + 1).setValue(url);
+    logActivity(p.actor || '', 'generated Ranger Contract', fullName, 'person', 'Ranger Contract');
+
+    return { ok: true, url: url, halfRate: halfRate, fullRate: fullRate };
   } catch (e) {
     return { ok: false, error: e.message };
   }
