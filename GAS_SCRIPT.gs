@@ -46,12 +46,25 @@ const FORMS_TEXT_COL_TOKENS = {
   // Independent Contractor Agreement (Forms tab columns Tomas added for this form) —
   // 'Date' is the shared generic column, filled in per-instance same as any other field.
   'Date':                '{{DATE}}',
-  'RANGER':              '{{RANGER}}',
+  'RANGER NAME':         '{{RANGER}}',
   'RANGER ADDRESS':      '{{RANGER ADDRESS}}',
   'START DATE':          '{{START DATE}}',
   'END DATE':            '{{END DATE}}',
   'UNIT COST':           '{{UNIT COST}}',
-  'FULL DAY UNIT COST':  '{{FULL DAY UNIT COST}}'
+  'FULL DAY UNIT COST':  '{{FULL DAY UNIT COST}}',
+  'RANGER EMAIL':        '{{RANGER EMAIL}}',
+  'Ranger Number':       '{{RANGER NUMBER}}'
+};
+
+// Forms tab columns that belong ONLY to a specific template's fill-out screen —
+// used by the frontend to show a filtered field set per templateName instead of
+// every column in the shared Forms tab. Templates not listed here (e.g. Project
+// Approval Tracking Sheet) keep the old "show every textCol" behavior.
+const FORMS_TEMPLATE_FIELDS = {
+  'Independent Contractor Agreement': [
+    'Date', 'Unit', 'RANGER NAME', 'RANGER EMAIL', 'RANGER ADDRESS',
+    'START DATE', 'END DATE', 'Ranger Number', 'UNIT COST', 'FULL DAY UNIT COST'
+  ]
 };
 
 // ── DRIVE FOLDER IDs (images) ─────────────────────────────────────────────────
@@ -577,6 +590,7 @@ function doPost(e) {
       case 'saveFormAnswers':   return respond(handleSaveFormAnswers(p));
       case 'generateFormPdf':   return respond(handleGenerateFormPdf(p));
       case 'emailFormPdf':      return respond(handleEmailFormPdf(p));
+      case 'getActiveRangersForForms': return respond(handleGetActiveRangersForForms());
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -2650,6 +2664,70 @@ function handleGetRangerRates() {
   return { ok: true, rates: out };
 }
 
+// ── ACTIVE RANGERS (Humans → Independent Contractor Agreement "RANGER" dropdown) ──
+// Returns every Humans row whose Role is exactly "Ranger" or "Ranger Onboarding",
+// each pre-joined with their current Items All "Ranger Rate" row (matched by
+// their own Ranger Number) so selecting a name in the app can fill Email/Name/
+// Address/Ranger Number/Unit Cost/Full Day Unit Cost in one shot with no extra
+// round trip. Unit Cost/Full Day Unit Cost are read fresh from Items All here
+// (not from the Humans row's own cached cost columns) so they always reflect
+// the current published rate for that Ranger Number.
+function handleGetActiveRangersForForms() {
+  var hSheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans');
+  if (!hSheet) return { ok: false, error: '"Humans" tab not found.' };
+  var hData = hSheet.getDataRange().getValues();
+  var h = hData[0];
+  var idx = {};
+  h.forEach(function(col, i) { idx[col] = i; });
+  if (idx['Email'] === undefined || idx['Role'] === undefined) {
+    return { ok: false, error: 'Expected Email/Role columns not found in Humans sheet.' };
+  }
+
+  // Build the Ranger Number → {amount, fullDayAmount} lookup once.
+  var rateByNumber = {};
+  var itemsSheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (itemsSheet) {
+    var iData = itemsSheet.getDataRange().getValues();
+    var ih = iData[0];
+    var ni = ih.indexOf('Name'), ai = ih.indexOf('Amount'), t2i = ih.indexOf('Type 2'), fdi = ih.indexOf('Full day Amount');
+    if (ni > -1 && ai > -1 && t2i > -1) {
+      for (var i = 1; i < iData.length; i++) {
+        if (String(iData[i][t2i] || '').trim() !== 'Ranger Rate') continue;
+        var num = String(iData[i][ni] || '').trim();
+        if (!num) continue;
+        rateByNumber[num] = { amount: iData[i][ai], fullDayAmount: fdi > -1 ? iData[i][fdi] : '' };
+      }
+    }
+  }
+
+  var out = [];
+  for (var r = 1; r < hData.length; r++) {
+    var row = hData[r];
+    var role = String(row[idx['Role']] || '').trim();
+    if (role !== 'Ranger' && role !== 'Ranger Onboarding') continue;
+    var email = String(row[idx['Email']] || '').trim();
+    if (!email) continue;
+
+    var firstName = idx['First Name'] !== undefined ? String(row[idx['First Name']] || '').trim() : '';
+    var lastName  = idx['Last Name']  !== undefined ? String(row[idx['Last Name']]  || '').trim() : '';
+    var name      = (firstName + ' ' + lastName).trim() || email;
+    var address   = idx['Full Address'] !== undefined ? String(row[idx['Full Address']] || '').trim() : '';
+    var rangerNumber = idx['Ranger Number'] !== undefined ? String(row[idx['Ranger Number']] || '').trim() : '';
+    var rate = rateByNumber[rangerNumber] || { amount: '', fullDayAmount: '' };
+
+    out.push({
+      email: email,
+      name: name,
+      address: address,
+      rangerNumber: rangerNumber,
+      unitCost: rate.amount,
+      fullDayUnitCost: rate.fullDayAmount
+    });
+  }
+  out.sort(function(a, b) { return a.name.localeCompare(b.name); });
+  return { ok: true, rangers: out };
+}
+
 // 8-char unique ID generator for Items All rows (same pattern as Chores' ID column).
 function _newItemsAllId() {
   return Utilities.base64Encode(
@@ -2957,7 +3035,16 @@ function handleGetFormTemplates() {
   var linkCol = headers.indexOf('Actual Form');
   var templates = data.slice(1)
     .filter(function(row) { return nameCol > -1 && String(row[nameCol] || '').trim(); })
-    .map(function(row) { return { name: row[nameCol], link: linkCol > -1 ? row[linkCol] : '' }; });
+    .map(function(row) {
+      var name = row[nameCol];
+      return {
+        name: name,
+        link: linkCol > -1 ? row[linkCol] : '',
+        // null/undefined = no filter, show every Forms-tab textCol (old behavior,
+        // e.g. Project Approval Tracking Sheet); an array = show ONLY these columns.
+        fields: FORMS_TEMPLATE_FIELDS[name] || null
+      };
+    });
   return { templates: templates };
 }
 
