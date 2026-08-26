@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.31 | 2026-08-26';
+const GAS_BUILD = 'v10.32 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -62,7 +62,7 @@ const FORMS_TEXT_COL_TOKENS = {
 // Approval Tracking Sheet) keep the old "show every textCol" behavior.
 const FORMS_TEMPLATE_FIELDS = {
   'Independent Contractor Agreement': [
-    'Date', 'RANGER NAME', 'RANGER EMAIL', 'RANGER ADDRESS',
+    'Form Name', 'Date', 'RANGER NAME', 'RANGER EMAIL', 'RANGER ADDRESS',
     'START DATE', 'END DATE', 'Ranger Number', 'UNIT COST', 'FULL DAY UNIT COST'
   ]
 };
@@ -3171,7 +3171,41 @@ function handleSaveFormAnswers(p) {
     if (colIdx === -1) return; // ignore unknown columns
     sheet.getRange(rowIdx + 1, colIdx + 1).setValue(answers[key]);
   });
+
+  // "Record Title" (optional column) — Ranger Name + the template name as
+  // listed in Actual Forms + the Start Date year and End Date year, so each
+  // record is identifiable in the Forms list instead of every row showing
+  // the same repeated "Independent Contractor Agreement" title. This never
+  // touches "Form Name" itself, since that column still drives which
+  // template/field-set this record uses — only a separate display column.
+  var titleCol = headers.indexOf('Record Title');
+  if (titleCol > -1) {
+    var freshRow = sheet.getRange(rowIdx + 1, 1, 1, headers.length).getValues()[0];
+    var get = function(name) { var i = headers.indexOf(name); return i > -1 ? freshRow[i] : ''; };
+    var rangerName = String(get('RANGER NAME') || '').trim();
+    var formName   = String(get('Form Name') || '').trim();
+    var startYear  = _extractYear(get('START DATE'));
+    var endYear    = _extractYear(get('END DATE'));
+    var years = startYear ? (startYear + (endYear && endYear !== startYear ? '–' + endYear : '')) : '';
+    var title = [rangerName, formName, years].filter(function(x) { return x; }).join(' ');
+    if (title) sheet.getRange(rowIdx + 1, titleCol + 1).setValue(title);
+  }
+
   return { ok: true };
+}
+
+// Pulls a 4-digit year out of a cell that may be a real Date object, an ISO
+// "2026-08-26" string, or an "8/26/2026" string. Returns '' if nothing usable.
+function _extractYear(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) {
+    return String(v.getFullYear());
+  }
+  var s = String(v).trim();
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) return String(d.getFullYear());
+  var m = s.match(/\b(20\d{2})\b/);
+  return m ? m[1] : '';
 }
 
 // Fills a copy of the form's template doc with the row's current answers,
@@ -3204,12 +3238,36 @@ function _generateFilledFormPdf(id) {
   var body     = doc.getBody();
 
   function esc(v) { return String(v).replace(/[{}]/g, '\\$&'); }
-  function escVal(v) { return String(v).replace(/\$/g, '$$$$'); } // avoid $1-style backreferences in replacement
+  // Columns that are always calendar dates — format even when Sheets stored
+  // the cell as plain text (e.g. "2026-08-26") rather than a real Date value.
+  var DATE_COLS = ['Date', 'START DATE', 'END DATE', 'Date of Event'];
+  function fmtVal(v, col) {
+    // Sheets auto-converts date-picker strings (e.g. "2026-11-12") into real
+    // Date objects on read, so a plain String(v) here would print the full
+    // JS toString() — "Thu Nov 12 2026 00:00:00 GMT-0800 (Pacific Standard
+    // Time)". Format actual Date values as a plain calendar date instead.
+    if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) {
+      return Utilities.formatDate(v, Session.getScriptTimeZone() || 'America/Los_Angeles', 'MMMM d, yyyy');
+    }
+    // Also catch date-shaped plain text in known date columns (Sheets doesn't
+    // always convert on write, depending on the cell's prior format).
+    if (col && DATE_COLS.indexOf(col) > -1 && v) {
+      var s = String(v).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+        var d = new Date(s);
+        if (!isNaN(d.getTime())) {
+          return Utilities.formatDate(d, Session.getScriptTimeZone() || 'America/Los_Angeles', 'MMMM d, yyyy');
+        }
+      }
+    }
+    return String(v);
+  }
+  function escVal(v, col) { return fmtVal(v, col).replace(/\$/g, '$$$$'); } // avoid $1-style backreferences in replacement
 
   // Plain text merge fields
   Object.keys(FORMS_TEXT_COL_TOKENS).forEach(function(col) {
     var token = FORMS_TEXT_COL_TOKENS[col];
-    body.replaceText(esc(token), escVal(rowObj[col] || ''));
+    body.replaceText(esc(token), escVal(rowObj[col] || '', col));
   });
 
   // Yes/No checkbox tokens, in FORMS_YESNO_COLS order
