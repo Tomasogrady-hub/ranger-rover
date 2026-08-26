@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.33 | 2026-08-26';
+const GAS_BUILD = 'v10.34 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -3155,6 +3155,24 @@ function handleGetForms() {
   };
 }
 
+// Shared title builder: "Ranger Name FormName StartYear–EndYear" for ranger
+// records (Independent Contractor Agreement and similar), falling back to
+// the old "FormName - School" shape for templates with no ranger involved
+// (e.g. Project Approval Tracking Sheet), so every template still gets a
+// sensible name.
+function _composeFormsRecordTitle(rowObj) {
+  var rangerName = String(rowObj['RANGER NAME'] || '').trim();
+  var formName   = String(rowObj['Form Name'] || '').trim();
+  var startYear  = _extractYear(rowObj['START DATE']);
+  var endYear    = _extractYear(rowObj['END DATE']);
+  var years = startYear ? (startYear + (endYear && endYear !== startYear ? '–' + endYear : '')) : '';
+  if (rangerName) {
+    return [rangerName, formName, years].filter(function(x) { return x; }).join(' ');
+  }
+  var school = String(rowObj['School'] || '').trim();
+  return [formName, school].filter(function(x) { return x; }).join(' - ') || (formName || 'Form');
+}
+
 function handleSaveFormAnswers(p) {
   var id = String(p.id || '').trim();
   if (!id) return { ok: false, error: 'Missing form id' };
@@ -3184,13 +3202,9 @@ function handleSaveFormAnswers(p) {
   var titleCol = headers.indexOf('Record Title');
   if (titleCol > -1) {
     var freshRow = sheet.getRange(rowIdx + 1, 1, 1, headers.length).getValues()[0];
-    var get = function(name) { var i = headers.indexOf(name); return i > -1 ? freshRow[i] : ''; };
-    var rangerName = String(get('RANGER NAME') || '').trim();
-    var formName   = String(get('Form Name') || '').trim();
-    var startYear  = _extractYear(get('START DATE'));
-    var endYear    = _extractYear(get('END DATE'));
-    var years = startYear ? (startYear + (endYear && endYear !== startYear ? '–' + endYear : '')) : '';
-    var title = [rangerName, formName, years].filter(function(x) { return x; }).join(' ');
+    var freshObj = {};
+    headers.forEach(function(h, i) { freshObj[h] = freshRow[i]; });
+    var title = _composeFormsRecordTitle(freshObj);
     if (title) sheet.getRange(rowIdx + 1, titleCol + 1).setValue(title);
   }
 
@@ -3235,8 +3249,11 @@ function _generateFilledFormPdf(id) {
   if (!templateId) throw new Error('This form has no template linked in "Actual Form"');
 
   var folder   = DriveApp.getFolderById(FORMS_PDF_FOLDER);
-  var baseName = (rowObj['Form Name'] || 'Form') + ' - ' + (rowObj['School'] || 'Untitled') + ' - ' + new Date().toISOString();
-  var copyFile = DriveApp.getFileById(templateId).makeCopy(baseName, folder);
+  var titleName = _composeFormsRecordTitle(rowObj);
+  // The temp copy needs a name too while it's being edited, but it gets
+  // trashed right after export — only the final PDF's name is user-facing.
+  var tempName = titleName + ' - working - ' + new Date().toISOString();
+  var copyFile = DriveApp.getFileById(templateId).makeCopy(tempName, folder);
   var doc      = DocumentApp.openById(copyFile.getId());
   var body     = doc.getBody();
 
@@ -3322,7 +3339,7 @@ function _generateFilledFormPdf(id) {
   doc.saveAndClose();
 
   var pdfBlob = DriveApp.getFileById(copyFile.getId()).getAs(MimeType.PDF);
-  var pdfFile = folder.createFile(pdfBlob).setName(baseName + '.pdf');
+  var pdfFile = folder.createFile(pdfBlob).setName(titleName + '.pdf');
   DriveApp.getFileById(copyFile.getId()).setTrashed(true); // keep only the PDF, not the temp Doc
 
   // Replace this row's live PDF: trash whatever was previously generated for
