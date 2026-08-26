@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.32 | 2026-08-26';
+const GAS_BUILD = 'v10.33 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -35,25 +35,28 @@ const FORMS_YESNO_COLS = [
   "Does the project require OEHS environmental review?",
   "Does the project impact emerging technologies systems or products not covered by the District's current specifications?"
 ];
-// Forms-sheet columns that map to plain {{Token}} merge fields in the template body.
+// Forms-sheet columns that map to {{Token}} merge fields in the template body.
+// Values are the plain token text (no braces) — matching is done via
+// _tokenPattern() below, which tolerates case differences, stray whitespace,
+// and a missing brace, since Tomas hand-edits these templates directly now.
 const FORMS_TEXT_COL_TOKENS = {
-  'School':              '{{SchoolName}}',
-  'Principal':           '{{PrincipalName}}',
-  'CPM':                 '{{CPMName}}',
-  'Date of Event':       '{{DateOfEvent}}',
-  'Project Proponent':   '{{ProjectProponent}}',
-  'Project Description': '{{ProjectDescription}}',
+  'School':              'SchoolName',
+  'Principal':           'PrincipalName',
+  'CPM':                 'CPMName',
+  'Date of Event':       'DateOfEvent',
+  'Project Proponent':   'ProjectProponent',
+  'Project Description': 'ProjectDescription',
   // Independent Contractor Agreement (Forms tab columns Tomas added for this form) —
   // 'Date' is the shared generic column, filled in per-instance same as any other field.
-  'Date':                '{{DATE}}',
-  'RANGER NAME':         '{{RANGER}}',
-  'RANGER ADDRESS':      '{{RANGER ADDRESS}}',
-  'START DATE':          '{{START DATE}}',
-  'END DATE':            '{{END DATE}}',
-  'UNIT COST':           '{{UNIT COST}}',
-  'FULL DAY UNIT COST':  '{{FULL DAY UNIT COST}}',
-  'RANGER EMAIL':        '{{RANGER EMAIL}}',
-  'Ranger Number':       '{{RANGER NUMBER}}'
+  'Date':                'Date',
+  'RANGER NAME':         'RANGER NAME',
+  'RANGER ADDRESS':      'RANGER ADDRESS',
+  'START DATE':          'START DATE',
+  'END DATE':            'END DATE',
+  'UNIT COST':           'UNIT COST',
+  'FULL DAY UNIT COST':  'FULL DAY UNIT COST',
+  'RANGER EMAIL':        'RANGER EMAIL',
+  'Ranger Number':       'RANGER NUMBER'
 };
 
 // Forms tab columns that belong ONLY to a specific template's fill-out screen —
@@ -3237,7 +3240,6 @@ function _generateFilledFormPdf(id) {
   var doc      = DocumentApp.openById(copyFile.getId());
   var body     = doc.getBody();
 
-  function esc(v) { return String(v).replace(/[{}]/g, '\\$&'); }
   // Columns that are always calendar dates — format even when Sheets stored
   // the cell as plain text (e.g. "2026-08-26") rather than a real Date value.
   var DATE_COLS = ['Date', 'START DATE', 'END DATE', 'Date of Event'];
@@ -3264,10 +3266,40 @@ function _generateFilledFormPdf(id) {
   }
   function escVal(v, col) { return fmtVal(v, col).replace(/\$/g, '$$$$'); } // avoid $1-style backreferences in replacement
 
+  // Builds a forgiving {{Token}} search pattern: case-insensitive, tolerates
+  // stray/extra whitespace inside the braces, and tolerates a single missing
+  // brace on either side (e.g. "{{UNIT COST }" with only one closing brace).
+  // Templates are hand-edited directly in Google Docs now, so small typos
+  // like this are common and shouldn't cause a token to silently stay blank.
+  function _tokenPattern(core) {
+    var words = core.trim().split(/\s+/).map(function(w) {
+      return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    });
+    return '(?i)\\{\\{?\\s*' + words.join('\\s+') + '\\s*\\}\\}?';
+  }
+
   // Plain text merge fields
   Object.keys(FORMS_TEXT_COL_TOKENS).forEach(function(col) {
-    var token = FORMS_TEXT_COL_TOKENS[col];
-    body.replaceText(esc(token), escVal(rowObj[col] || '', col));
+    var core = FORMS_TEXT_COL_TOKENS[col];
+    body.replaceText(_tokenPattern(core), escVal(rowObj[col] || '', col));
+  });
+
+  // Legacy/computed aliases — tokens from an earlier template draft that
+  // don't correspond to a real Forms-tab column, but Tomas's hand-edited
+  // templates still reference them. Derived from the real data instead of
+  // leaving them permanently blank.
+  var halfDayNum = Number(rowObj['UNIT COST']);
+  var aliasTokens = [
+    { core: 'TermStart',            value: rowObj['START DATE'] || '',                                     dateCol: 'START DATE' },
+    { core: 'TermEnd',              value: rowObj['END DATE'] || '',                                       dateCol: 'END DATE' },
+    { core: 'ContractYear',         value: _extractYear(rowObj['Date']) || _extractYear(rowObj['START DATE']) || '', dateCol: null },
+    { core: 'HalfDayRateProbation', value: isNaN(halfDayNum) ? '' : (halfDayNum + 10),                      dateCol: null },
+    // Bare "{{RANGER}}" — used in older templates before this column was
+    // renamed to "RANGER NAME"; harmless no-op if a template doesn't have it.
+    { core: 'RANGER',               value: rowObj['RANGER NAME'] || '',                                    dateCol: null }
+  ];
+  aliasTokens.forEach(function(t) {
+    body.replaceText(_tokenPattern(t.core), escVal(t.value, t.dateCol));
   });
 
   // Yes/No checkbox tokens, in FORMS_YESNO_COLS order
