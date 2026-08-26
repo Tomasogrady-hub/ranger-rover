@@ -771,13 +771,13 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <div class="page-header"><span class="page-title">Forms</span></div>
         <div id="formsListView">
           <div style="padding:0 16px 10px">
-            <button class="settings-btn" onclick="_formsOpenTemplatePicker()">➕ New Form</button>
+            <button class="settings-btn" onclick="_formsOpenTemplatePicker()">➕ Create New Record</button>
           </div>
           <div class="card-list" id="formsList" style="padding:0 16px 28px"></div>
         </div>
         <div id="formsTemplatePickerView" style="display:none;padding:0 16px 28px">
           <button class="settings-btn" style="margin-bottom:10px" onclick="_formsBackToList()">← Back to Forms</button>
-          <div style="font-family:var(--font-b);font-weight:700;margin-bottom:8px">Choose a form to fill out</div>
+          <div style="font-family:var(--font-b);font-weight:700;margin-bottom:8px">Choose a form template</div>
           <div class="card-list" id="formsTemplateList"></div>
         </div>
         <div id="formsFillView" style="display:none;padding:0 16px 28px">
@@ -1237,10 +1237,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.55';
+const APP_VERSION='v10.56';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Operations page: added a No PO filter to the Status dropdown (rows where PO Number is empty). Ranger Assigned / Ranger Not Assigned filters already existed in the Ranger dropdown and were left as-is.';
+const BUILD_STAMP='2026-08-26 - Forms: renamed New Form to Create New Record, added per-template field filtering (Independent Contractor Agreement shows only its own fields), and a Ranger picker that auto-fills email/address/ranger number/unit cost/full day unit cost from Humans + Items All.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5758,8 +5758,15 @@ async function saveOpsSharedNotes(){
 /* ═══ FORMS (Operations > Forms) ═══ */
 let _formsCache=null;      // {forms, yesNoCols, textCols} from getForms
 let _formsSitesCache=null; // {sites:[{name,principal,cpm}]} from getSitesForForms
-let _formsTemplatesCache=null; // {templates:[{name,link}]} from getFormTemplates
+let _formsTemplatesCache=null; // {templates:[{name,link,fields}]} from getFormTemplates
 let _formsCurrentId=null;  // ID of the form currently open in the fill view
+let _activeRangersCache=null; // {rangers:[{email,name,address,rangerNumber,unitCost,fullDayUnitCost}]}
+
+async function loadActiveRangersIfNeeded(){
+  if(_activeRangersCache)return _activeRangersCache;
+  _activeRangersCache=await gasPost({action:'getActiveRangersForForms'});
+  return _activeRangersCache;
+}
 
 async function loadFormsList(){
   const listEl=document.getElementById('formsList');
@@ -5781,7 +5788,7 @@ function renderFormsList(){
   if(!listEl||!_formsCache)return;
   const forms=_formsCache.forms||[];
   if(!forms.length){
-    listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No forms yet. Tap "+ New Form" to start one.</div>';
+    listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No records yet. Tap "Create New Record" to start one.</div>';
     return;
   }
   listEl.innerHTML=forms.map(f=>{
@@ -5828,19 +5835,35 @@ async function _formsCreateInstance(templateName){
     // Refresh the forms list so the new row is in _formsCache, then open it
     await loadFormsList();
     document.getElementById('formsTemplatePickerView').style.display='none';
-    _formsOpenFill(res.id);
+    await _formsOpenFill(res.id);
   }catch(e){
     if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">'+ea(e.message||'Could not create form')+'</div>';
   }
 }
 
-function _formsOpenFill(id){
+async function _formsOpenFill(id){
   _formsCurrentId=id;
   document.getElementById('formsListView').style.display='none';
   document.getElementById('formsTemplatePickerView').style.display='none';
   document.getElementById('formsFillView').style.display='block';
   document.getElementById('formsFillStatus').textContent='';
+  document.getElementById('formsFillFields').innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">Loading…</div>';
+  if(!_formsTemplatesCache){
+    try{ _formsTemplatesCache=await gasPost({action:'getFormTemplates'}); }catch(e){ /* falls back to unfiltered rendering below */ }
+  }
+  const f=_formsFindById(_formsCurrentId)||{};
+  if(_formsTemplateNeedsRangers(f['Form Name'])){
+    try{ await loadActiveRangersIfNeeded(); }catch(e){ /* dropdown just falls back to empty list */ }
+  }
   renderFormsFillFields();
+}
+function _formsTemplateNeedsRangers(formName){
+  const fields=_formsTemplateFieldsFor(formName);
+  return !!(fields&&fields.includes('RANGER NAME'));
+}
+function _formsTemplateFieldsFor(formName){
+  const t=(_formsTemplatesCache&&_formsTemplatesCache.templates||[]).find(t=>t.name===formName);
+  return t?t.fields:null; // null = no filter, show every textCol (old behavior)
 }
 function _formsBackToList(){
   _formsCurrentId=null;
@@ -5856,13 +5879,30 @@ function _formsOnSchoolChange(sel){
     if(cEl)cEl.value=site.cpm||'';
   }
 }
+function _formsOnRangerChange(sel){
+  const rangers=(_activeRangersCache&&_activeRangersCache.rangers)||[];
+  const r=rangers.find(x=>x.email===sel.value);
+  const setVal=(col,val)=>{ const el=document.getElementById('ff-'+col); if(el)el.value=val==null?'':val; };
+  if(r){
+    setVal('RANGER EMAIL',r.email);
+    setVal('RANGER ADDRESS',r.address);
+    setVal('Ranger Number',r.rangerNumber);
+    setVal('UNIT COST',r.unitCost);
+    setVal('FULL DAY UNIT COST',r.fullDayUnitCost);
+  }else{
+    ['RANGER EMAIL','RANGER ADDRESS','Ranger Number','UNIT COST','FULL DAY UNIT COST'].forEach(c=>setVal(c,''));
+  }
+}
 function renderFormsFillFields(){
   const wrap=document.getElementById('formsFillFields');
   if(!wrap||!_formsCache)return;
   const f=_formsFindById(_formsCurrentId)||{};
   const sites=(_formsSitesCache&&_formsSitesCache.sites)||[];
+  const allowList=_formsTemplateFieldsFor(f['Form Name']); // null = show every textCol (old behavior)
+  const cols=allowList||(_formsCache.textCols||[]);
+  const rangers=(_activeRangersCache&&_activeRangersCache.rangers)||[];
   let html='';
-  (_formsCache.textCols||[]).forEach(col=>{
+  cols.forEach(col=>{
     if(col==='School'){
       const cur=f.School||'';
       html+=`<div class="edit-wrap"><div class="edit-label">School</div>
@@ -5872,18 +5912,53 @@ function renderFormsFillFields(){
         </select></div>`;
       return;
     }
+    if(col==='RANGER NAME'){
+      // The visible picker: choose a person, keyed by email. The chosen
+      // Ranger's name still lands in this same "RANGER NAME" column on save
+      // (via the hidden text value below), matching what the template merges.
+      const curEmail=f['RANGER EMAIL']||'';
+      const cur=rangers.find(x=>x.email===curEmail);
+      html+=`<div class="edit-wrap"><div class="edit-label">Ranger</div>
+        <select class="edit-input" onchange="_formsOnRangerChange(this)">
+          <option value="" ${curEmail?'':'selected'}>— Select a ranger —</option>
+          ${rangers.map(r=>`<option value="${ea(r.email)}" ${r.email===curEmail?'selected':''}>${ea(r.name)}</option>`).join('')}
+        </select>
+        <input type="hidden" id="ff-RANGER NAME" value="${ea(cur?cur.name:(f['RANGER NAME']||''))}"></div>`;
+      return;
+    }
+    if(col==='Unit'){
+      const cur=f.Unit||'';
+      html+=`<div class="edit-wrap"><div class="edit-label">Unit</div>
+        <select class="edit-input" id="ff-Unit">
+          <option value="" ${cur?'':'selected'}>— Select —</option>
+          <option value="Half Day" ${cur==='Half Day'?'selected':''}>Half Day</option>
+          <option value="Full Day" ${cur==='Full Day'?'selected':''}>Full Day</option>
+        </select></div>`;
+      return;
+    }
+    if(['RANGER EMAIL','RANGER ADDRESS','Ranger Number','UNIT COST','FULL DAY UNIT COST'].includes(col)){
+      // Auto-filled from the Ranger picker above — read-only so the numbers
+      // shown always match the person actually selected, not a stale typed value.
+      html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
+        <input class="edit-input" id="ff-${ea(col)}" value="${ea(f[col]||'')}" readonly style="opacity:.75;background:var(--sand,#f2f0ea)"></div>`;
+      return;
+    }
     html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
       <input class="edit-input" id="ff-${ea(col)}" value="${ea(f[col]||'')}"></div>`;
   });
-  (_formsCache.yesNoCols||[]).forEach(col=>{
-    const v=String(f[col]||'');
-    html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
-      <select class="edit-input" id="ff-${ea(col)}">
-        <option value="" ${v?'':'selected'}>— Select —</option>
-        <option value="Yes" ${v==='Yes'?'selected':''}>Yes</option>
-        <option value="No" ${v==='No'?'selected':''}>No</option>
-      </select></div>`;
-  });
+  // Yes/No questions only apply to templates with no field allow-list
+  // (e.g. Project Approval Tracking Sheet) — filtered templates opt out.
+  if(!allowList){
+    (_formsCache.yesNoCols||[]).forEach(col=>{
+      const v=String(f[col]||'');
+      html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
+        <select class="edit-input" id="ff-${ea(col)}">
+          <option value="" ${v?'':'selected'}>— Select —</option>
+          <option value="Yes" ${v==='Yes'?'selected':''}>Yes</option>
+          <option value="No" ${v==='No'?'selected':''}>No</option>
+        </select></div>`;
+    });
+  }
   wrap.innerHTML=html;
 }
 function _formsCollectAnswers(){
