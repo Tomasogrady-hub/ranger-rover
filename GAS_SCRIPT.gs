@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.30 | 2026-08-26';
+const GAS_BUILD = 'v10.31 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -62,7 +62,7 @@ const FORMS_TEXT_COL_TOKENS = {
 // Approval Tracking Sheet) keep the old "show every textCol" behavior.
 const FORMS_TEMPLATE_FIELDS = {
   'Independent Contractor Agreement': [
-    'Date', 'Unit', 'RANGER NAME', 'RANGER EMAIL', 'RANGER ADDRESS',
+    'Date', 'RANGER NAME', 'RANGER EMAIL', 'RANGER ADDRESS',
     'START DATE', 'END DATE', 'Ranger Number', 'UNIT COST', 'FULL DAY UNIT COST'
   ]
 };
