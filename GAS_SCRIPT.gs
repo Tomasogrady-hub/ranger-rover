@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.29 | 2026-08-26';
+const GAS_BUILD = 'v10.30 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -2711,7 +2711,19 @@ function handleGetActiveRangersForForms() {
     var firstName = idx['First Name'] !== undefined ? String(row[idx['First Name']] || '').trim() : '';
     var lastName  = idx['Last Name']  !== undefined ? String(row[idx['Last Name']]  || '').trim() : '';
     var name      = (firstName + ' ' + lastName).trim() || email;
-    var address   = idx['Full Address'] !== undefined ? String(row[idx['Full Address']] || '').trim() : '';
+    // "Full Address" is frequently blank even when the individual Street/City/
+    // State/Zip fields are filled in (it's only populated by certain flows),
+    // so fall back to assembling it from parts — same pattern used for
+    // geocoding in handleGetRangerLocations.
+    var address = idx['Full Address'] !== undefined ? String(row[idx['Full Address']] || '').trim() : '';
+    if (!address) {
+      var street  = idx['Street Address'] !== undefined ? String(row[idx['Street Address']] || '').trim() : '';
+      var city    = idx['City']           !== undefined ? String(row[idx['City']]           || '').trim() : '';
+      var state   = idx['State']          !== undefined ? String(row[idx['State']]          || '').trim() : '';
+      var zip     = idx['Zip Code']       !== undefined ? String(row[idx['Zip Code']]        || '').trim() : '';
+      var country = idx['Country']        !== undefined ? String(row[idx['Country']]         || '').trim() : '';
+      address = [street, city, state, zip, country].filter(function(x){return x;}).join(', ');
+    }
     var rangerNumber = idx['Ranger Number'] !== undefined ? String(row[idx['Ranger Number']] || '').trim() : '';
     var rate = rateByNumber[rangerNumber] || { amount: '', fullDayAmount: '' };
 
