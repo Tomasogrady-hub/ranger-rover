@@ -1265,10 +1265,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.63';
+const APP_VERSION='v10.64';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Added Email Note field (single record and bulk-shared prompt) - the message the sender writes is now wrapped as Dear [First Name of receiver], [Email Note], Sincerely [signed-in user], replacing the old generic Please see the attached form line.';
+const BUILD_STAMP='2026-08-27 - Bug fix: Email Note field was looking for column "Email Note" but the actual Forms tab column is "Email note" (lowercase n), so it was never saving. Fixed everywhere (field key, textarea IDs, backend lookup) to match the real column name.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5975,9 +5975,9 @@ function _formsShowBulkSharedFieldsForm(templateName,fields){
   let html=`<div style="padding:10px 12px;margin-bottom:10px;background:var(--sand,#f2f0ea);border-radius:10px;font-size:13px;color:var(--stone)">These apply to all ${n} record${n===1?'':'s'} about to be created.</div>`;
   fields.forEach(col=>{
     const isDate=FORMS_DATE_FIELDS.includes(col);
-    if(col==='Email Note'){
+    if(col==='Email note'){
       html+=`<div class="edit-wrap"><div class="edit-label">Email Note</div>
-        <textarea class="edit-input" id="bulk-shared-Email Note" rows="4" placeholder="Message to include — each email will start with &quot;Dear [First Name],&quot; and end with your signature automatically."></textarea></div>`;
+        <textarea class="edit-input" id="bulk-shared-Email note" rows="4" placeholder="Message to include — each email will start with &quot;Dear [First Name],&quot; and end with your signature automatically."></textarea></div>`;
       return;
     }
     html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
@@ -6204,10 +6204,10 @@ function renderFormsFillFields(){
         </select></div>`;
       return;
     }
-    if(col==='Email Note'){
-      const cur=f['Email Note']||'';
+    if(col==='Email note'){
+      const cur=f['Email note']||'';
       html+=`<div class="edit-wrap"><div class="edit-label">Email Note</div>
-        <textarea class="edit-input" id="ff-Email Note" rows="4" placeholder="Message to include — the email will start with &quot;Dear [First Name],&quot; and end with your signature automatically.">${ea(cur)}</textarea></div>`;
+        <textarea class="edit-input" id="ff-Email note" rows="4" placeholder="Message to include — the email will start with &quot;Dear [First Name],&quot; and end with your signature automatically.">${ea(cur)}</textarea></div>`;
       return;
     }
     html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
