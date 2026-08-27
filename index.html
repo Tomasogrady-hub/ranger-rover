@@ -1265,10 +1265,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.62';
+const APP_VERSION='v10.63';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Ranger dropdown now also includes Master Ranger. Form Name column now gets overwritten on save with the same composed name used for the PDF filename (Ranger Name + template + contract years) - which template/fields a record uses is now resolved from the Actual Form link instead, so this is safe.';
+const BUILD_STAMP='2026-08-26 - Added Email Note field (single record and bulk-shared prompt) - the message the sender writes is now wrapped as Dear [First Name of receiver], [Email Note], Sincerely [signed-in user], replacing the old generic Please see the attached form line.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5903,7 +5903,7 @@ async function sendSelectedFormRecords(){
     if(statusEl)statusEl.textContent='Sending '+done+' of '+ids.length+'…';
     try{
       await gasPost({action:'saveFormAnswers',id,answers:{'Send Record to':rule}});
-      const res=await gasPost({action:'sendFormPdfByRule',id,actorEmail:(SESSION&&SESSION.email)||''});
+      const res=await gasPost({action:'sendFormPdfByRule',id,actorEmail:(SESSION&&SESSION.email)||'',actorName:(SESSION&&SESSION.name)||''});
       if(!res.ok)throw new Error(res.error||'Failed');
     }catch(e){
       failed++;
@@ -5975,6 +5975,11 @@ function _formsShowBulkSharedFieldsForm(templateName,fields){
   let html=`<div style="padding:10px 12px;margin-bottom:10px;background:var(--sand,#f2f0ea);border-radius:10px;font-size:13px;color:var(--stone)">These apply to all ${n} record${n===1?'':'s'} about to be created.</div>`;
   fields.forEach(col=>{
     const isDate=FORMS_DATE_FIELDS.includes(col);
+    if(col==='Email Note'){
+      html+=`<div class="edit-wrap"><div class="edit-label">Email Note</div>
+        <textarea class="edit-input" id="bulk-shared-Email Note" rows="4" placeholder="Message to include — each email will start with &quot;Dear [First Name],&quot; and end with your signature automatically."></textarea></div>`;
+      return;
+    }
     html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
       <input type="${isDate?'date':'text'}" class="edit-input" id="bulk-shared-${ea(col)}"></div>`;
   });
@@ -6199,6 +6204,12 @@ function renderFormsFillFields(){
         </select></div>`;
       return;
     }
+    if(col==='Email Note'){
+      const cur=f['Email Note']||'';
+      html+=`<div class="edit-wrap"><div class="edit-label">Email Note</div>
+        <textarea class="edit-input" id="ff-Email Note" rows="4" placeholder="Message to include — the email will start with &quot;Dear [First Name],&quot; and end with your signature automatically.">${ea(cur)}</textarea></div>`;
+      return;
+    }
     html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
       <input class="edit-input" id="ff-${ea(col)}" value="${ea(f[col]||'')}"></div>`;
   });
@@ -6263,7 +6274,7 @@ async function _formsEmailPdf(){
   if(statusEl)statusEl.textContent='Saving and sending…';
   try{
     await gasPost({action:'saveFormAnswers',id:_formsCurrentId,answers});
-    const res=await gasPost({action:'sendFormPdfByRule',id:_formsCurrentId,actorEmail:(SESSION&&SESSION.email)||''});
+    const res=await gasPost({action:'sendFormPdfByRule',id:_formsCurrentId,actorEmail:(SESSION&&SESSION.email)||'',actorName:(SESSION&&SESSION.name)||''});
     if(!res.ok)throw new Error(res.error||'Failed to send email');
     if(statusEl)statusEl.textContent='✅ Sent to '+res.to+(res.cc?' (cc '+res.cc+')':'');
     setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
