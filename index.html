@@ -1265,10 +1265,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.61';
+const APP_VERSION='v10.62';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Forms bulk creation now prompts once for Start/End Date before creating an Independent Contractor Agreement batch, instead of leaving them blank per record. Forms list now has checkboxes + a Send Selected action (pick a Send Record to rule, sends every checked record). Newly bulk-created records are pre-checked and ready to send.';
+const BUILD_STAMP='2026-08-26 - Ranger dropdown now also includes Master Ranger. Form Name column now gets overwritten on save with the same composed name used for the PDF filename (Ranger Name + template + contract years) - which template/fields a record uses is now resolved from the Actual Form link instead, so this is safe.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5811,25 +5811,13 @@ async function loadFormsList(){
     if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">Could not load forms.</div>';
   }
 }
-function _formsYearOf(val){
-  if(!val)return'';
-  const d=new Date(val);
-  if(!isNaN(d.getTime()))return String(d.getFullYear());
-  const m=String(val).match(/\b(20\d{2})\b/);
-  return m?m[1]:'';
-}
 function _formsComposeTitle(f){
-  // Mirrors _composeFormsRecordTitle on the backend: Ranger Name + template
-  // name + contract years for ranger records, else Form Name - School.
-  if(f['Record Title'])return f['Record Title']; // already computed server-side
-  const rangerName=String(f['RANGER NAME']||'').trim();
-  const formName=String(f['Form Name']||'').trim();
-  const startYear=_formsYearOf(f['START DATE']);
-  const endYear=_formsYearOf(f['END DATE']);
-  const years=startYear?(startYear+(endYear&&endYear!==startYear?'–'+endYear:'')):'';
-  if(rangerName)return[rangerName,formName,years].filter(x=>x).join(' ');
-  const school=String(f.School||'').trim();
-  return[formName,school].filter(x=>x).join(' - ')||formName||'Untitled Form';
+  // The backend now writes the fully composed title (Ranger Name + template
+  // name + contract years) directly into "Form Name" on every save, so this
+  // just displays it. Before the first save, Form Name is still the plain
+  // template name (e.g. "Independent Contractor Agreement") — a reasonable
+  // placeholder until the record has real data in it.
+  return String(f['Form Name']||'').trim()||'Untitled Form';
 }
 function renderFormsList(){
   const listEl=document.getElementById('formsList');
@@ -6069,10 +6057,14 @@ async function _formsOpenFill(id){
     try{ _formsTemplatesCache=await gasPost({action:'getFormTemplates'}); }catch(e){ /* falls back to unfiltered rendering below */ }
   }
   const f=_formsFindById(_formsCurrentId)||{};
-  if(_formsTemplateNeedsRangers(f['Form Name'])){
+  if(_formsTemplateNeedsRangersForRow(f)){
     try{ await loadActiveRangersIfNeeded(); }catch(e){ /* dropdown just falls back to empty list */ }
   }
   renderFormsFillFields();
+}
+function _driveIdFrom(idOrUrl){
+  const m=String(idOrUrl||'').match(/[-\w]{25,}/);
+  return m?m[0]:String(idOrUrl||'');
 }
 function _formsTemplateNeedsRangers(formName){
   const fields=_formsTemplateFieldsFor(formName);
@@ -6081,6 +6073,19 @@ function _formsTemplateNeedsRangers(formName){
 function _formsTemplateFieldsFor(formName){
   const t=(_formsTemplatesCache&&_formsTemplatesCache.templates||[]).find(t=>t.name===formName);
   return t?t.fields:null; // null = no filter, show every textCol (old behavior)
+}
+// Same lookups, but for an EXISTING record — matched by its stable "Actual
+// Form" link (Drive ID) rather than its "Form Name" cell, since Form Name
+// now gets overwritten with a composed display title (Ranger Name +
+// template + years) and can no longer identify which template a row uses.
+function _formsTemplateFieldsForRow(f){
+  const rowId=_driveIdFrom(f&&f['Actual Form']);
+  const t=(_formsTemplatesCache&&_formsTemplatesCache.templates||[]).find(t=>_driveIdFrom(t.link)===rowId);
+  return t?t.fields:null;
+}
+function _formsTemplateNeedsRangersForRow(f){
+  const fields=_formsTemplateFieldsForRow(f);
+  return !!(fields&&fields.includes('RANGER NAME'));
 }
 function _formsBackToList(){
   _formsCurrentId=null;
@@ -6130,7 +6135,7 @@ function renderFormsFillFields(){
   if(!wrap||!_formsCache)return;
   const f=_formsFindById(_formsCurrentId)||{};
   const sites=(_formsSitesCache&&_formsSitesCache.sites)||[];
-  const allowList=_formsTemplateFieldsFor(f['Form Name']); // null = show every textCol (old behavior)
+  const allowList=_formsTemplateFieldsForRow(f); // null = show every textCol (old behavior)
   const cols=allowList||(_formsCache.textCols||[]);
   const rangers=(_activeRangersCache&&_activeRangersCache.rangers)||[];
   let html='';
