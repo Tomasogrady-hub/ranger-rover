@@ -2080,6 +2080,17 @@ function handleSaveEdit(p) {
   }
   Logger.log('handleSaveEdit: pKey='+pKey+' siteKey='+siteKey+' ni='+ni+' ki='+ki);
 
+  // Auto-fill the two Ranger Rate cost columns whenever a Ranger Number is
+  // written to a Humans row — covers single Edit Person saves AND the
+  // Data > People bulk "Adjust Ranger Number" tool, which previously only
+  // wrote the Ranger Number itself and left the costs blank (they only got
+  // filled when a person picked a number from the dropdown client-side).
+  if (p.sheet === 'Humans' && p.updates && Object.prototype.hasOwnProperty.call(p.updates, 'Ranger Number')) {
+    var _rate = _lookupRangerRateByNumber(p.updates['Ranger Number']);
+    p.updates['1 Unit ( Half Day ) Cost'] = _rate.amount;
+    p.updates['2 Unit ( Full Day ) Cost'] = _rate.fullDayAmount;
+  }
+
   function rowMatches(r) {
     var rowKey   = ki > -1 ? String(data[r][ki]  || '').trim() : '';
     var rowEmail = ei > -1 ? String(data[r][ei]  || '').trim().toLowerCase() : '';
@@ -2675,6 +2686,28 @@ function handleGetRangerRates() {
     });
   }
   return { ok: true, rates: out };
+}
+
+// Shared single-lookup version of the rateByNumber map built in
+// handleGetActiveRangersForForms — used by handleSaveEdit so that ANY path
+// that writes a Ranger Number onto a Humans row (single edit, bulk Adjust
+// Ranger Number, forms, etc.) auto-fills the two cost columns server-side,
+// not just the one client dropdown that happened to fill them in manually.
+function _lookupRangerRateByNumber(rangerNumber) {
+  var num = String(rangerNumber || '').trim();
+  if (!num) return { amount: '', fullDayAmount: '' };
+  var itemsSheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!itemsSheet) return { amount: '', fullDayAmount: '' };
+  var iData = itemsSheet.getDataRange().getValues();
+  var ih  = iData[0];
+  var ni  = ih.indexOf('Name'), ai = ih.indexOf('Amount'), t2i = ih.indexOf('Type 2'), fdi = ih.indexOf('Full day Amount');
+  if (ni === -1 || ai === -1 || t2i === -1) return { amount: '', fullDayAmount: '' };
+  for (var i = 1; i < iData.length; i++) {
+    if (String(iData[i][t2i] || '').trim() !== 'Ranger Rate') continue;
+    if (String(iData[i][ni] || '').trim() !== num) continue;
+    return { amount: iData[i][ai], fullDayAmount: fdi > -1 ? iData[i][fdi] : '' };
+  }
+  return { amount: '', fullDayAmount: '' };
 }
 
 // ── ACTIVE RANGERS (Humans → Independent Contractor Agreement "RANGER" dropdown) ──
