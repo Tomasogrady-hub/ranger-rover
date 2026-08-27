@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.38 | 2026-08-26';
+const GAS_BUILD = 'v10.39 | 2026-08-27';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -67,7 +67,7 @@ const FORMS_TEMPLATE_FIELDS = {
   'Independent Contractor Agreement': [
     'Form Name', 'Date', 'RANGER NAME', 'RANGER EMAIL', 'RANGER ADDRESS',
     'START DATE', 'END DATE', 'Ranger Number', 'UNIT COST', 'FULL DAY UNIT COST',
-    'Send Record to', 'Email Note'
+    'Send Record to', 'Email note'
   ]
 };
 
@@ -76,7 +76,7 @@ const FORMS_TEMPLATE_FIELDS = {
 // to fill in N times afterward. Templates not listed here skip this step
 // entirely and create records immediately (old behavior).
 const FORMS_BULK_SHARED_FIELDS = {
-  'Independent Contractor Agreement': ['START DATE', 'END DATE', 'Email Note']
+  'Independent Contractor Agreement': ['START DATE', 'END DATE', 'Email note']
 };
 
 // ── DRIVE FOLDER IDs (images) ─────────────────────────────────────────────────
@@ -3510,7 +3510,7 @@ function handleSendFormPdfByRule(p) {
     // "Dear {receiver's first name}, {Email Note}. Sincerely, {signed-in user}."
     // Falls back to a generic line if the sender left Email Note blank, so
     // the email never goes out with an empty body.
-    var noteBody = String(rowObj['Email Note'] || '').trim() || 'Please see the attached form.';
+    var noteBody = String(rowObj['Email note'] || '').trim() || 'Please see the attached form.';
     var greeting = dearFirstName ? ('Dear ' + dearFirstName + ',') : 'Hello,';
     var body = greeting + '\n\n' + noteBody + '\n\nSincerely,\n' + actorName;
 
