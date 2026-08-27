@@ -1171,6 +1171,17 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <button id="dataPeopleApplyBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkField()" disabled>Apply to Selected</button>
         <div id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
       </div>
+      <div class="dl" style="text-align:center;margin:18px 0 0">Action</div>
+      <div style="display:flex;justify-content:center;margin:6px 0 8px">
+        <select id="dataPeopleActionMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em">
+          <option value="sendFormRecord">Send a Form Record</option>
+        </select>
+      </div>
+      <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
+        <div style="font-size:13px;color:var(--stone);margin-bottom:10px">Uses the same people checked above. Choose a form template next, and one filled-in record gets created per person.</div>
+        <button id="dataPeopleActionBtn" class="settings-btn" style="display:block;width:100%;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="runDataPeopleAction()" disabled>Run Action on Selected</button>
+        <div id="dataPeopleActionStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
+      </div>
       <div id="dataPeopleList" style="padding:0"><div class="spinner"></div></div>
     </div>
 
@@ -1237,10 +1248,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.59';
+const APP_VERSION='v10.60';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Forms: record title (Ranger Name + template name + contract years) now computes live in the list without needing a Record Title column, and the saved PDF filename uses the same composed name instead of a timestamp.';
+const BUILD_STAMP='2026-08-26 - Forms: added Send Record to dropdown (Ranger / Principal / User Signed In / Ranger+CC User) driving the Send via Email button automatically. Data > People: new Action panel with Send a Form Record, which sends selected people to Forms to bulk-create one auto-filled record per person for review and send.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5841,7 +5852,9 @@ async function _formsOpenTemplatePicker(){
       listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No form templates set up yet.</div>';
       return;
     }
-    listEl.innerHTML=templates.map(t=>`<div class="action-row" onclick="_formsCreateInstance('${ea(t.name)}')">
+    const bulkN=_pendingBulkFormEmails?_pendingBulkFormEmails.length:0;
+    const bulkNote=bulkN?`<div style="padding:10px 12px;margin-bottom:10px;background:var(--sand,#f2f0ea);border-radius:10px;font-size:13px;color:var(--stone)">Choose a template — one filled-in record will be created for each of the ${bulkN} people you selected.</div>`:'';
+    listEl.innerHTML=bulkNote+templates.map(t=>`<div class="action-row" onclick="_formsCreateInstance('${ea(t.name)}')">
       <div style="font-weight:700">${ea(t.name)}</div>
     </div>`).join('');
   }catch(e){
@@ -5849,6 +5862,9 @@ async function _formsOpenTemplatePicker(){
   }
 }
 async function _formsCreateInstance(templateName){
+  if(_pendingBulkFormEmails&&_pendingBulkFormEmails.length){
+    return _formsCreateBulkInstances(templateName);
+  }
   const listEl=document.getElementById('formsTemplateList');
   if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">Creating…</div>';
   try{
@@ -5861,6 +5877,54 @@ async function _formsCreateInstance(templateName){
   }catch(e){
     if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--danger);font-family:var(--font-b)">'+ea(e.message||'Could not create form')+'</div>';
   }
+}
+
+// Creates one record per queued email (from Data > People "Send a Form
+// Record"), auto-filling the Ranger fields from each person's Humans row —
+// the same data the single Ranger picker uses. Left for manual review/send
+// afterward rather than auto-emailing, since Start/End Date can't be known
+// automatically and a wrong contract date shouldn't go out unreviewed.
+async function _formsCreateBulkInstances(templateName){
+  const emails=_pendingBulkFormEmails||[];
+  const listEl=document.getElementById('formsTemplateList');
+  const setMsg=(m)=>{ if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">'+m+'</div>'; };
+  setMsg('Creating 0 of '+emails.length+'…');
+  try{ await loadActiveRangersIfNeeded(); }catch(e){ /* falls back to blank ranger fields below */ }
+  const rangers=(_activeRangersCache&&_activeRangersCache.rangers)||[];
+  const needsRanger=_formsTemplateNeedsRangers(templateName);
+  let done=0, failed=0;
+  for(const email of emails){
+    try{
+      const res=await gasPost({action:'createFormInstance',templateName});
+      if(!res.ok)throw new Error(res.error||'Failed to create form');
+      const answers={};
+      if(needsRanger){
+        const r=rangers.find(x=>x.email===email);
+        if(r){
+          answers['RANGER NAME']=r.name;
+          answers['RANGER EMAIL']=r.email;
+          answers['RANGER ADDRESS']=r.address;
+          answers['Ranger Number']=r.rangerNumber;
+          answers['UNIT COST']=r.unitCost;
+          answers['FULL DAY UNIT COST']=r.fullDayUnitCost;
+        }
+      }
+      answers['Date']=_todayInputValue();
+      await gasPost({action:'saveFormAnswers',id:res.id,answers});
+    }catch(e){
+      failed++;
+    }
+    done++;
+    setMsg('Creating '+done+' of '+emails.length+'…');
+  }
+  _pendingBulkFormEmails=null;
+  await loadFormsList();
+  document.getElementById('formsTemplatePickerView').style.display='none';
+  document.getElementById('formsListView').style.display='block';
+  const msg=failed
+    ? `Created ${emails.length-failed} of ${emails.length} records (${failed} failed). Review each below, then use Send via Email.`
+    : `Created ${emails.length} record${emails.length===1?'':'s'}. Review each below (set Start/End Date, choose Send Record to), then use Send via Email.`;
+  showSaveToast(msg);
 }
 
 async function _formsOpenFill(id){
@@ -5989,6 +6053,16 @@ function renderFormsFillFields(){
         <input class="edit-input" id="ff-${ea(col)}" value="${ea(f[col]||'')}" readonly style="opacity:.75;background:var(--sand,#f2f0ea)"></div>`;
       return;
     }
+    if(col==='Send Record to'){
+      const cur=f['Send Record to']||'';
+      const opts=['Send To Ranger','Send to Principal','Send to User Signed In','Send to Ranger and CC User Signed In'];
+      html+=`<div class="edit-wrap"><div class="edit-label">Send Record to</div>
+        <select class="edit-input" id="ff-Send Record to">
+          <option value="" ${cur?'':'selected'}>— Select —</option>
+          ${opts.map(o=>`<option value="${ea(o)}" ${o===cur?'selected':''}>${ea(o)}</option>`).join('')}
+        </select></div>`;
+      return;
+    }
     html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
       <input class="edit-input" id="ff-${ea(col)}" value="${ea(f[col]||'')}"></div>`;
   });
@@ -6044,15 +6118,18 @@ async function _formsPreviewPdf(){
   }
 }
 async function _formsEmailPdf(){
-  const to=prompt('Send the filled form to which email address?');
-  if(!to)return;
   const statusEl=document.getElementById('formsFillStatus');
+  const answers=_formsCollectAnswers();
+  if(!answers['Send Record to']){
+    if(statusEl)statusEl.textContent='❌ Choose a "Send Record to" option above first.';
+    return;
+  }
   if(statusEl)statusEl.textContent='Saving and sending…';
   try{
-    await gasPost({action:'saveFormAnswers',id:_formsCurrentId,answers:_formsCollectAnswers()});
-    const res=await gasPost({action:'emailFormPdf',id:_formsCurrentId,to});
+    await gasPost({action:'saveFormAnswers',id:_formsCurrentId,answers});
+    const res=await gasPost({action:'sendFormPdfByRule',id:_formsCurrentId,actorEmail:(SESSION&&SESSION.email)||''});
     if(!res.ok)throw new Error(res.error||'Failed to send email');
-    if(statusEl)statusEl.textContent='✅ Sent to '+to;
+    if(statusEl)statusEl.textContent='✅ Sent to '+res.to+(res.cc?' (cc '+res.cc+')':'');
     setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
   }catch(e){
     if(statusEl)statusEl.textContent='❌ '+(e.message||'Could not send email');
@@ -9579,6 +9656,12 @@ function _updateDataPeopleSelCount(){
     bulkSel.disabled=!hasSel;
     bulkSel.style.opacity=hasSel?'1':'.6';
   }
+  const actionBtn=document.getElementById('dataPeopleActionBtn');
+  if(actionBtn){
+    actionBtn.disabled=!hasSel;
+    actionBtn.style.opacity=hasSel?'1':'.45';
+    actionBtn.style.cursor=hasSel?'pointer':'not-allowed';
+  }
 }
 
 // Individual field change (Access Level, Role, or Role Additional depending on the
@@ -9632,6 +9715,28 @@ async function applyDataPeopleBulkField(){
   if(statusEl)statusEl.textContent='✅ '+meta.label+' Updated — '+emails.length+' people set to '+_dataFieldLabel(mode,rawVal);
   setTimeout(()=>{if(statusEl)statusEl.textContent='';},3500);
   renderDataPeople();
+}
+
+// ── DATA > PEOPLE "Action" panel ────────────────────────────────────────────
+// Unlike Adjust (which sets one field value on selected people immediately),
+// an Action hands the current selection off to another part of the app to
+// carry out. "Send a Form Record" queues the selected emails and jumps to
+// Operations > Forms so the admin can pick which template to fill for them.
+let _pendingBulkFormEmails=null; // array of emails queued here, or null when not in bulk mode
+
+function runDataPeopleAction(){
+  if(!_dataPeopleSelected.size)return; // button is disabled in this state, but guard anyway
+  const mode=document.getElementById('dataPeopleActionMode')?.value;
+  if(mode==='sendFormRecord'){
+    goToFormsForBulkSend(Array.from(_dataPeopleSelected));
+  }
+}
+
+function goToFormsForBulkSend(emails){
+  _pendingBulkFormEmails=emails;
+  switchTab('operations');
+  showOperationsPage('tab3');
+  _formsOpenTemplatePicker();
 }
 
 function openImgLightbox(src){if(!src)return;var lb=document.getElementById('img-lightbox');var img=document.getElementById('img-lightbox-img');if(!lb||!img)return;img.src=src;lb.classList.add('open');document.body.style.overflow='hidden';}
