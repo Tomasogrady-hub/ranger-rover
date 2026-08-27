@@ -773,6 +773,23 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <div style="padding:0 16px 10px">
             <button class="settings-btn" onclick="_formsOpenTemplatePicker()">➕ Create New Record</button>
           </div>
+          <div style="margin:0 16px 10px;border:1px solid var(--mist);border-radius:16px;padding:10px 14px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
+                <input type="checkbox" id="formsSelectAll" onchange="toggleFormsSelectAll(this.checked)"> Select all
+              </label>
+              <span id="formsSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
+              <select id="formsBulkSendMode" class="settings-input" style="margin:0;flex:1;min-width:160px" disabled>
+                <option value="">— Send Record to —</option>
+                <option value="Send To Ranger">Send To Ranger</option>
+                <option value="Send to Principal">Send to Principal</option>
+                <option value="Send to User Signed In">Send to User Signed In</option>
+                <option value="Send to Ranger and CC User Signed In">Send to Ranger and CC User Signed In</option>
+              </select>
+            </div>
+            <button id="formsSendSelectedBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="sendSelectedFormRecords()" disabled>Send Selected</button>
+            <div id="formsBulkSendStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
+          </div>
           <div class="card-list" id="formsList" style="padding:0 16px 28px"></div>
         </div>
         <div id="formsTemplatePickerView" style="display:none;padding:0 16px 28px">
@@ -1248,10 +1265,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.60';
+const APP_VERSION='v10.61';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-26 - Forms: added Send Record to dropdown (Ranger / Principal / User Signed In / Ranger+CC User) driving the Send via Email button automatically. Data > People: new Action panel with Send a Form Record, which sends selected people to Forms to bulk-create one auto-filled record per person for review and send.';
+const BUILD_STAMP='2026-08-26 - Forms bulk creation now prompts once for Start/End Date before creating an Independent Contractor Agreement batch, instead of leaving them blank per record. Forms list now has checkboxes + a Send Selected action (pick a Send Record to rule, sends every checked record). Newly bulk-created records are pre-checked and ready to send.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5820,6 +5837,7 @@ function renderFormsList(){
   const forms=_formsCache.forms||[];
   if(!forms.length){
     listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">No records yet. Tap "Create New Record" to start one.</div>';
+    _updateFormsSelCount();
     return;
   }
   listEl.innerHTML=forms.map(f=>{
@@ -5829,14 +5847,87 @@ function renderFormsList(){
     const pdfNote=f['PDF Generated']?' · PDF generated':'';
     const title=_formsComposeTitle(f);
     const subtitle=f.School||f['RANGER NAME']||'No details set';
-    return `<div class="action-row" onclick="_formsOpenFill('${ea(f.ID)}')">
-      <div style="font-weight:700">${ea(title)}</div>
-      <div style="font-size:13px;color:var(--stone)">${ea(subtitle)} · ${ea(status)}${pdfNote}</div>
+    const checked=_formsListSelected.has(String(f.ID))?'checked':'';
+    return `<div class="action-row data-form-row" data-id="${ea(f.ID)}" style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" ${checked} onclick="event.stopPropagation()" onchange="toggleFormRecordSelect('${ea(f.ID)}',this.checked)" style="flex:none">
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="_formsOpenFill('${ea(f.ID)}')">
+        <div style="font-weight:700">${ea(title)}</div>
+        <div style="font-size:13px;color:var(--stone)">${ea(subtitle)} · ${ea(status)}${pdfNote}</div>
+      </div>
     </div>`;
   }).join('');
+  _updateFormsSelCount();
 }
 function _formsFindById(id){
   return (_formsCache&&_formsCache.forms||[]).find(f=>String(f.ID)===String(id));
+}
+
+// ── Forms list bulk-select + bulk-send ──────────────────────────────────────
+// Mirrors the Data > People select/checkbox/action pattern: check a few
+// records, pick a "Send Record to" rule, and send them all in one pass. This
+// overrides each selected record's own Send Record to with the chosen rule
+// before sending — same rule for the whole batch, same resolution logic
+// (handleSendFormPdfByRule) as sending one record individually.
+let _formsListSelected=new Set();
+
+function toggleFormRecordSelect(id,checked){
+  if(checked)_formsListSelected.add(String(id));else _formsListSelected.delete(String(id));
+  _updateFormsSelCount();
+}
+function toggleFormsSelectAll(checked){
+  document.querySelectorAll('#formsList .data-form-row').forEach(row=>{
+    const id=row.dataset.id;
+    const cb=row.querySelector('input[type=checkbox]');
+    if(cb)cb.checked=checked;
+    if(checked)_formsListSelected.add(id);else _formsListSelected.delete(id);
+  });
+  _updateFormsSelCount();
+}
+function _updateFormsSelCount(){
+  const c=document.getElementById('formsSelCount');
+  if(c)c.textContent=_formsListSelected.size+' selected';
+  const all=document.getElementById('formsSelectAll');
+  if(all){
+    const rows=document.querySelectorAll('#formsList .data-form-row').length;
+    all.checked = rows>0 && _formsListSelected.size>=rows;
+  }
+  const hasSel=_formsListSelected.size>0;
+  const modeSel=document.getElementById('formsBulkSendMode');
+  const sendBtn=document.getElementById('formsSendSelectedBtn');
+  if(modeSel){ modeSel.disabled=!hasSel; modeSel.style.opacity=hasSel?'1':'.6'; }
+  if(sendBtn){
+    sendBtn.disabled=!hasSel;
+    sendBtn.style.opacity=hasSel?'1':'.45';
+    sendBtn.style.cursor=hasSel?'pointer':'not-allowed';
+  }
+}
+async function sendSelectedFormRecords(){
+  if(!_formsListSelected.size)return;
+  const rule=document.getElementById('formsBulkSendMode')?.value;
+  const statusEl=document.getElementById('formsBulkSendStatus');
+  if(!rule){
+    if(statusEl)statusEl.textContent='❌ Choose a "Send Record to" option first.';
+    return;
+  }
+  const ids=Array.from(_formsListSelected);
+  let done=0, failed=0;
+  for(const id of ids){
+    if(statusEl)statusEl.textContent='Sending '+done+' of '+ids.length+'…';
+    try{
+      await gasPost({action:'saveFormAnswers',id,answers:{'Send Record to':rule}});
+      const res=await gasPost({action:'sendFormPdfByRule',id,actorEmail:(SESSION&&SESSION.email)||''});
+      if(!res.ok)throw new Error(res.error||'Failed');
+    }catch(e){
+      failed++;
+    }
+    done++;
+  }
+  if(statusEl)statusEl.textContent=failed
+    ? `Sent ${ids.length-failed} of ${ids.length} (${failed} failed).`
+    : `✅ Sent ${ids.length} record${ids.length===1?'':'s'}.`;
+  setTimeout(()=>{if(statusEl)statusEl.textContent='';},4000);
+  _formsListSelected.clear();
+  await loadFormsList();
 }
 
 /* ── New Form: template picker ── */
@@ -5863,7 +5954,13 @@ async function _formsOpenTemplatePicker(){
 }
 async function _formsCreateInstance(templateName){
   if(_pendingBulkFormEmails&&_pendingBulkFormEmails.length){
-    return _formsCreateBulkInstances(templateName);
+    const t=(_formsTemplatesCache&&_formsTemplatesCache.templates||[]).find(x=>x.name===templateName);
+    const sharedFields=(t&&t.bulkSharedFields)||[];
+    if(sharedFields.length){
+      _formsShowBulkSharedFieldsForm(templateName,sharedFields);
+      return;
+    }
+    return _formsCreateBulkInstances(templateName,{});
   }
   const listEl=document.getElementById('formsTemplateList');
   if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">Creating…</div>';
@@ -5879,12 +5976,43 @@ async function _formsCreateInstance(templateName){
   }
 }
 
+// Prompts once for fields that apply to the WHOLE batch (e.g. Start/End Date
+// for an Independent Contractor Agreement run) before any records exist,
+// instead of leaving them blank for someone to fill in N times afterward.
+const FORMS_DATE_FIELDS=['Date','START DATE','END DATE','Date of Event'];
+function _formsShowBulkSharedFieldsForm(templateName,fields){
+  const listEl=document.getElementById('formsTemplateList');
+  if(!listEl)return;
+  const n=(_pendingBulkFormEmails||[]).length;
+  let html=`<div style="padding:10px 12px;margin-bottom:10px;background:var(--sand,#f2f0ea);border-radius:10px;font-size:13px;color:var(--stone)">These apply to all ${n} record${n===1?'':'s'} about to be created.</div>`;
+  fields.forEach(col=>{
+    const isDate=FORMS_DATE_FIELDS.includes(col);
+    html+=`<div class="edit-wrap"><div class="edit-label">${ea(col)}</div>
+      <input type="${isDate?'date':'text'}" class="edit-input" id="bulk-shared-${ea(col)}"></div>`;
+  });
+  html+=`<button class="settings-btn" style="width:100%;margin-top:10px" onclick="_formsConfirmBulkCreate('${ea(templateName)}')">Create ${n} Record${n===1?'':'s'}</button>
+    <button class="settings-btn" style="width:100%;margin-top:8px;background:var(--mist);color:var(--stone)" onclick="_formsOpenTemplatePicker()">← Back</button>`;
+  listEl.innerHTML=html;
+}
+function _formsConfirmBulkCreate(templateName){
+  const t=(_formsTemplatesCache&&_formsTemplatesCache.templates||[]).find(x=>x.name===templateName);
+  const fields=(t&&t.bulkSharedFields)||[];
+  const sharedAnswers={};
+  fields.forEach(col=>{
+    const el=document.getElementById('bulk-shared-'+col);
+    if(el&&el.value)sharedAnswers[col]=el.value;
+  });
+  _formsCreateBulkInstances(templateName,sharedAnswers);
+}
+
 // Creates one record per queued email (from Data > People "Send a Form
 // Record"), auto-filling the Ranger fields from each person's Humans row —
-// the same data the single Ranger picker uses. Left for manual review/send
-// afterward rather than auto-emailing, since Start/End Date can't be known
-// automatically and a wrong contract date shouldn't go out unreviewed.
-async function _formsCreateBulkInstances(templateName){
+// the same data the single Ranger picker uses — plus any batch-wide shared
+// fields (e.g. Start/End Date) collected just before this ran. Left for
+// manual review/send afterward rather than auto-emailing, since a wrong
+// contract shouldn't go out unreviewed.
+async function _formsCreateBulkInstances(templateName,sharedAnswers){
+  sharedAnswers=sharedAnswers||{};
   const emails=_pendingBulkFormEmails||[];
   const listEl=document.getElementById('formsTemplateList');
   const setMsg=(m)=>{ if(listEl)listEl.innerHTML='<div style="padding:16px;color:var(--stone);font-family:var(--font-b)">'+m+'</div>'; };
@@ -5893,11 +6021,13 @@ async function _formsCreateBulkInstances(templateName){
   const rangers=(_activeRangersCache&&_activeRangersCache.rangers)||[];
   const needsRanger=_formsTemplateNeedsRangers(templateName);
   let done=0, failed=0;
+  const createdIds=[];
   for(const email of emails){
     try{
       const res=await gasPost({action:'createFormInstance',templateName});
       if(!res.ok)throw new Error(res.error||'Failed to create form');
-      const answers={};
+      createdIds.push(String(res.id));
+      const answers=Object.assign({},sharedAnswers);
       if(needsRanger){
         const r=rangers.find(x=>x.email===email);
         if(r){
@@ -5918,12 +6048,13 @@ async function _formsCreateBulkInstances(templateName){
     setMsg('Creating '+done+' of '+emails.length+'…');
   }
   _pendingBulkFormEmails=null;
+  _formsListSelected=new Set(createdIds); // pre-check the batch just created, ready for Send Selected
   await loadFormsList();
   document.getElementById('formsTemplatePickerView').style.display='none';
   document.getElementById('formsListView').style.display='block';
   const msg=failed
-    ? `Created ${emails.length-failed} of ${emails.length} records (${failed} failed). Review each below, then use Send via Email.`
-    : `Created ${emails.length} record${emails.length===1?'':'s'}. Review each below (set Start/End Date, choose Send Record to), then use Send via Email.`;
+    ? `Created ${emails.length-failed} of ${emails.length} records (${failed} failed). Check them below and use Send Selected once you've picked who to send to.`
+    : `Created ${emails.length} record${emails.length===1?'':'s'}. They're pre-checked below — pick a Send Record to option and hit Send Selected.`;
   showSaveToast(msg);
 }
 
