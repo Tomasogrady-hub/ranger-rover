@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.34 | 2026-08-26';
+const GAS_BUILD = 'v10.35 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -66,7 +66,8 @@ const FORMS_TEXT_COL_TOKENS = {
 const FORMS_TEMPLATE_FIELDS = {
   'Independent Contractor Agreement': [
     'Form Name', 'Date', 'RANGER NAME', 'RANGER EMAIL', 'RANGER ADDRESS',
-    'START DATE', 'END DATE', 'Ranger Number', 'UNIT COST', 'FULL DAY UNIT COST'
+    'START DATE', 'END DATE', 'Ranger Number', 'UNIT COST', 'FULL DAY UNIT COST',
+    'Send Record to'
   ]
 };
 
@@ -593,6 +594,7 @@ function doPost(e) {
       case 'saveFormAnswers':   return respond(handleSaveFormAnswers(p));
       case 'generateFormPdf':   return respond(handleGenerateFormPdf(p));
       case 'emailFormPdf':      return respond(handleEmailFormPdf(p));
+      case 'sendFormPdfByRule': return respond(handleSendFormPdfByRule(p));
       case 'getActiveRangersForForms': return respond(handleGetActiveRangersForForms());
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
@@ -3374,6 +3376,79 @@ function handleGenerateFormPdf(p) {
   try {
     var out = _generateFilledFormPdf(id);
     return { ok: true, pdfUrl: out.pdfUrl };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Looks up a school's Principal email directly from the Sites sheet's
+// "Principal" column (which stores the raw email address, not a display
+// name — see handleGetSitesForForms above for the same convention).
+function _resolvePrincipalEmailForSchool(schoolName) {
+  schoolName = String(schoolName || '').trim();
+  if (!schoolName) return '';
+  var sitesData = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues();
+  var sh = sitesData[0];
+  var nameCol  = sh.indexOf('Name');
+  var princCol = sh.indexOf('Principal');
+  if (nameCol === -1 || princCol === -1) return '';
+  for (var r = 1; r < sitesData.length; r++) {
+    if (String(sitesData[r][nameCol] || '').trim().toLowerCase() === schoolName.toLowerCase()) {
+      return String(sitesData[r][princCol] || '').trim();
+    }
+  }
+  return '';
+}
+
+// Sends a form's PDF based on the row's own "Send Record to" choice, instead
+// of asking the person to type an email address every time. actorEmail is
+// the signed-in app user (SESSION.email on the frontend) — GAS has no
+// concept of "who's logged in" on its own, so the frontend passes it along.
+function handleSendFormPdfByRule(p) {
+  var id = String(p.id || '').trim();
+  if (!id) return { ok: false, error: 'Missing form id' };
+  try {
+    var sheet   = _formsSheet();
+    var data    = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var idCol   = headers.indexOf('ID');
+    var rowIdx  = -1;
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][idCol]) === id) { rowIdx = r; break; }
+    }
+    if (rowIdx === -1) return { ok: false, error: 'Form not found: ' + id };
+    var rowObj = {};
+    headers.forEach(function(h, i) { rowObj[h] = data[rowIdx][i]; });
+
+    var rule = String(rowObj['Send Record to'] || '').trim();
+    if (!rule) return { ok: false, error: 'Choose a "Send Record to" option first.' };
+
+    var rangerEmail = String(rowObj['RANGER EMAIL'] || '').trim();
+    var actorEmail  = String(p.actorEmail || '').trim();
+    var to = '', cc = '';
+
+    if (rule === 'Send To Ranger') {
+      to = rangerEmail;
+    } else if (rule === 'Send to Principal') {
+      to = _resolvePrincipalEmailForSchool(rowObj['School']);
+    } else if (rule === 'Send to User Signed In') {
+      to = actorEmail;
+    } else if (rule === 'Send to Ranger and CC User Signed In') {
+      to = rangerEmail;
+      cc = actorEmail;
+    } else {
+      return { ok: false, error: 'Unrecognized "Send Record to" value: ' + rule };
+    }
+
+    if (!to) return { ok: false, error: 'Could not find an email address for "' + rule + '".' };
+
+    var out     = _generateFilledFormPdf(id);
+    var subject = String(out.formName || 'Ranger Rover Form') + (out.school ? ' — ' + out.school : '');
+    var options = { attachments: [out.pdfBlob] };
+    if (cc) options.cc = cc;
+    GmailApp.sendEmail(to, subject, 'Please see the attached form.', options);
+
+    return { ok: true, pdfUrl: out.pdfUrl, to: to, cc: cc || '' };
   } catch (e) {
     return { ok: false, error: e.message };
   }
