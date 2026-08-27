@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.35 | 2026-08-26';
+const GAS_BUILD = 'v10.36 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -69,6 +69,14 @@ const FORMS_TEMPLATE_FIELDS = {
     'START DATE', 'END DATE', 'Ranger Number', 'UNIT COST', 'FULL DAY UNIT COST',
     'Send Record to'
   ]
+};
+
+// Fields prompted for ONCE before a Data > People bulk "Send a Form Record"
+// batch creates its records, rather than left blank per-record for someone
+// to fill in N times afterward. Templates not listed here skip this step
+// entirely and create records immediately (old behavior).
+const FORMS_BULK_SHARED_FIELDS = {
+  'Independent Contractor Agreement': ['START DATE', 'END DATE']
 };
 
 // ── DRIVE FOLDER IDs (images) ─────────────────────────────────────────────────
@@ -3059,7 +3067,9 @@ function handleGetFormTemplates() {
         link: linkCol > -1 ? row[linkCol] : '',
         // null/undefined = no filter, show every Forms-tab textCol (old behavior,
         // e.g. Project Approval Tracking Sheet); an array = show ONLY these columns.
-        fields: FORMS_TEMPLATE_FIELDS[name] || null
+        fields: FORMS_TEMPLATE_FIELDS[name] || null,
+        // Fields prompted for once before a bulk batch creates its records.
+        bulkSharedFields: FORMS_BULK_SHARED_FIELDS[name] || []
       };
     });
   return { templates: templates };
