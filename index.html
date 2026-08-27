@@ -1265,10 +1265,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.64';
+const APP_VERSION='v10.65';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-27 - Bug fix: Email Note field was looking for column "Email Note" but the actual Forms tab column is "Email note" (lowercase n), so it was never saving. Fixed everywhere (field key, textarea IDs, backend lookup) to match the real column name.';
+const BUILD_STAMP='2026-08-27 - Ranger detail view (non-edit) now shows Ranger Number, 1 Unit (Half Day) Cost, and 2 Unit (Full Day) Cost, alongside Ranger Live Scan. The Additional Filter dropdown at the top of Data > People already filters by Ranger Number pulled live from Items All (Type 2 = Ranger Rate), no change needed there.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4534,6 +4534,9 @@ function renderPD(h,edit){
   const state=sf(h,'State','state');
   const country=sf(h,'Country','country');
   const liveScan=sf(h,'Ranger Live Scan','RangerLiveScan');
+  const rangerNumber=sf(h,'Ranger Number','RangerNumber');
+  const halfDayCost=sf(h,'1 Unit ( Half Day ) Cost','HalfDayCost');
+  const fullDayCost=sf(h,'2 Unit ( Full Day ) Cost','FullDayCost');
   const showsDocs=_showsRangerDocs(h)&&SESSION&&SESSION.accessLevel<=2;
   const addressLine=[streetAddress,city,state,zipCode,country].filter(Boolean).join(', ');
   const resumeIsUrl=/^https?:\/\//i.test(resume.trim());
@@ -4625,6 +4628,9 @@ function renderPD(h,edit){
       ${showsDocs?`
       ${addressLine?`<div class="ds"><div class="dl">Address</div><div class="dv">${escHtml(addressLine)}</div></div>`:''}
       <div class="ds"><div class="dl">Ranger Live Scan</div><div class="dv">${liveScan||'—'}</div></div>
+      <div class="ds"><div class="dl">Ranger Number</div><div class="dv">${rangerNumber||'—'}</div></div>
+      <div class="ds"><div class="dl">1 Unit ( Half Day ) Cost</div><div class="dv">${halfDayCost||'—'}</div></div>
+      <div class="ds"><div class="dl">2 Unit ( Full Day ) Cost</div><div class="dv">${fullDayCost||'—'}</div></div>
       <div class="ds"><div class="dl">Ranger Documents</div><div class="dv">
         ${h['W9']?`<a class="dlink" href="${ea(h['W9'])}" target="_blank" rel="noopener">📄 W-9</a>`:'W-9: not uploaded'}<br>
         ${h['TB Test']?`<a class="dlink" href="${ea(h['TB Test'])}" target="_blank" rel="noopener">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
