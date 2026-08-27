@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.36 | 2026-08-26';
+const GAS_BUILD = 'v10.37 | 2026-08-26';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -2714,10 +2714,11 @@ function handleGetActiveRangersForForms() {
   }
 
   var out = [];
+  var ALLOWED_ROLES = ['Ranger', 'Ranger Onboarding', 'Master Ranger'];
   for (var r = 1; r < hData.length; r++) {
     var row = hData[r];
     var role = String(row[idx['Role']] || '').trim();
-    if (role !== 'Ranger' && role !== 'Ranger Onboarding') continue;
+    if (ALLOWED_ROLES.indexOf(role) === -1) continue;
     var email = String(row[idx['Email']] || '').trim();
     if (!email) continue;
 
@@ -3172,9 +3173,26 @@ function handleGetForms() {
 // the old "FormName - School" shape for templates with no ranger involved
 // (e.g. Project Approval Tracking Sheet), so every template still gets a
 // sensible name.
+// Looks up the REGISTERED template name from the Actual Forms tab, matched
+// by this row's "Actual Form" link (Drive ID comparison, so URL formatting
+// differences like a trailing ?usp=sharing don't break the match). This is
+// the stable source of "which template is this" — unlike the row's own
+// "Form Name" cell, which now gets overwritten with a composed display
+// title and can no longer be used to identify the template itself.
+function _trueTemplateNameForRow(rowObj) {
+  var rowId = _extractDriveId(rowObj['Actual Form']);
+  if (rowId) {
+    var templates = handleGetFormTemplates().templates;
+    for (var i = 0; i < templates.length; i++) {
+      if (_extractDriveId(templates[i].link) === rowId) return templates[i].name;
+    }
+  }
+  return String(rowObj['Form Name'] || '');
+}
+
 function _composeFormsRecordTitle(rowObj) {
   var rangerName = String(rowObj['RANGER NAME'] || '').trim();
-  var formName   = String(rowObj['Form Name'] || '').trim();
+  var formName   = _trueTemplateNameForRow(rowObj);
   var startYear  = _extractYear(rowObj['START DATE']);
   var endYear    = _extractYear(rowObj['END DATE']);
   var years = startYear ? (startYear + (endYear && endYear !== startYear ? '–' + endYear : '')) : '';
@@ -3202,22 +3220,26 @@ function handleSaveFormAnswers(p) {
   Object.keys(answers).forEach(function(key) {
     var colIdx = headers.indexOf(key);
     if (colIdx === -1) return; // ignore unknown columns
+    // Never let an incoming "Form Name" answer overwrite it directly here —
+    // it's recomputed just below from the stable template link instead, so
+    // stray/stale values can't creep in.
+    if (key === 'Form Name') return;
     sheet.getRange(rowIdx + 1, colIdx + 1).setValue(answers[key]);
   });
 
-  // "Record Title" (optional column) — Ranger Name + the template name as
-  // listed in Actual Forms + the Start Date year and End Date year, so each
-  // record is identifiable in the Forms list instead of every row showing
-  // the same repeated "Independent Contractor Agreement" title. This never
-  // touches "Form Name" itself, since that column still drives which
-  // template/field-set this record uses — only a separate display column.
-  var titleCol = headers.indexOf('Record Title');
-  if (titleCol > -1) {
+  // Overwrite "Form Name" itself with the composed display title (Ranger
+  // Name + the registered template name + contract years) — same format as
+  // the saved PDF's filename. Routing (which fields/template a record uses)
+  // no longer depends on this column; it's resolved from the stable
+  // "Actual Form" link via _trueTemplateNameForRow, so this is safe to
+  // overwrite on every save without breaking anything downstream.
+  var formNameCol = headers.indexOf('Form Name');
+  if (formNameCol > -1) {
     var freshRow = sheet.getRange(rowIdx + 1, 1, 1, headers.length).getValues()[0];
     var freshObj = {};
     headers.forEach(function(h, i) { freshObj[h] = freshRow[i]; });
     var title = _composeFormsRecordTitle(freshObj);
-    if (title) sheet.getRange(rowIdx + 1, titleCol + 1).setValue(title);
+    if (title) sheet.getRange(rowIdx + 1, formNameCol + 1).setValue(title);
   }
 
   return { ok: true };
