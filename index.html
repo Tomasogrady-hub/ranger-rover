@@ -600,6 +600,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <button class="chip"        data-filter="ranger_offered"                   data-label="Ranger Offered"    onclick="filterRangers('ranger_offered')">Ranger Offered</button>
     </div>
     <div class="page-header"><span class="page-title" id="rangerPageTitle">Rangers</span><span class="page-count" id="rangerCount"></span></div>
+    <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:4px;max-width:260px;margin:0 auto">
+      <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Filter by Ranger Number</label>
+      <select id="rangerNumberFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByNumber(this.value)">
+        <option value="all">All Ranger Numbers</option>
+      </select>
+    </div>
     <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
       <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
       <button class="chip" id="rangerViewDetailedBtn" onclick="setRangerViewMode('detailed')">Detailed</button>
@@ -1265,10 +1271,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.65';
+const APP_VERSION='v10.66';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-27 - Ranger detail view (non-edit) now shows Ranger Number, 1 Unit (Half Day) Cost, and 2 Unit (Full Day) Cost, alongside Ranger Live Scan. The Additional Filter dropdown at the top of Data > People already filters by Ranger Number pulled live from Items All (Type 2 = Ranger Rate), no change needed there.';
+const BUILD_STAMP='2026-08-27 - Rangers tab: Detailed-mode summary cards now show Ranger Number, 1 Unit (Half Day) Cost, and 2 Unit (Full Day) Cost for every card, not just when tapped in. Added a Filter by Ranger Number dropdown above the Summary/Detailed/Pictures toggle, pulled live from Items All (Type 2 = Ranger Rate). Backend fix: saving a Ranger Number to a Humans row (single edit or bulk Adjust Ranger Number) now always auto-fills the two cost columns server-side, so bulk changes no longer leave costs blank.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1297,7 +1303,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csf='active',crf='all',cpf='all',ccf='all',cmf='all',sq='';
+let csf='active',crf='all',crnf='all',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
@@ -3164,12 +3170,35 @@ function setRangerViewMode(mode){
   }
 }
 
+function filterRangersByNumber(v){crnf=v;renderRangers();_initLazyImages();}
+// Fills the "Filter by Ranger Number" dropdown from Items All (Type 2 =
+// "Ranger Rate") — same cached list used by the Add/Edit Person Ranger
+// Number dropdown and the Data page's Additional Filter, fetched once per
+// session. Lazy: kicked off the first time the Rangers tab renders and not
+// yet cached, then re-renders the dropdown (not the list) once it lands.
+let _rangerNumberFilterOptionsFilled=false;
+function _fillRangerNumberFilterSelect(){
+  const sel=document.getElementById('rangerNumberFilterSelect');
+  if(!sel)return;
+  const rates=_rangerRatesCache||[];
+  const current=sel.value||'all';
+  sel.innerHTML='<option value="all">All Ranger Numbers</option>'+
+    rates.map(r=>`<option value="${ea(r.name)}">${escHtml(r.name)}</option>`).join('');
+  sel.value=[...sel.options].some(o=>o.value===current)?current:'all';
+  _rangerNumberFilterOptionsFilled=true;
+}
 function renderRangers(){
   const q=sq.toLowerCase(),f=crf;
+  if(!_rangerRatesCache){
+    _getRangerRates().then(()=>_fillRangerNumberFilterSelect());
+  } else if(!_rangerNumberFilterOptionsFilled){
+    _fillRangerNumberFilterSelect();
+  }
   const rangers=DATA.humans.filter(h=>{
     const cats=humanRoleCats(h);
     if(!cats.some(c=>RANGER_CATS.includes(c)))return false;
     if(f!=='all'&&!cats.includes(f))return false;
+    if(crnf!=='all'&&(sf(h,'Ranger Number','RangerNumber')||'')!==crnf)return false;
     if(q&&!(fullName(h)+(h.Email||h.email||'')).toLowerCase().includes(q))return false;
     return true;
   });
@@ -3190,10 +3219,16 @@ function _rangerDetailBlockHtml(h){
   const state=sf(h,'State','state');
   const zipCode=sf(h,'Zip Code','ZipCode');
   const country=sf(h,'Country','country');
+  const rangerNumber=sf(h,'Ranger Number','RangerNumber');
+  const halfDayCost=sf(h,'1 Unit ( Half Day ) Cost','HalfDayCost');
+  const fullDayCost=sf(h,'2 Unit ( Full Day ) Cost','FullDayCost');
   const addressLine=[streetAddress,city,state,zipCode,country].filter(Boolean).join(', ');
   return `<div class="ranger-detail-block" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--mist);font-size:13px;color:var(--stone);line-height:1.6">
     ${addressLine?`<div><strong>Address:</strong> ${escHtml(addressLine)}</div>`:''}
     <div><strong>Ranger Live Scan:</strong> ${liveScan||'—'}</div>
+    <div><strong>Ranger Number:</strong> ${escHtml(rangerNumber)||'—'}</div>
+    <div><strong>1 Unit ( Half Day ) Cost:</strong> ${escHtml(String(halfDayCost||''))||'—'}</div>
+    <div><strong>2 Unit ( Full Day ) Cost:</strong> ${escHtml(String(fullDayCost||''))||'—'}</div>
     <div>
       ${h['W9']?`<a class="dlink" href="${ea(h['W9'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 W-9</a>`:'W-9: not uploaded'}<br>
       ${h['TB Test']?`<a class="dlink" href="${ea(h['TB Test'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
