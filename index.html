@@ -600,11 +600,49 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <button class="chip"        data-filter="ranger_offered"                   data-label="Ranger Offered"    onclick="filterRangers('ranger_offered')">Ranger Offered</button>
     </div>
     <div class="page-header"><span class="page-title" id="rangerPageTitle">Rangers</span><span class="page-count" id="rangerCount"></span></div>
-    <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:4px;max-width:260px;margin:0 auto">
-      <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Filter by Ranger Number</label>
-      <select id="rangerNumberFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByNumber(this.value)">
-        <option value="all">All Ranger Numbers</option>
-      </select>
+    <div style="padding:0 16px 8px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:520px;margin:0 auto">
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Filter by Ranger Number</label>
+        <select id="rangerNumberFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByNumber(this.value)">
+          <option value="all">All Ranger Numbers</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Then Filter By</label>
+        <select id="rangerDocFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByDocStatus(this.value)">
+          <option value="all">All</option>
+          <optgroup label="TB + W9 + Live Scan + Contract">
+            <option value="docs:complete">Complete (all + Live Scan Approved)</option>
+            <option value="docs:nothing">Nothing (none present)</option>
+            <option value="docs:partial">Incomplete (partially)</option>
+          </optgroup>
+          <optgroup label="TB Test">
+            <option value="tb:yes">TB Test Yes</option>
+            <option value="tb:no">TB Test No</option>
+          </optgroup>
+          <optgroup label="W-9">
+            <option value="w9:yes">W9 Yes</option>
+            <option value="w9:no">W9 No</option>
+          </optgroup>
+          <optgroup label="Signed Contract">
+            <option value="contract:yes">Signed Contract Yes</option>
+            <option value="contract:no">Signed Contract No</option>
+          </optgroup>
+          <optgroup label="Resume">
+            <option value="resume:yes">Resume Yes</option>
+            <option value="resume:no">Resume No</option>
+          </optgroup>
+          <optgroup label="Live Scan">
+            <option value="docslivescan:Approved">Live Scan Approved</option>
+            <option value="docslivescan:Rejected">Live Scan Rejected</option>
+            <option value="docslivescan:Not Complete">Live Scan Not Complete</option>
+          </optgroup>
+          <optgroup label="Mailing Address">
+            <option value="address:yes">Mailing Address Yes</option>
+            <option value="address:no">Mailing Address No</option>
+          </optgroup>
+        </select>
+      </div>
     </div>
     <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
       <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
@@ -1271,10 +1309,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.67';
+const APP_VERSION='v10.68';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-27 - Rangers tab: Detailed-mode summary cards now show Ranger Number, 1 Unit (Half Day) Cost, and 2 Unit (Full Day) Cost for every card, not just when tapped in. Added a Filter by Ranger Number dropdown above the Summary/Detailed/Pictures toggle, pulled live from Items All (Type 2 = Ranger Rate). Backend fix: saving a Ranger Number to a Humans row (single edit or bulk Adjust Ranger Number) now always auto-fills the two cost columns server-side, so bulk changes no longer leave costs blank.';
+const BUILD_STAMP='2026-08-28 - Rangers tab: Added a Then Filter By dropdown next to Filter by Ranger Number. Filters on TB Test, W9, Signed Contract, Resume, Live Scan status, and Mailing Address, plus a combined TB+W9+Live Scan+Contract status: Complete (all uploaded and Live Scan Approved), Nothing (none present), or Incomplete partially (some but not all).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1303,7 +1341,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csf='active',crf='all',crnf='all',cpf='all',ccf='all',cmf='all',sq='';
+let csf='active',crf='all',crnf='all',crdf='all',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
@@ -3171,6 +3209,37 @@ function setRangerViewMode(mode){
 }
 
 function filterRangersByNumber(v){crnf=v;renderRangers();_initLazyImages();}
+function filterRangersByDocStatus(v){crdf=v;renderRangers();_initLazyImages();}
+// Classifies a ranger's TB Test / W9 / Ranger Contract / Ranger Live Scan
+// status into 'complete' (all three docs uploaded AND Live Scan Approved),
+// 'nothing' (no docs uploaded and Live Scan blank/unset), or 'partial'
+// (anything in between — some but not all present).
+function _rangerDocOverallStatus(h){
+  const hasW9=!!(h['W9']||'').trim();
+  const hasTB=!!(h['TB Test']||'').trim();
+  const hasContract=!!(h['Ranger Contract']||'').trim();
+  const liveScan=(h['Ranger Live Scan']||'').trim();
+  const approved=liveScan==='Approved';
+  if(hasW9&&hasTB&&hasContract&&approved)return 'complete';
+  if(!hasW9&&!hasTB&&!hasContract&&!liveScan)return 'nothing';
+  return 'partial';
+}
+function _rangerMatchesDocFilter(h,v){
+  if(v==='all')return true;
+  if(v.indexOf('docs:')===0)return _rangerDocOverallStatus(h)===v.slice(5);
+  if(v.indexOf('docslivescan:')===0)return (h['Ranger Live Scan']||'').trim()===v.slice(13);
+  const [field,want]=v.split(':');
+  const yes=want==='yes';
+  if(field==='tb')return !!(h['TB Test']||'').trim()===yes;
+  if(field==='w9')return !!(h['W9']||'').trim()===yes;
+  if(field==='contract')return !!(h['Ranger Contract']||'').trim()===yes;
+  if(field==='resume')return !!(sf(h,'Resume','resume')||'').trim()===yes;
+  if(field==='address'){
+    const hasAddr=!!(sf(h,'Street Address','StreetAddress')||sf(h,'City','city')||sf(h,'Zip Code','ZipCode')||'').trim();
+    return hasAddr===yes;
+  }
+  return true;
+}
 // Fills the "Filter by Ranger Number" dropdown from Items All (Type 2 =
 // "Ranger Rate") — same cached list used by the Add/Edit Person Ranger
 // Number dropdown and the Data page's Additional Filter, fetched once per
@@ -3199,6 +3268,7 @@ function renderRangers(){
     if(!cats.some(c=>RANGER_CATS.includes(c)))return false;
     if(f!=='all'&&!cats.includes(f))return false;
     if(crnf!=='all'&&(sf(h,'Ranger Number','RangerNumber')||'')!==crnf)return false;
+    if(!_rangerMatchesDocFilter(h,crdf))return false;
     if(q&&!(fullName(h)+(h.Email||h.email||'')).toLowerCase().includes(q))return false;
     return true;
   });
