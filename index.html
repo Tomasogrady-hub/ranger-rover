@@ -1271,7 +1271,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.66';
+const APP_VERSION='v10.67';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
 const BUILD_STAMP='2026-08-27 - Rangers tab: Detailed-mode summary cards now show Ranger Number, 1 Unit (Half Day) Cost, and 2 Unit (Full Day) Cost for every card, not just when tapped in. Added a Filter by Ranger Number dropdown above the Summary/Detailed/Pictures toggle, pulled live from Items All (Type 2 = Ranger Rate). Backend fix: saving a Ranger Number to a Humans row (single edit or bulk Adjust Ranger Number) now always auto-fills the two cost columns server-side, so bulk changes no longer leave costs blank.';
@@ -4020,7 +4020,7 @@ function renderSchoolDetail(site,editMode,opsMode){
   if(editMode){
     const lvl=SESSION?SESSION.accessLevel:3;
     const canAssign=true; // all access levels can edit site fields
-    const rangers       = humansByCategory('ranger');
+    const rangers       = DATA.humans.filter(h=>{const c=humanRoleCats(h);return c.includes('ranger')||c.includes('master_ranger')||c.includes('garden_keeper');});
     const gardenKeepers = humansByCategory('garden_keeper');
     const principals    = humansByCategory('principal');
     const plantManagers = humansByCategory('plant_manager');
