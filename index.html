@@ -149,6 +149,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .ranger-pic-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:34px;color:var(--stone);background:var(--fog)}
 .ranger-pic-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .ranger-pic-name{position:absolute;left:0;right:0;bottom:0;padding:10px 10px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-family:var(--font-b);font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ranger-simple-row{padding:14px 16px;font-family:var(--font-b);font-size:16px;font-weight:500;color:var(--grove);border-bottom:1px solid var(--mist);cursor:pointer;background:#fff}
+.ranger-simple-row:active{background:var(--mist)}
 
 /* ── SCHOOL CARDS ── */
 .school-card{border-bottom:1px solid var(--mist);padding:18px 0;cursor:pointer;display:flex;align-items:flex-start;gap:14px}
@@ -672,6 +674,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </select>
     </div>
     <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
+      <button class="chip" id="rangerViewSimpleBtn" onclick="setRangerViewMode('simple')">Simple</button>
       <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
       <button class="chip" id="rangerViewDetailedBtn" onclick="setRangerViewMode('detailed')">Detailed</button>
       <button class="chip" id="rangerViewPicturesBtn" onclick="setRangerViewMode('pictures')">Pictures</button>
@@ -1336,10 +1339,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.69';
+const APP_VERSION='v10.70';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-28 - Rangers tab: Added an intelligent summary sentence below the filters (role chip + Ranger Number + Then Filter By, e.g. "3 Rangers are Ranger # 5 and their TB + W9 + Live Scan + Contract are complete"). Then Filter By dropdown gained Schools 0-10 options (count of Sites rows where the person is Ranger 1 or Ranger 2). Added a Sort By dropdown (Name, Ranger #, Schools Assigned, Docs Status).';
+const BUILD_STAMP='2026-08-28 - Rangers tab: Added a Simple view mode (button to the left of Summary) — a bare, fast-loading list of names, each hotlinked to open that persons card. No photos, roles, or schools shown, just names for quick scanning.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3223,11 +3226,12 @@ function _renderSchoolBatch(sites,from,batchSize){
 }
 
 /* ═══ RENDER RANGERS ═══ */
-let _rangerViewMode='summary'; // 'summary' | 'detailed' | 'pictures' — toggled via the buttons above the list
+let _rangerViewMode='summary'; // 'simple' | 'summary' | 'detailed' | 'pictures' — toggled via the buttons above the list
 function setRangerViewMode(mode){
   if(mode!==_rangerViewMode){
     _rangerViewMode=mode;
-    const sBtn=document.getElementById('rangerViewSummaryBtn'),dBtn=document.getElementById('rangerViewDetailedBtn'),pBtn=document.getElementById('rangerViewPicturesBtn');
+    const siBtn=document.getElementById('rangerViewSimpleBtn'),sBtn=document.getElementById('rangerViewSummaryBtn'),dBtn=document.getElementById('rangerViewDetailedBtn'),pBtn=document.getElementById('rangerViewPicturesBtn');
+    if(siBtn)siBtn.classList.toggle('active',mode==='simple');
     if(sBtn)sBtn.classList.toggle('active',mode==='summary');
     if(dBtn)dBtn.classList.toggle('active',mode==='detailed');
     if(pBtn)pBtn.classList.toggle('active',mode==='pictures');
@@ -3394,7 +3398,8 @@ function renderRangers(){
   const listEl=document.getElementById('rangerList');
   listEl.classList.toggle('pictures-grid',_rangerViewMode==='pictures');
   if(!rangers.length){listEl.innerHTML=empty('—','No results','');return;}
-  _renderHumanBatch('rangerList',rangers,0,40,_rangerViewMode==='pictures'?_rangerPicCardHtml:_rangerCardHtml);
+  const cardFn=_rangerViewMode==='pictures'?_rangerPicCardHtml:_rangerViewMode==='simple'?_rangerSimpleCardHtml:_rangerCardHtml;
+  _renderHumanBatch('rangerList',rangers,0,40,cardFn);
 }
 
 // Detailed-mode block: Ranger Documents (W-9, TB Test, Ranger Contract, Ranger Live
@@ -3470,6 +3475,14 @@ function _rangerPicCardHtml(h){
     ${imgUrl?`<img data-lazy="${ea(imgUrl)}" alt="${initials}" style="opacity:0;transition:opacity .25s" onerror="this.style.display='none'">`:''}
     <div class="ranger-pic-name">${escHtml(name)}</div>
   </div>`;
+}
+
+// Simple mode: just a name, hotlinked to the person's card — no photo, no
+// role, no schools — for a fast, easy-to-scan plain list.
+function _rangerSimpleCardHtml(h){
+  const name=fullName(h)||h.Email||h.email||'';
+  const email=h.Email||h.email||'';
+  return `<div class="ranger-simple-row" onclick="showPersonDetail('${esc(email||name)}')">${escHtml(name)}</div>`;
 }
 
 const _humanListObsMap={};
