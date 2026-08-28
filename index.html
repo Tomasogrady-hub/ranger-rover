@@ -641,8 +641,35 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="address:yes">Mailing Address Yes</option>
             <option value="address:no">Mailing Address No</option>
           </optgroup>
+          <optgroup label="Schools Assigned">
+            <option value="schools:0">Schools 0</option>
+            <option value="schools:1">Schools 1</option>
+            <option value="schools:2">Schools 2</option>
+            <option value="schools:3">Schools 3</option>
+            <option value="schools:4">Schools 4</option>
+            <option value="schools:5">Schools 5</option>
+            <option value="schools:6">Schools 6</option>
+            <option value="schools:7">Schools 7</option>
+            <option value="schools:8">Schools 8</option>
+            <option value="schools:9">Schools 9</option>
+            <option value="schools:10">Schools 10</option>
+          </optgroup>
         </select>
       </div>
+    </div>
+    <div id="rangerSummarySentence" style="padding:0 16px 8px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
+    <div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:4px;max-width:260px;margin:0 auto">
+      <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Sort By</label>
+      <select id="rangerSortSelect" class="settings-input" style="margin:0" onchange="setRangerSort(this.value)">
+        <option value="name-asc">Name (A → Z)</option>
+        <option value="name-desc">Name (Z → A)</option>
+        <option value="rangernum-asc">Ranger # (Low → High)</option>
+        <option value="rangernum-desc">Ranger # (High → Low)</option>
+        <option value="schools-desc">Most Schools First</option>
+        <option value="schools-asc">Fewest Schools First</option>
+        <option value="docs-complete-first">Docs Status (Complete First)</option>
+        <option value="docs-incomplete-first">Docs Status (Incomplete First)</option>
+      </select>
     </div>
     <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
       <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
@@ -1309,10 +1336,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.68';
+const APP_VERSION='v10.69';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-28 - Rangers tab: Added a Then Filter By dropdown next to Filter by Ranger Number. Filters on TB Test, W9, Signed Contract, Resume, Live Scan status, and Mailing Address, plus a combined TB+W9+Live Scan+Contract status: Complete (all uploaded and Live Scan Approved), Nothing (none present), or Incomplete partially (some but not all).';
+const BUILD_STAMP='2026-08-28 - Rangers tab: Added an intelligent summary sentence below the filters (role chip + Ranger Number + Then Filter By, e.g. "3 Rangers are Ranger # 5 and their TB + W9 + Live Scan + Contract are complete"). Then Filter By dropdown gained Schools 0-10 options (count of Sites rows where the person is Ranger 1 or Ranger 2). Added a Sort By dropdown (Name, Ranger #, Schools Assigned, Docs Status).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1341,7 +1368,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csf='active',crf='all',crnf='all',crdf='all',cpf='all',ccf='all',cmf='all',sq='';
+let csf='active',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
@@ -3210,6 +3237,14 @@ function setRangerViewMode(mode){
 
 function filterRangersByNumber(v){crnf=v;renderRangers();_initLazyImages();}
 function filterRangersByDocStatus(v){crdf=v;renderRangers();_initLazyImages();}
+function setRangerSort(v){crso=v;renderRangers();_initLazyImages();}
+// Count of distinct Sites rows where this human appears as Ranger 1 or Ranger 2
+// (email match) — the "Schools N" filter/sort and the summary sentence use this.
+function _rangerSchoolCount(h){
+  const email=h.Email||h.email||'';
+  if(!email)return 0;
+  return DATA.sites.filter(s=>sf(s,'Ranger 1','Ranger1')===email||sf(s,'Ranger 2','Ranger2')===email).length;
+}
 // Classifies a ranger's TB Test / W9 / Ranger Contract / Ranger Live Scan
 // status into 'complete' (all three docs uploaded AND Live Scan Approved),
 // 'nothing' (no docs uploaded and Live Scan blank/unset), or 'partial'
@@ -3228,6 +3263,7 @@ function _rangerMatchesDocFilter(h,v){
   if(v==='all')return true;
   if(v.indexOf('docs:')===0)return _rangerDocOverallStatus(h)===v.slice(5);
   if(v.indexOf('docslivescan:')===0)return (h['Ranger Live Scan']||'').trim()===v.slice(13);
+  if(v.indexOf('schools:')===0)return _rangerSchoolCount(h)===parseInt(v.slice(8),10);
   const [field,want]=v.split(':');
   const yes=want==='yes';
   if(field==='tb')return !!(h['TB Test']||'').trim()===yes;
@@ -3239,6 +3275,86 @@ function _rangerMatchesDocFilter(h,v){
     return hasAddr===yes;
   }
   return true;
+}
+function _rangerSortCompare(a,b,sortKey){
+  const nameA=(fullName(a)||a.Email||a.email||'').toLowerCase();
+  const nameB=(fullName(b)||b.Email||b.email||'').toLowerCase();
+  switch(sortKey){
+    case 'name-desc': return nameB.localeCompare(nameA);
+    case 'rangernum-asc':
+    case 'rangernum-desc': {
+      const na=parseFloat(sf(a,'Ranger Number','RangerNumber'));
+      const nb=parseFloat(sf(b,'Ranger Number','RangerNumber'));
+      const aBlank=isNaN(na),bBlank=isNaN(nb);
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return sortKey==='rangernum-asc'?na-nb:nb-na;
+    }
+    case 'schools-desc':
+    case 'schools-asc': {
+      const ca=_rangerSchoolCount(a),cb=_rangerSchoolCount(b);
+      if(ca===cb)return nameA.localeCompare(nameB);
+      return sortKey==='schools-desc'?cb-ca:ca-cb;
+    }
+    case 'docs-complete-first':
+    case 'docs-incomplete-first': {
+      const order={complete:0,partial:1,nothing:2};
+      const oa=order[_rangerDocOverallStatus(a)],ob=order[_rangerDocOverallStatus(b)];
+      if(oa===ob)return nameA.localeCompare(nameB);
+      return sortKey==='docs-complete-first'?oa-ob:ob-oa;
+    }
+    case 'name-asc':
+    default: return nameA.localeCompare(nameB);
+  }
+}
+// Role chip filter value -> plural label used in the summary sentence
+// (mirrors the data-label text on the Rangers tab filter chips).
+const RANGER_ROLE_SENTENCE_LABELS={
+  all:'Rangers', ranger:'Rangers', master_ranger:'Master Rangers',
+  garden_keeper:'Garden Keepers', ranger_applicant:'Ranger Applicants',
+  ranger_past:'Ranger Past', ranger_applicant_did_not_work_out:'Did Not Work Out',
+  ranger_onboarding:'Ranger Onboarding', ranger_offered:'Ranger Offered'
+};
+// Builds the two phrasings ("as continuation" joined with "and", and
+// "standalone" when it's the only clause) for the current doc-status/
+// schools filter, so the summary sentence reads naturally either way.
+function _rangerDocClauseTexts(v){
+  if(v==='all')return null;
+  if(v==='docs:complete')return{cont:'their TB + W9 + Live Scan + Contract are complete',standalone:'have their TB + W9 + Live Scan + Contract complete'};
+  if(v==='docs:partial')return{cont:'their TB + W9 + Live Scan + Contract are partially complete',standalone:'have their TB + W9 + Live Scan + Contract partially complete'};
+  if(v==='docs:nothing')return{cont:'their TB + W9 + Live Scan + Contract have nothing on file',standalone:'have nothing on file for TB + W9 + Live Scan + Contract'};
+  if(v==='tb:yes')return{cont:'their TB Test is on file',standalone:'have a TB Test on file'};
+  if(v==='tb:no')return{cont:'their TB Test is not on file',standalone:'have no TB Test on file'};
+  if(v==='w9:yes')return{cont:'their W9 is on file',standalone:'have a W9 on file'};
+  if(v==='w9:no')return{cont:'their W9 is not on file',standalone:'have no W9 on file'};
+  if(v==='contract:yes')return{cont:'their Signed Contract is on file',standalone:'have a Signed Contract on file'};
+  if(v==='contract:no')return{cont:'their Signed Contract is not on file',standalone:'have no Signed Contract on file'};
+  if(v==='resume:yes')return{cont:'their Resume is on file',standalone:'have a Resume on file'};
+  if(v==='resume:no')return{cont:'their Resume is not on file',standalone:'have no Resume on file'};
+  if(v.indexOf('docslivescan:')===0){const st=v.slice(13);return{cont:`their Ranger Live Scan is ${st}`,standalone:`have a Ranger Live Scan status of ${st}`};}
+  if(v==='address:yes')return{cont:'their Mailing Address is on file',standalone:'have a Mailing Address on file'};
+  if(v==='address:no')return{cont:'their Mailing Address is not on file',standalone:'have no Mailing Address on file'};
+  if(v.indexOf('schools:')===0){const n=v.slice(8);const s=n==='1'?'school':'schools';return{cont:`they are assigned to ${n} ${s}`,standalone:`are assigned to ${n} ${s}`};}
+  return null;
+}
+function _updateRangerSummarySentence(count){
+  const el=document.getElementById('rangerSummarySentence');
+  if(!el)return;
+  const roleLabel=RANGER_ROLE_SENTENCE_LABELS[crf]||'Rangers';
+  const rangerNumClause=crnf!=='all'?`are Ranger # ${crnf}`:null;
+  const docClauses=_rangerDocClauseTexts(crdf);
+  let sentence;
+  if(rangerNumClause&&docClauses){
+    sentence=`${count} ${roleLabel} ${rangerNumClause} and ${docClauses.cont}.`;
+  } else if(rangerNumClause){
+    sentence=`${count} ${roleLabel} ${rangerNumClause}.`;
+  } else if(docClauses){
+    sentence=`${count} ${roleLabel} ${docClauses.standalone}.`;
+  } else {
+    sentence=`${count} ${roleLabel} shown.`;
+  }
+  el.textContent=sentence;
 }
 // Fills the "Filter by Ranger Number" dropdown from Items All (Type 2 =
 // "Ranger Rate") — same cached list used by the Add/Edit Person Ranger
@@ -3272,6 +3388,8 @@ function renderRangers(){
     if(q&&!(fullName(h)+(h.Email||h.email||'')).toLowerCase().includes(q))return false;
     return true;
   });
+  rangers.sort((a,b)=>_rangerSortCompare(a,b,crso));
+  _updateRangerSummarySentence(rangers.length);
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
   const listEl=document.getElementById('rangerList');
   listEl.classList.toggle('pictures-grid',_rangerViewMode==='pictures');
