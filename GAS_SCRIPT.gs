@@ -561,6 +561,7 @@ function doPost(e) {
       case 'createSite':          return respond(handleCreateSite(p));
       case 'deleteSite':          return respond(handleDeleteSite(p));
       case 'getSchoolDistricts':  return respond(handleGetSchoolDistricts());
+      case 'getSiteTypes':        return respond(handleGetSiteTypes());
 
       // ── DELETE HUMAN ─────────────────────────────────────────────────────────
       case 'deleteHuman':   return respond(handleDeleteHuman(p));
@@ -2049,6 +2050,30 @@ function handleGetSchoolDistricts() {
   }
   out.sort();
   return { ok: true, districts: out };
+}
+
+// Returns the distinct "Name" values from Items All rows tagged
+// Type = "Site Type", in sheet row order — powers the Schools tab's
+// "By Program" filter dropdown. Matched exactly (case-insensitive) against
+// each Site row's own "Type" column by the frontend.
+function handleGetSiteTypes() {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ni = headers.indexOf('Name');
+  var ti = headers.indexOf('Type');
+  if (ni === -1 || ti === -1) return { ok: false, error: 'Expected Name/Type columns not found in Items All.' };
+  var seen = {}, out = [];
+  for (var r = 1; r < data.length; r++) {
+    var type = String(data[r][ti] || '').trim().toLowerCase();
+    if (type !== 'site type') continue;
+    var nm = String(data[r][ni] || '').trim();
+    if (!nm || seen[nm]) continue;
+    seen[nm] = true;
+    out.push(nm);
+  }
+  return { ok: true, types: out };
 }
 
 function handleSaveEdit(p) {
