@@ -571,18 +571,58 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 
   <!-- SCHOOLS -->
   <div class="tab-pane" id="tab-schools">
-    <div class="filter-row" id="schoolFilters">
-      <button class="chip"        data-filter="all"        data-label="All"           onclick="filterSchools('all')">All</button>
-      <button class="chip active" data-filter="active"     data-label="🟢 Active"     onclick="filterSchools('active')">🟢 Active</button>
-      <button class="chip"        data-filter="future"     data-label="🔵 Future"     onclick="filterSchools('future')">🔵 Future</button>
-      <button class="chip"        data-filter="inactive"   data-label="⚫ Inactive"   onclick="filterSchools('inactive')">⚫ Inactive</button>
-      <button class="chip"        data-filter="possible"   data-label="🟡 Possible"   onclick="filterSchools('possible')">🟡 Possible</button>
-      <button class="chip"        data-filter="lausd"      data-label="LAUSD"         onclick="filterSchools('lausd')">LAUSD</button>
-      <button class="chip"        data-filter="busd"       data-label="BUSD"          onclick="filterSchools('busd')">BUSD</button>
-      <button class="chip"        data-filter="gusd"       data-label="GUSD"          onclick="filterSchools('gusd')">GUSD</button>
-      <button class="chip"        data-filter="no-ranger"  data-label="Unassigned"    onclick="filterSchools('no-ranger')">Unassigned</button>
-      <button class="chip"        data-filter="has-chores" data-label="⚠ Open Chores" onclick="filterSchools('has-chores')">⚠ Open Chores</button>
-      <button class="chip" id="nearMeChip" data-filter="near-me"   data-label="📍 Near Me"     onclick="toggleNearMeFilter()">📍 Near Me</button>
+    <div id="schoolFilters" style="padding:10px 16px 4px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:680px;margin:0 auto;border-bottom:1px solid var(--mist)">
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program</label>
+        <select id="schoolProgramFilter" class="settings-input" style="margin:0" onchange="setSchoolProgramFilter(this.value)">
+          <option value="all">All</option>
+          <option value="Active Ranger Program" selected>Active Ranger Program</option>
+          <option value="Future Ranger Program">Future Ranger Program</option>
+          <option value="Inactive Ranger Program">Inactive Ranger Program</option>
+          <option value="Possible Ranger Program">Possible Ranger Program</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Placement</label>
+        <select id="schoolPlacementFilter" class="settings-input" style="margin:0" onchange="setSchoolPlacementFilter(this.value)">
+          <option value="all">All</option>
+          <option value="assigned">Assigned</option>
+          <option value="unassigned">Unassigned</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger</label>
+        <select id="schoolRangerFilter" class="settings-input" style="margin:0" onchange="setSchoolRangerFilter(this.value)">
+          <option value="all">All Rangers</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Day of Week</label>
+        <select id="schoolDayFilter" class="settings-input" style="margin:0" onchange="setSchoolDayFilter(this.value)">
+          <option value="all">All</option>
+          <option value="Monday">Monday</option>
+          <option value="Tuesday">Tuesday</option>
+          <option value="Wednesday">Wednesday</option>
+          <option value="Thursday">Thursday</option>
+          <option value="Friday">Friday</option>
+          <option value="Saturday">Saturday</option>
+          <option value="Sunday">Sunday</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By PO</label>
+        <select id="schoolPoFilter" class="settings-input" style="margin:0" onchange="setSchoolPoFilter(this.value)">
+          <option value="all">All</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Program Units</label>
+        <select id="schoolUnitsFilter" class="settings-input" style="margin:0" onchange="setSchoolUnitsFilter(this.value)">
+          <option value="all">All</option>
+        </select>
+      </div>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
@@ -1339,10 +1379,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.70';
+const APP_VERSION='v10.71';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-28 - Rangers tab: Added a Simple view mode (button to the left of Summary) — a bare, fast-loading list of names, each hotlinked to open that persons card. No photos, roles, or schools shown, just names for quick scanning.';
+const BUILD_STAMP='2026-08-29 - Schools tab: Replaced the whole filter chip row with 6 dropdowns - By Program (live from Items All Site Type rows), By Ranger Placement, By Ranger, By Day of Week, By PO, By Ranger Program Units. Old District/Open Chores/Near Me chips removed.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1371,7 +1411,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csf='active',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
@@ -3090,58 +3130,89 @@ function getMySchools(){
   });
 }
 
-function updateSchoolFilterCounts(){
-  const pool=getMySchools()||DATA.sites;
-  const counts={all:pool.length,lausd:0,busd:0,gusd:0,'no-ranger':0,'has-chores':0,active:0,future:0,inactive:0,possible:0};
-  pool.forEach(s=>{
-    const dist=dc(sf(s,'District','district'));
-    if(dist==='lausd')counts.lausd++;
-    else if(dist==='busd')counts.busd++;
-    else if(dist==='gusd')counts.gusd++;
-    const r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
-    if(!r1n&&!r1e&&!gkn&&!gke)counts['no-ranger']++;
-    if(openChoresForSite(sf(s,'Key','key')).length>0)counts['has-chores']++;
-    const t=(sf(s,'Type','type')||'').toLowerCase();
-    if(t.includes('active') && !t.includes('inactive'))counts.active++;
-    if(t.includes('future'))counts.future++;
-    if(t.includes('inactive'))counts.inactive++;
-    if(t.includes('possible'))counts.possible++;
-  });
-  document.querySelectorAll('#schoolFilters .chip').forEach(c=>{
-    const f=c.dataset.filter,lbl=c.dataset.label||f;
-    const n=counts[f]!==undefined?counts[f]:0;
-    c.textContent=`${lbl} (${n})`;
-  });
+// Items All (Type = "Site Type") → "By Program" dropdown. Fetched once per
+// session; hardcoded options already in the HTML act as an instant fallback
+// so the dropdown works before this resolves.
+let _siteTypesCache=null,_schoolProgramFilterFilled=false;
+async function _getSiteTypes(){
+  if(_siteTypesCache)return _siteTypesCache;
+  try{
+    const res=await gasPost({action:'getSiteTypes'});
+    _siteTypesCache=(res&&res.ok)?(res.types||[]):[];
+  }catch(e){_siteTypesCache=[];}
+  return _siteTypesCache;
+}
+function _fillSchoolProgramFilterSelect(){
+  const sel=document.getElementById('schoolProgramFilter');
+  if(!sel||!_siteTypesCache||!_siteTypesCache.length)return;
+  const current=sel.value;
+  sel.innerHTML='<option value="all">All</option>'+_siteTypesCache.map(t=>`<option value="${ea(t)}">${escHtml(t)}</option>`).join('');
+  sel.value=[...sel.options].some(o=>o.value===current)?current:'all';
+  _schoolProgramFilterFilled=true;
+}
+// "By Ranger" + "By Ranger Program Units" dropdowns are built straight off
+// DATA.sites (no network round trip) so they always reflect the freshest
+// assignments/units without adding a load delay.
+function _fillSchoolDynamicFilters(){
+  if(!_siteTypesCache){_getSiteTypes().then(()=>_fillSchoolProgramFilterSelect());}
+  else if(!_schoolProgramFilterFilled){_fillSchoolProgramFilterSelect();}
+  const rSel=document.getElementById('schoolRangerFilter');
+  if(rSel){
+    const seen={};
+    DATA.sites.forEach(s=>{
+      const r1=sf(s,'Ranger 1','Ranger1'),r2=sf(s,'Ranger 2','Ranger2');
+      if(r1&&!seen[r1])seen[r1]=hn(r1)||r1;
+      if(r2&&!seen[r2])seen[r2]=hn(r2)||r2;
+    });
+    const entries=Object.entries(seen).sort((a,b)=>a[1].localeCompare(b[1]));
+    const current=rSel.value||'all';
+    rSel.innerHTML='<option value="all">All Rangers</option>'+entries.map(([email,name])=>`<option value="${ea(email)}">${escHtml(name)}</option>`).join('');
+    rSel.value=[...rSel.options].some(o=>o.value===current)?current:'all';
+  }
+  const uSel=document.getElementById('schoolUnitsFilter');
+  if(uSel){
+    const set=new Set();
+    DATA.sites.forEach(s=>{
+      const u=String(sf(s,'Ranger Program Units')||'').trim();
+      if(u!=='')set.add(u);
+    });
+    const nums=[...set].sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0));
+    const current=uSel.value||'all';
+    uSel.innerHTML='<option value="all">All</option>'+nums.map(n=>`<option value="${ea(n)}">${escHtml(n)}</option>`).join('');
+    uSel.value=[...uSel.options].some(o=>o.value===current)?current:'all';
+  }
 }
 
 function renderSchools(){
-  const q=sq.toLowerCase(),f=csf;
+  const q=sq.toLowerCase();
   const pool=getMySchools()||DATA.sites;
   const sites=pool.filter(s=>{
-    const name=sf(s,'Name','name'),dist=sf(s,'District','district'),type=(sf(s,'Type','type')||'').toLowerCase(),r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
+    const name=sf(s,'Name','name'),dist=sf(s,'District','district'),type=(sf(s,'Type','type')||'').trim(),r1n=sf(s,'Ranger 1 Name','Ranger1Name'),r1e=sf(s,'Ranger 1','Ranger1'),r2e=sf(s,'Ranger 2','Ranger2'),gkn=sf(s,'Garden Keeper Name','GardenKeeperName'),gke=sf(s,'Garden Keeper','GardenKeeper');
     if(q&&!(name+dist+r1n+r1e+gkn).toLowerCase().includes(q))return false;
     if(SESSION&&SESSION.accessLevel<=2){
-      const d=dc(dist);
-      if(f==='lausd'&&d!=='lausd')return false;
-      if(f==='busd'&&d!=='busd')return false;
-      if(f==='gusd'&&d!=='gusd')return false;
-      if(f==='no-ranger'&&(r1n||r1e||gkn||gke))return false;
-      if(f==='has-chores'&&openChoresForSite(sf(s,'Key','key')).length===0)return false;
-      if(f==='active'&&(!type.includes('active')||type.includes('inactive')))return false;
-      if(f==='future'&&!type.includes('future'))return false;
-      if(f==='inactive'&&!type.includes('inactive'))return false;
-      if(f==='possible'&&!type.includes('possible'))return false;
-      if(f==='near-me'){
-        if(_userLat===null)return true;
-        const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return false;
-        const p=ll.toString().split(',');if(p.length<2)return false;
-        const slat=parseFloat(p[0]),slng=parseFloat(p[1]);if(isNaN(slat)||isNaN(slng))return false;
-        return _haversine(_userLat,_userLng,slat,slng)<=5000;
+      if(csProgF!=='all'&&type.toLowerCase()!==csProgF.toLowerCase())return false;
+      if(csPlaceF==='assigned'&&!(r1e||r2e))return false;
+      if(csPlaceF==='unassigned'&&(r1e||r2e))return false;
+      if(csRangerF!=='all'&&r1e!==csRangerF&&r2e!==csRangerF)return false;
+      if(csDayF!=='all'){
+        const d1=(sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'').trim().toLowerCase();
+        if(d1!==csDayF.toLowerCase())return false;
+      }
+      if(csPoF!=='all'){
+        const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+        if(csPoF==='yes'&&!hasPO)return false;
+        if(csPoF==='no'&&hasPO)return false;
+      }
+      if(csUnitsF!=='all'){
+        const units=String(sf(s,'Ranger Program Units')||'').trim();
+        if(units!==csUnitsF)return false;
       }
     }
     return true;
   });
-  // Compute distances and sort by nearest when near-me active
+  // Distances are still computed for the badge shown on each card whenever the
+  // user's location is known (e.g. via the Map tab's Locate Me), independent
+  // of the filters above.
   const sitesWithDist=sites.map(s=>{
     let distM=null;
     if(_userLat!==null){
@@ -3150,14 +3221,14 @@ function renderSchools(){
     }
     return {s,distM};
   });
-  if(f==='near-me'&&_userLat!==null)sitesWithDist.sort((a,b)=>(a.distM??Infinity)-(b.distM??Infinity));
   const sortedSites=sitesWithDist.map(x=>x.s);
   window._fsDistMap=Object.fromEntries(sitesWithDist.map(({s,distM})=>[sf(s,'Name','name'),distM]));
   window._fs=sortedSites;
   document.getElementById('schoolCount').textContent=sites.length+' sites';
-  document.getElementById('schoolFilters').style.display=SESSION&&SESSION.accessLevel>=3?'none':'flex';
-  if(SESSION&&SESSION.accessLevel<=2)updateSchoolFilterCounts();
-  if(!sortedSites.length){document.getElementById('schoolList').innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):f==='near-me'?empty('📍','No sites nearby','No sites found within 5 km of your location.'):empty('—','No results','Try a different search or filter.');return;}
+  const filtersRow=document.getElementById('schoolFilters');
+  if(filtersRow)filtersRow.style.display=SESSION&&SESSION.accessLevel>=3?'none':'flex';
+  if(SESSION&&SESSION.accessLevel<=2)_fillSchoolDynamicFilters();
+  if(!sortedSites.length){document.getElementById('schoolList').innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):empty('—','No results','Try a different search or filter.');return;}
   _renderSchoolBatch(sortedSites,0,40);
 }
 
@@ -3168,7 +3239,7 @@ function _schoolCardHtml(s,i){
   const gke=sf(s,'Garden Keeper','GardenKeeper');
   const gkn=gke?(hn(gke)||sf(s,'Garden Keeper Name','GardenKeeperName')):'';
   const tl=type.toLowerCase();
-  const dimmed=csf==='all'&&!tl.includes('active');
+  const dimmed=csProgF==='all'&&!tl.includes('active');
   const siteKey=sf(s,'Key','key')||'';
   const openChores=openChoresForSite(siteKey);
   const canLink=SESSION&&SESSION.accessLevel<=2;
@@ -4122,25 +4193,6 @@ function locateMe(){
     },{enableHighAccuracy:true,timeout:12000,maximumAge:30000}
   );
 }
-function toggleNearMeFilter(){
-  if(_userLat===null){
-    const chip=document.getElementById('nearMeChip');chip.textContent='📍 Locating…';chip.disabled=true;
-    if(!navigator.geolocation){alert('Geolocation not supported.');chip.textContent='📍 Near Me';chip.disabled=false;return;}
-    navigator.geolocation.getCurrentPosition(
-      pos=>{_userLat=pos.coords.latitude;_userLng=pos.coords.longitude;_locActive=true;chip.textContent='📍 Near Me';chip.disabled=false;_activateNearMeFilter();},
-      err=>{chip.textContent='📍 Near Me';chip.disabled=false;alert(['','Location permission denied.','Location unavailable.','Timed out.'][err.code]||'Could not get location.');},
-      {enableHighAccuracy:true,timeout:12000,maximumAge:60000}
-    );return;
-  }
-  if(csf==='near-me'){filterSchools('active');}else{_activateNearMeFilter();}
-}
-function _activateNearMeFilter(){
-  csf='near-me';
-  document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.remove('active','loc-active'));
-  document.getElementById('nearMeChip').classList.add('active','loc-active');
-  renderSchools();
-}
-
 /* ═══ SCHOOL DETAIL ═══ */
 function showSiteChores(siteKey){
   const chores=openChoresForSite(siteKey);
@@ -6709,13 +6761,12 @@ function switchTab(tab,initMapFlag=false){
   // Render this tab if it has pending data changes
   if(_tabDirty[tab])_renderDirtyTab(tab);
 }
-function filterSchools(f){
-  csf=f;
-  document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.remove('active','loc-active'));
-  if(f==='near-me'){document.getElementById('nearMeChip').classList.add('active','loc-active');}
-  else{document.querySelectorAll('#schoolFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));}
-  renderSchools();
-}
+function setSchoolProgramFilter(v){csProgF=v;renderSchools();}
+function setSchoolPlacementFilter(v){csPlaceF=v;renderSchools();}
+function setSchoolRangerFilter(v){csRangerF=v;renderSchools();}
+function setSchoolDayFilter(v){csDayF=v;renderSchools();}
+function setSchoolPoFilter(v){csPoF=v;renderSchools();}
+function setSchoolUnitsFilter(v){csUnitsF=v;renderSchools();}
 function filterRangers(f){
   crf=f;
   let matchedLabel='Rangers';
