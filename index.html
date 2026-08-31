@@ -1379,10 +1379,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.71';
+const APP_VERSION='v10.72';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-29 - Schools tab: Replaced the whole filter chip row with 6 dropdowns - By Program (live from Items All Site Type rows), By Ranger Placement, By Ranger, By Day of Week, By PO, By Ranger Program Units. Old District/Open Chores/Near Me chips removed.';
+const BUILD_STAMP='2026-08-31 - Level 3 Map tab: added Unassigned button (schools with no Ranger 1 or Ranger 2) - basic address plus picture card like All Active Schools, plus Ranger Day Of Week 1 to 3 and Ranger Program Units so ops can see coverage needed.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3756,7 +3756,8 @@ function _renderMapFilterChips(){
   if(SESSION&&SESSION.accessLevel>=3){
     wrap.innerHTML=`
       <button class="map-chip${cmf==='mine'?' active':''}" data-filter="mine" onclick="filterMap('mine')">📍 Mine</button>
-      <button class="map-chip${cmf==='all-active'?' active':''}" data-filter="all-active" onclick="filterMap('all-active')">🟢 All Active Schools</button>`;
+      <button class="map-chip${cmf==='all-active'?' active':''}" data-filter="all-active" onclick="filterMap('all-active')">🟢 All Active Schools</button>
+      <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">❔ Unassigned</button>`;
   } else {
     wrap.innerHTML=`
       <button class="map-chip${cmf==='all'?' active':''}" data-filter="all" onclick="filterMap('all')">All</button>
@@ -3775,10 +3776,18 @@ function buildMapMarkers(){
   if(lvl3){
     // "Mine": schools where I'm Ranger 1, Ranger 2, or Garden Keeper.
     // "All Active Schools": every active site, regardless of assignment.
+    // "Unassigned": sites with no Ranger 1 AND no Ranger 2 on file yet
+    // (same "unassigned" definition used by the Schools tab's By Ranger
+    // Placement filter).
     if(cmf==='all-active'){
       sites=DATA.sites.filter(s=>{
         const t=(sf(s,'Type','type')||'').toLowerCase();
         return t.includes('active')&&!t.includes('inactive');
+      });
+    } else if(cmf==='unassigned'){
+      sites=DATA.sites.filter(s=>{
+        const r1=sf(s,'Ranger 1','Ranger1'),r2=sf(s,'Ranger 2','Ranger2');
+        return !r1&&!r2;
       });
     } else {
       sites=getMySchools()||[];
@@ -3797,9 +3806,13 @@ function buildMapMarkers(){
       });
     }
   }
-  // Level 3 viewing "All Active Schools" only gets the basics — no edit
-  // ability — since these aren't necessarily their own assigned sites.
-  const useBasicCard=lvl3&&cmf==='all-active';
+  // Level 3 viewing "All Active Schools" or "Unassigned" only gets the
+  // basics — no edit ability — since these aren't necessarily their own
+  // assigned sites. "Unassigned" additionally surfaces ranger scheduling
+  // fields (day-of-week, program units) so ops staff can see what a new
+  // placement would need.
+  const useBasicCard=lvl3&&(cmf==='all-active'||cmf==='unassigned');
+  const showRangerNeedInfo=lvl3&&cmf==='unassigned';
   sites.forEach(s=>{
     const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
     const parts=ll.toString().split(',');if(parts.length<2)return;
@@ -3817,7 +3830,7 @@ function buildMapMarkers(){
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
     const openHandler=useBasicCard
-      ?()=>{showSchoolBasicByKey(sf(s,'Key','key')||'');}
+      ?()=>{showSchoolBasicByKey(sf(s,'Key','key')||'',showRangerNeedInfo);}
       :()=>{showSchoolDetailByKey(sf(s,'Key','key')||'');};
     marker.on('click',openHandler);
     marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-10],interactive:true});
@@ -4214,12 +4227,24 @@ function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name',
 // Stripped-down, non-editable school card — Main Image, Address, Directions
 // only. Used on the Map's "All Active Schools" filter for level 3, since
 // those sites aren't necessarily the ranger's own to view/edit in full.
-function showSchoolBasicByKey(key){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolBasic(site);openDetail();}
-function renderSchoolBasic(site){
+function showSchoolBasicByKey(key,showRangerNeedInfo){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolBasic(site,showRangerNeedInfo);openDetail();}
+function renderSchoolBasic(site,showRangerNeedInfo){
   const name=sf(site,'Name','name');
   const addr=sf(site,'FullAddress','Full Address','address')||[sf(site,'Street Address','StreetAddress'),sf(site,'City','city'),sf(site,'State','state'),sf(site,'Zip Code','ZipCode')].filter(Boolean).join(', ');
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
   const maps=addr?`https://maps.google.com/?q=${encodeURIComponent(addr)}`:`https://maps.google.com/?q=${encodeURIComponent(name+' Los Angeles')}`;
+  // "Unassigned" markers additionally surface the ranger-scheduling fields
+  // (which day(s) coverage is needed, and how many program units) so ops
+  // staff can see at a glance what a new placement here would involve.
+  let rangerNeedHtml='';
+  if(showRangerNeedInfo){
+    const days=[sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')].filter(Boolean).join(', ');
+    const units=sf(site,'Ranger Program Units')||'';
+    rangerNeedHtml=`
+    <div class="ds"><div class="dl">Ranger</div><div class="dv" style="color:var(--danger)">Unassigned</div></div>
+    ${days?`<div class="ds"><div class="dl">Day(s) Needed</div><div class="dv">${escHtml(days)}</div></div>`:''}
+    ${units?`<div class="ds"><div class="dl">Ranger Program Units</div><div class="dv">${escHtml(String(units))}</div></div>`:''}`;
+  }
   document.getElementById('detail-content').innerHTML=`
     <div class="sheet-head">
       <div class="sheet-title" style="font-size:26px">${escHtml(name)}</div>
@@ -4227,6 +4252,7 @@ function renderSchoolBasic(site){
     </div>
     ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" style="width:100%;aspect-ratio:1;object-fit:cover;object-position:top center;border-radius:var(--r-sm);opacity:0;transition:opacity .3s;background:var(--fog)" onerror="this.parentElement.style.display='none'"></div>`:''}
     ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv">${escHtml(addr)}</div></div>`:''}
+    ${rangerNeedHtml}
     <div class="detail-ctas">
       <a class="dcta filled" href="${maps}" target="_blank" rel="noopener">🧭 Directions</a>
     </div>
