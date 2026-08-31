@@ -1379,10 +1379,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.72';
+const APP_VERSION='v10.73';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-31 - Level 3 Map tab: added Unassigned button (schools with no Ranger 1 or Ranger 2) - basic address plus picture card like All Active Schools, plus Ranger Day Of Week 1 to 3 and Ranger Program Units so ops can see coverage needed.';
+const BUILD_STAMP='2026-08-31 - Unassigned map filter now only pulls Type = Active Ranger Program sites. Added Ask about this school mailto button (opens device mail app, addressed to all Access Level 2 people) on both the basic and full school detail cards.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3785,7 +3785,12 @@ function buildMapMarkers(){
         return t.includes('active')&&!t.includes('inactive');
       });
     } else if(cmf==='unassigned'){
+      // Only pull from active-program schools — not the whole Sites list —
+      // so this doesn't surface future/inactive/possible sites that were
+      // never going to have a ranger assigned yet.
       sites=DATA.sites.filter(s=>{
+        const t=(sf(s,'Type','type')||'').trim();
+        if(t!=='Active Ranger Program')return false;
         const r1=sf(s,'Ranger 1','Ranger1'),r2=sf(s,'Ranger 2','Ranger2');
         return !r1&&!r2;
       });
@@ -4227,6 +4232,31 @@ function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name',
 // Stripped-down, non-editable school card — Main Image, Address, Directions
 // only. Used on the Map's "All Active Schools" filter for level 3, since
 // those sites aren't necessarily the ranger's own to view/edit in full.
+/* ═══ "Ask about this school" — mailto: link (opens the device's own mail
+   app, not a Gmail web compose) pre-addressed to every Access Level 2
+   person on file, with a pre-filled subject/body naming the school. ═══ */
+function _level2Emails(){
+  if(!DATA.humans||!DATA.humans.length)return [];
+  const seen=new Set();
+  DATA.humans.forEach(h=>{
+    const lvl=String(h['Access Level']||'').trim();
+    const email=(h.Email||h.email||'').trim();
+    if(lvl==='2'&&email)seen.add(email);
+  });
+  return [...seen];
+}
+function askAboutSchoolMailto(name){
+  const to=_level2Emails().join(',');
+  const subject='I have a question about '+name;
+  const body='I have a question about '+name+'\n\n';
+  return `mailto:${encodeURIComponent(to).replace(/%2C/g,',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+function _askAboutSchoolCta(name){
+  const to=_level2Emails();
+  if(!to.length)return '';
+  return `<a class="dcta" href="${askAboutSchoolMailto(name)}">✉ Ask about this school</a>`;
+}
+
 function showSchoolBasicByKey(key,showRangerNeedInfo){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolBasic(site,showRangerNeedInfo);openDetail();}
 function renderSchoolBasic(site,showRangerNeedInfo){
   const name=sf(site,'Name','name');
@@ -4255,6 +4285,7 @@ function renderSchoolBasic(site,showRangerNeedInfo){
     ${rangerNeedHtml}
     <div class="detail-ctas">
       <a class="dcta filled" href="${maps}" target="_blank" rel="noopener">🧭 Directions</a>
+      ${_askAboutSchoolCta(name)}
     </div>
     <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
 }
@@ -4546,7 +4577,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
-      <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a></div>
+      <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a>${_askAboutSchoolCta(name)}</div>
     <button class="btn-edit" onclick="renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
     <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>
     `;
