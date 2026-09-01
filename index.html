@@ -600,6 +600,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Day of Week</label>
         <select id="schoolDayFilter" class="settings-input" style="margin:0" onchange="setSchoolDayFilter(this.value)">
           <option value="all">All</option>
+          <option value="none">None</option>
           <option value="Monday">Monday</option>
           <option value="Tuesday">Tuesday</option>
           <option value="Wednesday">Wednesday</option>
@@ -1394,10 +1395,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.77';
+const APP_VERSION='v10.78';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-01 - Added a By Schedule filter (Yes/No, based on whether Schedule Contents is populated) to the Schools tab filter row and a new filter row on Operations > Home.';
+const BUILD_STAMP='2026-09-01 - Schools tab: added a None option to the By Ranger filter (no Ranger 1 or Ranger 2 assigned) and the By Day of Week filter (no day set).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3201,7 +3202,7 @@ function _fillSchoolDynamicFilters(){
     });
     const entries=Object.entries(seen).sort((a,b)=>a[1].localeCompare(b[1]));
     const current=rSel.value||'all';
-    rSel.innerHTML='<option value="all">All Rangers</option>'+entries.map(([email,name])=>`<option value="${ea(email)}">${escHtml(name)}</option>`).join('');
+    rSel.innerHTML='<option value="all">All Rangers</option><option value="none">None</option>'+entries.map(([email,name])=>`<option value="${ea(email)}">${escHtml(name)}</option>`).join('');
     rSel.value=[...rSel.options].some(o=>o.value===current)?current:'all';
   }
   const uSel=document.getElementById('schoolUnitsFilter');
@@ -3228,10 +3229,14 @@ function renderSchools(){
       if(csProgF!=='all'&&type.toLowerCase()!==csProgF.toLowerCase())return false;
       if(csPlaceF==='assigned'&&!(r1e||r2e))return false;
       if(csPlaceF==='unassigned'&&(r1e||r2e))return false;
-      if(csRangerF!=='all'&&r1e!==csRangerF&&r2e!==csRangerF)return false;
+      if(csRangerF==='none'){
+        if(r1e||r2e)return false;
+      } else if(csRangerF!=='all'&&r1e!==csRangerF&&r2e!==csRangerF)return false;
       if(csDayF!=='all'){
         const d1=(sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'').trim().toLowerCase();
-        if(d1!==csDayF.toLowerCase())return false;
+        if(csDayF==='none'){
+          if(d1!=='')return false;
+        } else if(d1!==csDayF.toLowerCase())return false;
       }
       if(csPoF!=='all'){
         const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
