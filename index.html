@@ -1379,10 +1379,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.73';
+const APP_VERSION='v10.74';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-08-31 - Unassigned map filter now only pulls Type = Active Ranger Program sites. Added Ask about this school mailto button (opens device mail app, addressed to all Access Level 2 people) on both the basic and full school detail cards.';
+const BUILD_STAMP='2026-09-01 - Schools tab: replaced the orphaned free-text Schedule field with a real Schedule file upload (saves to Drive, auto-extracts text into Schedule Contents) plus a View Schedule link on the detail card.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1517,6 +1517,26 @@ function _docUploadRow(h,docType){
     <div id="${statusId}" style="font-size:13px;color:var(--stone)">
       ${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeHumanFile('${docType}','${ea(email)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet'}
     </div>
+  </div>`;
+}
+
+/* ═══ SITE SCHEDULE (class rotation schedule file, per school) ═══
+   Same eager-upload-on-pick pattern as ranger docs: uploads immediately,
+   GAS saves the file to the Schedules Drive folder as "<Site> Schedule
+   <year>.<ext>" and writes the link to the "Schedule" column, then does a
+   best-effort text extraction into "Schedule Contents" so the schedule is
+   searchable/readable without opening the file. */
+function _siteScheduleUploadRow(site){
+  const key=sf(site,'Key','key')||'',name=sf(site,'Name','name')||'';
+  const url=sf(site,'Schedule','schedule')||'';
+  const contents=sf(site,'Schedule Contents','ScheduleContents')||'';
+  return `<div class="edit-wrap">
+    <div class="edit-label">Schedule</div>
+    <input type="file" accept="application/pdf,.doc,.docx,image/*" onchange="handleSiteScheduleFile(this,'${ea(key)}','${ea(name)}')" style="margin-bottom:6px">
+    <div id="site-sched-status" style="font-size:13px;color:var(--stone)">
+      ${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeSiteSchedule('${ea(key)}','${ea(name)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet'}
+    </div>
+    ${contents?`<div style="font-size:12px;color:var(--silver);margin-top:4px">✓ Text extracted (${contents.length.toLocaleString()} chars) for reference/search</div>`:''}
   </div>`;
 }
 
@@ -4294,7 +4314,7 @@ function renderSchoolDetail(site,editMode,opsMode){
   opsMode=!!opsMode;
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
   const stAddr=sf(site,'Street Address','StreetAddress'),stCity=sf(site,'City','city'),stState=sf(site,'State','state'),stZip=sf(site,'Zip Code','ZipCode'),stCountry=sf(site,'Country','country');
-  const details=sf(site,'SiteDetails','Site Details','siteDetails'),sched=sf(site,'Schedule','schedule');
+  const details=sf(site,'SiteDetails','Site Details','siteDetails'),schedUrl=sf(site,'Schedule','schedule');
   const videoSrc=(sf(site,'Helpful Video 1','HelpfulVideo1')||'').trim();
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
   const img2=getImgSrc(sf(site,'Image 2','Image2'));
@@ -4401,7 +4421,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       <div class="edit-wrap" style="position:relative;z-index:55"><div class="edit-label">Plant Manager</div>${bdd('pm',plantManagers,pme,'Plant Manager')}</div>
       <hr class="section-divider">`:''}
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
-      <div class="edit-wrap"><div class="edit-label">Schedule</div><input class="edit-input" id="ef-Schedule" value="${ea(sched)}"></div>
+      ${_siteScheduleUploadRow(site)}
       ${opsMode?(()=>{
         const program=sf(site,'Program')||'';
         const programCost=sf(site,'Program Cost')||'';
@@ -4571,7 +4591,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2',img2Meta)}${siteGalleryThumb(img3,'Image 3',img3Meta)}${siteGalleryThumb(helpImg1,'Helpful Image 1',helpImg1Meta)}${siteGalleryThumb(helpImg2,'Helpful Image 2',helpImg2Meta)}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image',helpBeforeImgMeta)}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
-      ${sched?`<div class="ds"><div class="dl">Schedule</div><div class="dv">${sched}</div></div>`:''}
+      ${schedUrl?`<div class="ds"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div><div class="dv">${videoLinkHtml(videoSrc)}</div></div>`:''}
       ${ranger1Html}${ranger2Html}${keeperHtml}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
@@ -4607,7 +4627,9 @@ function _collectSiteEditFormValues(){
     updates['Full Address']=buildFullAddress(_stAddr,_stCity,_stState,_stZip,_stCountry);
   }
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
-  const sch=gv('ef-Schedule');if(sch!==null)updates['Schedule']=sch;
+  // Schedule is now a file upload (see _siteScheduleUploadRow / handleSiteScheduleFile) —
+  // it uploads and saves itself immediately on file pick, so it's intentionally
+  // not collected here as a form field.
   // Operations edit fields (only present when editing from the Operations tab)
   const rd1=gv('ef-RangerDay1');if(rd1!==null)updates['Ranger Day Of Week 1']=rd1;
   const rd2=gv('ef-RangerDay2');if(rd2!==null)updates['Ranger Day Of Week 2']=rd2;
@@ -7952,6 +7974,68 @@ async function removeHumanFile(fieldKey,email,opts){
   }
 }
 
+
+/* ═══ SITE SCHEDULE upload/remove — mirrors _uploadHumanDoc/handleHumanDocFile,
+   uploads immediately on file pick, writes straight to the sheet + local DATA
+   cache. Site lookup uses Name primary / Key fallback (see GAS handler). */
+async function _uploadSiteSchedule(siteKeyOrName,siteName,file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      try{
+        const base64=e.target.result.split(',')[1];
+        const j=await gasPost({action:'uploadSiteSchedule',siteKey:siteKeyOrName,siteName,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
+        j.ok?resolve({url:j.url,contents:j.contents||''}):reject(new Error(j.error||'Upload failed'));
+      }catch(err){reject(err);}
+    };
+    reader.onerror=()=>reject(new Error('File read error'));
+    reader.readAsDataURL(file);
+  });
+}
+function _scheduleStatusHtml(url,key,name){
+  return url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeSiteSchedule('${ea(key)}','${ea(name)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet';
+}
+function _syncSiteScheduleIntoCache(siteKey,siteName,url,contents){
+  const site=DATA.sites.find(s=>sf(s,'Name','name')===siteName||(s.Key||s.key||'')===siteKey);
+  if(site){site['Schedule']=url;site['Schedule Contents']=contents;}
+  if(window._currentSite&&(sf(window._currentSite,'Name','name')===siteName||(window._currentSite.Key||window._currentSite.key||'')===siteKey)){
+    window._currentSite['Schedule']=url;window._currentSite['Schedule Contents']=contents;
+  }
+  localStorage.setItem(CFG.CK,JSON.stringify(DATA));
+}
+async function handleSiteScheduleFile(input,siteKey,siteName){
+  const file=input.files[0];if(!file)return;
+  const statusEl=document.getElementById('site-sched-status');
+  if(statusEl)statusEl.textContent='Uploading…';
+  _blockAppDuringUpload('Uploading schedule… Please give us a moment.');
+  try{
+    const{url,contents}=await _uploadSiteSchedule(siteKey,siteName,file);
+    _syncSiteScheduleIntoCache(siteKey,siteName,url,contents);
+    if(statusEl)statusEl.innerHTML=_scheduleStatusHtml(url,siteKey,siteName);
+    showSaveToast(contents?'✓ Schedule uploaded & text extracted':'✓ Schedule uploaded (text extraction unavailable)');
+  }catch(e){
+    if(statusEl)statusEl.textContent='⚠ Upload failed: '+e.message;
+    showSaveToast('⚠ Schedule upload failed — '+e.message);
+  }finally{
+    _unblockAppAfterUpload();
+  }
+}
+async function removeSiteSchedule(siteKey,siteName){
+  if(!confirm('Remove Schedule? This cannot be undone.'))return;
+  _blockAppDuringUpload('Removing schedule… Please give us a moment.');
+  try{
+    const j=await gasPost({action:'removeSiteSchedule',siteKey,siteName,actor:SESSION?SESSION.email:''});
+    if(!j.ok)throw new Error(j.error||'Remove failed');
+    _syncSiteScheduleIntoCache(siteKey,siteName,'','');
+    const statusEl=document.getElementById('site-sched-status');
+    if(statusEl)statusEl.textContent='No file uploaded yet';
+    showSaveToast('✓ Schedule removed');
+  }catch(e){
+    showSaveToast('⚠ Remove failed — '+e.message);
+  }finally{
+    _unblockAppAfterUpload();
+  }
+}
 
 /* ═══ UPLOAD PROMPT — appears after any photo or video is picked ═══ */
 function showUploadPrompt(mediaType){
