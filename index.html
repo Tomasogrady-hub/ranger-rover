@@ -1379,10 +1379,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.74';
+const APP_VERSION='v10.75';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-01 - Schools tab: replaced the orphaned free-text Schedule field with a real Schedule file upload (saves to Drive, auto-extracts text into Schedule Contents) plus a View Schedule link on the detail card.';
+const BUILD_STAMP='2026-09-01 - Schools tab: added a View Schedule Contents link to the detail card (lazy-reveals the extracted text) and an editable Schedule Contents textarea in Edit Site so extraction mistakes can be corrected by hand.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1536,8 +1536,8 @@ function _siteScheduleUploadRow(site){
     <div id="site-sched-status" style="font-size:13px;color:var(--stone)">
       ${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeSiteSchedule('${ea(key)}','${ea(name)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet'}
     </div>
-    ${contents?`<div style="font-size:12px;color:var(--silver);margin-top:4px">✓ Text extracted (${contents.length.toLocaleString()} chars) for reference/search</div>`:''}
-  </div>`;
+  </div>
+  <div class="edit-wrap"><div class="edit-label">Schedule Contents</div><textarea class="edit-textarea" id="ef-ScheduleContents" placeholder="Auto-extracted from the uploaded schedule file — edit here to fix an extraction error">${ea(contents)}</textarea></div>`;
 }
 
 /* ═══ RANGER NUMBER (Items All → Type 2 = "Ranger Rate") ═══
@@ -4314,7 +4314,7 @@ function renderSchoolDetail(site,editMode,opsMode){
   opsMode=!!opsMode;
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
   const stAddr=sf(site,'Street Address','StreetAddress'),stCity=sf(site,'City','city'),stState=sf(site,'State','state'),stZip=sf(site,'Zip Code','ZipCode'),stCountry=sf(site,'Country','country');
-  const details=sf(site,'SiteDetails','Site Details','siteDetails'),schedUrl=sf(site,'Schedule','schedule');
+  const details=sf(site,'SiteDetails','Site Details','siteDetails'),schedUrl=sf(site,'Schedule','schedule'),schedContents=sf(site,'Schedule Contents','ScheduleContents');
   const videoSrc=(sf(site,'Helpful Video 1','HelpfulVideo1')||'').trim();
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
   const img2=getImgSrc(sf(site,'Image 2','Image2'));
@@ -4592,6 +4592,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${schedUrl?`<div class="ds"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
+      ${schedContents?`<div class="ds"><div class="dl">Schedule Contents</div><div class="dv"><a class="dlink" href="javascript:void(0)" onclick="_toggleScheduleContents(this)">📄 View Schedule Contents</a><div class="sched-contents-text" style="display:none;margin-top:8px;font-size:15px;color:var(--stone);line-height:1.65;white-space:pre-wrap"></div></div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div><div class="dv">${videoLinkHtml(videoSrc)}</div></div>`:''}
       ${ranger1Html}${ranger2Html}${keeperHtml}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
@@ -4627,9 +4628,11 @@ function _collectSiteEditFormValues(){
     updates['Full Address']=buildFullAddress(_stAddr,_stCity,_stState,_stZip,_stCountry);
   }
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
-  // Schedule is now a file upload (see _siteScheduleUploadRow / handleSiteScheduleFile) —
-  // it uploads and saves itself immediately on file pick, so it's intentionally
-  // not collected here as a form field.
+  // Schedule (the file) uploads and saves itself immediately on file pick
+  // (see _siteScheduleUploadRow / handleSiteScheduleFile) — but Schedule
+  // Contents is a plain textarea so a human can correct an OCR/extraction
+  // mistake, and rides along with the normal Save & Close flow below.
+  const scv=gv('ef-ScheduleContents');if(scv!==null)updates['Schedule Contents']=scv;
   // Operations edit fields (only present when editing from the Operations tab)
   const rd1=gv('ef-RangerDay1');if(rd1!==null)updates['Ranger Day Of Week 1']=rd1;
   const rd2=gv('ef-RangerDay2');if(rd2!==null)updates['Ranger Day Of Week 2']=rd2;
@@ -7995,6 +7998,24 @@ async function _uploadSiteSchedule(siteKeyOrName,siteName,file){
 function _scheduleStatusHtml(url,key,name){
   return url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeSiteSchedule('${ea(key)}','${ea(name)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet';
 }
+/* Lazy-reveals the extracted Schedule Contents text on the view-mode detail
+   card — read from window._currentSite rather than baked into the HTML, so
+   the (possibly long) text is only rendered into the DOM if someone actually
+   taps to see it, keeping the card itself light/fast. */
+function _toggleScheduleContents(el){
+  const wrap=el.nextElementSibling;
+  if(!wrap)return;
+  if(wrap.style.display==='none'){
+    const contents=sf(window._currentSite,'Schedule Contents','ScheduleContents')||'';
+    wrap.textContent=contents||'(no extracted text)';
+    wrap.style.display='block';
+    el.textContent='📄 Hide Schedule Contents';
+  }else{
+    wrap.style.display='none';
+    wrap.textContent='';
+    el.textContent='📄 View Schedule Contents';
+  }
+}
 function _syncSiteScheduleIntoCache(siteKey,siteName,url,contents){
   const site=DATA.sites.find(s=>sf(s,'Name','name')===siteName||(s.Key||s.key||'')===siteKey);
   if(site){site['Schedule']=url;site['Schedule Contents']=contents;}
@@ -8012,6 +8033,8 @@ async function handleSiteScheduleFile(input,siteKey,siteName){
     const{url,contents}=await _uploadSiteSchedule(siteKey,siteName,file);
     _syncSiteScheduleIntoCache(siteKey,siteName,url,contents);
     if(statusEl)statusEl.innerHTML=_scheduleStatusHtml(url,siteKey,siteName);
+    const contentsField=document.getElementById('ef-ScheduleContents');
+    if(contentsField)contentsField.value=contents;
     showSaveToast(contents?'✓ Schedule uploaded & text extracted':'✓ Schedule uploaded (text extraction unavailable)');
   }catch(e){
     if(statusEl)statusEl.textContent='⚠ Upload failed: '+e.message;
@@ -8029,6 +8052,8 @@ async function removeSiteSchedule(siteKey,siteName){
     _syncSiteScheduleIntoCache(siteKey,siteName,'','');
     const statusEl=document.getElementById('site-sched-status');
     if(statusEl)statusEl.textContent='No file uploaded yet';
+    const contentsField=document.getElementById('ef-ScheduleContents');
+    if(contentsField)contentsField.value='';
     showSaveToast('✓ Schedule removed');
   }catch(e){
     showSaveToast('⚠ Remove failed — '+e.message);
