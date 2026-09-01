@@ -623,6 +623,14 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <option value="all">All</option>
         </select>
       </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Schedule</label>
+        <select id="schoolScheduleFilter" class="settings-input" style="margin:0" onchange="setSchoolScheduleFilter(this.value)">
+          <option value="all">All</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
@@ -862,6 +870,13 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="" selected>Ranger: All</option>
             <option value="ranger_assigned">Ranger Assigned</option>
             <option value="ranger_not_assigned">Ranger Not Assigned</option>
+          </select>
+        </div>
+        <div style="padding:0 16px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="opsFilterSchedule" onchange="filterOperations()" style="flex:1;min-width:160px;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="" selected>By Schedule: All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
           </select>
         </div>
         <div class="card-list" id="opsHomeList" style="padding:0 16px 28px"></div>
@@ -1379,10 +1394,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.76';
+const APP_VERSION='v10.77';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-01 - Schools tab: View Schedule Contents now auto-bolds Rotation N date-range headers and underlines section labels (INCLEMENT WEATHER, MINIMUM DAY, Time Activity) with real HTML formatting, so copy-pasting into a rich-text email keeps the bold/underline.';
+const BUILD_STAMP='2026-09-01 - Added a By Schedule filter (Yes/No, based on whether Schedule Contents is populated) to the Schools tab filter row and a new filter row on Operations > Home.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1411,7 +1426,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
@@ -3226,6 +3241,11 @@ function renderSchools(){
       if(csUnitsF!=='all'){
         const units=String(sf(s,'Ranger Program Units')||'').trim();
         if(units!==csUnitsF)return false;
+      }
+      if(csSchedF!=='all'){
+        const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+        if(csSchedF==='yes'&&!hasSched)return false;
+        if(csSchedF==='no'&&hasSched)return false;
       }
     }
     return true;
@@ -6088,13 +6108,15 @@ async function _dssDelete(key){
 let _opsTargetKey=null;
 let _opsTargetTimer=null;
 function goToOperationsForSite(key){
-  _opsFilterType='all';_opsFilterStatus='';_opsFilterRanger='';
+  _opsFilterType='all';_opsFilterStatus='';_opsFilterRanger='';_opsFilterSchedule='';
   const selType=document.getElementById('opsFilterType');
   const selStatus=document.getElementById('opsFilterStatus');
   const selRanger=document.getElementById('opsFilterRanger');
+  const selSchedule=document.getElementById('opsFilterSchedule');
   if(selType)selType.value='all';
   if(selStatus)selStatus.value='';
   if(selRanger)selRanger.value='';
+  if(selSchedule)selSchedule.value='';
   _opsTargetKey=key;
   clearTimeout(_opsTargetTimer);
   switchTab('operations');
@@ -6120,6 +6142,7 @@ let _opsCurrentPage='home';
 let _opsFilterType='type_active'; // default: All Active Sites
 let _opsFilterStatus=''; // default: no status sub-filter
 let _opsFilterRanger=''; // default: no ranger-assignment sub-filter
+let _opsFilterSchedule=''; // default: no schedule sub-filter
 function showOperationsPage(sub){
   _opsCurrentPage=sub;
   if(sub!=='tab4')_exitSmartMapFullscreen();
@@ -6679,9 +6702,11 @@ function filterOperations(){
   const t=document.getElementById('opsFilterType');
   const s=document.getElementById('opsFilterStatus');
   const rg=document.getElementById('opsFilterRanger');
+  const sc=document.getElementById('opsFilterSchedule');
   _opsFilterType=t?t.value:'type_active';
   _opsFilterStatus=s?s.value:'';
   _opsFilterRanger=rg?rg.value:'';
+  _opsFilterSchedule=sc?sc.value:'';
   renderOperationsHome();
 }
 function _opsMoney(v){
@@ -6753,6 +6778,14 @@ function renderOperationsHome(){
     sites=sites.filter(s=>String(sf(s,'Ranger 1','Ranger1')||'').trim()!=='');
   } else if(frg==='ranger_not_assigned'){
     sites=sites.filter(s=>String(sf(s,'Ranger 1','Ranger1')||'').trim()==='');
+  }
+
+  // Tier 4: By Schedule (Schedule Contents column empty = No, has text = Yes)
+  const fsc=_opsFilterSchedule;
+  if(fsc==='yes'){
+    sites=sites.filter(s=>String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='');
+  } else if(fsc==='no'){
+    sites=sites.filter(s=>String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()==='');
   }
   sites=sites.slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
   if(cnt)cnt.textContent=sites.length+' schools';
@@ -6849,6 +6882,7 @@ function setSchoolRangerFilter(v){csRangerF=v;renderSchools();}
 function setSchoolDayFilter(v){csDayF=v;renderSchools();}
 function setSchoolPoFilter(v){csPoF=v;renderSchools();}
 function setSchoolUnitsFilter(v){csUnitsF=v;renderSchools();}
+function setSchoolScheduleFilter(v){csSchedF=v;renderSchools();}
 function filterRangers(f){
   crf=f;
   let matchedLabel='Rangers';
