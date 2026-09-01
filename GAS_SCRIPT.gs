@@ -83,6 +83,7 @@ const FORMS_BULK_SHARED_FIELDS = {
 const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
 const HUMANS_IMG_FOLDER = '1PsqHbWRwurrVEpwhT-iRNGhjlf9jPgUx';
 const CHORES_IMG_FOLDER = '1f_B10hFEsPg5WUHwpcbS86lq2EcPu_si';
+const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
 
 // ── DRIVE FOLDER IDs (sensitive Ranger documents) ─────────────────────────────
 // These folders are intentionally NOT set to "anyone with link" — files stay
@@ -538,6 +539,8 @@ function doPost(e) {
       case 'uploadHumanImage': return respond(handleUploadHumanImage(p));
       case 'uploadHumanDoc':   return respond(handleUploadHumanDoc(p));
       case 'removeHumanFile':  return respond(handleRemoveHumanFile(p));
+      case 'uploadSiteSchedule': return respond(handleUploadSiteSchedule(p));
+      case 'removeSiteSchedule': return respond(handleRemoveSiteSchedule(p));
 
       // ── PUBLIC SMS CONSENT PAGE (no login; token-verified) ───────────────────
       case 'publicSmsOptInStatus': return respond(handlePublicSmsOptInStatus(p));
@@ -1610,6 +1613,141 @@ function handleUploadSiteImage(p) {
     }
     return { ok: true, url: url };
   } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Converts an uploaded schedule file (PDF / DOCX / image) to a temporary
+// Google Doc via the Advanced "Drive API" Service — with OCR turned on so
+// scanned PDFs/photos still yield text — pulls the plain text out, then
+// deletes the temp Doc. Requires the Drive API Advanced Service to be
+// enabled on this Apps Script project (Editor -> Services -> + -> Drive
+// API). Throws if that service isn't enabled; callers wrap this in
+// try/catch so a missing service degrades to "no extracted text" instead
+// of failing the whole upload.
+function _extractTextFromDriveFile(fileId) {
+  var resource = { title: 'temp_schedule_extract_' + fileId, mimeType: MimeType.GOOGLE_DOCS };
+  var sourceBlob = DriveApp.getFileById(fileId).getBlob();
+  var converted = Drive.Files.insert(resource, sourceBlob, { convert: true, ocr: true, ocrLanguage: 'en' });
+  try {
+    return DocumentApp.openById(converted.id).getBody().getText();
+  } finally {
+    try { DriveApp.getFileById(converted.id).setTrashed(true); } catch (e2) { /* best-effort cleanup */ }
+  }
+}
+
+// Uploads a class Schedule for a Site (PDF/DOCX/image). Saved to the
+// dedicated SCHEDULES_FOLDER as "<Site Name> Schedule <year>.<ext>", the
+// Drive link is written to the "Schedule" column, and — best effort — the
+// file's text is extracted and written to "Schedule Contents" so the
+// schedule is searchable/readable without opening the file. Lookup follows
+// the same Name-primary/Key-fallback pattern as site photo uploads (Name
+// is the reliable identifier across platforms, incl. iOS WKWebView).
+function handleUploadSiteSchedule(p) {
+  try {
+    if (!p.base64) return { ok: false, error: 'Missing file' };
+    var lookupVal = p.siteName || p.siteKey;
+    if (!lookupVal) return { ok: false, error: 'Missing site' };
+
+    var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+    var data  = sheet.getDataRange().getValues();
+    var h     = data[0];
+    var ki    = h.indexOf('Key');
+    var ni    = h.indexOf('Name');
+    var sci   = h.indexOf('Schedule');
+    var scci  = h.indexOf('Schedule Contents');
+    if (sci === -1)  return { ok: false, error: 'Column "Schedule" not found on Sites sheet' };
+    if (scci === -1) return { ok: false, error: 'Column "Schedule Contents" not found on Sites sheet' };
+
+    var targetRow = -1, rowKey = '', rowName = '';
+    for (var r = 1; r < data.length; r++) {
+      var rn = ni > -1 ? String(data[r][ni] || '').trim() : '';
+      var rk = ki > -1 ? String(data[r][ki] || '').trim() : '';
+      if ((rn && rn === String(lookupVal).trim()) || (rk && rk === String(lookupVal).trim())) {
+        targetRow = r; rowKey = rk; rowName = rn;
+        break;
+      }
+    }
+    if (targetRow === -1) return { ok: false, error: 'Site not found: ' + lookupVal };
+
+    var decoded  = Utilities.base64Decode(p.base64);
+    var mime     = (p.mimeType && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'application/pdf';
+    var safeMime = /heic|heif/i.test(mime) ? 'image/jpeg' : mime;
+    var ext = '.pdf';
+    if (/wordprocessingml|msword/i.test(mime)) ext = '.docx';
+    else if (/png/i.test(mime)) ext = '.png';
+    else if (/jpe?g/i.test(mime)) ext = '.jpg';
+    else if (!/pdf/i.test(mime) && p.filename && /\.[a-z0-9]+$/i.test(p.filename)) ext = p.filename.match(/\.[a-z0-9]+$/i)[0];
+
+    var year     = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyy');
+    var safeName = (rowName || lookupVal) + ' Schedule ' + year + ext;
+
+    var blob   = Utilities.newBlob(decoded, safeMime, safeName);
+    var folder = DriveApp.getFolderById(SCHEDULES_FOLDER);
+    var file   = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var url    = file.getUrl();
+
+    sheet.getRange(targetRow + 1, sci + 1).setValue(url);
+
+    // Best-effort text extraction — never fails the upload if it breaks
+    // (e.g. Advanced "Drive API" Service not yet enabled on this project).
+    var extractedText = '';
+    try {
+      extractedText = _extractTextFromDriveFile(file.getId());
+      sheet.getRange(targetRow + 1, scci + 1).setValue(extractedText);
+    } catch (extractErr) {
+      Logger.log('handleUploadSiteSchedule: text extraction failed: ' + extractErr.message);
+    }
+
+    logActivity(p.actor || '', 'uploaded schedule', rowKey || lookupVal, 'site', rowName + ' — Schedule');
+    return { ok: true, url: url, contents: extractedText };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Removes a Site's Schedule: trashes the underlying Drive file (best-effort)
+// and clears both the "Schedule" and "Schedule Contents" cells.
+function handleRemoveSiteSchedule(p) {
+  try {
+    var lookupVal = p.siteName || p.siteKey;
+    if (!lookupVal) return { ok: false, error: 'Missing site' };
+
+    var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+    var data  = sheet.getDataRange().getValues();
+    var h     = data[0];
+    var ki    = h.indexOf('Key');
+    var ni    = h.indexOf('Name');
+    var sci   = h.indexOf('Schedule');
+    var scci  = h.indexOf('Schedule Contents');
+
+    var targetRow = -1, rowKey = '', rowName = '', currentUrl = '';
+    for (var r = 1; r < data.length; r++) {
+      var rn = ni > -1 ? String(data[r][ni] || '').trim() : '';
+      var rk = ki > -1 ? String(data[r][ki] || '').trim() : '';
+      if ((rn && rn === String(lookupVal).trim()) || (rk && rk === String(lookupVal).trim())) {
+        targetRow = r; rowKey = rk; rowName = rn;
+        currentUrl = sci > -1 ? String(data[r][sci] || '') : '';
+        break;
+      }
+    }
+    if (targetRow === -1) return { ok: false, error: 'Site not found: ' + lookupVal };
+
+    if (currentUrl) {
+      try {
+        var fid = _extractDriveId(currentUrl);
+        if (fid) DriveApp.getFileById(fid).setTrashed(true);
+      } catch (delErr) {
+        Logger.log('handleRemoveSiteSchedule: could not trash file: ' + delErr.message);
+      }
+    }
+    if (sci > -1)  sheet.getRange(targetRow + 1, sci + 1).setValue('');
+    if (scci > -1) sheet.getRange(targetRow + 1, scci + 1).setValue('');
+
+    logActivity(p.actor || '', 'removed schedule', rowKey || lookupVal, 'site', rowName + ' — Schedule');
+    return { ok: true };
+  } catch (e) {
     return { ok: false, error: e.message };
   }
 }
