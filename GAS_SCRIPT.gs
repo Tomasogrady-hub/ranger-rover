@@ -1618,17 +1618,19 @@ function handleUploadSiteImage(p) {
 }
 
 // Converts an uploaded schedule file (PDF / DOCX / image) to a temporary
-// Google Doc via the Advanced "Drive API" Service — with OCR turned on so
-// scanned PDFs/photos still yield text — pulls the plain text out, then
-// deletes the temp Doc. Requires the Drive API Advanced Service to be
+// Google Doc via the Advanced "Drive API" Service (v3) — requesting the
+// Google Docs mimeType is what triggers the conversion in v3 (unlike v2,
+// there's no separate "convert" flag), and ocrLanguage turns on OCR so
+// scanned PDFs/photos still yield text. Pulls the plain text out, then
+// deletes the temp Doc. Requires the Drive API Advanced Service (v3) to be
 // enabled on this Apps Script project (Editor -> Services -> + -> Drive
-// API). Throws if that service isn't enabled; callers wrap this in
-// try/catch so a missing service degrades to "no extracted text" instead
-// of failing the whole upload.
+// API -> version v3). Throws if that service isn't enabled; callers wrap
+// this in try/catch so a missing service degrades to "no extracted text"
+// instead of failing the whole upload.
 function _extractTextFromDriveFile(fileId) {
-  var resource = { title: 'temp_schedule_extract_' + fileId, mimeType: MimeType.GOOGLE_DOCS };
+  var resource = { name: 'temp_schedule_extract_' + fileId, mimeType: MimeType.GOOGLE_DOCS };
   var sourceBlob = DriveApp.getFileById(fileId).getBlob();
-  var converted = Drive.Files.insert(resource, sourceBlob, { convert: true, ocr: true, ocrLanguage: 'en' });
+  var converted = Drive.Files.create(resource, sourceBlob, { ocrLanguage: 'en' });
   try {
     return DocumentApp.openById(converted.id).getBody().getText();
   } finally {
