@@ -1379,10 +1379,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.75';
+const APP_VERSION='v10.76';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-01 - Schools tab: added a View Schedule Contents link to the detail card (lazy-reveals the extracted text) and an editable Schedule Contents textarea in Edit Site so extraction mistakes can be corrected by hand.';
+const BUILD_STAMP='2026-09-01 - Schools tab: View Schedule Contents now auto-bolds Rotation N date-range headers and underlines section labels (INCLEMENT WEATHER, MINIMUM DAY, Time Activity) with real HTML formatting, so copy-pasting into a rich-text email keeps the bold/underline.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -7998,6 +7998,38 @@ async function _uploadSiteSchedule(siteKeyOrName,siteName,file){
 function _scheduleStatusHtml(url,key,name){
   return url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeSiteSchedule('${ea(key)}','${ea(name)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet';
 }
+/* Turns the raw extracted Schedule Contents text into lightly-formatted HTML
+   for display: bolds "Rotation N: <date> – <date>" wherever it appears
+   (both standalone header lines and inline in an overview line), underlines
+   section labels like "INCLEMENT WEATHER" / "MINIMUM DAY...", and adds a
+   blank line before each rotation header for breathing room. This is real
+   <b>/<u> HTML (not markdown) specifically so that selecting and copying it
+   into a rich-text email compose window (e.g. Gmail) carries the bold/
+   underline formatting over — markdown asterisks wouldn't survive that copy,
+   actual HTML formatting does. The underlying sheet cell / edit textarea
+   stay plain text; only this read-only view is formatted.
+   */
+function _formatScheduleContentsHtml(raw){
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const rotationLineRe=/^Rotation\s+\d+\b/i;
+  const rotationSpanRe=/Rotation\s+\d+\s*:?\s*[A-Za-z]+\.?\s+\d+\s*[–\-—]\s*[A-Za-z]+\.?\s+\d+/gi;
+  const subHeaderRe=/^(INCLEMENT WEATHER|MINIMUM DAY[A-Z\s\-()]*|Time\s+Activity)\b/i;
+  const lines=String(raw||'').split(/\n/);
+  const out=[];
+  lines.forEach(line=>{
+    const trimmed=line.trim();
+    if(!trimmed){out.push('');return;}
+    if(rotationLineRe.test(trimmed)){
+      if(out.length&&out[out.length-1]!=='')out.push('');
+      out.push(`<b>${esc(trimmed)}</b>`);
+    }else if(subHeaderRe.test(trimmed)){
+      out.push(`<u>${esc(trimmed)}</u>`);
+    }else{
+      out.push(esc(trimmed).replace(rotationSpanRe,m=>`<b>${m}</b>`));
+    }
+  });
+  return out.join('\n');
+}
 /* Lazy-reveals the extracted Schedule Contents text on the view-mode detail
    card — read from window._currentSite rather than baked into the HTML, so
    the (possibly long) text is only rendered into the DOM if someone actually
@@ -8007,12 +8039,12 @@ function _toggleScheduleContents(el){
   if(!wrap)return;
   if(wrap.style.display==='none'){
     const contents=sf(window._currentSite,'Schedule Contents','ScheduleContents')||'';
-    wrap.textContent=contents||'(no extracted text)';
+    wrap.innerHTML=contents?_formatScheduleContentsHtml(contents):'(no extracted text)';
     wrap.style.display='block';
     el.textContent='📄 Hide Schedule Contents';
   }else{
     wrap.style.display='none';
-    wrap.textContent='';
+    wrap.innerHTML='';
     el.textContent='📄 View Schedule Contents';
   }
 }
