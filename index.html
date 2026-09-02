@@ -1413,6 +1413,28 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           </select>
         </div>
       </div>
+      <div class="dl" style="text-align:center;margin:18px 0 0">Adjust</div>
+      <div style="display:flex;justify-content:center;margin:6px 0 8px">
+        <select id="dsAdjustMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="onDataSchoolsAdjustModeChange()">
+          <option value="program">Adjust Program</option>
+          <option value="ranger">Adjust Ranger</option>
+          <option value="day">Adjust Day of Week</option>
+          <option value="units">Adjust Ranger Program Units</option>
+        </select>
+      </div>
+      <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
+            <input type="checkbox" id="dataSchoolsSelectAll" onchange="toggleDataSchoolsSelectAll(this.checked)"> Select all
+          </label>
+          <span id="dataSchoolsSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
+          <select id="dataSchoolsBulkValue" class="settings-input" style="margin:0;width:160px;flex:none" disabled>
+            <option value="">None</option>
+          </select>
+        </div>
+        <button id="dataSchoolsApplyBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="applyDataSchoolsBulkField()" disabled>Apply to Selected</button>
+        <div id="dataSchoolsBulkStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
+      </div>
       <div class="card-list" id="dataSchoolsList"><div class="spinner"></div></div>
     </div>
 
@@ -1470,10 +1492,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.79';
+const APP_VERSION='v10.80';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-01 - Data tab: built out the Schools sub-page with a Filter bar (Program, Assigned, Ranger, Day of Week, PO, Ranger Program Units, Schedule), an intelligence summary sentence, and a Results mode (Simple, Summary, Detailed).';
+const BUILD_STAMP='2026-09-01 - Data > Schools: smart-click deep links (Ranger jumps to their person card, Schedule jumps straight to the Schedule section) plus checkboxes, Select all, and an Adjust panel (Program, Ranger, Day of Week, Ranger Program Units) for bulk edits.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1506,6 +1528,22 @@ let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
 let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsResultsMode='summary';
+// Bulk-select + Adjust state for the Data > Schools list — same pattern as
+// Data > People's Select all / Adjust / Apply to Selected.
+let _dataSchoolsSelected=new Set(); // Set of site Keys (col A)
+let _dataSchoolsAdjustMode='program';
+// Deliberately narrower than the 7 filter dropdowns above: "Assigned" isn't a
+// real sheet field (it's just derived from whether a Ranger is set, so it
+// folds into "Ranger" — pick "None" there to unassign), and PO Number /
+// Schedule are intentionally left out of bulk Adjust since those hold data
+// that's normally unique per school — a bulk write would risk clobbering
+// real PO numbers or schedule extracts across many sites at once.
+const DATA_SCHOOLS_ADJUST_FIELDS = {
+  program: {sheetField:'Type',                    label:'Program'},
+  ranger:  {sheetField:'Ranger 1',                 label:'Ranger', companionField:'Ranger 1 Name'},
+  day:     {sheetField:'Ranger Day Of Week 1',     label:'Day of Week'},
+  units:   {sheetField:'Ranger Program Units',     label:'Ranger Program Units'}
+};
 let mapInited=false;
 let _plantSearchTimer=null;
 /* ── PERFORMANCE: active-tab tracking ── */
@@ -3409,15 +3447,22 @@ function _dataSchoolsSummaryText(count){
   return `${subj} ${count===1?'has':'have'} ${joined}.`;
 }
 
-// Simple: name only, hotlinked to the site's detail card — no other data,
-// for a fast, easy-to-scan plain list (mirrors the Rangers tab's Simple mode).
+// Simple: checkbox + name only, hotlinked to the site's detail card — no other
+// data, for a fast, easy-to-scan plain list (mirrors the Rangers tab's Simple mode).
 function _dataSchoolSimpleCardHtml(s){
   const name=sf(s,'Name','name');
   const siteKey=sf(s,'Key','key')||'';
-  return `<div class="ranger-simple-row" onclick="showSchoolDetailByKey('${esc(siteKey)}')">${escHtml(name)}</div>`;
+  const checked=_dataSchoolsSelected.has(siteKey);
+  return `<div class="ranger-simple-row" data-sitekey="${ea(siteKey)}" style="display:flex;align-items:center;gap:12px">
+    <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleDataSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px">
+    <span style="flex:1;cursor:pointer" onclick="showSchoolDetailByKey('${esc(siteKey)}')">${escHtml(name)}</span>
+  </div>`;
 }
 
-// Summary: name + program + assigned ranger + day + PO status.
+// Summary: checkbox + name + program + assigned ranger + day + PO status.
+// "Smart" clicks: the Ranger name jumps straight to their own person card
+// instead of the school; the Day pill jumps straight to the Schedule section
+// of the school detail sheet when a schedule is actually on file.
 function _dataSchoolSummaryCardHtml(s){
   const name=sf(s,'Name','name');
   const siteKey=sf(s,'Key','key')||'';
@@ -3426,13 +3471,16 @@ function _dataSchoolSummaryCardHtml(s){
   const r1n=r1e?(hn(r1e)||sf(s,'Ranger 1 Name','Ranger1Name')):'';
   const day=sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
   const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+  const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+  const checked=_dataSchoolsSelected.has(siteKey);
   return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)">
+    <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleDataSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px;margin-top:4px">
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       ${type?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}</div>`:''}
-      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span><span style="font-size:15px">${escHtml(r1n)}</span></div>`:''}
+      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button></div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-        ${day?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(day)}</span>`:''}
+        ${day?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(day)}</button>`:''}
         <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
       </div>
     </div>
@@ -3440,8 +3488,10 @@ function _dataSchoolSummaryCardHtml(s){
   </div>`;
 }
 
-// Detailed: everything — address, phone, district, both rangers, garden
-// keeper, all days, units, schedule + PO status.
+// Detailed: checkbox + everything — address, phone (tel: link), district, both
+// rangers + garden keeper (each hotlinked straight to their own person card),
+// all days, units, PO + Schedule status (Schedule pill jumps straight to the
+// Schedule section of the school detail sheet, same as the Summary card).
 function _dataSchoolDetailedCardHtml(s){
   const name=sf(s,'Name','name');
   const siteKey=sf(s,'Key','key')||'';
@@ -3458,20 +3508,22 @@ function _dataSchoolDetailedCardHtml(s){
   const units=sf(s,'Ranger Program Units')||'';
   const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
   const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+  const checked=_dataSchoolsSelected.has(siteKey);
   return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)">
+    <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleDataSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px;margin-top:4px">
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       <div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}${district?' · '+escHtml(district):''}</div>
       ${addr?`<div style="font-size:13px;color:var(--stone);margin-top:4px">${escHtml(addr)}</div>`:''}
-      ${phone?`<div style="font-size:13px;color:var(--stone)">${escHtml(phone)}</div>`:''}
-      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger 1</span><span style="font-size:15px">${escHtml(r1n)}</span></div>`:''}
-      ${r2n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger 2</span><span style="font-size:15px">${escHtml(r2n)}</span></div>`:''}
-      ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span><span style="font-size:15px">${escHtml(gkn)}</span></div>`:''}
+      ${phone?`<div style="font-size:13px"><a class="dlink" href="tel:${ea(phone.replace(/[^0-9+]/g,''))}" onclick="event.stopPropagation()">${escHtml(phone)}</a></div>`:''}
+      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger 1</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button></div>`:''}
+      ${r2n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger 2</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r2e)}')">${escHtml(r2n)}</button></div>`:''}
+      ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(gke)}')">${escHtml(gkn)}</button></div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-        ${days?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(days)}</span>`:''}
+        ${days?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(days)}</button>`:''}
         ${units?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">${escHtml(units)} Units</span>`:''}
         <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
-        <span class="chore-pill" style="background:${hasSched?'#eaf3ea':'var(--warn-bg)'};color:${hasSched?'var(--sage)':'var(--amber)'}">${hasSched?'✓ Schedule on file':'⚠ No Schedule'}</span>
+        <button class="chore-pill" style="background:${hasSched?'#eaf3ea':'var(--warn-bg)'};color:${hasSched?'var(--sage)':'var(--amber)'};border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>${hasSched?'✓ Schedule on file':'⚠ No Schedule'}</button>
       </div>
     </div>
     <span class="school-chevron">›</span>
@@ -3508,6 +3560,112 @@ function _renderDataSchoolBatch(sites,from,batchSize,cardFn){
   }
 }
 
+// Option list for the current Adjust mode's bulk-value select (and, if ever
+// needed, a per-row select) — mirrors _dataFieldOptionsHtml's shape.
+function _dataSchoolsAdjustOptionsHtml(mode,currentVal){
+  if(mode==='program'){
+    const opts=_siteTypesCache||[];
+    return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
+      opts.map(v=>`<option value="${ea(v)}" ${currentVal===v?'selected':''}>${escHtml(v)}</option>`).join('');
+  }
+  if(mode==='ranger'){
+    const seen={};
+    DATA.sites.forEach(s=>{
+      const r1=sf(s,'Ranger 1','Ranger1'),r2=sf(s,'Ranger 2','Ranger2');
+      if(r1&&!seen[r1])seen[r1]=hn(r1)||r1;
+      if(r2&&!seen[r2])seen[r2]=hn(r2)||r2;
+    });
+    const entries=Object.entries(seen).sort((a,b)=>a[1].localeCompare(b[1]));
+    return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None (unassign)</option>`+
+      entries.map(([email,name])=>`<option value="${ea(email)}" ${currentVal===email?'selected':''}>${escHtml(name)}</option>`).join('');
+  }
+  if(mode==='day'){
+    const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
+      days.map(d=>`<option value="${d}" ${currentVal===d?'selected':''}>${d}</option>`).join('');
+  }
+  if(mode==='units'){
+    const set=new Set();
+    DATA.sites.forEach(s=>{const u=String(sf(s,'Ranger Program Units')||'').trim();if(u!=='')set.add(u);});
+    const nums=[...set].sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0));
+    return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
+      nums.map(n=>`<option value="${ea(n)}" ${currentVal===n?'selected':''}>${escHtml(n)}</option>`).join('');
+  }
+  return '<option value="">None</option>';
+}
+function onDataSchoolsAdjustModeChange(){
+  const sel=document.getElementById('dsAdjustMode');
+  _dataSchoolsAdjustMode=sel?sel.value:'program';
+  // Switching modes mid-selection would silently apply the wrong field to
+  // whatever's checked, so start the selection fresh for the new mode.
+  _dataSchoolsSelected.clear();
+  const selectAll=document.getElementById('dataSchoolsSelectAll');
+  if(selectAll)selectAll.checked=false;
+  _populateDataSchoolsBulkValueOptions();
+  _updateDataSchoolsSelCount();
+}
+function _populateDataSchoolsBulkValueOptions(){
+  const sel=document.getElementById('dataSchoolsBulkValue');
+  if(!sel)return;
+  const prevVal=sel.value;
+  sel.innerHTML=_dataSchoolsAdjustOptionsHtml(_dataSchoolsAdjustMode,'');
+  if(prevVal && Array.from(sel.options).some(o=>o.value===prevVal))sel.value=prevVal;
+}
+function toggleDataSchoolSelect(key,checked){
+  if(checked)_dataSchoolsSelected.add(key);else _dataSchoolsSelected.delete(key);
+  _updateDataSchoolsSelCount();
+}
+function toggleDataSchoolsSelectAll(checked){
+  document.querySelectorAll('#dataSchoolsList [data-sitekey]').forEach(row=>{
+    const key=row.dataset.sitekey;
+    const cb=row.querySelector('input[type=checkbox]');
+    if(cb)cb.checked=checked;
+    if(checked)_dataSchoolsSelected.add(key);else _dataSchoolsSelected.delete(key);
+  });
+  _updateDataSchoolsSelCount();
+}
+function _updateDataSchoolsSelCount(){
+  const c=document.getElementById('dataSchoolsSelCount');
+  if(c)c.textContent=_dataSchoolsSelected.size+' selected';
+  const all=document.getElementById('dataSchoolsSelectAll');
+  if(all){
+    const rows=document.querySelectorAll('#dataSchoolsList [data-sitekey]').length;
+    all.checked = rows>0 && _dataSchoolsSelected.size>=rows;
+  }
+  const hasSel=_dataSchoolsSelected.size>0;
+  const applyBtn=document.getElementById('dataSchoolsApplyBtn');
+  const bulkSel=document.getElementById('dataSchoolsBulkValue');
+  if(applyBtn){applyBtn.disabled=!hasSel;applyBtn.style.opacity=hasSel?'1':'.45';applyBtn.style.cursor=hasSel?'pointer':'not-allowed';}
+  if(bulkSel){bulkSel.disabled=!hasSel;bulkSel.style.opacity=hasSel?'1':'.6';}
+}
+// Bulk field change across every checked school — writes through the same
+// generic saveToSheet('Sites', key, updates) path the main Schools edit form
+// uses, keyed by the site's Key column (col A), one row per selected school.
+async function applyDataSchoolsBulkField(){
+  if(!_dataSchoolsSelected.size)return; // button is disabled in this state, but guard anyway
+  const mode=_dataSchoolsAdjustMode;
+  const meta=DATA_SCHOOLS_ADJUST_FIELDS[mode]||DATA_SCHOOLS_ADJUST_FIELDS.program;
+  const valSel=document.getElementById('dataSchoolsBulkValue');
+  const rawVal=valSel?valSel.value:'';
+  const valLabel=valSel&&Array.from(valSel.options).find(o=>o.value===rawVal)?.textContent||'None';
+  const statusEl=document.getElementById('dataSchoolsBulkStatus');
+  const keys=Array.from(_dataSchoolsSelected);
+  if(statusEl)statusEl.textContent='Updating… (0/'+keys.length+')';
+  let done=0;
+  for(const key of keys){
+    const updates={[meta.sheetField]:rawVal};
+    if(meta.companionField)updates[meta.companionField]=rawVal?hn(rawVal):'';
+    try{
+      await saveToSheet('Sites',key,updates);
+    }catch(e){/* keep going — report final count below */}
+    done++;
+    if(statusEl)statusEl.textContent='Updating… ('+done+'/'+keys.length+')';
+  }
+  if(statusEl)statusEl.textContent='✅ '+meta.label+' updated — '+keys.length+' school'+(keys.length>1?'s':'')+' set to '+valLabel;
+  setTimeout(()=>{if(statusEl)statusEl.textContent='';},3500);
+  renderDataSchools();
+}
+
 function renderDataSchools(){
   _fillDataSchoolDynamicFilters();
   const sites=_dataSchoolsFiltered().slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
@@ -3517,9 +3675,11 @@ function renderDataSchools(){
   if(sumEl)sumEl.textContent=_dataSchoolsSummaryText(sites.length);
   const listEl=document.getElementById('dataSchoolsList');
   if(!listEl)return;
-  if(!sites.length){listEl.innerHTML=empty('—','No results','Try a different filter.');return;}
+  if(!sites.length){listEl.innerHTML=empty('—','No results','Try a different filter.');_populateDataSchoolsBulkValueOptions();_updateDataSchoolsSelCount();return;}
   const cardFn=dsResultsMode==='simple'?_dataSchoolSimpleCardHtml:dsResultsMode==='detailed'?_dataSchoolDetailedCardHtml:_dataSchoolSummaryCardHtml;
   _renderDataSchoolBatch(sites,0,40,cardFn);
+  _populateDataSchoolsBulkValueOptions();
+  _updateDataSchoolsSelCount();
 }
 
 function renderSchools(){
@@ -4574,7 +4734,25 @@ function showSiteChores(siteKey){
   openDetail();
 }
 function showSchoolDetail(idx){const site=(window._fs||DATA.sites)[idx];if(!site)return;renderSchoolDetail(site,false);openDetail();}
-function showSchoolDetailByKey(key){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;window._opsEditMode=false;renderSchoolDetail(site,false);openDetail();}
+function showSchoolDetailByKey(key,focus){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;window._opsEditMode=false;renderSchoolDetail(site,false);openDetail();if(focus)_focusSchoolDetailSection(focus);}
+// Deep-links into an already-open school detail sheet — used by the "smart click"
+// badges on the Data > Schools cards (e.g. tapping the Schedule pill scrolls straight
+// to the Schedule section and auto-expands the extracted contents, instead of landing
+// at the top of the sheet and making the person hunt for it).
+function _focusSchoolDetailSection(focus){
+  requestAnimationFrame(()=>{
+    const els=document.querySelectorAll('#detail-content [data-detail-anchor="'+focus+'"]');
+    if(!els.length)return;
+    els[0].scrollIntoView({behavior:'smooth',block:'center'});
+    if(focus==='schedule'){
+      els.forEach(el=>{
+        const link=el.querySelector('a.dlink');
+        const box=el.querySelector('.sched-contents-text');
+        if(link&&box&&box.style.display==='none')link.click();
+      });
+    }
+  });
+}
 function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name','name')===name);if(!site)return;renderSchoolDetail(site,false);openDetail();}
 
 // Stripped-down, non-editable school card — Main Image, Address, Directions
@@ -4919,8 +5097,8 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2',img2Meta)}${siteGalleryThumb(img3,'Image 3',img3Meta)}${siteGalleryThumb(helpImg1,'Helpful Image 1',helpImg1Meta)}${siteGalleryThumb(helpImg2,'Helpful Image 2',helpImg2Meta)}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image',helpBeforeImgMeta)}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
-      ${schedUrl?`<div class="ds"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
-      ${schedContents?`<div class="ds"><div class="dl">Schedule Contents</div><div class="dv"><a class="dlink" href="javascript:void(0)" onclick="_toggleScheduleContents(this)">📄 View Schedule Contents</a><div class="sched-contents-text" style="display:none;margin-top:8px;font-size:15px;color:var(--stone);line-height:1.65;white-space:pre-wrap"></div></div></div>`:''}
+      ${schedUrl?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
+      ${schedContents?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule Contents</div><div class="dv"><a class="dlink" href="javascript:void(0)" onclick="_toggleScheduleContents(this)">📄 View Schedule Contents</a><div class="sched-contents-text" style="display:none;margin-top:8px;font-size:15px;color:var(--stone);line-height:1.65;white-space:pre-wrap"></div></div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div><div class="dv">${videoLinkHtml(videoSrc)}</div></div>`:''}
       ${ranger1Html}${ranger2Html}${keeperHtml}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
