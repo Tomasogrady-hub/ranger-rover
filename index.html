@@ -1579,10 +1579,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.85';
+const APP_VERSION='v10.86';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach > Schools: added a name search box above the school list; split the combined Day of Week merge field into 3 separate buttons (Ranger Day Of Week 1/2/3); added image merge buttons (Main Image, Image 2/3, Helpful Image 1/2, Helpful Before Image) that insert as real inline images in the HTML email body (Gmail loads them from their existing public URLs, no attachments needed).';
+const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: added Ranger 1/2 Mobile and Email merge buttons, and an "All Access Level 1 & 2 Staff" toggle in both Send To and Also CC (pulls live from the Humans sheet, applied per-school like any other contact column).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10255,12 +10255,21 @@ function _emailsFromSiteField(site, fieldName){
 }
 let _reachSchoolSendCols = ['principal'];
 let _reachSchoolCcCols   = [];
+let _reachSchoolStaffSend = false; // "All Access Level 1 & 2 Staff" toggle — Send To
+let _reachSchoolStaffCc   = false; // same toggle — Also CC
 let _reachSchoolTargets  = [];
 
 // One recipient row per (selected school × selected Send-To column) that
 // actually resolves to a real-looking email. "Also CC" columns are resolved
 // per-school too and carried on each row's own .cc — never mixed across
 // different schools' recipients.
+function _staffLevel12Emails(){
+  return DATA.humans.filter(h=>{
+    const lvl=String(h['Access Level']||'').trim();
+    return lvl==='1'||lvl==='2';
+  }).map(h=>h.Email||h.email||'').filter(Boolean);
+}
+
 function _buildSchoolMailTargets(){
   const schools = Array.from(_reachSchoolsSelected).map(k => DATA.sites.find(s => sf(s,'Key','key')===k)).filter(Boolean);
   const targets = [];
@@ -10274,6 +10283,10 @@ function _buildSchoolMailTargets(){
     const r1e=sf(site,'Ranger 1','Ranger1'),r2e=sf(site,'Ranger 2','Ranger2'),gke=sf(site,'Garden Keeper','GardenKeeper');
     const ranger1     = r1e?(hn(r1e)||sf(site,'Ranger 1 Name','Ranger1Name')):'';
     const ranger2     = r2e?(hn(r2e)||sf(site,'Ranger 2 Name','Ranger2Name')):'';
+    const ranger1Email  = r1e||'';
+    const ranger2Email  = r2e||'';
+    const ranger1Mobile = r1e?hm(r1e):'';
+    const ranger2Mobile = r2e?hm(r2e):'';
     const gardenKeeper= gke?(hn(gke)||sf(site,'Garden Keeper Name','GardenKeeperName')):'';
     const day1 = sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
     const day2 = sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2')||'';
@@ -10315,47 +10328,62 @@ function _buildSchoolMailTargets(){
     const anyResponse      = String(sf(site,'Any Response?','AnyResponse','anyResponse')||'').toLowerCase()==='true' ? 'Yes' : 'No';
     const response         = sf(site,'Response')||'';
 
+    // Every field above except email/contactRole/name is identical for every
+    // recipient tied to this school — build it once so the two ways a person
+    // can end up as a recipient (a checked school-contact column, or the
+    // "All Access Level 1 & 2 Staff" toggle) share one field list instead of
+    // two copies that could quietly drift apart.
+    const baseFields = {
+      schoolName, schoolKey, address, phone, district, programType,
+      ranger1, ranger2, ranger1Email, ranger2Email, ranger1Mobile, ranger2Mobile,
+      gardenKeeper, day1, day2, day3, units, poStatus, scheduleContents, principalName,
+      mainImage, image2, image3, helpfulImage1, helpfulImage2, helpfulBeforeImage,
+      program, programCost, adjustment, totalCost, quoteNumber, unitDescription, poNumber,
+      financialNotes, amountOwed, amountPaid, otherNotes, statusType,
+      programStarted, anyResponse, response
+    };
+
     const ccEmails = [];
     _reachSchoolCcCols.forEach(ck=>{
       const col = SCHOOL_CONTACT_COLS.find(c=>c.key===ck);
       if(!col) return;
       _emailsFromSiteField(site,col.field).forEach(e=>{ if(!ccEmails.includes(e)) ccEmails.push(e); });
     });
+    if(_reachSchoolStaffCc) _staffLevel12Emails().forEach(e=>{ if(!ccEmails.includes(e)) ccEmails.push(e); });
 
     const seenForSchool = new Set();
+    const _addRecipient = (email, contactRole, principalFallback) => {
+      if(!email || seenForSchool.has(email)) return; // same address checked twice for this school = one row
+      seenForSchool.add(email);
+      // Try to resolve THIS recipient's own name (works for Ranger 1/2, staff,
+      // and for a Principal/contact who also happens to have a Humans record)
+      // so the Greeting can use a real first name whenever possible; falls
+      // back to a school-based greeting otherwise.
+      const contactName = hn(email) || principalFallback || '';
+      const contactFirst = contactName ? contactName.split(' ')[0] : '';
+      const contactLast  = contactName ? contactName.split(' ').slice(1).join(' ') : '';
+      targets.push({ ...baseFields, email, contactRole, firstName: contactFirst, lastName: contactLast, cc: ccEmails.filter(e=>e!==email) });
+    };
+
     _reachSchoolSendCols.forEach(sk=>{
       const col = SCHOOL_CONTACT_COLS.find(c=>c.key===sk);
       if(!col) return;
-      _emailsFromSiteField(site,col.field).forEach(email=>{
-        if(seenForSchool.has(email))return; // same address under 2 checked columns for this school = one row
-        seenForSchool.add(email);
-        // Try to resolve THIS recipient's own name (works for Ranger 1/2,
-        // and for a Principal/contact who also happens to have a Humans
-        // record) so the Greeting can use a real first name whenever
-        // possible; falls back to a school-based greeting otherwise.
-        const isPrincipal = col.key==='principal';
-        const contactName = hn(email) || (isPrincipal ? principalRawName : '') || '';
-        const contactFirst = contactName ? contactName.split(' ')[0] : '';
-        const contactLast  = contactName ? contactName.split(' ').slice(1).join(' ') : '';
-        targets.push({
-          email, contactRole: col.label, schoolName, schoolKey,
-          firstName: contactFirst, lastName: contactLast,
-          address, phone, district, programType,
-          ranger1, ranger2, gardenKeeper, day1, day2, day3, units, poStatus, scheduleContents, principalName,
-          mainImage, image2, image3, helpfulImage1, helpfulImage2, helpfulBeforeImage,
-          program, programCost, adjustment, totalCost, quoteNumber, unitDescription, poNumber,
-          financialNotes, amountOwed, amountPaid, otherNotes, statusType,
-          programStarted, anyResponse, response,
-          cc: ccEmails.filter(e=>e!==email)
-        });
-      });
+      const isPrincipal = col.key==='principal';
+      _emailsFromSiteField(site,col.field).forEach(email=>_addRecipient(email, col.label, isPrincipal?principalRawName:''));
     });
+    if(_reachSchoolStaffSend) _staffLevel12Emails().forEach(email=>_addRecipient(email,'EnrichLA Staff (Level 1/2)',''));
   });
   return targets;
 }
 
 function _reachSchoolColChipsHtml(groupName, checkedKeys){
-  return SCHOOL_CONTACT_COLS.map(c=>`
+  const staffChecked = groupName==='send' ? _reachSchoolStaffSend : _reachSchoolStaffCc;
+  const staffChip = `
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--ink);padding:5px 10px;background:var(--sun,#fdf1d9);border:1px solid var(--amber);border-radius:100px;cursor:pointer">
+      <input type="checkbox" data-group="${groupName}" value="staff12" ${staffChecked?'checked':''} onchange="_onReachSchoolMailColsChange()" style="width:15px;height:15px">
+      All Access Level 1 &amp; 2 Staff
+    </label>`;
+  return staffChip + SCHOOL_CONTACT_COLS.map(c=>`
     <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--ink);padding:5px 10px;background:var(--fog);border:1px solid var(--mist);border-radius:100px;cursor:pointer">
       <input type="checkbox" data-group="${groupName}" value="${c.key}" ${checkedKeys.includes(c.key)?'checked':''} onchange="_onReachSchoolMailColsChange()" style="width:15px;height:15px">
       ${escHtml(c.label)}
@@ -10363,9 +10391,13 @@ function _reachSchoolColChipsHtml(groupName, checkedKeys){
 }
 
 function _onReachSchoolMailColsChange(){
-  _reachSchoolSendCols = Array.from(document.querySelectorAll('input[data-group="send"]:checked')).map(el=>el.value);
-  _reachSchoolCcCols   = Array.from(document.querySelectorAll('input[data-group="cc"]:checked')).map(el=>el.value);
-  _reachSchoolTargets  = _buildSchoolMailTargets();
+  const sendChecked = Array.from(document.querySelectorAll('input[data-group="send"]:checked')).map(el=>el.value);
+  const ccChecked   = Array.from(document.querySelectorAll('input[data-group="cc"]:checked')).map(el=>el.value);
+  _reachSchoolStaffSend = sendChecked.includes('staff12');
+  _reachSchoolStaffCc   = ccChecked.includes('staff12');
+  _reachSchoolSendCols  = sendChecked.filter(v=>v!=='staff12');
+  _reachSchoolCcCols    = ccChecked.filter(v=>v!=='staff12');
+  _reachSchoolTargets   = _buildSchoolMailTargets();
   const summary = document.getElementById('reachSchoolMailSummary');
   if(summary){
     const n = _reachSchoolTargets.length;
@@ -10427,7 +10459,11 @@ function openReachSchoolsCompose(){
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{District}}')">District</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ProgramType}}')">Program Type</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger1}}')">Ranger 1</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger1Mobile}}')">☎️ Ranger 1 Mobile</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger1Email}}')">📧 Ranger 1 Email</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger2}}')">Ranger 2</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger2Mobile}}')">☎️ Ranger 2 Mobile</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger2Email}}')">📧 Ranger 2 Email</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeper}}')">Garden Keeper</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day1}}')">📅 Ranger Day Of Week 1</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day2}}')">📅 Ranger Day Of Week 2</button>
@@ -10511,7 +10547,11 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{District\}\}/gi,        r.district||'')
     .replace(/\{\{ProgramType\}\}/gi,     r.programType||'')
     .replace(/\{\{Ranger1\}\}/gi,         r.ranger1||'')
+    .replace(/\{\{Ranger1Mobile\}\}/gi,   r.ranger1Mobile||'')
+    .replace(/\{\{Ranger1Email\}\}/gi,    r.ranger1Email||'')
     .replace(/\{\{Ranger2\}\}/gi,         r.ranger2||'')
+    .replace(/\{\{Ranger2Mobile\}\}/gi,   r.ranger2Mobile||'')
+    .replace(/\{\{Ranger2Email\}\}/gi,    r.ranger2Email||'')
     .replace(/\{\{GardenKeeper\}\}/gi,    r.gardenKeeper||'')
     .replace(/\{\{DayOfWeek1\}\}|\{\{Day1\}\}/gi, r.day1||'')
     .replace(/\{\{DayOfWeek2\}\}|\{\{Day2\}\}/gi, r.day2||'')
@@ -10552,7 +10592,11 @@ async function _sendSchoolMailMerge(){
       .replace(/\{\{District\}\}/gi,        _escHtml(r.district||''))
       .replace(/\{\{ProgramType\}\}/gi,     _escHtml(r.programType||''))
       .replace(/\{\{Ranger1\}\}/gi,         _escHtml(r.ranger1||''))
+      .replace(/\{\{Ranger1Mobile\}\}/gi,   _escHtml(r.ranger1Mobile||''))
+      .replace(/\{\{Ranger1Email\}\}/gi,    r.ranger1Email?`<a href="mailto:${_escHtml(r.ranger1Email)}">${_escHtml(r.ranger1Email)}</a>`:'')
       .replace(/\{\{Ranger2\}\}/gi,         _escHtml(r.ranger2||''))
+      .replace(/\{\{Ranger2Mobile\}\}/gi,   _escHtml(r.ranger2Mobile||''))
+      .replace(/\{\{Ranger2Email\}\}/gi,    r.ranger2Email?`<a href="mailto:${_escHtml(r.ranger2Email)}">${_escHtml(r.ranger2Email)}</a>`:'')
       .replace(/\{\{GardenKeeper\}\}/gi,    _escHtml(r.gardenKeeper||''))
       .replace(/\{\{DayOfWeek1\}\}|\{\{Day1\}\}/gi, _escHtml(r.day1||''))
       .replace(/\{\{DayOfWeek2\}\}|\{\{Day2\}\}/gi, _escHtml(r.day2||''))
