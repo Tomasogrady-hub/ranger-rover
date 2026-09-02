@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.82 | 2026-09-02';
+const GAS_BUILD = 'v10.90 | 2026-09-02';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -2711,6 +2711,16 @@ function handleSendMailMerge(p) {
           name:    fromEmail,
           replyTo: replyTo
         };
+        // Optional per-message attachment (Drive file ID) — used by the
+        // Schools email launcher's "Attach Schedule PDF" option. Wrapped so a
+        // bad/inaccessible file ID just skips the attachment rather than
+        // failing the whole send.
+        if (m && m.attachFileId) {
+          try {
+            var attachBlob = DriveApp.getFileById(String(m.attachFileId)).getBlob();
+            opts.attachments = [attachBlob];
+          } catch (attachErr) { /* send without the attachment */ }
+        }
         // When the client sent a personalised HTML version (school names as
         // real clickable links back into the app), send that as the rendered
         // body; the plain-text "body" still goes to Gmail as the fallback for
