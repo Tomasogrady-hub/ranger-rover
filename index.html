@@ -1228,7 +1228,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </div>
       <div class="card-list" id="reachSchoolsList"><div class="spinner"></div></div>
       <div id="reachSchoolsActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
-        <button id="reachSchoolsEmailBtn" class="reach-action-btn" style="opacity:.45;cursor:not-allowed" disabled onclick="openReachSchoolsCompose()">&#9993; Email Individually</button>
+        <button id="reachSchoolsEmailBtn" class="reach-action-btn" style="opacity:.45;cursor:not-allowed" disabled onclick="openReachSchoolsCompose()">&#9993; Email</button>
       </div>
     </div>
 
@@ -1627,10 +1627,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.92';
+const APP_VERSION='v10.93';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Fixed: Program Classes Start/End Date not showing in the edit picker after the backfill script ran. Sheets auto-converted those cells to real dates, so the app was receiving a full timestamp instead of a plain date, which native date inputs silently reject and which the timezone-based old formatter could roll back a day for anyone west of UTC. Both display and the edit picker now parse the calendar date directly out of the string instead of going through timezone-sensitive Date math.';
+const BUILD_STAMP='2026-09-02 - Reach > Schools: renamed Email Individually to Email and changed it to one message per SCHOOL — every checked Send To contact (and any checked staff) now lands in the same email together, not a separate email each; Also CC works the same way, combined per school.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10377,7 +10377,11 @@ async function _sendMailMerge(together){
   }
 }
 
-// ── SCHOOLS EMAIL LAUNCHER (Reach > Schools > Email Individually) ────────────
+// ── SCHOOLS EMAIL LAUNCHER (Reach > Schools > Email) ──────────────────────────
+// One email per SELECTED SCHOOL — every checked "Send To" contact for that
+// school (plus any checked staff) lands in the same message's To: line
+// together, not a separate email each. "Also CC" works the same way, per
+// school.
 // Schools don't have one single "email" the way Humans do — each has several
 // possible contacts. This lets Tomas choose which of those columns count as
 // actual recipients ("Send To"), and separately which columns get CC'd
@@ -10521,27 +10525,29 @@ function _buildSchoolMailTargets(){
     });
     if(_reachSchoolStaffCcEmails.length) _reachSchoolStaffCcEmails.forEach(e=>{ if(!ccEmails.includes(e)) ccEmails.push(e); });
 
-    const seenForSchool = new Set();
-    const _addRecipient = (email, contactRole, principalFallback) => {
-      if(!email || seenForSchool.has(email)) return; // same address checked twice for this school = one row
-      seenForSchool.add(email);
-      // Try to resolve THIS recipient's own name (works for Ranger 1/2, staff,
-      // and for a Principal/contact who also happens to have a Humans record)
-      // so the Greeting can use a real first name whenever possible; falls
-      // back to a school-based greeting otherwise.
-      const contactName = hn(email) || principalFallback || '';
-      const contactFirst = contactName ? contactName.split(' ')[0] : '';
-      const contactLast  = contactName ? contactName.split(' ').slice(1).join(' ') : '';
-      targets.push({ ...baseFields, email, contactRole, firstName: contactFirst, lastName: contactLast, cc: ccEmails.filter(e=>e!==email) });
-    };
-
+    // One message per school: every checked Send-To column's email(s) for
+    // this school, plus any individually-checked staff, all go in the SAME
+    // message's To line — not a separate email each.
+    const toEmails = [];
+    const roles = [];
     _reachSchoolSendCols.forEach(sk=>{
       const col = SCHOOL_CONTACT_COLS.find(c=>c.key===sk);
       if(!col) return;
-      const isPrincipal = col.key==='principal';
-      _emailsFromSiteField(site,col.field).forEach(email=>_addRecipient(email, col.label, isPrincipal?principalRawName:''));
+      const found = _emailsFromSiteField(site,col.field).filter(e=>!toEmails.includes(e));
+      if(found.length){ toEmails.push(...found); roles.push(col.label); }
     });
-    if(_reachSchoolStaffSendEmails.length) _reachSchoolStaffSendEmails.forEach(email=>_addRecipient(email,'EnrichLA Staff',''));
+    if(_reachSchoolStaffSendEmails.length){
+      const found = _reachSchoolStaffSendEmails.filter(e=>!toEmails.includes(e));
+      if(found.length){ toEmails.push(...found); roles.push('EnrichLA Staff'); }
+    }
+    if(!toEmails.length) return; // nothing to send this school's message to — skip it
+
+    targets.push({
+      ...baseFields,
+      toEmails,
+      contactRoles: roles,
+      cc: ccEmails.filter(e=>!toEmails.includes(e))
+    });
   });
   return targets;
 }
@@ -10581,14 +10587,15 @@ function _onReachSchoolMailColsChange(){
   const summary = document.getElementById('reachSchoolMailSummary');
   if(summary){
     const n = _reachSchoolTargets.length;
-    const listStr = _reachSchoolTargets.map(t=>`${t.schoolName} (${t.contactRole})`).join(', ');
+    const totalTo = _reachSchoolTargets.reduce((sum,t)=>sum+t.toEmails.length,0);
+    const listStr = _reachSchoolTargets.map(t=>`${t.schoolName}: ${t.toEmails.join(', ')}`).join('  |  ');
     let attachNote = '';
     if(_reachSchoolAttachSchedule && n){
       const withFile = _reachSchoolTargets.filter(t=>t.scheduleFileId).length;
       attachNote = `<br><span style="font-size:12px">📎 ${withFile} of ${n} will get a Schedule PDF attached${withFile<n?' — the rest have no Schedule file uploaded':''}.</span>`;
     }
     summary.innerHTML = n
-      ? `<strong style="color:var(--ink)">${n} recipient${n>1?'s':''}</strong> — one message per person<br><span style="font-size:12px">${escHtml(listStr)}</span>${attachNote}`
+      ? `<strong style="color:var(--ink)">${n} email${n>1?'s':''}</strong> — one per school, ${totalTo} recipient${totalTo>1?'s':''} total<br><span style="font-size:12px">${escHtml(listStr)}</span>${attachNote}`
       : `<strong style="color:var(--tomato,#c0392b)">No recipients</strong> — the schools you selected don't have a real-looking email address in the column(s) checked above.`;
   }
 }
@@ -10604,7 +10611,7 @@ function openReachSchoolsCompose(){
   <div style="padding:0 0 100px 0">
     <div class="page-header" style="display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--mist)">
       <button onclick="closeReachCompose()" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px 0 10px;color:var(--stone)">‹</button>
-      <span class="page-title" style="font-size:17px">Email Individually</span>
+      <span class="page-title" style="font-size:17px">Email</span>
     </div>
     <div style="padding:16px 18px 0">
       <div class="memo-field-group">
@@ -10699,13 +10706,13 @@ function openReachSchoolsCompose(){
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyMobile}}')">☎️ Reply To My Mobile</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('\\n\\nSincerely,\\n{{FromName}}')">🙏 Greeting From You</button>
         </div>
-        <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor (works in Subject or Message) — each recipient gets their own version filled in automatically when sent.</div>
+        <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor (works in Subject or Message) — each school's message is filled in with that school's own data automatically when sent. One email per school, to everyone checked in "Send To."</div>
       </div>
       <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
     </div>
     <div id="reachComposeActions" style="position:sticky;bottom:0;left:0;right:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px calc(10px + var(--safe-bottom));display:flex;gap:8px;flex-wrap:wrap;z-index:5">
       <button onclick="closeReachCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink);flex:1;min-width:70px">Cancel</button>
-      <button id="reachSendBtn" class="reach-action-btn" style="flex:2;min-width:130px;background:var(--enrich-dark);color:#fff" onclick="_sendSchoolMailMerge()">✉ Send Email (Mail Merge)</button>
+      <button id="reachSendBtn" class="reach-action-btn" style="flex:2;min-width:130px;background:var(--enrich-dark);color:#fff" onclick="_sendSchoolMailMerge()">✉ Send Email</button>
     </div>
   </div>`;
 
@@ -10713,10 +10720,11 @@ function openReachSchoolsCompose(){
   setTimeout(()=>{ const el=document.getElementById('reachMessage'); if(el)el.focus(); },150);
 }
 
-// Send Email (Mail Merge) for Schools — same GAS action/log sheet as the
-// People launcher (handleSendMailMerge → Memos sheet), but with school-
-// specific merge tokens and true per-recipient CC (each row's .cc, built from
-// "Also CC" above, is sent ONLY alongside that school's own message — see the
+// Send Email for Schools — one message per school (all checked contacts
+// combined into that school's To: line), same GAS action/log sheet as the
+// People launcher (handleSendMailMerge → Memos sheet), with school-specific
+// merge tokens and per-school CC (each row's .cc, built from "Also CC"
+// above, is sent ONLY alongside that school's own message — see the
 // matching `m.cc` support added to handleSendMailMerge in GAS_SCRIPT.gs).
 async function _sendSchoolMailMerge(){
   const subj   = (document.getElementById('reachSubject')||{value:''}).value.trim();
@@ -10726,14 +10734,16 @@ async function _sendSchoolMailMerge(){
   const st     = document.getElementById('reachComposeStatus');
   if(!subj){if(st)st.textContent='⚠ Subject is required';return;}
   if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
-  const recipients = _reachSchoolTargets.filter(r=>r.email);
+  const recipients = _reachSchoolTargets.filter(r=>r.toEmails&&r.toEmails.length);
   if(!recipients.length){if(st)st.textContent='⚠ No recipients — check the Send To column(s) above';return;}
   const btn = document.getElementById('reachSendBtn');
   if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
   if(st)st.textContent='';
   const _escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const _fromName = (SESSION && SESSION.name) || '';
-  const _greetingPlain = r => r.firstName ? `Dear ${r.firstName},` : `Dear ${r.schoolName} Team,`;
+  // One combined message per school (multiple people in To:), so there's no
+  // single person to address by first name — always the school-based greeting.
+  const _greetingPlain = r => `Dear ${r.schoolName} Team,`;
   // Image tokens only make sense in the HTML body (Gmail loads them from
   // these already-public googleusercontent.com URLs at read time — no
   // attachment/inline-cid plumbing needed). The plain-text fallback just
@@ -10833,15 +10843,15 @@ async function _sendSchoolMailMerge(){
       .replace(/\n/g, '<br>');
   };
   const messages = recipients.map(r=>({
-    to: r.email,
+    to: r.toEmails.join(', '),
     subject: _tokPlain(subj,r),
     body:    _tokPlain(rawMsg,r),
     html:    _tokHtml(rawMsg,r),
-    // Per-recipient CC — this school's own "Also CC" contacts, merged with
-    // the manual CC field so every message still gets that one too.
+    // This school's own "Also CC" contacts, merged with the manual CC field
+    // so every message still gets that one too.
     cc: [r.cc.join(', '), cc].filter(Boolean).join(', '),
-    // Per-recipient attachment — that school's own Schedule PDF, only when
-    // the checkbox is on and this school actually has a file uploaded.
+    // That school's own Schedule PDF, only when the checkbox is on and this
+    // school actually has a file uploaded.
     attachFileId: (_reachSchoolAttachSchedule && r.scheduleFileId) ? r.scheduleFileId : undefined
   }));
   try{
@@ -10854,7 +10864,7 @@ async function _sendSchoolMailMerge(){
     showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
     if(res.errors&&res.errors.length) console.warn('Mail merge errors:',res.errors);
   }catch(e){
-    if(btn){btn.textContent='✉ Send Email (Mail Merge)';btn.style.pointerEvents='';}
+    if(btn){btn.textContent='✉ Send Email';btn.style.pointerEvents='';}
     if(st)st.textContent='⚠ '+e.message;
   }
 }
