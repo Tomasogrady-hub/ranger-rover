@@ -1579,10 +1579,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.88';
+const APP_VERSION='v10.89';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: School Name merge field is now plain text, no longer a hotlink back into the app.';
+const BUILD_STAMP='2026-09-02 - Added Program Classes Start/End Date to the site edit form, detail view, and Data/Reach Schools Detailed cards. Reach > Schools email launcher: new "Attach Schedule PDF" option attaches each school\\u2019s own Schedule file (requires a GAS redeploy for the attachment support).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1749,6 +1749,8 @@ function _siteScheduleUploadRow(site){
   const key=sf(site,'Key','key')||'',name=sf(site,'Name','name')||'';
   const url=sf(site,'Schedule','schedule')||'';
   const contents=sf(site,'Schedule Contents','ScheduleContents')||'';
+  const psd=sf(site,'Program Classes Start Date','ProgramClassesStartDate')||'';
+  const ped=sf(site,'Program Classes End Date','ProgramClassesEndDate')||'';
   return `<div class="edit-wrap">
     <div class="edit-label">Schedule</div>
     <input type="file" accept="application/pdf,.doc,.docx,image/*" onchange="handleSiteScheduleFile(this,'${ea(key)}','${ea(name)}')" style="margin-bottom:6px">
@@ -1756,7 +1758,11 @@ function _siteScheduleUploadRow(site){
       ${url?`<a class="dlink" href="${ea(url)}" target="_blank" rel="noopener">✓ View current file</a> · <button type="button" onclick="removeSiteSchedule('${ea(key)}','${ea(name)}')" style="border:none;background:none;color:var(--danger);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)">🗑 Remove</button>`:'No file uploaded yet'}
     </div>
   </div>
-  <div class="edit-wrap"><div class="edit-label">Schedule Contents</div><textarea class="edit-textarea" id="ef-ScheduleContents" placeholder="Auto-extracted from the uploaded schedule file — edit here to fix an extraction error">${ea(contents)}</textarea></div>`;
+  <div class="edit-wrap"><div class="edit-label">Schedule Contents</div><textarea class="edit-textarea" id="ef-ScheduleContents" placeholder="Auto-extracted from the uploaded schedule file — edit here to fix an extraction error">${ea(contents)}</textarea></div>
+  <div class="edit-wrap" style="display:flex;gap:10px">
+    <div style="flex:1"><div class="edit-label">Program Classes Start Date</div><input class="edit-input" type="date" id="ef-ProgramClassesStartDate" value="${ea(psd)}"></div>
+    <div style="flex:1"><div class="edit-label">Program Classes End Date</div><input class="edit-input" type="date" id="ef-ProgramClassesEndDate" value="${ea(ped)}"></div>
+  </div>`;
 }
 
 /* ═══ RANGER NUMBER (Items All → Type 2 = "Ranger Rate") ═══
@@ -3595,6 +3601,8 @@ function _dataSchoolDetailedCardHtml(s){
   const units=sf(s,'Ranger Program Units')||'';
   const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
   const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+  const pcStart=sf(s,'Program Classes Start Date','ProgramClassesStartDate')||'';
+  const pcEnd=sf(s,'Program Classes End Date','ProgramClassesEndDate')||'';
   const checked=_dataSchoolsSelected.has(siteKey);
   return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)">
     <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleDataSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px;margin-top:4px">
@@ -3609,6 +3617,7 @@ function _dataSchoolDetailedCardHtml(s){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${days?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(days)}</button>`:''}
         ${units?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">${escHtml(units)} Units</span>`:''}
+        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDate(pcStart):'?'} – ${pcEnd?fmtDate(pcEnd):'?'}</span>`:''}
         <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
         <button class="chore-pill" style="background:${hasSched?'#eaf3ea':'var(--warn-bg)'};color:${hasSched?'var(--sage)':'var(--amber)'};border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>${hasSched?'✓ Schedule on file':'⚠ No Schedule'}</button>
       </div>
@@ -4908,6 +4917,7 @@ function renderSchoolDetail(site,editMode,opsMode){
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
   const stAddr=sf(site,'Street Address','StreetAddress'),stCity=sf(site,'City','city'),stState=sf(site,'State','state'),stZip=sf(site,'Zip Code','ZipCode'),stCountry=sf(site,'Country','country');
   const details=sf(site,'SiteDetails','Site Details','siteDetails'),schedUrl=sf(site,'Schedule','schedule'),schedContents=sf(site,'Schedule Contents','ScheduleContents');
+  const progClassesStart=sf(site,'Program Classes Start Date','ProgramClassesStartDate'),progClassesEnd=sf(site,'Program Classes End Date','ProgramClassesEndDate');
   const videoSrc=(sf(site,'Helpful Video 1','HelpfulVideo1')||'').trim();
   const mainImg=getImgSrc(sf(site,'Main Image','MainImage'));
   const img2=getImgSrc(sf(site,'Image 2','Image2'));
@@ -5186,6 +5196,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${schedUrl?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
       ${schedContents?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule Contents</div><div class="dv"><a class="dlink" href="javascript:void(0)" onclick="_toggleScheduleContents(this)">📄 View Schedule Contents</a><div class="sched-contents-text" style="display:none;margin-top:8px;font-size:15px;color:var(--stone);line-height:1.65;white-space:pre-wrap"></div></div></div>`:''}
+      ${(progClassesStart||progClassesEnd)?`<div class="ds"><div class="dl">Program Classes</div><div class="dv">${progClassesStart?fmtDate(progClassesStart):'?'} – ${progClassesEnd?fmtDate(progClassesEnd):'?'}</div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div><div class="dv">${videoLinkHtml(videoSrc)}</div></div>`:''}
       ${ranger1Html}${ranger2Html}${keeperHtml}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
@@ -5226,6 +5237,8 @@ function _collectSiteEditFormValues(){
   // Contents is a plain textarea so a human can correct an OCR/extraction
   // mistake, and rides along with the normal Save & Close flow below.
   const scv=gv('ef-ScheduleContents');if(scv!==null)updates['Schedule Contents']=scv;
+  const psdV=gv('ef-ProgramClassesStartDate');if(psdV!==null)updates['Program Classes Start Date']=psdV;
+  const pedV=gv('ef-ProgramClassesEndDate');if(pedV!==null)updates['Program Classes End Date']=pedV;
   // Operations edit fields (only present when editing from the Operations tab)
   const rd1=gv('ef-RangerDay1');if(rd1!==null)updates['Ranger Day Of Week 1']=rd1;
   const rd2=gv('ef-RangerDay2');if(rd2!==null)updates['Ranger Day Of Week 2']=rd2;
@@ -9791,6 +9804,8 @@ function _reachSchoolDetailedCardHtml(s){
   const units=sf(s,'Ranger Program Units')||'';
   const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
   const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+  const pcStart=sf(s,'Program Classes Start Date','ProgramClassesStartDate')||'';
+  const pcEnd=sf(s,'Program Classes End Date','ProgramClassesEndDate')||'';
   const checked=_reachSchoolsSelected.has(siteKey);
   return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)">
     <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleReachSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px;margin-top:4px">
@@ -9805,6 +9820,7 @@ function _reachSchoolDetailedCardHtml(s){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${days?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(days)}</button>`:''}
         ${units?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">${escHtml(units)} Units</span>`:''}
+        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDate(pcStart):'?'} – ${pcEnd?fmtDate(pcEnd):'?'}</span>`:''}
         <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
         <button class="chore-pill" style="background:${hasSched?'#eaf3ea':'var(--warn-bg)'};color:${hasSched?'var(--sage)':'var(--amber)'};border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>${hasSched?'✓ Schedule on file':'⚠ No Schedule'}</button>
       </div>
@@ -10253,10 +10269,19 @@ function _emailsFromSiteField(site, fieldName){
   if (!raw) return [];
   return String(raw).split(/[,;\n]+/).map(s=>s.trim()).filter(s=>_EMAIL_RE.test(s));
 }
+// Pulls the Drive file ID out of a share link (same two URL shapes getImgSrc
+// already handles) so it can be passed to GAS for attaching, since
+// GmailApp.sendEmail needs a real file ID, not the sharing URL.
+function _driveFileIdFromUrl(url){
+  if(!url) return '';
+  const m = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/) || String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : '';
+}
 let _reachSchoolSendCols = ['principal'];
 let _reachSchoolCcCols   = [];
 let _reachSchoolStaffSendEmails = []; // individually-checked Access Level 1/2 people — Send To
 let _reachSchoolStaffCcEmails   = []; // individually-checked Access Level 1/2 people — Also CC
+let _reachSchoolAttachSchedule  = false; // "Attach Schedule PDF" checkbox
 let _reachSchoolTargets  = [];
 
 // One recipient row per (selected school × selected Send-To column) that
@@ -10296,6 +10321,9 @@ function _buildSchoolMailTargets(){
     const units       = sf(site,'Ranger Program Units')||'';
     const poStatus    = String(sf(site,'PO Number')||'').trim()!==''?'PO on file':'No PO on file';
     const scheduleContents = sf(site,'Schedule Contents','ScheduleContents')||'';
+    // Extract the Drive file ID from the Schedule column's share link so it
+    // can be attached to the outgoing email (see "Attach Schedule PDF" below).
+    const scheduleFileId = _driveFileIdFromUrl(sf(site,'Schedule','schedule'));
     // Image columns are already resolved to public https URLs server-side
     // (readSheet → resolveImage), so these just need the plain getImgSrc
     // normalization already used everywhere else images are shown in the app.
@@ -10338,7 +10366,7 @@ function _buildSchoolMailTargets(){
     const baseFields = {
       schoolName, schoolKey, address, phone, district, programType,
       ranger1, ranger2, ranger1Email, ranger2Email, ranger1Mobile, ranger2Mobile,
-      gardenKeeper, day1, day2, day3, units, poStatus, scheduleContents, principalName,
+      gardenKeeper, day1, day2, day3, units, poStatus, scheduleContents, scheduleFileId, principalName,
       mainImage, image2, image3, helpfulImage1, helpfulImage2, helpfulBeforeImage,
       program, programCost, adjustment, totalCost, quoteNumber, unitDescription, poNumber,
       financialNotes, amountOwed, amountPaid, otherNotes, statusType,
@@ -10407,13 +10435,20 @@ function _onReachSchoolMailColsChange(){
   _reachSchoolCcCols          = ccAll.filter(el=>!el.dataset.staff).map(el=>el.value);
   _reachSchoolStaffSendEmails = sendAll.filter(el=>el.dataset.staff).map(el=>el.value);
   _reachSchoolStaffCcEmails   = ccAll.filter(el=>el.dataset.staff).map(el=>el.value);
+  const attachChk = document.getElementById('reachSchoolAttachSchedule');
+  _reachSchoolAttachSchedule = attachChk ? attachChk.checked : false;
   _reachSchoolTargets   = _buildSchoolMailTargets();
   const summary = document.getElementById('reachSchoolMailSummary');
   if(summary){
     const n = _reachSchoolTargets.length;
     const listStr = _reachSchoolTargets.map(t=>`${t.schoolName} (${t.contactRole})`).join(', ');
+    let attachNote = '';
+    if(_reachSchoolAttachSchedule && n){
+      const withFile = _reachSchoolTargets.filter(t=>t.scheduleFileId).length;
+      attachNote = `<br><span style="font-size:12px">📎 ${withFile} of ${n} will get a Schedule PDF attached${withFile<n?' — the rest have no Schedule file uploaded':''}.</span>`;
+    }
     summary.innerHTML = n
-      ? `<strong style="color:var(--ink)">${n} recipient${n>1?'s':''}</strong> — one message per person<br><span style="font-size:12px">${escHtml(listStr)}</span>`
+      ? `<strong style="color:var(--ink)">${n} recipient${n>1?'s':''}</strong> — one message per person<br><span style="font-size:12px">${escHtml(listStr)}</span>${attachNote}`
       : `<strong style="color:var(--tomato,#c0392b)">No recipients</strong> — the schools you selected don't have a real-looking email address in the column(s) checked above.`;
   }
 }
@@ -10461,6 +10496,12 @@ function openReachSchoolsCompose(){
       <div class="memo-field-group">
         <label class="memo-label">BCC</label>
         <input id="reachBCC" class="memo-input" type="text" placeholder="bcc@example.com">
+      </div>
+      <div class="memo-field-group">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);cursor:pointer">
+          <input type="checkbox" id="reachSchoolAttachSchedule" onchange="_onReachSchoolMailColsChange()" style="width:16px;height:16px">
+          📎 Attach Schedule PDF (each school's own file, when one is uploaded)
+        </label>
       </div>
       <div class="memo-field-group">
         <label class="memo-label">Message</label>
@@ -10652,7 +10693,10 @@ async function _sendSchoolMailMerge(){
     html:    _tokHtml(rawMsg,r),
     // Per-recipient CC — this school's own "Also CC" contacts, merged with
     // the manual CC field so every message still gets that one too.
-    cc: [r.cc.join(', '), cc].filter(Boolean).join(', ')
+    cc: [r.cc.join(', '), cc].filter(Boolean).join(', '),
+    // Per-recipient attachment — that school's own Schedule PDF, only when
+    // the checkbox is on and this school actually has a file uploaded.
+    attachFileId: (_reachSchoolAttachSchedule && r.scheduleFileId) ? r.scheduleFileId : undefined
   }));
   try{
     const res = await gasPost({
