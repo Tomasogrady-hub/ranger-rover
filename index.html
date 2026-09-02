@@ -1576,10 +1576,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.82';
+const APP_VERSION='v10.83';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach > Schools: built out to match Data > Schools (filters, summary sentence, Results mode, checkbox list), with an Email Individually launcher — pick which School email columns count as recipients/CC, school-specific merge fields (Schedule Contents, Ranger names, PO status, etc.), true per-school CC. Requires a GAS redeploy (per-message CC support).';
+const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: added Ranger 1/Ranger 2 to Send To & CC columns; fixed Principal Name to look up the real name from the Principal column email (same way Ranger/Garden Keeper already do) instead of unreliable raw columns; added Program, Program Cost, Adjustment, Total Cost, Quote Number, Unit Description, PO Number, Financial Notes, Amount Owed, Amount Paid, Other Notes, and Status Type merge fields.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10225,6 +10225,8 @@ async function _sendMailMerge(together){
 // Also CC the school's own Plant Manager, without CC'ing every other school's
 // Plant Manager in the same batch.
 const SCHOOL_CONTACT_COLS = [
+  {key:'ranger1',   field:'Ranger 1',                        label:'Ranger 1'},
+  {key:'ranger2',   field:'Ranger 2',                        label:'Ranger 2'},
   {key:'principal', field:'Principal',                       label:'Principal'},
   {key:'saa',       field:'School Administrative Assistant', label:'School Administrative Assistant'},
   {key:'mc1',       field:'Main Contact 1',                  label:'Main Contact 1'},
@@ -10262,7 +10264,7 @@ function _buildSchoolMailTargets(){
     const address    = sf(site,'Full Address','FullAddress') || [sf(site,'Street Address'),sf(site,'City'),sf(site,'State'),sf(site,'Zip Code')].filter(Boolean).join(', ');
     const phone      = sf(site,'Telephone','telephone')||'';
     const district   = sf(site,'District','district')||'';
-    const program    = sf(site,'Type','type')||'';
+    const programType = sf(site,'Type','type')||''; // e.g. "Active Ranger Program" — kept distinct from the financial "Program" field below
     const r1e=sf(site,'Ranger 1','Ranger1'),r2e=sf(site,'Ranger 2','Ranger2'),gke=sf(site,'Garden Keeper','GardenKeeper');
     const ranger1     = r1e?(hn(r1e)||sf(site,'Ranger 1 Name','Ranger1Name')):'';
     const ranger2     = r2e?(hn(r2e)||sf(site,'Ranger 2 Name','Ranger2Name')):'';
@@ -10271,9 +10273,27 @@ function _buildSchoolMailTargets(){
     const units       = sf(site,'Ranger Program Units')||'';
     const poStatus    = String(sf(site,'PO Number')||'').trim()!==''?'PO on file':'No PO on file';
     const scheduleContents = sf(site,'Schedule Contents','ScheduleContents')||'';
-    const principalFirst = sf(site,'Principal First Name Raw','PrincipalFirstNameRaw')||'';
-    const principalLast  = sf(site,'Principal Last Name Raw','PrincipalLastNameRaw')||'';
-    const principalName  = [principalFirst,principalLast].filter(Boolean).join(' ');
+    // Principal Name: pull the Principal column's EMAIL, then look up that
+    // person's real name the same way Ranger 1/2 and Garden Keeper already
+    // do (hn = human-name-by-email) — the separate "raw" name columns on
+    // Sites are unreliable/often blank, so they're only a last-resort fallback.
+    const pe = sf(site,'Principal','principal');
+    const principalRawName = [sf(site,'Principal First Name Raw','PrincipalFirstNameRaw'), sf(site,'Principal Last Name Raw','PrincipalLastNameRaw')].filter(Boolean).join(' ');
+    const principalName = pe ? (hn(pe) || principalRawName) : principalRawName;
+    // Operations & Finance fields — one set per school, same values regardless
+    // of which contact within that school ends up receiving the message.
+    const program         = sf(site,'Program')||'';
+    const programCost     = _opsMoney(sf(site,'Program Cost')||'');
+    const adjustment       = sf(site,'Adjustment')||'';
+    const totalCost        = _opsMoney(sf(site,'Total Cost')||'');
+    const quoteNumber      = sf(site,'Quote Number')||'';
+    const unitDescription  = sf(site,'Unit Description')||'';
+    const poNumber         = sf(site,'PO Number')||'';
+    const financialNotes   = sf(site,'Financial Notes')||'';
+    const amountOwed       = _opsMoney(sf(site,'Amount Owed')||'');
+    const amountPaid       = _opsMoney(sf(site,'Amount Paid')||'');
+    const otherNotes       = sf(site,'Other Notes')||'';
+    const statusType       = sf(site,'Status')||'';
 
     const ccEmails = [];
     _reachSchoolCcCols.forEach(ck=>{
@@ -10289,13 +10309,21 @@ function _buildSchoolMailTargets(){
       _emailsFromSiteField(site,col.field).forEach(email=>{
         if(seenForSchool.has(email))return; // same address under 2 checked columns for this school = one row
         seenForSchool.add(email);
+        // Try to resolve THIS recipient's own name (works for Ranger 1/2,
+        // and for a Principal/contact who also happens to have a Humans
+        // record) so the Greeting can use a real first name whenever
+        // possible; falls back to a school-based greeting otherwise.
         const isPrincipal = col.key==='principal';
+        const contactName = hn(email) || (isPrincipal ? principalRawName : '') || '';
+        const contactFirst = contactName ? contactName.split(' ')[0] : '';
+        const contactLast  = contactName ? contactName.split(' ').slice(1).join(' ') : '';
         targets.push({
           email, contactRole: col.label, schoolName, schoolKey,
-          firstName: isPrincipal ? principalFirst : '',
-          lastName:  isPrincipal ? principalLast  : '',
-          address, phone, district, program,
+          firstName: contactFirst, lastName: contactLast,
+          address, phone, district, programType,
           ranger1, ranger2, gardenKeeper, dayOfWeek, units, poStatus, scheduleContents, principalName,
+          program, programCost, adjustment, totalCost, quoteNumber, unitDescription, poNumber,
+          financialNotes, amountOwed, amountPaid, otherNotes, statusType,
           cc: ccEmails.filter(e=>e!==email)
         });
       });
@@ -10375,14 +10403,26 @@ function openReachSchoolsCompose(){
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Address}}')">Address</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Phone}}')">Phone</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{District}}')">District</button>
-          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Program}}')">Program</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ProgramType}}')">Program Type</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger1}}')">Ranger 1</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger2}}')">Ranger 2</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeper}}')">Garden Keeper</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{DayOfWeek}}')">📅 Day of Week</button>
-          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Units}}')">Ranger Program Units</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{POStatus}}')">PO Status</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ScheduleContents}}')">📄 Schedule Contents</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Program}}')">Program</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ProgramCost}}')">Program Cost</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Adjustment}}')">Adjustment</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Units}}')">Ranger Program Units</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{TotalCost}}')">Total Cost</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{QuoteNumber}}')">Quote Number</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{UnitDescription}}')">Unit Description</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{PONumber}}')">PO Number</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{FinancialNotes}}')">Financial Notes</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AmountOwed}}')">Amount Owed</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AmountPaid}}')">Amount Paid</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{OtherNotes}}')">Other Notes</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{StatusType}}')">Status Type</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyEmail}}')">📧 Reply To My Email</button>
@@ -10431,7 +10471,7 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{Address\}\}/gi,         r.address||'')
     .replace(/\{\{Phone\}\}/gi,           r.phone||'')
     .replace(/\{\{District\}\}/gi,        r.district||'')
-    .replace(/\{\{Program\}\}/gi,         r.program||'')
+    .replace(/\{\{ProgramType\}\}/gi,     r.programType||'')
     .replace(/\{\{Ranger1\}\}/gi,         r.ranger1||'')
     .replace(/\{\{Ranger2\}\}/gi,         r.ranger2||'')
     .replace(/\{\{GardenKeeper\}\}/gi,    r.gardenKeeper||'')
@@ -10439,6 +10479,18 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{Units\}\}/gi,           r.units||'')
     .replace(/\{\{POStatus\}\}/gi,        r.poStatus||'')
     .replace(/\{\{ScheduleContents\}\}/gi,r.scheduleContents||'')
+    .replace(/\{\{Program\}\}/gi,         r.program||'')
+    .replace(/\{\{ProgramCost\}\}/gi,     r.programCost||'')
+    .replace(/\{\{Adjustment\}\}/gi,      r.adjustment||'')
+    .replace(/\{\{TotalCost\}\}/gi,       r.totalCost||'')
+    .replace(/\{\{QuoteNumber\}\}/gi,     r.quoteNumber||'')
+    .replace(/\{\{UnitDescription\}\}/gi, r.unitDescription||'')
+    .replace(/\{\{PONumber\}\}/gi,        r.poNumber||'')
+    .replace(/\{\{FinancialNotes\}\}/gi,  r.financialNotes||'')
+    .replace(/\{\{AmountOwed\}\}/gi,      r.amountOwed||'')
+    .replace(/\{\{AmountPaid\}\}/gi,      r.amountPaid||'')
+    .replace(/\{\{OtherNotes\}\}/gi,      r.otherNotes||'')
+    .replace(/\{\{StatusType\}\}/gi,      r.statusType||'')
     .replace(/\{\{FromName\}\}/gi,        _fromName);
   const _tokHtml = (str,r)=>{
     const schoolLink = `<a href="${REACH_APP_URL}#school=${encodeURIComponent(r.schoolKey||'')}">${_escHtml(r.schoolName||'')}</a>`;
@@ -10449,7 +10501,7 @@ async function _sendSchoolMailMerge(){
       .replace(/\{\{Address\}\}/gi,         _escHtml(r.address||''))
       .replace(/\{\{Phone\}\}/gi,           _escHtml(r.phone||''))
       .replace(/\{\{District\}\}/gi,        _escHtml(r.district||''))
-      .replace(/\{\{Program\}\}/gi,         _escHtml(r.program||''))
+      .replace(/\{\{ProgramType\}\}/gi,     _escHtml(r.programType||''))
       .replace(/\{\{Ranger1\}\}/gi,         _escHtml(r.ranger1||''))
       .replace(/\{\{Ranger2\}\}/gi,         _escHtml(r.ranger2||''))
       .replace(/\{\{GardenKeeper\}\}/gi,    _escHtml(r.gardenKeeper||''))
@@ -10457,6 +10509,18 @@ async function _sendSchoolMailMerge(){
       .replace(/\{\{Units\}\}/gi,           _escHtml(r.units||''))
       .replace(/\{\{POStatus\}\}/gi,        _escHtml(r.poStatus||''))
       .replace(/\{\{ScheduleContents\}\}/gi,_escHtml(r.scheduleContents||'').replace(/\n/g,'<br>'))
+      .replace(/\{\{Program\}\}/gi,         _escHtml(r.program||''))
+      .replace(/\{\{ProgramCost\}\}/gi,     _escHtml(r.programCost||''))
+      .replace(/\{\{Adjustment\}\}/gi,      _escHtml(r.adjustment||''))
+      .replace(/\{\{TotalCost\}\}/gi,       _escHtml(r.totalCost||''))
+      .replace(/\{\{QuoteNumber\}\}/gi,     _escHtml(r.quoteNumber||''))
+      .replace(/\{\{UnitDescription\}\}/gi, _escHtml(r.unitDescription||''))
+      .replace(/\{\{PONumber\}\}/gi,        _escHtml(r.poNumber||''))
+      .replace(/\{\{FinancialNotes\}\}/gi,  _escHtml(r.financialNotes||'').replace(/\n/g,'<br>'))
+      .replace(/\{\{AmountOwed\}\}/gi,      _escHtml(r.amountOwed||''))
+      .replace(/\{\{AmountPaid\}\}/gi,      _escHtml(r.amountPaid||''))
+      .replace(/\{\{OtherNotes\}\}/gi,      _escHtml(r.otherNotes||'').replace(/\n/g,'<br>'))
+      .replace(/\{\{StatusType\}\}/gi,      _escHtml(r.statusType||''))
       .replace(/\{\{FromName\}\}/gi,        _escHtml(_fromName))
       .replace(/\n/g, '<br>');
   };
