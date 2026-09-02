@@ -1579,10 +1579,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.87';
+const APP_VERSION='v10.88';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: replaced the single "All Access Level 1 & 2 Staff" toggle with individually-checkable chips, one per Level 1/2 person, populated live from the Humans sheet — separate chip groups for Send To and Also CC so specific people can be picked instead of all-or-nothing.';
+const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: School Name merge field is now plain text, no longer a hotlink back into the app.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10600,10 +10600,9 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{HelpfulBeforeImage\}\}/gi, r.helpfulBeforeImage||'')
     .replace(/\{\{FromName\}\}/gi,        _fromName);
   const _tokHtml = (str,r)=>{
-    const schoolLink = `<a href="${REACH_APP_URL}#school=${encodeURIComponent(r.schoolKey||'')}">${_escHtml(r.schoolName||'')}</a>`;
     return _reachStaticHtml(_escHtml(str))
       .replace(/\{\{Greeting\}\}/gi,        _escHtml(_greetingPlain(r)))
-      .replace(/\{\{SchoolName\}\}/gi,      schoolLink)
+      .replace(/\{\{SchoolName\}\}/gi,      _escHtml(r.schoolName||''))
       .replace(/\{\{PrincipalName\}\}/gi,   _escHtml(r.principalName||''))
       .replace(/\{\{Address\}\}/gi,         _escHtml(r.address||''))
       .replace(/\{\{Phone\}\}/gi,           _escHtml(r.phone||''))
