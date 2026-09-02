@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.39 | 2026-08-27';
+const GAS_BUILD = 'v10.82 | 2026-09-02';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -2697,10 +2697,17 @@ function handleSendMailMerge(p) {
       var subject = String((m && m.subject) || '(no subject)');
       var body    = String((m && m.body)    || '');
       var html    = (m && m.html) ? String(m.html) : null;
+      // Per-message cc/bcc override the batch-wide cc/bcc when present — used
+      // by the Schools email launcher so each school's "Also CC" contacts
+      // only ever land on that school's own message, never on every
+      // recipient in the batch. The People launcher never sends these, so it
+      // keeps using the shared cc/bcc exactly as before.
+      var msgCc  = (m && m.cc  != null && String(m.cc).trim()  !== '') ? String(m.cc)  : cc;
+      var msgBcc = (m && m.bcc != null && String(m.bcc).trim() !== '') ? String(m.bcc) : bcc;
       try {
         var opts = {
-          cc:      cc  || undefined,
-          bcc:     bcc || undefined,
+          cc:      msgCc  || undefined,
+          bcc:     msgBcc || undefined,
           name:    fromEmail,
           replyTo: replyTo
         };
