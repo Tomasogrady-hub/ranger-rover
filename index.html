@@ -1104,13 +1104,97 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       </div>
     </div>
 
-    <!-- Sub-page: Schools Reach (placeholder) -->
+    <!-- Sub-page: Schools Reach -->
     <div id="reach-schools" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
         <button onclick="showReachPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
         <span class="page-title">Schools</span>
+        <span class="page-count" id="reachSchoolsCount"></span>
       </div>
-      <div style="padding:40px 24px;text-align:center;color:var(--silver)">Coming soon</div>
+      <div class="dl" style="text-align:center;margin:6px 0 0">Filter</div>
+      <div id="reachSchoolFilters" style="padding:10px 16px 4px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:680px;margin:0 auto">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program</label>
+          <select id="rsProgramFilter" class="settings-input" style="margin:0" onchange="setReachSchoolProgramFilter(this.value)">
+            <option value="all" selected>All</option>
+            <option value="Active Ranger Program">Active Ranger Program</option>
+            <option value="Future Ranger Program">Future Ranger Program</option>
+            <option value="Inactive Ranger Program">Inactive Ranger Program</option>
+            <option value="Possible Ranger Program">Possible Ranger Program</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Assigned</label>
+          <select id="rsAssignFilter" class="settings-input" style="margin:0" onchange="setReachSchoolAssignFilter(this.value)">
+            <option value="all">All</option>
+            <option value="assigned">Assigned</option>
+            <option value="unassigned">Unassigned</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger</label>
+          <select id="rsRangerFilter" class="settings-input" style="margin:0" onchange="setReachSchoolRangerFilter(this.value)">
+            <option value="all">All Rangers</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Day of Week</label>
+          <select id="rsDayFilter" class="settings-input" style="margin:0" onchange="setReachSchoolDayFilter(this.value)">
+            <option value="all">All</option>
+            <option value="none">None</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By PO</label>
+          <select id="rsPoFilter" class="settings-input" style="margin:0" onchange="setReachSchoolPoFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Program Units</label>
+          <select id="rsUnitsFilter" class="settings-input" style="margin:0" onchange="setReachSchoolUnitsFilter(this.value)">
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Schedule</label>
+          <select id="rsSchedFilter" class="settings-input" style="margin:0" onchange="setReachSchoolScheduleFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+      </div>
+      <div id="reachSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
+      <div style="display:flex;justify-content:center;margin:10px 0 8px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);text-align:center">Results</label>
+          <select id="rsResultsMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:16px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="setReachSchoolResultsMode(this.value)">
+            <option value="simple">Simple</option>
+            <option value="summary" selected>Summary</option>
+            <option value="detailed">Detailed</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 16px 10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
+          <input type="checkbox" id="reachSchoolsSelectAll" onchange="toggleReachSchoolsSelectAll(this.checked)"> Select all
+        </label>
+        <span id="reachSchoolsSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
+      </div>
+      <div class="card-list" id="reachSchoolsList"><div class="spinner"></div></div>
+      <div id="reachSchoolsActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
+        <button id="reachSchoolsEmailBtn" class="reach-action-btn" style="opacity:.45;cursor:not-allowed" disabled onclick="openReachSchoolsCompose()">&#9993; Email Individually</button>
+      </div>
     </div>
 
     <!-- Sub-page: Organizations Reach (placeholder) -->
@@ -1492,10 +1576,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.81';
+const APP_VERSION='v10.82';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-01 - EMERGENCY FIX: Level 1 now always sees every nav tab regardless of stored navVisibility, so a nav-visibility misconfiguration can never lock the super-admin out of Settings again.';
+const BUILD_STAMP='2026-09-02 - Reach > Schools: built out to match Data > Schools (filters, summary sentence, Results mode, checkbox list), with an Email Individually launcher — pick which School email columns count as recipients/CC, school-specific merge fields (Schedule Contents, Ranger names, PO status, etc.), true per-school CC. Requires a GAS redeploy (per-message CC support).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -9512,6 +9596,261 @@ let _reachMode        = '';          // current action mode
 let _reachForwardPrefill = null;     // {subject,message} staged by forwardChoreToReach(), consumed once by openReachCompose()
 
 // ── page routing ──────────────────────────────────────────────────────────────
+/* ═══ REACH > SCHOOLS ═══ */
+// Mirrors Data > Schools (filters, summary sentence, Results mode, checkbox
+// list) with its own independent state — 'rs' prefix, same pattern as 'ds'
+// (Data Schools) and 'cs' (main Schools tab) — so browsing/filtering/selecting
+// here never disturbs either of those other views.
+let rsProgF='all',rsAssignF='all',rsRangerF='all',rsDayF='all',rsPoF='all',rsUnitsF='all',rsSchedF='all',rsResultsMode='summary';
+let _reachSchoolsSelected=new Set(); // Set of site Keys (col A)
+let _rsProgramFilterFilled=false;
+
+function _fillReachSchoolProgramFilterSelect(){
+  const sel=document.getElementById('rsProgramFilter');
+  if(!sel||!_siteTypesCache||!_siteTypesCache.length)return;
+  const current=sel.value;
+  sel.innerHTML='<option value="all">All</option>'+_siteTypesCache.map(t=>`<option value="${ea(t)}">${escHtml(t)}</option>`).join('');
+  sel.value=[...sel.options].some(o=>o.value===current)?current:'all';
+  _rsProgramFilterFilled=true;
+}
+function _fillReachSchoolDynamicFilters(){
+  if(!_siteTypesCache){_getSiteTypes().then(()=>_fillReachSchoolProgramFilterSelect());}
+  else if(!_rsProgramFilterFilled){_fillReachSchoolProgramFilterSelect();}
+  const rSel=document.getElementById('rsRangerFilter');
+  if(rSel){
+    const seen={};
+    DATA.sites.forEach(s=>{
+      const r1=sf(s,'Ranger 1','Ranger1'),r2=sf(s,'Ranger 2','Ranger2');
+      if(r1&&!seen[r1])seen[r1]=hn(r1)||r1;
+      if(r2&&!seen[r2])seen[r2]=hn(r2)||r2;
+    });
+    const entries=Object.entries(seen).sort((a,b)=>a[1].localeCompare(b[1]));
+    const current=rSel.value||'all';
+    rSel.innerHTML='<option value="all">All Rangers</option><option value="none">None</option>'+entries.map(([email,name])=>`<option value="${ea(email)}">${escHtml(name)}</option>`).join('');
+    rSel.value=[...rSel.options].some(o=>o.value===current)?current:'all';
+  }
+  const uSel=document.getElementById('rsUnitsFilter');
+  if(uSel){
+    const set=new Set();
+    DATA.sites.forEach(s=>{const u=String(sf(s,'Ranger Program Units')||'').trim();if(u!=='')set.add(u);});
+    const nums=[...set].sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0));
+    const current=uSel.value||'all';
+    uSel.innerHTML='<option value="all">All</option>'+nums.map(n=>`<option value="${ea(n)}">${escHtml(n)}</option>`).join('');
+    uSel.value=[...uSel.options].some(o=>o.value===current)?current:'all';
+  }
+}
+function setReachSchoolProgramFilter(v){rsProgF=v;renderReachSchools();}
+function setReachSchoolAssignFilter(v){rsAssignF=v;renderReachSchools();}
+function setReachSchoolRangerFilter(v){rsRangerF=v;renderReachSchools();}
+function setReachSchoolDayFilter(v){rsDayF=v;renderReachSchools();}
+function setReachSchoolPoFilter(v){rsPoF=v;renderReachSchools();}
+function setReachSchoolUnitsFilter(v){rsUnitsF=v;renderReachSchools();}
+function setReachSchoolScheduleFilter(v){rsSchedF=v;renderReachSchools();}
+function setReachSchoolResultsMode(v){rsResultsMode=v;renderReachSchools();}
+
+function _reachSchoolsFiltered(){
+  return DATA.sites.filter(s=>{
+    const type=(sf(s,'Type','type')||'').trim();
+    const r1e=sf(s,'Ranger 1','Ranger1'),r2e=sf(s,'Ranger 2','Ranger2');
+    if(rsProgF!=='all'&&type.toLowerCase()!==rsProgF.toLowerCase())return false;
+    if(rsAssignF==='assigned'&&!(r1e||r2e))return false;
+    if(rsAssignF==='unassigned'&&(r1e||r2e))return false;
+    if(rsRangerF==='none'){
+      if(r1e||r2e)return false;
+    } else if(rsRangerF!=='all'&&r1e!==rsRangerF&&r2e!==rsRangerF)return false;
+    if(rsDayF!=='all'){
+      const d1=(sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'').trim().toLowerCase();
+      if(rsDayF==='none'){
+        if(d1!=='')return false;
+      } else if(d1!==rsDayF.toLowerCase())return false;
+    }
+    if(rsPoF!=='all'){
+      const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+      if(rsPoF==='yes'&&!hasPO)return false;
+      if(rsPoF==='no'&&hasPO)return false;
+    }
+    if(rsUnitsF!=='all'){
+      const units=String(sf(s,'Ranger Program Units')||'').trim();
+      if(units!==rsUnitsF)return false;
+    }
+    if(rsSchedF!=='all'){
+      const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+      if(rsSchedF==='yes'&&!hasSched)return false;
+      if(rsSchedF==='no'&&hasSched)return false;
+    }
+    return true;
+  });
+}
+function _reachSchoolsSummaryText(count){
+  const subj=count===1?'1 school':`${count} schools`;
+  const parts=[];
+  if(rsProgF!=='all')parts.push(`are in the ${rsProgF} program`);
+  if(rsAssignF==='assigned')parts.push('an assigned ranger');
+  if(rsAssignF==='unassigned')parts.push('no assigned ranger');
+  if(rsRangerF==='none')parts.push('no ranger set');
+  else if(rsRangerF!=='all'){
+    const rSel=document.getElementById('rsRangerFilter');
+    const opt=rSel&&Array.from(rSel.options).find(o=>o.value===rsRangerF);
+    parts.push(`${opt?opt.textContent:'that ranger'} as their Ranger`);
+  }
+  if(rsDayF==='none')parts.push('no Day of Week set');
+  else if(rsDayF!=='all')parts.push(`${rsDayF} as their Day of Week`);
+  if(rsPoF==='yes')parts.push('a PO on file');
+  if(rsPoF==='no')parts.push('no PO on file');
+  if(rsUnitsF!=='all')parts.push(`${rsUnitsF} Ranger Program Units`);
+  if(rsSchedF==='yes')parts.push('a schedule on file');
+  if(rsSchedF==='no')parts.push('no schedule on file');
+  if(!parts.length)return `${subj} shown.`;
+  const joined=parts.length===1?parts[0]:parts.length===2?parts.join(' and '):parts.slice(0,-1).join(', ')+', and '+parts[parts.length-1];
+  return `${subj} ${count===1?'has':'have'} ${joined}.`;
+}
+
+function toggleReachSchoolSelect(key,checked){
+  if(checked)_reachSchoolsSelected.add(key);else _reachSchoolsSelected.delete(key);
+  _updateReachSchoolsSelCount();
+}
+function toggleReachSchoolsSelectAll(checked){
+  document.querySelectorAll('#reachSchoolsList [data-sitekey]').forEach(row=>{
+    const key=row.dataset.sitekey;
+    const cb=row.querySelector('input[type=checkbox]');
+    if(cb)cb.checked=checked;
+    if(checked)_reachSchoolsSelected.add(key);else _reachSchoolsSelected.delete(key);
+  });
+  _updateReachSchoolsSelCount();
+}
+function _updateReachSchoolsSelCount(){
+  const c=document.getElementById('reachSchoolsSelCount');
+  if(c)c.textContent=_reachSchoolsSelected.size+' selected';
+  const all=document.getElementById('reachSchoolsSelectAll');
+  if(all){
+    const rows=document.querySelectorAll('#reachSchoolsList [data-sitekey]').length;
+    all.checked = rows>0 && _reachSchoolsSelected.size>=rows;
+  }
+  const hasSel=_reachSchoolsSelected.size>0;
+  const btn=document.getElementById('reachSchoolsEmailBtn');
+  if(btn){btn.disabled=!hasSel;btn.style.opacity=hasSel?'1':'.45';btn.style.cursor=hasSel?'pointer':'not-allowed';}
+}
+
+// Simple: checkbox + name only, hotlinked to the site's detail card.
+function _reachSchoolSimpleCardHtml(s){
+  const name=sf(s,'Name','name');
+  const siteKey=sf(s,'Key','key')||'';
+  const checked=_reachSchoolsSelected.has(siteKey);
+  return `<div class="ranger-simple-row" data-sitekey="${ea(siteKey)}" style="display:flex;align-items:center;gap:12px">
+    <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleReachSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px">
+    <span style="flex:1;cursor:pointer" onclick="showSchoolDetailByKey('${esc(siteKey)}')">${escHtml(name)}</span>
+  </div>`;
+}
+// Summary: checkbox + name + program + assigned ranger + day + PO status.
+// Smart clicks: Ranger jumps to their own person card; Schedule pill jumps
+// straight to the Schedule section of the school detail sheet.
+function _reachSchoolSummaryCardHtml(s){
+  const name=sf(s,'Name','name');
+  const siteKey=sf(s,'Key','key')||'';
+  const type=sf(s,'Type','type')||'';
+  const r1e=sf(s,'Ranger 1','Ranger1');
+  const r1n=r1e?(hn(r1e)||sf(s,'Ranger 1 Name','Ranger1Name')):'';
+  const day=sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
+  const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+  const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+  const checked=_reachSchoolsSelected.has(siteKey);
+  return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)">
+    <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleReachSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px;margin-top:4px">
+    <div class="school-info">
+      <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
+      ${type?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}</div>`:''}
+      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button></div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        ${day?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(day)}</button>`:''}
+        <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
+      </div>
+    </div>
+    <span class="school-chevron">›</span>
+  </div>`;
+}
+// Detailed: checkbox + everything.
+function _reachSchoolDetailedCardHtml(s){
+  const name=sf(s,'Name','name');
+  const siteKey=sf(s,'Key','key')||'';
+  const type=sf(s,'Type','type')||'';
+  const district=sf(s,'District','district')||'';
+  const addr=sf(s,'Full Address','FullAddress')||[sf(s,'Street Address'),sf(s,'City'),sf(s,'State'),sf(s,'Zip Code')].filter(Boolean).join(', ');
+  const phone=sf(s,'Telephone','telephone')||'';
+  const r1e=sf(s,'Ranger 1','Ranger1'),r2e=sf(s,'Ranger 2','Ranger2');
+  const r1n=r1e?(hn(r1e)||sf(s,'Ranger 1 Name','Ranger1Name')):'';
+  const r2n=r2e?(hn(r2e)||sf(s,'Ranger 2 Name','Ranger2Name')):'';
+  const gke=sf(s,'Garden Keeper','GardenKeeper');
+  const gkn=gke?(hn(gke)||sf(s,'Garden Keeper Name','GardenKeeperName')):'';
+  const days=[sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(s,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(s,'Ranger Day Of Week 3','RangerDayOfWeek3')].filter(Boolean).join(', ');
+  const units=sf(s,'Ranger Program Units')||'';
+  const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+  const hasSched=String(sf(s,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+  const checked=_reachSchoolsSelected.has(siteKey);
+  return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)">
+    <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="toggleReachSchoolSelect('${esc(siteKey)}',this.checked)" style="flex:none;width:18px;height:18px;margin-top:4px">
+    <div class="school-info">
+      <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
+      <div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}${district?' · '+escHtml(district):''}</div>
+      ${addr?`<div style="font-size:13px;color:var(--stone);margin-top:4px">${escHtml(addr)}</div>`:''}
+      ${phone?`<div style="font-size:13px"><a class="dlink" href="tel:${ea(phone.replace(/[^0-9+]/g,''))}" onclick="event.stopPropagation()">${escHtml(phone)}</a></div>`:''}
+      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger 1</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button></div>`:''}
+      ${r2n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger 2</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r2e)}')">${escHtml(r2n)}</button></div>`:''}
+      ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(gke)}')">${escHtml(gkn)}</button></div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        ${days?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(days)}</button>`:''}
+        ${units?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">${escHtml(units)} Units</span>`:''}
+        <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
+        <button class="chore-pill" style="background:${hasSched?'#eaf3ea':'var(--warn-bg)'};color:${hasSched?'var(--sage)':'var(--amber)'};border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>${hasSched?'✓ Schedule on file':'⚠ No Schedule'}</button>
+      </div>
+    </div>
+    <span class="school-chevron">›</span>
+  </div>`;
+}
+
+let _rsListObs=null;
+function _renderReachSchoolBatch(sites,from,batchSize,cardFn){
+  const container=document.getElementById('reachSchoolsList');
+  if(from===0){container.innerHTML='';}
+  const to=Math.min(from+batchSize,sites.length);
+  const frag=document.createDocumentFragment();
+  for(let i=from;i<to;i++){
+    const el=document.createElement('div');
+    el.innerHTML=cardFn(sites[i]);
+    frag.appendChild(el.firstChild);
+  }
+  const old=container.querySelector('.list-sentinel');if(old)old.remove();
+  container.appendChild(frag);
+  if(to<sites.length){
+    const remaining=sites.length-to;
+    const sentinel=document.createElement('div');
+    sentinel.className='list-sentinel';
+    sentinel.innerHTML=`<div style="text-align:center;padding:14px 0;font-size:14px;color:var(--silver);letter-spacing:.06em">Loading ${remaining} more…</div>`;
+    container.appendChild(sentinel);
+    if(_rsListObs)_rsListObs.disconnect();
+    _rsListObs=new IntersectionObserver(entries=>{
+      if(!entries[0].isIntersecting)return;
+      _rsListObs.disconnect();_rsListObs=null;
+      sentinel.remove();
+      _renderReachSchoolBatch(sites,to,batchSize,cardFn);
+    },{rootMargin:'300px'});
+    _rsListObs.observe(sentinel);
+  }
+}
+function renderReachSchools(){
+  _fillReachSchoolDynamicFilters();
+  const sites=_reachSchoolsFiltered().slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
+  const countEl=document.getElementById('reachSchoolsCount');
+  if(countEl)countEl.textContent=sites.length+' sites';
+  const sumEl=document.getElementById('reachSchoolsSummarySentence');
+  if(sumEl)sumEl.textContent=_reachSchoolsSummaryText(sites.length);
+  const listEl=document.getElementById('reachSchoolsList');
+  if(!listEl)return;
+  if(!sites.length){listEl.innerHTML=empty('—','No results','Try a different filter.');_updateReachSchoolsSelCount();return;}
+  const cardFn=rsResultsMode==='simple'?_reachSchoolSimpleCardHtml:rsResultsMode==='detailed'?_reachSchoolDetailedCardHtml:_reachSchoolSummaryCardHtml;
+  _renderReachSchoolBatch(sites,0,40,cardFn);
+  _updateReachSchoolsSelCount();
+}
+
 function showReachPage(page, mode) {
   _reachCurrentPage = page;
   ['menu','people','enrichla','peopleall','schools','organizations'].forEach(p => {
@@ -9523,6 +9862,7 @@ function showReachPage(page, mode) {
   if (page === 'people')    renderReachPeopleHub();
   if (page === 'enrichla')  { _reachSelected.clear(); _reachAppUserFilter = 'all'; document.querySelectorAll('#reachAppUserFilters .chip').forEach(c => c.classList.remove('active')); renderReachRangers(); }
   if (page === 'peopleall') { _reachSelected.clear(); _reachAllMode = mode || _reachAllMode || 'ranger'; renderReachAll(); }
+  if (page === 'schools')   renderReachSchools();
 }
 
 // ── People hub — total count of every row in the Humans sheet ──────────────────
@@ -9873,6 +10213,273 @@ async function _sendMailMerge(together){
     if(res.errors&&res.errors.length) console.warn('Mail merge errors:',res.errors);
   }catch(e){
     if(btn){btn.textContent='✉ Send Email'+(together?'':' (Mail Merge)');btn.style.pointerEvents='';}
+    if(st)st.textContent='⚠ '+e.message;
+  }
+}
+
+// ── SCHOOLS EMAIL LAUNCHER (Reach > Schools > Email Individually) ────────────
+// Schools don't have one single "email" the way Humans do — each has several
+// possible contacts. This lets Tomas choose which of those columns count as
+// actual recipients ("Send To"), and separately which columns get CC'd
+// alongside each recipient's own message ("Also CC") — e.g. Send To Principal,
+// Also CC the school's own Plant Manager, without CC'ing every other school's
+// Plant Manager in the same batch.
+const SCHOOL_CONTACT_COLS = [
+  {key:'principal', field:'Principal',                       label:'Principal'},
+  {key:'saa',       field:'School Administrative Assistant', label:'School Administrative Assistant'},
+  {key:'mc1',       field:'Main Contact 1',                  label:'Main Contact 1'},
+  {key:'mc2',       field:'Main Contact 2',                  label:'Main Contact 2'},
+  {key:'mc3',       field:'Main Contact 3',                  label:'Main Contact 3'},
+  {key:'pm',        field:'Plant Manager',                   label:'Plant Manager'},
+  {key:'cpm',       field:'CPM',                              label:'CPM'},
+  {key:'teachers',  field:'Teachers',                         label:'Teachers'},
+  {key:'other',     field:'Other Contacts',                   label:'Other Contacts'}
+];
+const _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// A contact column can hold one address or a comma/semicolon-separated list
+// (Teachers, Other Contacts especially) — split and keep only what actually
+// looks like an email, so a stray name in one of those columns is silently
+// skipped rather than becoming a broken send.
+function _emailsFromSiteField(site, fieldName){
+  const raw = sf(site, fieldName) || '';
+  if (!raw) return [];
+  return String(raw).split(/[,;\n]+/).map(s=>s.trim()).filter(s=>_EMAIL_RE.test(s));
+}
+let _reachSchoolSendCols = ['principal'];
+let _reachSchoolCcCols   = [];
+let _reachSchoolTargets  = [];
+
+// One recipient row per (selected school × selected Send-To column) that
+// actually resolves to a real-looking email. "Also CC" columns are resolved
+// per-school too and carried on each row's own .cc — never mixed across
+// different schools' recipients.
+function _buildSchoolMailTargets(){
+  const schools = Array.from(_reachSchoolsSelected).map(k => DATA.sites.find(s => sf(s,'Key','key')===k)).filter(Boolean);
+  const targets = [];
+  schools.forEach(site=>{
+    const schoolName = sf(site,'Name','name');
+    const schoolKey  = sf(site,'Key','key');
+    const address    = sf(site,'Full Address','FullAddress') || [sf(site,'Street Address'),sf(site,'City'),sf(site,'State'),sf(site,'Zip Code')].filter(Boolean).join(', ');
+    const phone      = sf(site,'Telephone','telephone')||'';
+    const district   = sf(site,'District','district')||'';
+    const program    = sf(site,'Type','type')||'';
+    const r1e=sf(site,'Ranger 1','Ranger1'),r2e=sf(site,'Ranger 2','Ranger2'),gke=sf(site,'Garden Keeper','GardenKeeper');
+    const ranger1     = r1e?(hn(r1e)||sf(site,'Ranger 1 Name','Ranger1Name')):'';
+    const ranger2     = r2e?(hn(r2e)||sf(site,'Ranger 2 Name','Ranger2Name')):'';
+    const gardenKeeper= gke?(hn(gke)||sf(site,'Garden Keeper Name','GardenKeeperName')):'';
+    const dayOfWeek   = [sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')].filter(Boolean).join(', ');
+    const units       = sf(site,'Ranger Program Units')||'';
+    const poStatus    = String(sf(site,'PO Number')||'').trim()!==''?'PO on file':'No PO on file';
+    const scheduleContents = sf(site,'Schedule Contents','ScheduleContents')||'';
+    const principalFirst = sf(site,'Principal First Name Raw','PrincipalFirstNameRaw')||'';
+    const principalLast  = sf(site,'Principal Last Name Raw','PrincipalLastNameRaw')||'';
+    const principalName  = [principalFirst,principalLast].filter(Boolean).join(' ');
+
+    const ccEmails = [];
+    _reachSchoolCcCols.forEach(ck=>{
+      const col = SCHOOL_CONTACT_COLS.find(c=>c.key===ck);
+      if(!col) return;
+      _emailsFromSiteField(site,col.field).forEach(e=>{ if(!ccEmails.includes(e)) ccEmails.push(e); });
+    });
+
+    const seenForSchool = new Set();
+    _reachSchoolSendCols.forEach(sk=>{
+      const col = SCHOOL_CONTACT_COLS.find(c=>c.key===sk);
+      if(!col) return;
+      _emailsFromSiteField(site,col.field).forEach(email=>{
+        if(seenForSchool.has(email))return; // same address under 2 checked columns for this school = one row
+        seenForSchool.add(email);
+        const isPrincipal = col.key==='principal';
+        targets.push({
+          email, contactRole: col.label, schoolName, schoolKey,
+          firstName: isPrincipal ? principalFirst : '',
+          lastName:  isPrincipal ? principalLast  : '',
+          address, phone, district, program,
+          ranger1, ranger2, gardenKeeper, dayOfWeek, units, poStatus, scheduleContents, principalName,
+          cc: ccEmails.filter(e=>e!==email)
+        });
+      });
+    });
+  });
+  return targets;
+}
+
+function _reachSchoolColChipsHtml(groupName, checkedKeys){
+  return SCHOOL_CONTACT_COLS.map(c=>`
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--ink);padding:5px 10px;background:var(--fog);border:1px solid var(--mist);border-radius:100px;cursor:pointer">
+      <input type="checkbox" data-group="${groupName}" value="${c.key}" ${checkedKeys.includes(c.key)?'checked':''} onchange="_onReachSchoolMailColsChange()" style="width:15px;height:15px">
+      ${escHtml(c.label)}
+    </label>`).join('');
+}
+
+function _onReachSchoolMailColsChange(){
+  _reachSchoolSendCols = Array.from(document.querySelectorAll('input[data-group="send"]:checked')).map(el=>el.value);
+  _reachSchoolCcCols   = Array.from(document.querySelectorAll('input[data-group="cc"]:checked')).map(el=>el.value);
+  _reachSchoolTargets  = _buildSchoolMailTargets();
+  const summary = document.getElementById('reachSchoolMailSummary');
+  if(summary){
+    const n = _reachSchoolTargets.length;
+    const listStr = _reachSchoolTargets.map(t=>`${t.schoolName} (${t.contactRole})`).join(', ');
+    summary.innerHTML = n
+      ? `<strong style="color:var(--ink)">${n} recipient${n>1?'s':''}</strong> — one message per person<br><span style="font-size:12px">${escHtml(listStr)}</span>`
+      : `<strong style="color:var(--tomato,#c0392b)">No recipients</strong> — the schools you selected don't have a real-looking email address in the column(s) checked above.`;
+  }
+}
+
+function openReachSchoolsCompose(){
+  if(!_reachSchoolsSelected.size){ showToast('Select at least one school, or tap "Select all" first'); return; }
+  const overlay = document.getElementById('memo-overlay');
+  const mc      = document.getElementById('memo-content');
+  overlay.style.display = 'block';
+  _reachSchoolTargets = _buildSchoolMailTargets();
+
+  mc.innerHTML = `
+  <div style="padding:0 0 100px 0">
+    <div class="page-header" style="display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--mist)">
+      <button onclick="closeReachCompose()" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px 0 10px;color:var(--stone)">‹</button>
+      <span class="page-title" style="font-size:17px">Email Individually</span>
+    </div>
+    <div style="padding:16px 18px 0">
+      <div class="memo-field-group">
+        <label class="memo-label">Send To (email column)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${_reachSchoolColChipsHtml('send',_reachSchoolSendCols)}</div>
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">Also CC (per school, same-school contacts only)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${_reachSchoolColChipsHtml('cc',_reachSchoolCcCols)}</div>
+      </div>
+      <div id="reachSchoolMailSummary" style="background:var(--fog);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--stone)"></div>
+      <button type="button" class="reach-token-chip" style="width:100%;text-align:center;padding:9px 12px;margin-bottom:14px" onclick="openReachTemplatePicker()">📋 Reuse a Past Message</button>
+      <div class="memo-field-group">
+        <label class="memo-label">Subject</label>
+        <input id="reachSubject" class="memo-input" type="text" placeholder="Subject…" onfocus="_reachLastFocusedField=this.id">
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">CC <span style="font-weight:400;text-transform:none;letter-spacing:0">(anyone, sent on every message — in addition to "Also CC" above)</span></label>
+        <input id="reachCC" class="memo-input" type="text" placeholder="cc@example.com">
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">BCC</label>
+        <input id="reachBCC" class="memo-input" type="text" placeholder="bcc@example.com">
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">Message</label>
+        <textarea id="reachMessage" class="memo-input" rows="8" placeholder="Write your message…" style="resize:vertical" onfocus="_reachLastFocusedField=this.id"></textarea>
+      </div>
+      <div class="memo-field-group">
+        <label class="memo-label">Insert Field</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Greeting}}')">👋 Greeting</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{SchoolName}}')">School Name</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{PrincipalName}}')">Principal Name</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Address}}')">Address</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Phone}}')">Phone</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{District}}')">District</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Program}}')">Program</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger1}}')">Ranger 1</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger2}}')">Ranger 2</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeper}}')">Garden Keeper</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{DayOfWeek}}')">📅 Day of Week</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Units}}')">Ranger Program Units</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{POStatus}}')">PO Status</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ScheduleContents}}')">📄 Schedule Contents</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyEmail}}')">📧 Reply To My Email</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyMobile}}')">☎️ Reply To My Mobile</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('\\n\\nSincerely,\\n{{FromName}}')">🙏 Greeting From You</button>
+        </div>
+        <div style="font-size:11px;color:var(--silver);line-height:1.5">Tap a field to drop it in at your cursor (works in Subject or Message) — each recipient gets their own version filled in automatically when sent.</div>
+      </div>
+      <div id="reachComposeStatus" style="font-size:14px;color:var(--tomato,#c0392b);min-height:18px;margin-bottom:10px"></div>
+    </div>
+    <div id="reachComposeActions" style="position:sticky;bottom:0;left:0;right:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px calc(10px + var(--safe-bottom));display:flex;gap:8px;flex-wrap:wrap;z-index:5">
+      <button onclick="closeReachCompose()" class="reach-action-btn" style="background:var(--mist);color:var(--ink);flex:1;min-width:70px">Cancel</button>
+      <button id="reachSendBtn" class="reach-action-btn" style="flex:2;min-width:130px;background:var(--enrich-dark);color:#fff" onclick="_sendSchoolMailMerge()">✉ Send Email (Mail Merge)</button>
+    </div>
+  </div>`;
+
+  _onReachSchoolMailColsChange(); // paint the initial recipient summary
+  setTimeout(()=>{ const el=document.getElementById('reachMessage'); if(el)el.focus(); },150);
+}
+
+// Send Email (Mail Merge) for Schools — same GAS action/log sheet as the
+// People launcher (handleSendMailMerge → Memos sheet), but with school-
+// specific merge tokens and true per-recipient CC (each row's .cc, built from
+// "Also CC" above, is sent ONLY alongside that school's own message — see the
+// matching `m.cc` support added to handleSendMailMerge in GAS_SCRIPT.gs).
+async function _sendSchoolMailMerge(){
+  const subj   = (document.getElementById('reachSubject')||{value:''}).value.trim();
+  const rawMsg = (document.getElementById('reachMessage')||{value:''}).value.trim();
+  const cc     = (document.getElementById('reachCC')  ||{value:''}).value.trim();
+  const bcc    = (document.getElementById('reachBCC') ||{value:''}).value.trim();
+  const st     = document.getElementById('reachComposeStatus');
+  if(!subj){if(st)st.textContent='⚠ Subject is required';return;}
+  if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
+  const recipients = _reachSchoolTargets.filter(r=>r.email);
+  if(!recipients.length){if(st)st.textContent='⚠ No recipients — check the Send To column(s) above';return;}
+  const btn = document.getElementById('reachSendBtn');
+  if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
+  if(st)st.textContent='';
+  const _escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _fromName = (SESSION && SESSION.name) || '';
+  const _greetingPlain = r => r.firstName ? `Dear ${r.firstName},` : `Dear ${r.schoolName} Team,`;
+  const _tokPlain = (str,r)=> _reachStaticPlain(str)
+    .replace(/\{\{Greeting\}\}/gi,        _greetingPlain(r))
+    .replace(/\{\{SchoolName\}\}/gi,      r.schoolName||'')
+    .replace(/\{\{PrincipalName\}\}/gi,   r.principalName||'')
+    .replace(/\{\{Address\}\}/gi,         r.address||'')
+    .replace(/\{\{Phone\}\}/gi,           r.phone||'')
+    .replace(/\{\{District\}\}/gi,        r.district||'')
+    .replace(/\{\{Program\}\}/gi,         r.program||'')
+    .replace(/\{\{Ranger1\}\}/gi,         r.ranger1||'')
+    .replace(/\{\{Ranger2\}\}/gi,         r.ranger2||'')
+    .replace(/\{\{GardenKeeper\}\}/gi,    r.gardenKeeper||'')
+    .replace(/\{\{DayOfWeek\}\}/gi,       r.dayOfWeek||'')
+    .replace(/\{\{Units\}\}/gi,           r.units||'')
+    .replace(/\{\{POStatus\}\}/gi,        r.poStatus||'')
+    .replace(/\{\{ScheduleContents\}\}/gi,r.scheduleContents||'')
+    .replace(/\{\{FromName\}\}/gi,        _fromName);
+  const _tokHtml = (str,r)=>{
+    const schoolLink = `<a href="${REACH_APP_URL}#school=${encodeURIComponent(r.schoolKey||'')}">${_escHtml(r.schoolName||'')}</a>`;
+    return _reachStaticHtml(_escHtml(str))
+      .replace(/\{\{Greeting\}\}/gi,        _escHtml(_greetingPlain(r)))
+      .replace(/\{\{SchoolName\}\}/gi,      schoolLink)
+      .replace(/\{\{PrincipalName\}\}/gi,   _escHtml(r.principalName||''))
+      .replace(/\{\{Address\}\}/gi,         _escHtml(r.address||''))
+      .replace(/\{\{Phone\}\}/gi,           _escHtml(r.phone||''))
+      .replace(/\{\{District\}\}/gi,        _escHtml(r.district||''))
+      .replace(/\{\{Program\}\}/gi,         _escHtml(r.program||''))
+      .replace(/\{\{Ranger1\}\}/gi,         _escHtml(r.ranger1||''))
+      .replace(/\{\{Ranger2\}\}/gi,         _escHtml(r.ranger2||''))
+      .replace(/\{\{GardenKeeper\}\}/gi,    _escHtml(r.gardenKeeper||''))
+      .replace(/\{\{DayOfWeek\}\}/gi,       _escHtml(r.dayOfWeek||''))
+      .replace(/\{\{Units\}\}/gi,           _escHtml(r.units||''))
+      .replace(/\{\{POStatus\}\}/gi,        _escHtml(r.poStatus||''))
+      .replace(/\{\{ScheduleContents\}\}/gi,_escHtml(r.scheduleContents||'').replace(/\n/g,'<br>'))
+      .replace(/\{\{FromName\}\}/gi,        _escHtml(_fromName))
+      .replace(/\n/g, '<br>');
+  };
+  const messages = recipients.map(r=>({
+    to: r.email,
+    subject: _tokPlain(subj,r),
+    body:    _tokPlain(rawMsg,r),
+    html:    _tokHtml(rawMsg,r),
+    // Per-recipient CC — this school's own "Also CC" contacts, merged with
+    // the manual CC field so every message still gets that one too.
+    cc: [r.cc.join(', '), cc].filter(Boolean).join(', ')
+  }));
+  try{
+    const res = await gasPost({
+      action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:'Schools',
+      mode:'email_individual', templateSubject: subj, templateMessage: rawMsg
+    });
+    closeReachCompose();
+    const sent=res.sent||0, failed=res.failed||0;
+    showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
+    if(res.errors&&res.errors.length) console.warn('Mail merge errors:',res.errors);
+  }catch(e){
+    if(btn){btn.textContent='✉ Send Email (Mail Merge)';btn.style.pointerEvents='';}
     if(st)st.textContent='⚠ '+e.message;
   }
 }
