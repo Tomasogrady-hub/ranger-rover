@@ -1576,10 +1576,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.83';
+const APP_VERSION='v10.84';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: added Ranger 1/Ranger 2 to Send To & CC columns; fixed Principal Name to look up the real name from the Principal column email (same way Ranger/Garden Keeper already do) instead of unreliable raw columns; added Program, Program Cost, Adjustment, Total Cost, Quote Number, Unit Description, PO Number, Financial Notes, Amount Owed, Amount Paid, Other Notes, and Status Type merge fields.';
+const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: added Program Started?, Any Response?, and Response merge field buttons (Program Started/Any Response shown as Yes/No).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10294,6 +10294,9 @@ function _buildSchoolMailTargets(){
     const amountPaid       = _opsMoney(sf(site,'Amount Paid')||'');
     const otherNotes       = sf(site,'Other Notes')||'';
     const statusType       = sf(site,'Status')||'';
+    const programStarted   = String(sf(site,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true' ? 'Yes' : 'No';
+    const anyResponse      = String(sf(site,'Any Response?','AnyResponse','anyResponse')||'').toLowerCase()==='true' ? 'Yes' : 'No';
+    const response         = sf(site,'Response')||'';
 
     const ccEmails = [];
     _reachSchoolCcCols.forEach(ck=>{
@@ -10324,6 +10327,7 @@ function _buildSchoolMailTargets(){
           ranger1, ranger2, gardenKeeper, dayOfWeek, units, poStatus, scheduleContents, principalName,
           program, programCost, adjustment, totalCost, quoteNumber, unitDescription, poNumber,
           financialNotes, amountOwed, amountPaid, otherNotes, statusType,
+          programStarted, anyResponse, response,
           cc: ccEmails.filter(e=>e!==email)
         });
       });
@@ -10423,6 +10427,9 @@ function openReachSchoolsCompose(){
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AmountPaid}}')">Amount Paid</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{OtherNotes}}')">Other Notes</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{StatusType}}')">Status Type</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ProgramStarted}}')">Program Started?</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AnyResponse}}')">Any Response?</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Response}}')">Response</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyEmail}}')">📧 Reply To My Email</button>
@@ -10491,6 +10498,9 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{AmountPaid\}\}/gi,      r.amountPaid||'')
     .replace(/\{\{OtherNotes\}\}/gi,      r.otherNotes||'')
     .replace(/\{\{StatusType\}\}/gi,      r.statusType||'')
+    .replace(/\{\{ProgramStarted\}\}/gi,  r.programStarted||'')
+    .replace(/\{\{AnyResponse\}\}/gi,     r.anyResponse||'')
+    .replace(/\{\{Response\}\}/gi,        r.response||'')
     .replace(/\{\{FromName\}\}/gi,        _fromName);
   const _tokHtml = (str,r)=>{
     const schoolLink = `<a href="${REACH_APP_URL}#school=${encodeURIComponent(r.schoolKey||'')}">${_escHtml(r.schoolName||'')}</a>`;
@@ -10521,6 +10531,9 @@ async function _sendSchoolMailMerge(){
       .replace(/\{\{AmountPaid\}\}/gi,      _escHtml(r.amountPaid||''))
       .replace(/\{\{OtherNotes\}\}/gi,      _escHtml(r.otherNotes||'').replace(/\n/g,'<br>'))
       .replace(/\{\{StatusType\}\}/gi,      _escHtml(r.statusType||''))
+      .replace(/\{\{ProgramStarted\}\}/gi,  _escHtml(r.programStarted||''))
+      .replace(/\{\{AnyResponse\}\}/gi,     _escHtml(r.anyResponse||''))
+      .replace(/\{\{Response\}\}/gi,        _escHtml(r.response||''))
       .replace(/\{\{FromName\}\}/gi,        _escHtml(_fromName))
       .replace(/\n/g, '<br>');
   };
