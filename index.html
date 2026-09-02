@@ -648,6 +648,14 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <option value="no">No</option>
         </select>
       </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Started?</label>
+        <select id="schoolProgStartedFilter" class="settings-input" style="margin:0" onchange="setSchoolProgStartedFilter(this.value)">
+          <option value="all">All</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
@@ -1205,6 +1213,14 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="no">No</option>
           </select>
         </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Started?</label>
+          <select id="rsProgStartedFilter" class="settings-input" style="margin:0" onchange="setReachSchoolProgStartedFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
       </div>
       <div id="reachSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
       <div style="display:flex;justify-content:center;margin:10px 0 8px">
@@ -1536,6 +1552,14 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="no">No</option>
           </select>
         </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Started?</label>
+          <select id="dsProgStartedFilter" class="settings-input" style="margin:0" onchange="setDataSchoolProgStartedFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
       </div>
       <div id="dataSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
       <div style="display:flex;justify-content:center;margin:10px 0 8px">
@@ -1627,10 +1651,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.93';
+const APP_VERSION='v10.94';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach > Schools: renamed Email Individually to Email and changed it to one message per SCHOOL — every checked Send To contact (and any checked staff) now lands in the same email together, not a separate email each; Also CC works the same way, combined per school.';
+const BUILD_STAMP='2026-09-02 - Added By Program Started? filter (Yes/No) to the main Schools tab, Data > Schools, and Reach > Schools, plus the intelligence sentences on Data/Reach Schools.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1659,10 +1683,10 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
-let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsResultsMode='summary';
+let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary';
 // Bulk-select + Adjust state for the Data > Schools list — same pattern as
 // Data > People's Select all / Adjust / Apply to Selected.
 let _dataSchoolsSelected=new Set(); // Set of site Keys (col A)
@@ -3567,6 +3591,7 @@ function setDataSchoolUnitsFilter(v){dsUnitsF=v;renderDataSchools();}
 function setDataSchoolScheduleFilter(v){dsSchedF=v;renderDataSchools();}
 function setDataSchoolClassStartFilter(v){dsClassStartF=v;renderDataSchools();}
 function setDataSchoolClassEndFilter(v){dsClassEndF=v;renderDataSchools();}
+function setDataSchoolProgStartedFilter(v){dsProgStartedF=v;renderDataSchools();}
 function setDataSchoolResultsMode(v){dsResultsMode=v;renderDataSchools();}
 
 function _dataSchoolsFiltered(){
@@ -3609,6 +3634,11 @@ function _dataSchoolsFiltered(){
       if(dsClassEndF==='yes'&&!hasEnd)return false;
       if(dsClassEndF==='no'&&hasEnd)return false;
     }
+    if(dsProgStartedF!=='all'){
+      const started=String(sf(s,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true';
+      if(dsProgStartedF==='yes'&&!started)return false;
+      if(dsProgStartedF==='no'&&started)return false;
+    }
     return true;
   });
 }
@@ -3639,6 +3669,8 @@ function _dataSchoolsSummaryText(count){
   if(dsClassStartF==='no')parts.push('no Program Classes Start Date set');
   if(dsClassEndF==='yes')parts.push('a Program Classes End Date set');
   if(dsClassEndF==='no')parts.push('no Program Classes End Date set');
+  if(dsProgStartedF==='yes')parts.push('their program started');
+  if(dsProgStartedF==='no')parts.push('their program not yet started');
   if(!parts.length)return `${subj} shown.`;
   const joined=parts.length===1?parts[0]:parts.length===2?parts.join(' and '):parts.slice(0,-1).join(', ')+', and '+parts[parts.length-1];
   return `${subj} ${count===1?'has':'have'} ${joined}.`;
@@ -3924,6 +3956,11 @@ function renderSchools(){
         const hasEnd=String(sf(s,'Program Classes End Date','ProgramClassesEndDate')||'').trim()!=='';
         if(csClassEndF==='yes'&&!hasEnd)return false;
         if(csClassEndF==='no'&&hasEnd)return false;
+      }
+      if(csProgStartedF!=='all'){
+        const started=String(sf(s,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true';
+        if(csProgStartedF==='yes'&&!started)return false;
+        if(csProgStartedF==='no'&&started)return false;
       }
     }
     return true;
@@ -7591,6 +7628,7 @@ function setSchoolUnitsFilter(v){csUnitsF=v;renderSchools();}
 function setSchoolScheduleFilter(v){csSchedF=v;renderSchools();}
 function setSchoolClassStartFilter(v){csClassStartF=v;renderSchools();}
 function setSchoolClassEndFilter(v){csClassEndF=v;renderSchools();}
+function setSchoolProgStartedFilter(v){csProgStartedF=v;renderSchools();}
 function filterRangers(f){
   crf=f;
   let matchedLabel='Rangers';
@@ -9739,7 +9777,7 @@ let _reachForwardPrefill = null;     // {subject,message} staged by forwardChore
 // list) with its own independent state — 'rs' prefix, same pattern as 'ds'
 // (Data Schools) and 'cs' (main Schools tab) — so browsing/filtering/selecting
 // here never disturbs either of those other views.
-let rsProgF='all',rsAssignF='all',rsRangerF='all',rsDayF='all',rsPoF='all',rsUnitsF='all',rsSchedF='all',rsClassStartF='all',rsClassEndF='all',rsResultsMode='summary';
+let rsProgF='all',rsAssignF='all',rsRangerF='all',rsDayF='all',rsPoF='all',rsUnitsF='all',rsSchedF='all',rsClassStartF='all',rsClassEndF='all',rsProgStartedF='all',rsResultsMode='summary';
 let rsSearchQ=''; // free-text school-name search, layered on top of the dropdown filters
 let _reachSchoolsSelected=new Set(); // Set of site Keys (col A)
 let _rsProgramFilterFilled=false;
@@ -9787,6 +9825,7 @@ function setReachSchoolUnitsFilter(v){rsUnitsF=v;renderReachSchools();}
 function setReachSchoolScheduleFilter(v){rsSchedF=v;renderReachSchools();}
 function setReachSchoolClassStartFilter(v){rsClassStartF=v;renderReachSchools();}
 function setReachSchoolClassEndFilter(v){rsClassEndF=v;renderReachSchools();}
+function setReachSchoolProgStartedFilter(v){rsProgStartedF=v;renderReachSchools();}
 function setReachSchoolResultsMode(v){rsResultsMode=v;renderReachSchools();}
 function setReachSchoolSearch(v){rsSearchQ=(v||'').trim().toLowerCase();renderReachSchools();}
 
@@ -9831,6 +9870,11 @@ function _reachSchoolsFiltered(){
       if(rsClassEndF==='yes'&&!hasEnd)return false;
       if(rsClassEndF==='no'&&hasEnd)return false;
     }
+    if(rsProgStartedF!=='all'){
+      const started=String(sf(s,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true';
+      if(rsProgStartedF==='yes'&&!started)return false;
+      if(rsProgStartedF==='no'&&started)return false;
+    }
     return true;
   });
 }
@@ -9857,6 +9901,8 @@ function _reachSchoolsSummaryText(count){
   if(rsClassStartF==='no')parts.push('no Program Classes Start Date set');
   if(rsClassEndF==='yes')parts.push('a Program Classes End Date set');
   if(rsClassEndF==='no')parts.push('no Program Classes End Date set');
+  if(rsProgStartedF==='yes')parts.push('their program started');
+  if(rsProgStartedF==='no')parts.push('their program not yet started');
   if(!parts.length)return `${subj} shown.`;
   const joined=parts.length===1?parts[0]:parts.length===2?parts.join(' and '):parts.slice(0,-1).join(', ')+', and '+parts[parts.length-1];
   return `${subj} ${count===1?'has':'have'} ${joined}.`;
