@@ -1627,10 +1627,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.91';
+const APP_VERSION='v10.92';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Added By Program Classes Start Date / By Program Classes End Date filters (Yes/No) to the main Schools tab, Data > Schools, and Reach > Schools, plus the intelligence sentences on Data/Reach Schools. Program Classes dates now also summarized on the main Schools tab card and the Operations financial grid.';
+const BUILD_STAMP='2026-09-02 - Fixed: Program Classes Start/End Date not showing in the edit picker after the backfill script ran. Sheets auto-converted those cells to real dates, so the app was receiving a full timestamp instead of a plain date, which native date inputs silently reject and which the timezone-based old formatter could roll back a day for anyone west of UTC. Both display and the edit picker now parse the calendar date directly out of the string instead of going through timezone-sensitive Date math.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1808,8 +1808,8 @@ function _siteScheduleUploadRow(site){
   </div>
   <div class="edit-wrap"><div class="edit-label">Schedule Contents</div><textarea class="edit-textarea" id="ef-ScheduleContents" placeholder="Auto-extracted from the uploaded schedule file — edit here to fix an extraction error">${ea(contents)}</textarea></div>
   <div class="edit-wrap" style="display:flex;gap:10px">
-    <div style="flex:1"><div class="edit-label">Program Classes Start Date</div><input class="edit-input" type="date" id="ef-ProgramClassesStartDate" value="${ea(psd)}"></div>
-    <div style="flex:1"><div class="edit-label">Program Classes End Date</div><input class="edit-input" type="date" id="ef-ProgramClassesEndDate" value="${ea(ped)}"></div>
+    <div style="flex:1"><div class="edit-label">Program Classes Start Date</div><input class="edit-input" type="date" id="ef-ProgramClassesStartDate" value="${ea(dateInputVal(psd))}"></div>
+    <div style="flex:1"><div class="edit-label">Program Classes End Date</div><input class="edit-input" type="date" id="ef-ProgramClassesEndDate" value="${ea(dateInputVal(ped))}"></div>
   </div>`;
 }
 
@@ -2028,6 +2028,46 @@ function canManageRoles(){return SESSION&&SESSION.accessLevel<=2;}
 function _roleExistsCI(name){const n=(name||'').trim().toLowerCase();return DATA.roles.some(r=>(r.name||'').trim().toLowerCase()===n);}
 function togglePw(id,btn){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';btn.textContent=i.type==='password'?'👁':'🙈';}
 function fmtDate(ts){if(!ts)return '';try{return new Date(ts).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'});}catch(e){return '';}}
+// ── Timezone-safe date helpers for plain calendar-date fields (Program Classes
+// Start/End Date, etc.) ──
+// The one-off Apps Script backfill tool that filled these two columns wrote
+// plain "YYYY-MM-DD" strings, but Google Sheets auto-detected them as real
+// dates and converted the cells — so the app now reads back a JS Date /
+// full ISO datetime (e.g. "2026-09-10T00:00:00.000Z") instead of the plain
+// string. fmtDate()/new Date(...) then format that in the BROWSER'S LOCAL
+// timezone, which can silently roll the calendar date back a day for anyone
+// west of UTC (e.g. "2026-09-10T00:00:00.000Z" displays as Sep 9 in Los
+// Angeles) — and native <input type="date"> requires exactly "YYYY-MM-DD",
+// so anything else (like a full ISO datetime) is silently rejected and the
+// picker just shows blank, which is exactly what was reported: the badge
+// looked right (fmtDate's parsing happened to hide it) but the edit field
+// was empty. Both helpers below read the calendar date directly out of the
+// string's digits instead of going through any Date object, so there's no
+// timezone math to get wrong.
+const _MONTH_ABBR3_=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dateInputVal(raw){
+  if(!raw)return '';
+  const s=String(raw).trim();
+  if(!s)return '';
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return m[1]+'-'+m[2]+'-'+m[3];
+  // Fallback for a genuinely different format — use UTC accessors (never
+  // local) so a stored UTC-midnight instant still maps to its intended date.
+  const d=new Date(s);
+  if(isNaN(d.getTime()))return '';
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+}
+function fmtDateSafe(raw){
+  if(!raw)return '';
+  const s=String(raw).trim();
+  if(!s)return '';
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m){
+    const mon=_MONTH_ABBR3_[parseInt(m[2],10)-1];
+    if(mon)return mon+' '+parseInt(m[3],10)+", '"+m[1].slice(2);
+  }
+  return fmtDate(s); // fallback for anything not starting with YYYY-MM-DD
+}
 
 function avatarHtml(human,size=48){
   const name=fullName(human)||human.Email||'';
@@ -3681,7 +3721,7 @@ function _dataSchoolDetailedCardHtml(s){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${days?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(days)}</button>`:''}
         ${units?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">${escHtml(units)} Units</span>`:''}
-        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDate(pcStart):'?'} – ${pcEnd?fmtDate(pcEnd):'?'}</span>`:''}
+        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDateSafe(pcStart):'?'} – ${pcEnd?fmtDateSafe(pcEnd):'?'}</span>`:''}
         <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
         <button class="chore-pill" style="background:${hasSched?'#eaf3ea':'var(--warn-bg)'};color:${hasSched?'var(--sage)':'var(--amber)'};border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>${hasSched?'✓ Schedule on file':'⚠ No Schedule'}</button>
       </div>
@@ -3938,7 +3978,7 @@ function _schoolCardHtml(s,i){
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
       ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
-        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDate(pcStart):'?'} – ${pcEnd?fmtDate(pcEnd):'?'}</span>`:''}
+        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDateSafe(pcStart):'?'} – ${pcEnd?fmtDateSafe(pcEnd):'?'}</span>`:''}
         ${openChores.length>0?`<button class="chore-pill" style="cursor:pointer;border:none;background:var(--warn-bg)" onclick="event.stopPropagation();showSiteChores('${esc(siteKey)}')">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</button>`:''}
         <button class="add-chore-btn" onclick="event.stopPropagation();showAddChore('${esc(name)}','${esc(siteKey)}')">+ Chore</button>
       </div>
@@ -5273,7 +5313,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
       ${schedUrl?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
       ${schedContents?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule Contents</div><div class="dv"><a class="dlink" href="javascript:void(0)" onclick="_toggleScheduleContents(this)">📄 View Schedule Contents</a><div class="sched-contents-text" style="display:none;margin-top:8px;font-size:15px;color:var(--stone);line-height:1.65;white-space:pre-wrap"></div></div></div>`:''}
-      ${(progClassesStart||progClassesEnd)?`<div class="ds"><div class="dl">Program Classes</div><div class="dv">${progClassesStart?fmtDate(progClassesStart):'?'} – ${progClassesEnd?fmtDate(progClassesEnd):'?'}</div></div>`:''}
+      ${(progClassesStart||progClassesEnd)?`<div class="ds"><div class="dl">Program Classes</div><div class="dv">${progClassesStart?fmtDateSafe(progClassesStart):'?'} – ${progClassesEnd?fmtDateSafe(progClassesEnd):'?'}</div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div><div class="dv">${videoLinkHtml(videoSrc)}</div></div>`:''}
       ${ranger1Html}${ranger2Html}${keeperHtml}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
@@ -7489,7 +7529,7 @@ function renderOperationsHome(){
       quoteNum!==''?['Quote #',quoteNum]:null,
       poNum!==''?['PO #',poNum]:null,
       adj!==''?['Adjustment',adj]:null,
-      (pcStart||pcEnd)?['Program Classes',(pcStart?fmtDate(pcStart):'?')+' – '+(pcEnd?fmtDate(pcEnd):'?')]:null,
+      (pcStart||pcEnd)?['Program Classes',(pcStart?fmtDateSafe(pcStart):'?')+' – '+(pcEnd?fmtDateSafe(pcEnd):'?')]:null,
     ].filter(Boolean);
     const finHtml=finItems.length?`<div class="ops-fin-grid">${finItems.map(([lbl,val])=>
       `<div class="ops-fin-item"><span class="ops-fin-label">${lbl}</span><span class="ops-fin-value">${val}</span></div>`
@@ -9918,7 +9958,7 @@ function _reachSchoolDetailedCardHtml(s){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${days?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(days)}</button>`:''}
         ${units?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">${escHtml(units)} Units</span>`:''}
-        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDate(pcStart):'?'} – ${pcEnd?fmtDate(pcEnd):'?'}</span>`:''}
+        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDateSafe(pcStart):'?'} – ${pcEnd?fmtDateSafe(pcEnd):'?'}</span>`:''}
         <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
         <button class="chore-pill" style="background:${hasSched?'#eaf3ea':'var(--warn-bg)'};color:${hasSched?'var(--sage)':'var(--amber)'};border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>${hasSched?'✓ Schedule on file':'⚠ No Schedule'}</button>
       </div>
@@ -10418,8 +10458,8 @@ function _buildSchoolMailTargets(){
     const day3 = sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')||'';
     const units       = sf(site,'Ranger Program Units')||'';
     const poStatus    = String(sf(site,'PO Number')||'').trim()!==''?'PO on file':'No PO on file';
-    const programClassesStart = fmtDate(sf(site,'Program Classes Start Date','ProgramClassesStartDate')||'');
-    const programClassesEnd   = fmtDate(sf(site,'Program Classes End Date','ProgramClassesEndDate')||'');
+    const programClassesStart = fmtDateSafe(sf(site,'Program Classes Start Date','ProgramClassesStartDate')||'');
+    const programClassesEnd   = fmtDateSafe(sf(site,'Program Classes End Date','ProgramClassesEndDate')||'');
     const scheduleContents = sf(site,'Schedule Contents','ScheduleContents')||'';
     // Extract the Drive file ID from the Schedule column's share link so it
     // can be attached to the outgoing email (see "Attach Schedule PDF" below).
