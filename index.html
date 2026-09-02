@@ -1185,6 +1185,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           </select>
         </div>
       </div>
+      <div style="padding:0 16px 10px">
+        <input type="search" class="edit-input" placeholder="🔍 Search by school name…" oninput="setReachSchoolSearch(this.value)">
+      </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 16px 10px">
         <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
           <input type="checkbox" id="reachSchoolsSelectAll" onchange="toggleReachSchoolsSelectAll(this.checked)"> Select all
@@ -1576,10 +1579,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.84';
+const APP_VERSION='v10.85';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach > Schools email launcher: added Program Started?, Any Response?, and Response merge field buttons (Program Started/Any Response shown as Yes/No).';
+const BUILD_STAMP='2026-09-02 - Reach > Schools: added a name search box above the school list; split the combined Day of Week merge field into 3 separate buttons (Ranger Day Of Week 1/2/3); added image merge buttons (Main Image, Image 2/3, Helpful Image 1/2, Helpful Before Image) that insert as real inline images in the HTML email body (Gmail loads them from their existing public URLs, no attachments needed).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -9602,6 +9605,7 @@ let _reachForwardPrefill = null;     // {subject,message} staged by forwardChore
 // (Data Schools) and 'cs' (main Schools tab) — so browsing/filtering/selecting
 // here never disturbs either of those other views.
 let rsProgF='all',rsAssignF='all',rsRangerF='all',rsDayF='all',rsPoF='all',rsUnitsF='all',rsSchedF='all',rsResultsMode='summary';
+let rsSearchQ=''; // free-text school-name search, layered on top of the dropdown filters
 let _reachSchoolsSelected=new Set(); // Set of site Keys (col A)
 let _rsProgramFilterFilled=false;
 
@@ -9647,11 +9651,13 @@ function setReachSchoolPoFilter(v){rsPoF=v;renderReachSchools();}
 function setReachSchoolUnitsFilter(v){rsUnitsF=v;renderReachSchools();}
 function setReachSchoolScheduleFilter(v){rsSchedF=v;renderReachSchools();}
 function setReachSchoolResultsMode(v){rsResultsMode=v;renderReachSchools();}
+function setReachSchoolSearch(v){rsSearchQ=(v||'').trim().toLowerCase();renderReachSchools();}
 
 function _reachSchoolsFiltered(){
   return DATA.sites.filter(s=>{
     const type=(sf(s,'Type','type')||'').trim();
     const r1e=sf(s,'Ranger 1','Ranger1'),r2e=sf(s,'Ranger 2','Ranger2');
+    if(rsSearchQ && !(sf(s,'Name','name')||'').toLowerCase().includes(rsSearchQ))return false;
     if(rsProgF!=='all'&&type.toLowerCase()!==rsProgF.toLowerCase())return false;
     if(rsAssignF==='assigned'&&!(r1e||r2e))return false;
     if(rsAssignF==='unassigned'&&(r1e||r2e))return false;
@@ -10269,10 +10275,21 @@ function _buildSchoolMailTargets(){
     const ranger1     = r1e?(hn(r1e)||sf(site,'Ranger 1 Name','Ranger1Name')):'';
     const ranger2     = r2e?(hn(r2e)||sf(site,'Ranger 2 Name','Ranger2Name')):'';
     const gardenKeeper= gke?(hn(gke)||sf(site,'Garden Keeper Name','GardenKeeperName')):'';
-    const dayOfWeek   = [sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')].filter(Boolean).join(', ');
+    const day1 = sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
+    const day2 = sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2')||'';
+    const day3 = sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')||'';
     const units       = sf(site,'Ranger Program Units')||'';
     const poStatus    = String(sf(site,'PO Number')||'').trim()!==''?'PO on file':'No PO on file';
     const scheduleContents = sf(site,'Schedule Contents','ScheduleContents')||'';
+    // Image columns are already resolved to public https URLs server-side
+    // (readSheet → resolveImage), so these just need the plain getImgSrc
+    // normalization already used everywhere else images are shown in the app.
+    const mainImage          = getImgSrc(sf(site,'Main Image','MainImage'));
+    const image2             = getImgSrc(sf(site,'Image 2','Image2'));
+    const image3             = getImgSrc(sf(site,'Image 3','Image3'));
+    const helpfulImage1      = getImgSrc(sf(site,'Helpful Image 1','HelpfulImage1'));
+    const helpfulImage2      = getImgSrc(sf(site,'Helpful Image 2','HelpfulImage2'));
+    const helpfulBeforeImage = getImgSrc(sf(site,'Helpful Before Image','HelpfulBeforeImage'));
     // Principal Name: pull the Principal column's EMAIL, then look up that
     // person's real name the same way Ranger 1/2 and Garden Keeper already
     // do (hn = human-name-by-email) — the separate "raw" name columns on
@@ -10324,7 +10341,8 @@ function _buildSchoolMailTargets(){
           email, contactRole: col.label, schoolName, schoolKey,
           firstName: contactFirst, lastName: contactLast,
           address, phone, district, programType,
-          ranger1, ranger2, gardenKeeper, dayOfWeek, units, poStatus, scheduleContents, principalName,
+          ranger1, ranger2, gardenKeeper, day1, day2, day3, units, poStatus, scheduleContents, principalName,
+          mainImage, image2, image3, helpfulImage1, helpfulImage2, helpfulBeforeImage,
           program, programCost, adjustment, totalCost, quoteNumber, unitDescription, poNumber,
           financialNotes, amountOwed, amountPaid, otherNotes, statusType,
           programStarted, anyResponse, response,
@@ -10411,7 +10429,9 @@ function openReachSchoolsCompose(){
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger1}}')">Ranger 1</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Ranger2}}')">Ranger 2</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{GardenKeeper}}')">Garden Keeper</button>
-          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{DayOfWeek}}')">📅 Day of Week</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day1}}')">📅 Ranger Day Of Week 1</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day2}}')">📅 Ranger Day Of Week 2</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day3}}')">📅 Ranger Day Of Week 3</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{POStatus}}')">PO Status</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ScheduleContents}}')">📄 Schedule Contents</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Program}}')">Program</button>
@@ -10430,6 +10450,12 @@ function openReachSchoolsCompose(){
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ProgramStarted}}')">Program Started?</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AnyResponse}}')">Any Response?</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Response}}')">Response</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{MainImage}}')">🖼 Main Image</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Image2}}')">🖼 Image 2</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Image3}}')">🖼 Image 3</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{HelpfulImage1}}')">🖼 Helpful Image 1</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{HelpfulImage2}}')">🖼 Helpful Image 2</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{HelpfulBeforeImage}}')">🖼 Helpful Before Image</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{AppLink}}')">📱 App Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{WebsiteLink}}')">🌐 Website Link</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ReplyToMyEmail}}')">📧 Reply To My Email</button>
@@ -10471,6 +10497,11 @@ async function _sendSchoolMailMerge(){
   const _escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const _fromName = (SESSION && SESSION.name) || '';
   const _greetingPlain = r => r.firstName ? `Dear ${r.firstName},` : `Dear ${r.schoolName} Team,`;
+  // Image tokens only make sense in the HTML body (Gmail loads them from
+  // these already-public googleusercontent.com URLs at read time — no
+  // attachment/inline-cid plumbing needed). The plain-text fallback just
+  // drops in the raw URL instead, since a bare image can't render there.
+  const _imgTag = url => url ? `<img src="${_escHtml(url)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin:8px 0">` : '';
   const _tokPlain = (str,r)=> _reachStaticPlain(str)
     .replace(/\{\{Greeting\}\}/gi,        _greetingPlain(r))
     .replace(/\{\{SchoolName\}\}/gi,      r.schoolName||'')
@@ -10482,7 +10513,9 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{Ranger1\}\}/gi,         r.ranger1||'')
     .replace(/\{\{Ranger2\}\}/gi,         r.ranger2||'')
     .replace(/\{\{GardenKeeper\}\}/gi,    r.gardenKeeper||'')
-    .replace(/\{\{DayOfWeek\}\}/gi,       r.dayOfWeek||'')
+    .replace(/\{\{DayOfWeek1\}\}|\{\{Day1\}\}/gi, r.day1||'')
+    .replace(/\{\{DayOfWeek2\}\}|\{\{Day2\}\}/gi, r.day2||'')
+    .replace(/\{\{DayOfWeek3\}\}|\{\{Day3\}\}/gi, r.day3||'')
     .replace(/\{\{Units\}\}/gi,           r.units||'')
     .replace(/\{\{POStatus\}\}/gi,        r.poStatus||'')
     .replace(/\{\{ScheduleContents\}\}/gi,r.scheduleContents||'')
@@ -10501,6 +10534,12 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{ProgramStarted\}\}/gi,  r.programStarted||'')
     .replace(/\{\{AnyResponse\}\}/gi,     r.anyResponse||'')
     .replace(/\{\{Response\}\}/gi,        r.response||'')
+    .replace(/\{\{MainImage\}\}/gi,          r.mainImage||'')
+    .replace(/\{\{Image2\}\}/gi,             r.image2||'')
+    .replace(/\{\{Image3\}\}/gi,             r.image3||'')
+    .replace(/\{\{HelpfulImage1\}\}/gi,      r.helpfulImage1||'')
+    .replace(/\{\{HelpfulImage2\}\}/gi,      r.helpfulImage2||'')
+    .replace(/\{\{HelpfulBeforeImage\}\}/gi, r.helpfulBeforeImage||'')
     .replace(/\{\{FromName\}\}/gi,        _fromName);
   const _tokHtml = (str,r)=>{
     const schoolLink = `<a href="${REACH_APP_URL}#school=${encodeURIComponent(r.schoolKey||'')}">${_escHtml(r.schoolName||'')}</a>`;
@@ -10515,7 +10554,9 @@ async function _sendSchoolMailMerge(){
       .replace(/\{\{Ranger1\}\}/gi,         _escHtml(r.ranger1||''))
       .replace(/\{\{Ranger2\}\}/gi,         _escHtml(r.ranger2||''))
       .replace(/\{\{GardenKeeper\}\}/gi,    _escHtml(r.gardenKeeper||''))
-      .replace(/\{\{DayOfWeek\}\}/gi,       _escHtml(r.dayOfWeek||''))
+      .replace(/\{\{DayOfWeek1\}\}|\{\{Day1\}\}/gi, _escHtml(r.day1||''))
+      .replace(/\{\{DayOfWeek2\}\}|\{\{Day2\}\}/gi, _escHtml(r.day2||''))
+      .replace(/\{\{DayOfWeek3\}\}|\{\{Day3\}\}/gi, _escHtml(r.day3||''))
       .replace(/\{\{Units\}\}/gi,           _escHtml(r.units||''))
       .replace(/\{\{POStatus\}\}/gi,        _escHtml(r.poStatus||''))
       .replace(/\{\{ScheduleContents\}\}/gi,_escHtml(r.scheduleContents||'').replace(/\n/g,'<br>'))
@@ -10534,6 +10575,12 @@ async function _sendSchoolMailMerge(){
       .replace(/\{\{ProgramStarted\}\}/gi,  _escHtml(r.programStarted||''))
       .replace(/\{\{AnyResponse\}\}/gi,     _escHtml(r.anyResponse||''))
       .replace(/\{\{Response\}\}/gi,        _escHtml(r.response||''))
+      .replace(/\{\{MainImage\}\}/gi,          _imgTag(r.mainImage))
+      .replace(/\{\{Image2\}\}/gi,             _imgTag(r.image2))
+      .replace(/\{\{Image3\}\}/gi,             _imgTag(r.image3))
+      .replace(/\{\{HelpfulImage1\}\}/gi,      _imgTag(r.helpfulImage1))
+      .replace(/\{\{HelpfulImage2\}\}/gi,      _imgTag(r.helpfulImage2))
+      .replace(/\{\{HelpfulBeforeImage\}\}/gi, _imgTag(r.helpfulBeforeImage))
       .replace(/\{\{FromName\}\}/gi,        _escHtml(_fromName))
       .replace(/\n/g, '<br>');
   };
