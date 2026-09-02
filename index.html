@@ -632,6 +632,22 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <option value="no">No</option>
         </select>
       </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes Start Date</label>
+        <select id="schoolClassStartFilter" class="settings-input" style="margin:0" onchange="setSchoolClassStartFilter(this.value)">
+          <option value="all">All</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes End Date</label>
+        <select id="schoolClassEndFilter" class="settings-input" style="margin:0" onchange="setSchoolClassEndFilter(this.value)">
+          <option value="all">All</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
@@ -1173,6 +1189,22 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="no">No</option>
           </select>
         </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes Start Date</label>
+          <select id="rsClassStartFilter" class="settings-input" style="margin:0" onchange="setReachSchoolClassStartFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes End Date</label>
+          <select id="rsClassEndFilter" class="settings-input" style="margin:0" onchange="setReachSchoolClassEndFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
       </div>
       <div id="reachSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
       <div style="display:flex;justify-content:center;margin:10px 0 8px">
@@ -1488,6 +1520,22 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
             <option value="no">No</option>
           </select>
         </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes Start Date</label>
+          <select id="dsClassStartFilter" class="settings-input" style="margin:0" onchange="setDataSchoolClassStartFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes End Date</label>
+          <select id="dsClassEndFilter" class="settings-input" style="margin:0" onchange="setDataSchoolClassEndFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
       </div>
       <div id="dataSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
       <div style="display:flex;justify-content:center;margin:10px 0 8px">
@@ -1579,10 +1627,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.90';
+const APP_VERSION='v10.91';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Reach Schools email launcher: added Program Classes Start Date and Program Classes End Date merge field buttons.';
+const BUILD_STAMP='2026-09-02 - Added By Program Classes Start Date / By Program Classes End Date filters (Yes/No) to the main Schools tab, Data > Schools, and Reach > Schools, plus the intelligence sentences on Data/Reach Schools. Program Classes dates now also summarized on the main Schools tab card and the Operations financial grid.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1611,10 +1659,10 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
-let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsResultsMode='summary';
+let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsResultsMode='summary';
 // Bulk-select + Adjust state for the Data > Schools list — same pattern as
 // Data > People's Select all / Adjust / Apply to Selected.
 let _dataSchoolsSelected=new Set(); // Set of site Keys (col A)
@@ -3477,6 +3525,8 @@ function setDataSchoolDayFilter(v){dsDayF=v;renderDataSchools();}
 function setDataSchoolPoFilter(v){dsPoF=v;renderDataSchools();}
 function setDataSchoolUnitsFilter(v){dsUnitsF=v;renderDataSchools();}
 function setDataSchoolScheduleFilter(v){dsSchedF=v;renderDataSchools();}
+function setDataSchoolClassStartFilter(v){dsClassStartF=v;renderDataSchools();}
+function setDataSchoolClassEndFilter(v){dsClassEndF=v;renderDataSchools();}
 function setDataSchoolResultsMode(v){dsResultsMode=v;renderDataSchools();}
 
 function _dataSchoolsFiltered(){
@@ -3509,6 +3559,16 @@ function _dataSchoolsFiltered(){
       if(dsSchedF==='yes'&&!hasSched)return false;
       if(dsSchedF==='no'&&hasSched)return false;
     }
+    if(dsClassStartF!=='all'){
+      const hasStart=String(sf(s,'Program Classes Start Date','ProgramClassesStartDate')||'').trim()!=='';
+      if(dsClassStartF==='yes'&&!hasStart)return false;
+      if(dsClassStartF==='no'&&hasStart)return false;
+    }
+    if(dsClassEndF!=='all'){
+      const hasEnd=String(sf(s,'Program Classes End Date','ProgramClassesEndDate')||'').trim()!=='';
+      if(dsClassEndF==='yes'&&!hasEnd)return false;
+      if(dsClassEndF==='no'&&hasEnd)return false;
+    }
     return true;
   });
 }
@@ -3535,6 +3595,10 @@ function _dataSchoolsSummaryText(count){
   if(dsUnitsF!=='all')parts.push(`${dsUnitsF} Ranger Program Units`);
   if(dsSchedF==='yes')parts.push('a schedule on file');
   if(dsSchedF==='no')parts.push('no schedule on file');
+  if(dsClassStartF==='yes')parts.push('a Program Classes Start Date set');
+  if(dsClassStartF==='no')parts.push('no Program Classes Start Date set');
+  if(dsClassEndF==='yes')parts.push('a Program Classes End Date set');
+  if(dsClassEndF==='no')parts.push('no Program Classes End Date set');
   if(!parts.length)return `${subj} shown.`;
   const joined=parts.length===1?parts[0]:parts.length===2?parts.join(' and '):parts.slice(0,-1).join(', ')+', and '+parts[parts.length-1];
   return `${subj} ${count===1?'has':'have'} ${joined}.`;
@@ -3811,6 +3875,16 @@ function renderSchools(){
         if(csSchedF==='yes'&&!hasSched)return false;
         if(csSchedF==='no'&&hasSched)return false;
       }
+      if(csClassStartF!=='all'){
+        const hasStart=String(sf(s,'Program Classes Start Date','ProgramClassesStartDate')||'').trim()!=='';
+        if(csClassStartF==='yes'&&!hasStart)return false;
+        if(csClassStartF==='no'&&hasStart)return false;
+      }
+      if(csClassEndF!=='all'){
+        const hasEnd=String(sf(s,'Program Classes End Date','ProgramClassesEndDate')||'').trim()!=='';
+        if(csClassEndF==='yes'&&!hasEnd)return false;
+        if(csClassEndF==='no'&&hasEnd)return false;
+      }
     }
     return true;
   });
@@ -3842,6 +3916,8 @@ function _schoolCardHtml(s,i){
   const r1n=r1e?(hn(r1e)||sf(s,'Ranger 1 Name','Ranger1Name')):'';
   const gke=sf(s,'Garden Keeper','GardenKeeper');
   const gkn=gke?(hn(gke)||sf(s,'Garden Keeper Name','GardenKeeperName')):'';
+  const pcStart=sf(s,'Program Classes Start Date','ProgramClassesStartDate')||'';
+  const pcEnd=sf(s,'Program Classes End Date','ProgramClassesEndDate')||'';
   const tl=type.toLowerCase();
   const dimmed=csProgF==='all'&&!tl.includes('active');
   const siteKey=sf(s,'Key','key')||'';
@@ -3862,6 +3938,7 @@ function _schoolCardHtml(s,i){
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
       ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
+        ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDate(pcStart):'?'} – ${pcEnd?fmtDate(pcEnd):'?'}</span>`:''}
         ${openChores.length>0?`<button class="chore-pill" style="cursor:pointer;border:none;background:var(--warn-bg)" onclick="event.stopPropagation();showSiteChores('${esc(siteKey)}')">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</button>`:''}
         <button class="add-chore-btn" onclick="event.stopPropagation();showAddChore('${esc(name)}','${esc(siteKey)}')">+ Chore</button>
       </div>
@@ -7400,6 +7477,8 @@ function renderOperationsHome(){
     const owed      = sf(s,'Amount Owed')||'';
     const paid      = sf(s,'Amount Paid')||'';
     const otherNotes= sf(s,'Other Notes')||'';
+    const pcStart   = sf(s,'Program Classes Start Date','ProgramClassesStartDate')||'';
+    const pcEnd     = sf(s,'Program Classes End Date','ProgramClassesEndDate')||'';
     const statusClass=/paid|complete|closed/i.test(status)?'badge-yes':(/pending|open|owed|due/i.test(status)?'badge-no':'');
     const finItems=[
       totalCost!==''?['Total Cost',_opsMoney(totalCost)]:null,
@@ -7410,6 +7489,7 @@ function renderOperationsHome(){
       quoteNum!==''?['Quote #',quoteNum]:null,
       poNum!==''?['PO #',poNum]:null,
       adj!==''?['Adjustment',adj]:null,
+      (pcStart||pcEnd)?['Program Classes',(pcStart?fmtDate(pcStart):'?')+' – '+(pcEnd?fmtDate(pcEnd):'?')]:null,
     ].filter(Boolean);
     const finHtml=finItems.length?`<div class="ops-fin-grid">${finItems.map(([lbl,val])=>
       `<div class="ops-fin-item"><span class="ops-fin-label">${lbl}</span><span class="ops-fin-value">${val}</span></div>`
@@ -7469,6 +7549,8 @@ function setSchoolDayFilter(v){csDayF=v;renderSchools();}
 function setSchoolPoFilter(v){csPoF=v;renderSchools();}
 function setSchoolUnitsFilter(v){csUnitsF=v;renderSchools();}
 function setSchoolScheduleFilter(v){csSchedF=v;renderSchools();}
+function setSchoolClassStartFilter(v){csClassStartF=v;renderSchools();}
+function setSchoolClassEndFilter(v){csClassEndF=v;renderSchools();}
 function filterRangers(f){
   crf=f;
   let matchedLabel='Rangers';
@@ -9617,7 +9699,7 @@ let _reachForwardPrefill = null;     // {subject,message} staged by forwardChore
 // list) with its own independent state — 'rs' prefix, same pattern as 'ds'
 // (Data Schools) and 'cs' (main Schools tab) — so browsing/filtering/selecting
 // here never disturbs either of those other views.
-let rsProgF='all',rsAssignF='all',rsRangerF='all',rsDayF='all',rsPoF='all',rsUnitsF='all',rsSchedF='all',rsResultsMode='summary';
+let rsProgF='all',rsAssignF='all',rsRangerF='all',rsDayF='all',rsPoF='all',rsUnitsF='all',rsSchedF='all',rsClassStartF='all',rsClassEndF='all',rsResultsMode='summary';
 let rsSearchQ=''; // free-text school-name search, layered on top of the dropdown filters
 let _reachSchoolsSelected=new Set(); // Set of site Keys (col A)
 let _rsProgramFilterFilled=false;
@@ -9663,6 +9745,8 @@ function setReachSchoolDayFilter(v){rsDayF=v;renderReachSchools();}
 function setReachSchoolPoFilter(v){rsPoF=v;renderReachSchools();}
 function setReachSchoolUnitsFilter(v){rsUnitsF=v;renderReachSchools();}
 function setReachSchoolScheduleFilter(v){rsSchedF=v;renderReachSchools();}
+function setReachSchoolClassStartFilter(v){rsClassStartF=v;renderReachSchools();}
+function setReachSchoolClassEndFilter(v){rsClassEndF=v;renderReachSchools();}
 function setReachSchoolResultsMode(v){rsResultsMode=v;renderReachSchools();}
 function setReachSchoolSearch(v){rsSearchQ=(v||'').trim().toLowerCase();renderReachSchools();}
 
@@ -9697,6 +9781,16 @@ function _reachSchoolsFiltered(){
       if(rsSchedF==='yes'&&!hasSched)return false;
       if(rsSchedF==='no'&&hasSched)return false;
     }
+    if(rsClassStartF!=='all'){
+      const hasStart=String(sf(s,'Program Classes Start Date','ProgramClassesStartDate')||'').trim()!=='';
+      if(rsClassStartF==='yes'&&!hasStart)return false;
+      if(rsClassStartF==='no'&&hasStart)return false;
+    }
+    if(rsClassEndF!=='all'){
+      const hasEnd=String(sf(s,'Program Classes End Date','ProgramClassesEndDate')||'').trim()!=='';
+      if(rsClassEndF==='yes'&&!hasEnd)return false;
+      if(rsClassEndF==='no'&&hasEnd)return false;
+    }
     return true;
   });
 }
@@ -9719,6 +9813,10 @@ function _reachSchoolsSummaryText(count){
   if(rsUnitsF!=='all')parts.push(`${rsUnitsF} Ranger Program Units`);
   if(rsSchedF==='yes')parts.push('a schedule on file');
   if(rsSchedF==='no')parts.push('no schedule on file');
+  if(rsClassStartF==='yes')parts.push('a Program Classes Start Date set');
+  if(rsClassStartF==='no')parts.push('no Program Classes Start Date set');
+  if(rsClassEndF==='yes')parts.push('a Program Classes End Date set');
+  if(rsClassEndF==='no')parts.push('no Program Classes End Date set');
   if(!parts.length)return `${subj} shown.`;
   const joined=parts.length===1?parts[0]:parts.length===2?parts.join(' and '):parts.slice(0,-1).join(', ')+', and '+parts[parts.length-1];
   return `${subj} ${count===1?'has':'have'} ${joined}.`;
