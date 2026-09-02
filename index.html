@@ -1492,10 +1492,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.80';
+const APP_VERSION='v10.81';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-01 - Data > Schools: smart-click deep links (Ranger jumps to their person card, Schedule jumps straight to the Schedule section) plus checkboxes, Select all, and an Adjust panel (Program, Ranger, Day of Week, Ranger Program Units) for bulk edits.';
+const BUILD_STAMP='2026-09-01 - EMERGENCY FIX: Level 1 now always sees every nav tab regardless of stored navVisibility, so a nav-visibility misconfiguration can never lock the super-admin out of Settings again.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10318,6 +10318,14 @@ async function saveNavVisibility(){
 
 // Returns true if a tab key should be shown for a given access level
 function _navTabAllowed(tabKey, lvl){
+  // Level 1 (super admin) must never be locked out of its own tabs by a
+  // navVisibility misconfiguration — otherwise a bad save (or a save made
+  // while the wrong level tab was selected in the panel) can strip Settings
+  // itself out of Level 1's array, and at that point nobody left with access
+  // can even open the panel to fix it. Level 1 always sees every tab,
+  // regardless of what's stored — same always-on rule already used below for
+  // _teamEmailSearchAllowed.
+  if(Number(lvl)===1)return true;
   const vis=_appSettings.navVisibility;
   if(!vis)return true;
   // Keys may be stored as strings ("1") or numbers (1) - check both
