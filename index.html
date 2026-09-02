@@ -1579,10 +1579,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.89';
+const APP_VERSION='v10.90';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Added Program Classes Start/End Date to the site edit form, detail view, and Data/Reach Schools Detailed cards. Reach > Schools email launcher: new "Attach Schedule PDF" option attaches each school\\u2019s own Schedule file (requires a GAS redeploy for the attachment support).';
+const BUILD_STAMP='2026-09-02 - Reach Schools email launcher: added Program Classes Start Date and Program Classes End Date merge field buttons.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10320,6 +10320,8 @@ function _buildSchoolMailTargets(){
     const day3 = sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')||'';
     const units       = sf(site,'Ranger Program Units')||'';
     const poStatus    = String(sf(site,'PO Number')||'').trim()!==''?'PO on file':'No PO on file';
+    const programClassesStart = fmtDate(sf(site,'Program Classes Start Date','ProgramClassesStartDate')||'');
+    const programClassesEnd   = fmtDate(sf(site,'Program Classes End Date','ProgramClassesEndDate')||'');
     const scheduleContents = sf(site,'Schedule Contents','ScheduleContents')||'';
     // Extract the Drive file ID from the Schedule column's share link so it
     // can be attached to the outgoing email (see "Attach Schedule PDF" below).
@@ -10366,7 +10368,7 @@ function _buildSchoolMailTargets(){
     const baseFields = {
       schoolName, schoolKey, address, phone, district, programType,
       ranger1, ranger2, ranger1Email, ranger2Email, ranger1Mobile, ranger2Mobile,
-      gardenKeeper, day1, day2, day3, units, poStatus, scheduleContents, scheduleFileId, principalName,
+      gardenKeeper, day1, day2, day3, units, poStatus, programClassesStart, programClassesEnd, scheduleContents, scheduleFileId, principalName,
       mainImage, image2, image3, helpfulImage1, helpfulImage2, helpfulBeforeImage,
       program, programCost, adjustment, totalCost, quoteNumber, unitDescription, poNumber,
       financialNotes, amountOwed, amountPaid, otherNotes, statusType,
@@ -10527,6 +10529,8 @@ function openReachSchoolsCompose(){
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day1}}')">📅 Ranger Day Of Week 1</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day2}}')">📅 Ranger Day Of Week 2</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Day3}}')">📅 Ranger Day Of Week 3</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ProgramClassesStart}}')">📆 Program Classes Start Date</button>
+          <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ProgramClassesEnd}}')">📆 Program Classes End Date</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{POStatus}}')">PO Status</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{ScheduleContents}}')">📄 Schedule Contents</button>
           <button type="button" class="reach-token-chip" onclick="_insertReachToken('{{Program}}')">Program</button>
@@ -10617,6 +10621,8 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{DayOfWeek3\}\}|\{\{Day3\}\}/gi, r.day3||'')
     .replace(/\{\{Units\}\}/gi,           r.units||'')
     .replace(/\{\{POStatus\}\}/gi,        r.poStatus||'')
+    .replace(/\{\{ProgramClassesStart\}\}/gi, r.programClassesStart||'')
+    .replace(/\{\{ProgramClassesEnd\}\}/gi,   r.programClassesEnd||'')
     .replace(/\{\{ScheduleContents\}\}/gi,r.scheduleContents||'')
     .replace(/\{\{Program\}\}/gi,         r.program||'')
     .replace(/\{\{ProgramCost\}\}/gi,     r.programCost||'')
@@ -10661,6 +10667,8 @@ async function _sendSchoolMailMerge(){
       .replace(/\{\{DayOfWeek3\}\}|\{\{Day3\}\}/gi, _escHtml(r.day3||''))
       .replace(/\{\{Units\}\}/gi,           _escHtml(r.units||''))
       .replace(/\{\{POStatus\}\}/gi,        _escHtml(r.poStatus||''))
+      .replace(/\{\{ProgramClassesStart\}\}/gi, _escHtml(r.programClassesStart||''))
+      .replace(/\{\{ProgramClassesEnd\}\}/gi,   _escHtml(r.programClassesEnd||''))
       .replace(/\{\{ScheduleContents\}\}/gi,_escHtml(r.scheduleContents||'').replace(/\n/g,'<br>'))
       .replace(/\{\{Program\}\}/gi,         _escHtml(r.program||''))
       .replace(/\{\{ProgramCost\}\}/gi,     _escHtml(r.programCost||''))
