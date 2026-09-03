@@ -1704,10 +1704,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.96';
+const APP_VERSION='v10.97';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Smart Map fix: rangers sharing the same (or missing) home location were stacking invisibly on top of each other — now auto-fanned into a small ring with a thin leader line back to the shared point, plus a "shares a pin" note on the ranger card.';
+const BUILD_STAMP='2026-09-02 - Hotfix: the v10.96 anti-overlap fix crashed before drawing any ranger markers when lat/lng came back as strings (very likely from the backend) — coordinates are now coerced to numbers up front, and marker drawing is wrapped so one bad record can\'t take down the rest.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4976,8 +4976,13 @@ function buildSmartMapRangerMarkers(){
   const show=_rangerLocs.filter(r=>{
     if(_smartMapRangerFilter==='onboarding')return onboardingCats.includes(r.role);
     return activeCats.includes(r.role);
-  }).filter(r=>r.lat!=null&&r.lng!=null&&!isNaN(r.lat)&&!isNaN(r.lng)).map(r=>({...r}));
-  const leaderPoints=_smartMapFocused?[]:_smartMapSpreadOverlapping(show);
+  }).map(r=>({...r,lat:Number(r.lat),lng:Number(r.lng)})).filter(r=>!isNaN(r.lat)&&!isNaN(r.lng));
+  let leaderPoints=[];
+  try{
+    leaderPoints=_smartMapFocused?[]:_smartMapSpreadOverlapping(show);
+  }catch(e){
+    console.warn('Smart Map: spread-overlap step failed, showing rangers at their raw coordinates',e);
+  }
   if(!_smartMapFocused){
     leaderPoints.forEach(pts=>{
       const line=L.polyline(pts,{color:'#9a8cc9',weight:1.5,opacity:.6,dashArray:'2,4'}).addTo(_smartMapLeaflet);
@@ -4986,15 +4991,19 @@ function buildSmartMapRangerMarkers(){
   }
   _smartMapRenderedRangers={};
   show.forEach(r=>{
-    _smartMapRenderedRangers[(r.email||'').toLowerCase()]=r;
-    const color=RANGER_LAYER_COLORS[r.role]||'#6a4fb3';
-    const badge=_rangerBadgeHtml(r,color);
-    const icon=L.divIcon({className:'ranger-pin-pulse',html:badge.html,iconSize:[badge.size,badge.size],iconAnchor:[badge.size/2,badge.size/2]});
-    const marker=L.marker([r.lat,r.lng],{icon,zIndexOffset:600}).addTo(_smartMapLeaflet);
-    marker.__email=(r.email||'').toLowerCase();
-    const openHandler=()=>_smartMapRangerClick(r);
-    marker.on('click',openHandler);
-    _smartMapRangerMarkers.push(marker);
+    try{
+      _smartMapRenderedRangers[(r.email||'').toLowerCase()]=r;
+      const color=RANGER_LAYER_COLORS[r.role]||'#6a4fb3';
+      const badge=_rangerBadgeHtml(r,color);
+      const icon=L.divIcon({className:'ranger-pin-pulse',html:badge.html,iconSize:[badge.size,badge.size],iconAnchor:[badge.size/2,badge.size/2]});
+      const marker=L.marker([r.lat,r.lng],{icon,zIndexOffset:600}).addTo(_smartMapLeaflet);
+      marker.__email=(r.email||'').toLowerCase();
+      const openHandler=()=>_smartMapRangerClick(r);
+      marker.on('click',openHandler);
+      _smartMapRangerMarkers.push(marker);
+    }catch(e){
+      console.warn('Smart Map: skipped one ranger marker due to an error',r,e);
+    }
   });
   _smartMapUpdateCounts();
 }
