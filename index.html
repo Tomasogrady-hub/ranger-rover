@@ -1704,10 +1704,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.98';
+const APP_VERSION='v10.99';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Rebuilt ranger map markers without inline SVG (plain HTML/CSS avatar + colored pill label instead) after the SVG badge rendered invisibly for every ranger — matches the same reliable pattern used everywhere else in the app.';
+const BUILD_STAMP='2026-09-02 - The avatars weren\'t actually broken — with 180+ site labels and 48 permanent ranger labels sharing a city-wide view, most avatars were simply buried under the wall of overlapping text bubbles. Ranger name labels are now tap/hover-only (the avatar itself is always visible; tap it for the full name and card), and ranger pins now paint above site pins so they never get buried again.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4986,13 +4986,19 @@ function buildSmartMapRangerMarkers(){
       const color=RANGER_LAYER_COLORS[r.role]||'#6a4fb3';
       const badge=_rangerBadgeHtml(r,color);
       const icon=L.divIcon({className:'ranger-pin-pulse',html:badge.html,iconSize:[badge.size,badge.size],iconAnchor:[badge.size/2,badge.size/2]});
-      const marker=L.marker([r.lat,r.lng],{icon,zIndexOffset:600}).addTo(_smartMapLeaflet);
+      // zIndexOffset kept well above the sites layer (600-ish) so ranger avatars always paint on
+      // top of the far more numerous site pins/labels instead of getting buried underneath them.
+      const marker=L.marker([r.lat,r.lng],{icon,zIndexOffset:5000}).addTo(_smartMapLeaflet);
       marker.__email=(r.email||'').toLowerCase();
       const openHandler=()=>_smartMapRangerClick(r);
       marker.on('click',openHandler);
+      // Deliberately NOT a permanent tooltip: with 40+ rangers and 100+ sites often on screen at
+      // once, permanent labels for every ranger buried the avatars themselves under a wall of text
+      // bubbles. Tapping the avatar opens the full name/card via _smartMapRangerClick instead; this
+      // hover tooltip is just a bonus for anyone using a mouse.
       const label=(r.name||r.email||'Ranger').split(' ')[0]||'Ranger';
-      marker.bindTooltip(label,{permanent:true,direction:'top',className:'map-label ranger-badge-label',offset:[0,-(badge.size/2+4)],interactive:true});
-      marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.background=color;el.style.color='#fff';el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
+      marker.bindTooltip(label,{direction:'top',className:'map-label ranger-badge-label',offset:[0,-(badge.size/2+4)]});
+      marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.background=color;el.style.color='#fff';}});
       _smartMapRangerMarkers.push(marker);
     }catch(e){
       console.warn('Smart Map: skipped one ranger marker due to an error',r,e);
