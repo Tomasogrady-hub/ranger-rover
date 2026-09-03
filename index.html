@@ -1704,10 +1704,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.95';
+const APP_VERSION='v10.96';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Smart Map: slide-out info panel (visible even in full screen), ranger-focus spoke view with back/card controls, curved ranger name badges, Ranger Assigned/Not Assigned + Day of Week filters, and a live result count.';
+const BUILD_STAMP='2026-09-02 - Smart Map fix: rangers sharing the same (or missing) home location were stacking invisibly on top of each other — now auto-fanned into a small ring with a thin leader line back to the shared point, plus a "shares a pin" note on the ranger card.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4762,7 +4762,7 @@ function toggleSmartMapLayer(layer){
   if(layer==='sites')buildSmartMapSiteMarkers();
   if(layer==='rangers'){
     if(_smartMapLayers.rangers){loadRangerLocations();}
-    else{_clearSmartMapRangerMarkers();_clearSmartMapConnLines();
+    else{_clearSmartMapRangerMarkers();_clearSmartMapConnLines();_clearSmartMapSpreadLines();
       const st=document.getElementById('smartMapStatus');if(st)st.style.display='none';
       _smartMapUpdateCounts();}
   }
@@ -4929,9 +4929,46 @@ function _rangerBadgeHtml(r,color){
     </svg>`
   };
 }
+/* Multiple rangers can share the exact same coordinate — most often because that
+   ranger's record has no home address on file and the backend geocodes to a shared
+   fallback point. Left alone they'd stack in a single pixel and look like one pin
+   (or "nothing"). Fan duplicates out into a small ring with a thin leader line back
+   to the true shared point so every ranger stays individually visible and tappable. */
+function _smartMapSpreadOverlapping(list){
+  const groups=new Map();
+  list.forEach(it=>{
+    const key=it.lat.toFixed(4)+','+it.lng.toFixed(4);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(it);
+  });
+  const leaderPoints=[];
+  groups.forEach(group=>{
+    if(group.length<2)return;
+    const baseLat=group[0].lat,baseLng=group[0].lng;
+    const mLat=1/111320,mLng=1/((111320*Math.cos(baseLat*Math.PI/180))||1);
+    group.forEach((it,i)=>{
+      it.__groupSize=group.length;
+      if(i===0)return; // first stays exactly on the true point
+      const ring=Math.floor((i-1)/8)+1,posInRing=(i-1)%8,countInRing=Math.min(8,group.length-1-(ring-1)*8);
+      const ang=(posInRing/countInRing)*2*Math.PI;
+      const meters=52*ring;
+      it.lat=baseLat+meters*mLat*Math.sin(ang);
+      it.lng=baseLng+meters*mLng*Math.cos(ang);
+      leaderPoints.push([[baseLat,baseLng],[it.lat,it.lng]]);
+    });
+  });
+  return leaderPoints;
+}
+let _smartMapSpreadLines=[];
+function _clearSmartMapSpreadLines(){
+  _smartMapSpreadLines.forEach(l=>_smartMapLeaflet&&_smartMapLeaflet.removeLayer(l));
+  _smartMapSpreadLines=[];
+}
+let _smartMapRenderedRangers={}; // email(lowercased) → last-rendered ranger (with any spread offset applied)
 function buildSmartMapRangerMarkers(){
   if(!_smartMapLeaflet)return;
   _clearSmartMapRangerMarkers();
+  _clearSmartMapSpreadLines();
   if(!_smartMapFocused)_clearSmartMapConnLines();
   if(!_smartMapLayers.rangers||!_rangerLocs){_smartMapUpdateCounts();return;}
   const activeCats=['ranger','master_ranger','garden_keeper'];
@@ -4939,9 +4976,17 @@ function buildSmartMapRangerMarkers(){
   const show=_rangerLocs.filter(r=>{
     if(_smartMapRangerFilter==='onboarding')return onboardingCats.includes(r.role);
     return activeCats.includes(r.role);
-  });
+  }).filter(r=>r.lat!=null&&r.lng!=null&&!isNaN(r.lat)&&!isNaN(r.lng)).map(r=>({...r}));
+  const leaderPoints=_smartMapFocused?[]:_smartMapSpreadOverlapping(show);
+  if(!_smartMapFocused){
+    leaderPoints.forEach(pts=>{
+      const line=L.polyline(pts,{color:'#9a8cc9',weight:1.5,opacity:.6,dashArray:'2,4'}).addTo(_smartMapLeaflet);
+      _smartMapSpreadLines.push(line);
+    });
+  }
+  _smartMapRenderedRangers={};
   show.forEach(r=>{
-    if(r.lat==null||r.lng==null||isNaN(r.lat)||isNaN(r.lng))return;
+    _smartMapRenderedRangers[(r.email||'').toLowerCase()]=r;
     const color=RANGER_LAYER_COLORS[r.role]||'#6a4fb3';
     const badge=_rangerBadgeHtml(r,color);
     const icon=L.divIcon({className:'ranger-pin-pulse',html:badge.html,iconSize:[badge.size,badge.size],iconAnchor:[badge.size/2,badge.size/2]});
@@ -4954,6 +4999,13 @@ function buildSmartMapRangerMarkers(){
   _smartMapUpdateCounts();
 }
 
+function _smartMapSetSpreadLinesVisible(v){
+  _smartMapSpreadLines.forEach(l=>{
+    if(!_smartMapLeaflet)return;
+    if(v&&!_smartMapLeaflet.hasLayer(l))l.addTo(_smartMapLeaflet);
+    if(!v&&_smartMapLeaflet.hasLayer(l))_smartMapLeaflet.removeLayer(l);
+  });
+}
 /* ── Ranger focus mode: click a ranger → hide everything else, spoke lines out to only their sites ── */
 function _smartMapRangerClick(r){
   if(_smartMapFocused&&(_smartMapFocused.email||'').toLowerCase()===(r.email||'').toLowerCase()){
@@ -4984,6 +5036,7 @@ function _smartMapEnterRangerFocus(ranger){
     if(!show&&_smartMapLeaflet.hasLayer(m))_smartMapLeaflet.removeLayer(m);
   });
   _smartMapDrawSpokes(ranger,mySiteKeys);
+  _smartMapSetSpreadLinesVisible(false);
   const bar=document.getElementById('smartMapFocusBar'),lbl=document.getElementById('smartMapFocusLabel');
   if(bar)bar.style.display='flex';
   if(lbl)lbl.textContent=`🎯 ${ranger.name||ranger.email} · ${mySiteKeys.size} site${mySiteKeys.size===1?'':'s'}`;
@@ -5011,6 +5064,7 @@ function _smartMapExitRangerFocus(){
   _smartMapSiteMarkers.forEach(m=>{if(!_smartMapLeaflet.hasLayer(m))m.addTo(_smartMapLeaflet);});
   _smartMapRangerMarkers.forEach(m=>{if(!_smartMapLeaflet.hasLayer(m))m.addTo(_smartMapLeaflet);});
   _clearSmartMapConnLines();
+  _smartMapSetSpreadLinesVisible(true);
   const bar=document.getElementById('smartMapFocusBar');if(bar)bar.style.display='none';
   _smartMapClosePanel();
   _smartMapUpdateCounts();
@@ -5033,11 +5087,13 @@ function _smartMapOpenSiteByKey(key){
 }
 function _smartMapOpenRangerByEmail(email){
   if(!email)return;
-  const loc=(_rangerLocs||[]).find(r=>(r.email||'').toLowerCase()===email.toLowerCase());
+  const key=email.toLowerCase();
+  const loc=_smartMapRenderedRangers[key]||(_rangerLocs||[]).find(r=>(r.email||'').toLowerCase()===key);
   _smartMapOpenRangerPanel(loc||{email,name:hn(email)||email,role:''});
 }
 function _smartMapEnterRangerFocusByEmail(email){
-  const loc=(_rangerLocs||[]).find(r=>(r.email||'').toLowerCase()===(email||'').toLowerCase());
+  const key=(email||'').toLowerCase();
+  const loc=_smartMapRenderedRangers[key]||(_rangerLocs||[]).find(r=>(r.email||'').toLowerCase()===key);
   if(loc)_smartMapEnterRangerFocus(loc);
 }
 
@@ -5093,6 +5149,7 @@ function _smartMapOpenRangerPanel(ranger){
   });
   const isFocused=_smartMapFocused&&(_smartMapFocused.email||'').toLowerCase()===emailLc;
   const canFocus=ranger.lat!=null&&ranger.lng!=null;
+  const groupNote=ranger.__groupSize>1?`<div class="smartmap-panel-row" style="border-top:none;color:var(--warn);font-weight:600">📍 Shares a pin with ${ranger.__groupSize-1} other ranger${ranger.__groupSize-1===1?'':'s'} — likely missing a home address</div>`:'';
   panel.innerHTML=`
     <div class="smartmap-panel-head">
       <button class="smartmap-panel-side" onclick="_smartMapFlipPanelSide()" title="Move panel">⇄</button>
@@ -5104,6 +5161,7 @@ function _smartMapOpenRangerPanel(ranger){
       <div class="smartmap-panel-sub">${ea(roleLabel)}</div>
       ${phone?`<a class="smartmap-panel-row" href="tel:${ea(phone)}">📞 ${ea(phone)}</a>`:''}
       ${email?`<a class="smartmap-panel-row" href="mailto:${ea(email)}">✉️ ${ea(email)}</a>`:''}
+      ${groupNote}
       <div class="smartmap-panel-section">Assigned Sites (${mySites.length})</div>
       ${mySites.map(s=>`<div class="smartmap-panel-person" onclick="_smartMapOpenSiteByKey('${ea(sf(s,'Key','key'))}')"><span>🏫 ${ea(sf(s,'Name','name'))}</span></div>`).join('')||'<div class="smartmap-panel-empty">No sites currently assigned</div>'}
     </div>
