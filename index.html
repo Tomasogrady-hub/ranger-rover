@@ -312,6 +312,42 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .smartmap-legend i{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
 #smartMapWrap.smartmap-fs{position:fixed;inset:0;z-index:9999;margin:0;border-radius:0;width:100vw;height:100dvh;max-width:none}
 .smartmap-fs-btn{position:absolute;top:50%;right:8px;transform:translateY(-50%);z-index:1001;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.93);box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;font-size:16px;line-height:1;color:var(--stone);display:flex;align-items:center;justify-content:center}
+.smartmap-count{background:rgba(255,255,255,.93);border-radius:8px;padding:5px 10px;font-size:11px;font-family:var(--font-b);font-weight:600;color:var(--stone);box-shadow:0 2px 8px rgba(0,0,0,.15);white-space:nowrap}
+
+/* ── SMART MAP: slide-out panel (works in & out of fullscreen — lives inside the map wrap so it's never covered) ── */
+.smartmap-panel{position:absolute;top:0;bottom:0;right:0;width:320px;max-width:88vw;background:var(--paper);z-index:2000;box-shadow:-3px 0 18px rgba(0,0,0,.28);transform:translateX(105%);transition:transform .25s ease;overflow-y:auto;display:flex;flex-direction:column}
+.smartmap-panel.open{transform:translateX(0)}
+.smartmap-panel.side-left{right:auto;left:0;box-shadow:3px 0 18px rgba(0,0,0,.28);transform:translateX(-105%)}
+.smartmap-panel.side-left.open{transform:translateX(0)}
+.smartmap-panel-head{position:sticky;top:0;display:flex;justify-content:flex-end;gap:6px;padding:10px;background:var(--paper);border-bottom:1px solid var(--mist);z-index:1}
+.smartmap-panel-side,.smartmap-panel-close{width:30px;height:30px;border:none;border-radius:50%;background:var(--fog);color:var(--stone);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.smartmap-panel-close{font-size:16px}
+.smartmap-panel-body{padding:4px 20px 12px;text-align:center}
+.smartmap-panel-avatar{width:72px;height:72px;border-radius:50%;overflow:hidden;margin:0 auto 10px;background:var(--mint);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.smartmap-panel-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.smartmap-panel-initials{font-family:var(--font-b);font-weight:700;font-size:22px;color:var(--grove)}
+.smartmap-panel-badge{width:52px;height:52px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.smartmap-panel-body h3{font-family:var(--font-d);font-size:23px;font-weight:500;color:var(--ink);margin:0 0 2px}
+.smartmap-panel-sub{font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--silver);margin-bottom:12px}
+.smartmap-panel-row{display:flex;align-items:center;gap:8px;text-align:left;padding:10px 4px;border-top:1px solid var(--mist);font-family:var(--font-b);font-size:14px;color:var(--ink);text-decoration:none}
+.smartmap-panel-section{text-align:left;font-family:var(--font-b);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--silver);margin:14px 0 4px;padding-top:10px;border-top:1px solid var(--mist)}
+.smartmap-panel-person{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;padding:9px 4px;border-bottom:1px solid var(--mist);font-family:var(--font-b);font-size:14px;color:var(--ink);cursor:pointer}
+.smartmap-panel-person span{font-size:11px;color:var(--silver);text-transform:uppercase;letter-spacing:.03em}
+.smartmap-panel-empty{padding:8px 4px;font-family:var(--font-b);font-size:13px;color:var(--silver);text-align:left}
+.smartmap-panel-actions{padding:12px 16px 18px;display:flex;flex-direction:column;gap:8px}
+.smartmap-panel-btn{width:100%;padding:12px;border-radius:var(--r-sm);border:1px solid var(--mist);background:var(--paper);font-family:var(--font-b);font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--ink);cursor:pointer}
+.smartmap-panel-btn.primary{background:var(--grove);border-color:var(--grove);color:#fff}
+
+/* ── SMART MAP: ranger-focus floating action bar ── */
+.smartmap-focusbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1400;display:none;align-items:center;gap:8px;background:rgba(255,255,255,.96);border-radius:99px;padding:6px 8px 6px 14px;box-shadow:0 2px 12px rgba(0,0,0,.25);max-width:calc(100% - 16px);font-family:var(--font-b)}
+.smartmap-focusbar span{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+.smartmap-focusbar button{border:none;border-radius:99px;padding:7px 12px;font-family:var(--font-b);font-size:11px;font-weight:700;letter-spacing:.03em;cursor:pointer;white-space:nowrap}
+.smartmap-focusbar button.fb-card{background:#6a4fb3;color:#fff}
+.smartmap-focusbar button.fb-back{background:var(--fog);color:var(--stone)}
+
+/* Ranger badge markers — curved name arcing over the avatar so they read as clearly different from straight school labels */
+.ranger-badge-svg{overflow:visible;cursor:pointer}
+.ranger-badge-svg text{font-family:var(--font-b);letter-spacing:.02em}
 
 /* ── STATES ── */
 .empty{text-align:center;padding:52px 24px}
@@ -965,7 +1001,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <div id="ops-tab4" style="display:none">
         <div class="page-header"><span class="page-title">Smart Map</span></div>
         <div style="padding:0 16px 6px;color:var(--stone);font-family:var(--font-b);font-size:13px">
-          Layer sites and ranger home locations to see coverage at a glance. Tap a ranger marker to see which sites they're connected to.
+          Layer sites and ranger home locations to see coverage at a glance. Tap a ranger to focus the map on just their sites, or tap a school for a quick info card.
         </div>
         <div id="smartMapWrap">
           <div id="smartMapFilters">
@@ -987,6 +1023,16 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
                     <option value="responded">Responded</option>
                     <option value="no_response">No Response</option>
                     <option value="has_po">Has PO</option>
+                    <option value="ranger_assigned">🌿 Ranger Assigned</option>
+                    <option value="ranger_not_assigned">◻ Ranger Not Assigned</option>
+                  </select>
+                  <select id="smFilterDay" class="smartmap-select" onchange="refreshSmartMap()">
+                    <option value="" selected>Any Day</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
                   </select>
                 </div>
               </div>
@@ -1004,10 +1050,17 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
                   </select>
                 </div>
               </div>
+              <div class="smartmap-count" id="smartMapCount"></div>
             </div>
             <div class="smartmap-status" id="smartMapStatus"></div>
           </div>
+          <div class="smartmap-focusbar" id="smartMapFocusBar">
+            <span id="smartMapFocusLabel"></span>
+            <button class="fb-card" onclick="_smartMapOpenRangerPanel(_smartMapFocused)">👤 Ranger Card</button>
+            <button class="fb-back" onclick="_smartMapExitRangerFocus()">↩ Back to Map</button>
+          </div>
           <div id="smartMap"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div></div>
+          <div class="smartmap-panel" id="smartMapPanel"></div>
           <button class="smartmap-fs-btn" id="smartMapFsBtn" onclick="toggleSmartMapFullscreen()" title="Full screen">⛶</button>
           <div class="smartmap-legend" id="smartMapLegend">
             <span><i style="background:#1e3a1e"></i>Active site</span>
@@ -1651,10 +1704,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.94';
+const APP_VERSION='v10.95';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Added By Program Started? filter (Yes/No) to the main Schools tab, Data > Schools, and Reach > Schools, plus the intelligence sentences on Data/Reach Schools.';
+const BUILD_STAMP='2026-09-02 - Smart Map: slide-out info panel (visible even in full screen), ranger-focus spoke view with back/card controls, curved ranger name badges, Ranger Assigned/Not Assigned + Day of Week filters, and a live result count.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4667,6 +4720,8 @@ let _smartMapRangerMarkers=[];
 let _smartMapConnLines=[];
 let _rangerLocs=null;        // cached geocoded ranger homes: [{email,name,role,lat,lng}]
 let _rangerLocsLoading=false;
+let _smartMapFocused=null;   // ranger object currently focused on (spoke view), or null
+let _smartMapPanelSide='right';
 
 function toggleSmartMapFullscreen(){
   const wrap=document.getElementById('smartMapWrap');
@@ -4693,6 +4748,7 @@ function initSmartMap(){
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(_smartMapLeaflet);
     buildSmartMapSiteMarkers();
     document.getElementById('smartMapLegend').style.display='flex';
+    _smartMapUpdateCounts();
     setTimeout(()=>_smartMapLeaflet.invalidateSize(),150);
   });
 }
@@ -4702,48 +4758,63 @@ function toggleSmartMapLayer(layer){
   document.querySelectorAll('.smartmap-layer-chip[data-layer]').forEach(b=>{
     if(b.dataset.layer===layer)b.classList.toggle('active',_smartMapLayers[layer]);
   });
+  if(_smartMapFocused)_smartMapExitRangerFocus();
   if(layer==='sites')buildSmartMapSiteMarkers();
   if(layer==='rangers'){
     if(_smartMapLayers.rangers){loadRangerLocations();}
     else{_clearSmartMapRangerMarkers();_clearSmartMapConnLines();
-      const st=document.getElementById('smartMapStatus');if(st)st.style.display='none';}
+      const st=document.getElementById('smartMapStatus');if(st)st.style.display='none';
+      _smartMapUpdateCounts();}
   }
 }
 
 function setSmartMapRangerCatFilter(val){
   _smartMapRangerFilter=val;
+  if(_smartMapFocused)_smartMapExitRangerFocus();
   buildSmartMapRangerMarkers();
 }
 
-function refreshSmartMap(){buildSmartMapSiteMarkers();}
+function refreshSmartMap(){if(_smartMapFocused)_smartMapExitRangerFocus();buildSmartMapSiteMarkers();}
 
 function buildSmartMapSiteMarkers(){
   if(!_smartMapLeaflet)return;
   _smartMapSiteMarkers.forEach(m=>_smartMapLeaflet.removeLayer(m));
   _smartMapSiteMarkers=[];
-  if(!_smartMapLayers.sites)return;
+  if(!_smartMapLayers.sites){_smartMapUpdateCounts();return;}
   let sites=getMySchools()||DATA.sites;
-  const typeSel=document.getElementById('smFilterType'),statusSel=document.getElementById('smFilterStatus'),rangerSel=document.getElementById('smFilterRanger');
+  const typeSel=document.getElementById('smFilterType'),statusSel=document.getElementById('smFilterStatus'),rangerSel=document.getElementById('smFilterRanger'),daySel=document.getElementById('smFilterDay');
   const typeF=typeSel?typeSel.value:'type_active';
   const statusF=statusSel?statusSel.value:'';
   const rangerF=rangerSel?rangerSel.value:'';
+  const dayF=daySel?daySel.value:'';
   sites=sites.filter(s=>{
     const t=(sf(s,'Type','type')||'').toLowerCase();
     if(typeF==='type_active'&&t!=='active ranger program')return false;
     if(typeF==='type_future'&&t!=='future ranger program')return false;
     if(typeF==='type_inactive'&&t!=='inactive ranger program')return false;
     if(typeF==='type_possible'&&t!=='possible ranger program')return false;
+    const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim();
+    const r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
+    const gk=String(sf(s,'Garden Keeper','GardenKeeper')||'').trim();
     if(statusF){
       const started=String(sf(s,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true';
       const responded=String(sf(s,'Any Response?','AnyResponse','anyResponse')||'').toLowerCase()==='true';
       const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+      const anyRanger=!!(r1||r2||gk);
       if(statusF==='grp_started'&&!started)return false;
       if(statusF==='grp_not_started'&&started)return false;
       if(statusF==='responded'&&!responded)return false;
       if(statusF==='no_response'&&responded)return false;
       if(statusF==='has_po'&&!hasPO)return false;
+      if(statusF==='ranger_assigned'&&!anyRanger)return false;
+      if(statusF==='ranger_not_assigned'&&anyRanger)return false;
     }
-    const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim();
+    if(dayF){
+      const d1=String(sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'').trim();
+      const d2=String(sf(s,'Ranger Day Of Week 2','RangerDayOfWeek2')||'').trim();
+      const d3=String(sf(s,'Ranger Day Of Week 3','RangerDayOfWeek3')||'').trim();
+      if(d1!==dayF&&d2!==dayF&&d3!==dayF)return false;
+    }
     if(rangerF==='assigned'&&!r1)return false;
     if(rangerF==='unassigned'&&r1)return false;
     return true;
@@ -4766,12 +4837,28 @@ function buildSmartMapSiteMarkers(){
       iconSize:[14,14],iconAnchor:[7,7]
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_smartMapLeaflet);
-    const openHandler=()=>{showSchoolDetailByKey(key||'');};
+    marker.__siteKey=key;
+    const openHandler=()=>{_smartMapOpenSitePanel(s);};
     marker.on('click',openHandler);
     marker.bindTooltip(label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':''}`,offset:[0,-10],interactive:true});
     marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
     _smartMapSiteMarkers.push(marker);
   });
+  _smartMapUpdateCounts();
+}
+
+function _smartMapUpdateCounts(){
+  const el=document.getElementById('smartMapCount');if(!el)return;
+  const parts=[];
+  if(_smartMapLayers.sites){
+    const visible=_smartMapLeaflet?_smartMapSiteMarkers.filter(m=>_smartMapLeaflet.hasLayer(m)).length:_smartMapSiteMarkers.length;
+    parts.push(`🏫 ${visible} site${visible===1?'':'s'}`);
+  }
+  if(_smartMapLayers.rangers){
+    const visible=_smartMapLeaflet?_smartMapRangerMarkers.filter(m=>_smartMapLeaflet.hasLayer(m)).length:_smartMapRangerMarkers.length;
+    parts.push(`🧑‍🌾 ${visible} ranger${visible===1?'':'s'}`);
+  }
+  el.textContent=parts.join('  ·  ');
 }
 
 async function loadRangerLocations(){
@@ -4813,11 +4900,40 @@ function _clearSmartMapConnLines(){
 }
 
 const RANGER_LAYER_COLORS={ranger:'#6a4fb3',master_ranger:'#b8860b',garden_keeper:'#00838f',ranger_applicant:'#9e9e9e',ranger_past:'#c9c9c9',ranger_onboarding:'#e08a2c',ranger_offered:'#c97a1a'};
+
+/* Circular avatar with the ranger's name arcing over the top like a badge/seal — makes rangers
+   unmistakably different from the straight, flat labels used for schools. */
+let _rangerBadgeSeq=0;
+function _rangerBadgeHtml(r,color){
+  const id='rbadge'+(_rangerBadgeSeq++);
+  const human=r.email?(DATA.humans||[]).find(h=>(h.Email||h.email||'').toLowerCase().trim()===r.email.toLowerCase().trim()):null;
+  const photoUrl=human?getImgSrc(human['Main Image']||human.MainImage||''):'';
+  const initials=ea(inits(r.name||r.email||''));
+  const size=34,rad=size/2,textR=rad+12,pad=15,svgSize=(textR+pad-6)*2;
+  const cx=svgSize/2,cy=svgSize/2;
+  const pol=(ang)=>{const a=ang*Math.PI/180;return [cx+textR*Math.cos(a),cy-textR*Math.sin(a)];};
+  const [x1,y1]=pol(200),[x2,y2]=pol(-20);
+  const arcPath=`M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${textR} ${textR} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  const name=ea((r.name||r.email||'Ranger').split(' ')[0]||'Ranger');
+  const avatarInner=photoUrl
+    ?`<image href="${ea(photoUrl)}" x="${cx-rad}" y="${cy-rad}" width="${size}" height="${size}" clip-path="url(#${id}c)" preserveAspectRatio="xMidYMid slice"/>`
+    :`<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${initials}</text>`;
+  return {
+    size:svgSize,
+    html:`<svg class="ranger-badge-svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">
+      <defs><clipPath id="${id}c"><circle cx="${cx}" cy="${cy}" r="${rad}"/></clipPath><path id="${id}p" d="${arcPath}" fill="none"/></defs>
+      <circle cx="${cx}" cy="${cy}" r="${rad}" fill="${color}"/>
+      ${avatarInner}
+      <circle cx="${cx}" cy="${cy}" r="${rad}" fill="none" stroke="${color}" stroke-width="2.5"/>
+      <text font-size="9.5" font-weight="700" fill="${color}"><textPath href="#${id}p" startOffset="50%" text-anchor="middle">${name}</textPath></text>
+    </svg>`
+  };
+}
 function buildSmartMapRangerMarkers(){
   if(!_smartMapLeaflet)return;
   _clearSmartMapRangerMarkers();
-  _clearSmartMapConnLines();
-  if(!_smartMapLayers.rangers||!_rangerLocs)return;
+  if(!_smartMapFocused)_clearSmartMapConnLines();
+  if(!_smartMapLayers.rangers||!_rangerLocs){_smartMapUpdateCounts();return;}
   const activeCats=['ranger','master_ranger','garden_keeper'];
   const onboardingCats=['ranger_onboarding'];
   const show=_rangerLocs.filter(r=>{
@@ -4827,49 +4943,175 @@ function buildSmartMapRangerMarkers(){
   show.forEach(r=>{
     if(r.lat==null||r.lng==null||isNaN(r.lat)||isNaN(r.lng))return;
     const color=RANGER_LAYER_COLORS[r.role]||'#6a4fb3';
-    const human=r.email?(DATA.humans||[]).find(h=>(h.Email||h.email||'').toLowerCase().trim()===r.email.toLowerCase().trim()):null;
-    const photoUrl=human?getImgSrc(human['Main Image']||human.MainImage||''):'';
-    const initials=ea(inits(r.name||r.email||''));
-    const size=34;
-    const avatarInner=photoUrl
-      ?`<img loading="lazy" src="${ea(photoUrl)}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.textContent='${initials}'">`
-      :initials;
-    const html=`<div class="ranger-pin-pulse" style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;border:2.5px solid ${color};box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-b);font-size:12px;font-weight:700">${avatarInner}</div>`;
-    const icon=L.divIcon({className:'',html,iconSize:[size,size],iconAnchor:[size/2,size/2]});
-    const marker=L.marker([r.lat,r.lng],{icon}).addTo(_smartMapLeaflet);
-    const label=r.name||r.email||'Ranger';
-    const openHandler=()=>{if(r.email)showPersonDetail(r.email);};
-    marker.bindTooltip(label,{permanent:true,direction:'top',className:'map-label ranger-label',offset:[0,-(size/2+4)],interactive:true});
+    const badge=_rangerBadgeHtml(r,color);
+    const icon=L.divIcon({className:'ranger-pin-pulse',html:badge.html,iconSize:[badge.size,badge.size],iconAnchor:[badge.size/2,badge.size/2]});
+    const marker=L.marker([r.lat,r.lng],{icon,zIndexOffset:600}).addTo(_smartMapLeaflet);
+    marker.__email=(r.email||'').toLowerCase();
+    const openHandler=()=>_smartMapRangerClick(r);
     marker.on('click',openHandler);
-    marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
     _smartMapRangerMarkers.push(marker);
   });
+  _smartMapUpdateCounts();
 }
 
-function _smartMapShowRangerConnections(ranger){
+/* ── Ranger focus mode: click a ranger → hide everything else, spoke lines out to only their sites ── */
+function _smartMapRangerClick(r){
+  if(_smartMapFocused&&(_smartMapFocused.email||'').toLowerCase()===(r.email||'').toLowerCase()){
+    _smartMapOpenRangerPanel(r);
+    return;
+  }
+  _smartMapEnterRangerFocus(r);
+}
+function _smartMapEnterRangerFocus(ranger){
+  if(!_smartMapLeaflet)return;
+  _smartMapFocused=ranger;
+  const email=(ranger.email||'').toLowerCase();
+  const mySiteKeys=new Set();
+  (DATA.sites||[]).forEach(s=>{
+    const r1=String(sf(s,'Ranger 1','Ranger1')||'').toLowerCase();
+    const r2=String(sf(s,'Ranger 2','Ranger2')||'').toLowerCase();
+    const gk=String(sf(s,'Garden Keeper','GardenKeeper')||'').toLowerCase();
+    if(email&&(r1===email||r2===email||gk===email))mySiteKeys.add(sf(s,'Key','key'));
+  });
+  _smartMapSiteMarkers.forEach(m=>{
+    const show=mySiteKeys.has(m.__siteKey);
+    if(show&&!_smartMapLeaflet.hasLayer(m))m.addTo(_smartMapLeaflet);
+    if(!show&&_smartMapLeaflet.hasLayer(m))_smartMapLeaflet.removeLayer(m);
+  });
+  _smartMapRangerMarkers.forEach(m=>{
+    const show=m.__email===email;
+    if(show&&!_smartMapLeaflet.hasLayer(m))m.addTo(_smartMapLeaflet);
+    if(!show&&_smartMapLeaflet.hasLayer(m))_smartMapLeaflet.removeLayer(m);
+  });
+  _smartMapDrawSpokes(ranger,mySiteKeys);
+  const bar=document.getElementById('smartMapFocusBar'),lbl=document.getElementById('smartMapFocusLabel');
+  if(bar)bar.style.display='flex';
+  if(lbl)lbl.textContent=`🎯 ${ranger.name||ranger.email} · ${mySiteKeys.size} site${mySiteKeys.size===1?'':'s'}`;
+  _smartMapUpdateCounts();
+}
+function _smartMapDrawSpokes(ranger,mySiteKeys){
   _clearSmartMapConnLines();
-  if(!_smartMapLeaflet||!ranger.email)return;
-  const email=ranger.email.toLowerCase();
+  if(!_smartMapLeaflet||ranger.lat==null||ranger.lng==null)return;
+  const bounds=[[ranger.lat,ranger.lng]];
+  (DATA.sites||[]).forEach(s=>{
+    if(!mySiteKeys.has(sf(s,'Key','key')))return;
+    const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
+    const p=ll.toString().split(',');if(p.length<2)return;
+    const slat=parseFloat(p[0]),slng=parseFloat(p[1]);if(isNaN(slat)||isNaN(slng))return;
+    const line=L.polyline([[ranger.lat,ranger.lng],[slat,slng]],{color:'#6a4fb3',weight:2,opacity:.8,dashArray:'4,7'}).addTo(_smartMapLeaflet);
+    _smartMapConnLines.push(line);
+    bounds.push([slat,slng]);
+  });
+  if(bounds.length>1)_smartMapLeaflet.fitBounds(bounds,{padding:[70,70],maxZoom:14});
+  else _smartMapLeaflet.setView([ranger.lat,ranger.lng],13);
+}
+function _smartMapExitRangerFocus(){
+  if(!_smartMapLeaflet)return;
+  _smartMapFocused=null;
+  _smartMapSiteMarkers.forEach(m=>{if(!_smartMapLeaflet.hasLayer(m))m.addTo(_smartMapLeaflet);});
+  _smartMapRangerMarkers.forEach(m=>{if(!_smartMapLeaflet.hasLayer(m))m.addTo(_smartMapLeaflet);});
+  _clearSmartMapConnLines();
+  const bar=document.getElementById('smartMapFocusBar');if(bar)bar.style.display='none';
+  _smartMapClosePanel();
+  _smartMapUpdateCounts();
+}
+
+/* ── Slide-out info panel (child of #smartMapWrap, so it's always visible — including in fullscreen) ── */
+function _smartMapShowPanel(){
+  const p=document.getElementById('smartMapPanel');if(p)p.classList.add('open');
+}
+function _smartMapClosePanel(){
+  const p=document.getElementById('smartMapPanel');if(p)p.classList.remove('open');
+}
+function _smartMapFlipPanelSide(){
+  _smartMapPanelSide=_smartMapPanelSide==='right'?'left':'right';
+  const p=document.getElementById('smartMapPanel');if(p)p.classList.toggle('side-left',_smartMapPanelSide==='left');
+}
+function _smartMapOpenSiteByKey(key){
+  const site=(DATA.sites||[]).find(s=>(sf(s,'Key','key')||'')===key);
+  if(site)_smartMapOpenSitePanel(site);
+}
+function _smartMapOpenRangerByEmail(email){
+  if(!email)return;
+  const loc=(_rangerLocs||[]).find(r=>(r.email||'').toLowerCase()===email.toLowerCase());
+  _smartMapOpenRangerPanel(loc||{email,name:hn(email)||email,role:''});
+}
+function _smartMapEnterRangerFocusByEmail(email){
+  const loc=(_rangerLocs||[]).find(r=>(r.email||'').toLowerCase()===(email||'').toLowerCase());
+  if(loc)_smartMapEnterRangerFocus(loc);
+}
+
+function _smartMapOpenSitePanel(site){
+  const panel=document.getElementById('smartMapPanel');if(!panel)return;
+  const name=sf(site,'Name','name');
+  const addr=sf(site,'Full Address','FullAddress')||[sf(site,'Street Address'),sf(site,'City'),sf(site,'State'),sf(site,'Zip Code')].filter(Boolean).join(', ');
+  const key=sf(site,'Key','key');
+  const type=sf(site,'Type','type')||'';
+  const phone=sf(site,'Telephone','telephone')||'';
+  const openC=openChoresForSite(key).length;
+  const r1e=sf(site,'Ranger 1','Ranger1'),r1n=r1e?(hn(r1e)||sf(site,'Ranger 1 Name','Ranger1Name')):'';
+  const r2e=sf(site,'Ranger 2','Ranger2'),r2n=r2e?(hn(r2e)||sf(site,'Ranger 2 Name','Ranger2Name')):'';
+  const gke=sf(site,'Garden Keeper','GardenKeeper'),gkn=gke?(hn(gke)||sf(site,'Garden Keeper Name','GardenKeeperName')):'';
+  panel.innerHTML=`
+    <div class="smartmap-panel-head">
+      <button class="smartmap-panel-side" onclick="_smartMapFlipPanelSide()" title="Move panel">⇄</button>
+      <button class="smartmap-panel-close" onclick="_smartMapClosePanel()">✕</button>
+    </div>
+    <div class="smartmap-panel-body">
+      <div class="smartmap-panel-badge" style="background:${openC>0?'#c07000':'#1e3a1e'}">🏫</div>
+      <h3>${ea(name)}</h3>
+      <div class="smartmap-panel-sub">${ea(type)}${openC>0?` · ${openC} open chore${openC===1?'':'s'}`:''}</div>
+      ${addr?`<a class="smartmap-panel-row" href="https://maps.google.com/?q=${encodeURIComponent(addr)}" target="_blank" rel="noopener">📍 ${ea(addr)}</a>`:''}
+      ${phone?`<a class="smartmap-panel-row" href="tel:${ea(phone)}">📞 ${ea(phone)}</a>`:''}
+      <div class="smartmap-panel-section">Assigned</div>
+      ${r1n?`<div class="smartmap-panel-person" onclick="_smartMapOpenRangerByEmail('${ea(r1e)}')"><span>🧑‍🌾 ${ea(r1n)}</span><span>Ranger 1</span></div>`:''}
+      ${r2n?`<div class="smartmap-panel-person" onclick="_smartMapOpenRangerByEmail('${ea(r2e)}')"><span>🧑‍🌾 ${ea(r2n)}</span><span>Ranger 2</span></div>`:''}
+      ${gkn?`<div class="smartmap-panel-person" onclick="_smartMapOpenRangerByEmail('${ea(gke)}')"><span>🌿 ${ea(gkn)}</span><span>Garden Keeper</span></div>`:''}
+      ${(!r1n&&!r2n&&!gkn)?`<div class="smartmap-panel-empty">No one assigned yet</div>`:''}
+    </div>
+    <div class="smartmap-panel-actions">
+      <button class="smartmap-panel-btn primary" onclick="showSchoolDetailByKey('${ea(key)}')">📂 Full Site Profile</button>
+    </div>`;
+  _smartMapShowPanel();
+}
+
+function _smartMapOpenRangerPanel(ranger){
+  if(!ranger)return;
+  const panel=document.getElementById('smartMapPanel');if(!panel)return;
+  const email=ranger.email||'';
+  const human=email?gh(email):null;
+  const name=ranger.name||(human&&fullName(human))||email||'Ranger';
+  const photoUrl=human?getImgSrc(human['Main Image']||human.MainImage||''):'';
+  const phone=human?(human.Mobile||human.mobile||''):'';
+  const roleLabel=(human&&(human.Role||human.role))||'';
+  const emailLc=email.toLowerCase();
   const mySites=(DATA.sites||[]).filter(s=>{
     const r1=String(sf(s,'Ranger 1','Ranger1')||'').toLowerCase();
     const r2=String(sf(s,'Ranger 2','Ranger2')||'').toLowerCase();
     const gk=String(sf(s,'Garden Keeper','GardenKeeper')||'').toLowerCase();
-    return r1===email||r2===email||gk===email;
+    return emailLc&&(r1===emailLc||r2===emailLc||gk===emailLc);
   });
-  const names=[];
-  mySites.forEach(s=>{
-    const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
-    const p2=ll.toString().split(',');if(p2.length<2)return;
-    const slat=parseFloat(p2[0]),slng=parseFloat(p2[1]);if(isNaN(slat)||isNaN(slng))return;
-    const line=L.polyline([[ranger.lat,ranger.lng],[slat,slng]],{color:'#6a4fb3',weight:2,opacity:.75,dashArray:'4,6'}).addTo(_smartMapLeaflet);
-    _smartMapConnLines.push(line);
-    names.push(sf(s,'Name','name'));
-  });
-  const statusEl=document.getElementById('smartMapStatus');
-  if(statusEl){
-    statusEl.style.display='block';
-    statusEl.textContent=names.length?`🌿 ${ranger.name||ranger.email}: ${names.join(', ')}`:`${ranger.name||ranger.email}: no site currently assigned`;
-  }
+  const isFocused=_smartMapFocused&&(_smartMapFocused.email||'').toLowerCase()===emailLc;
+  const canFocus=ranger.lat!=null&&ranger.lng!=null;
+  panel.innerHTML=`
+    <div class="smartmap-panel-head">
+      <button class="smartmap-panel-side" onclick="_smartMapFlipPanelSide()" title="Move panel">⇄</button>
+      <button class="smartmap-panel-close" onclick="_smartMapClosePanel()">✕</button>
+    </div>
+    <div class="smartmap-panel-body">
+      <div class="smartmap-panel-avatar">${photoUrl?`<img loading="lazy" src="${ea(photoUrl)}">`:`<div class="smartmap-panel-initials">${ea(inits(name))}</div>`}</div>
+      <h3>${ea(name)}</h3>
+      <div class="smartmap-panel-sub">${ea(roleLabel)}</div>
+      ${phone?`<a class="smartmap-panel-row" href="tel:${ea(phone)}">📞 ${ea(phone)}</a>`:''}
+      ${email?`<a class="smartmap-panel-row" href="mailto:${ea(email)}">✉️ ${ea(email)}</a>`:''}
+      <div class="smartmap-panel-section">Assigned Sites (${mySites.length})</div>
+      ${mySites.map(s=>`<div class="smartmap-panel-person" onclick="_smartMapOpenSiteByKey('${ea(sf(s,'Key','key'))}')"><span>🏫 ${ea(sf(s,'Name','name'))}</span></div>`).join('')||'<div class="smartmap-panel-empty">No sites currently assigned</div>'}
+    </div>
+    <div class="smartmap-panel-actions">
+      ${canFocus?`<button class="smartmap-panel-btn" onclick="${isFocused?'_smartMapExitRangerFocus()':`_smartMapEnterRangerFocusByEmail('${ea(email)}')`}">${isFocused?'↩ Back to Full Map':'🎯 Focus on Map'}</button>`:''}
+      <button class="smartmap-panel-btn primary" onclick="showPersonDetail('${ea(email)}')">📇 Full Profile</button>
+    </div>`;
+  _smartMapShowPanel();
 }
 
 /* ═══ LOCATION TRACKING ═══ */
@@ -6885,7 +7127,7 @@ let _opsFilterRanger=''; // default: no ranger-assignment sub-filter
 let _opsFilterSchedule=''; // default: no schedule sub-filter
 function showOperationsPage(sub){
   _opsCurrentPage=sub;
-  if(sub!=='tab4')_exitSmartMapFullscreen();
+  if(sub!=='tab4'){_exitSmartMapFullscreen();_smartMapClosePanel();if(_smartMapFocused)_smartMapExitRangerFocus();}
   ['home','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
     const el=document.getElementById('ops-'+k);
     if(el)el.style.display=(k===sub)?'block':'none';
