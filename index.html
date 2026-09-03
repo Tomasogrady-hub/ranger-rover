@@ -345,9 +345,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .smartmap-focusbar button.fb-card{background:#6a4fb3;color:#fff}
 .smartmap-focusbar button.fb-back{background:var(--fog);color:var(--stone)}
 
-/* Ranger badge markers — curved name arcing over the avatar so they read as clearly different from straight school labels */
-.ranger-badge-svg{overflow:visible;cursor:pointer}
-.ranger-badge-svg text{font-family:var(--font-b);letter-spacing:.02em}
+/* Ranger name label — a rounded, role-colored pill (background set per-marker in JS)
+   so it reads as clearly different from the plain white rectangular school labels. */
+.leaflet-tooltip.map-label.ranger-badge-label{border-radius:99px;padding:4px 11px;font-weight:700;letter-spacing:.02em}
 
 /* ── STATES ── */
 .empty{text-align:center;padding:52px 24px}
@@ -1704,10 +1704,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.97';
+const APP_VERSION='v10.98';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - Hotfix: the v10.96 anti-overlap fix crashed before drawing any ranger markers when lat/lng came back as strings (very likely from the backend) — coordinates are now coerced to numbers up front, and marker drawing is wrapped so one bad record can\'t take down the rest.';
+const BUILD_STAMP='2026-09-02 - Rebuilt ranger map markers without inline SVG (plain HTML/CSS avatar + colored pill label instead) after the SVG badge rendered invisibly for every ranger — matches the same reliable pattern used everywhere else in the app.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4901,32 +4901,22 @@ function _clearSmartMapConnLines(){
 
 const RANGER_LAYER_COLORS={ranger:'#6a4fb3',master_ranger:'#b8860b',garden_keeper:'#00838f',ranger_applicant:'#9e9e9e',ranger_past:'#c9c9c9',ranger_onboarding:'#e08a2c',ranger_offered:'#c97a1a'};
 
-/* Circular avatar with the ranger's name arcing over the top like a badge/seal — makes rangers
-   unmistakably different from the straight, flat labels used for schools. */
-let _rangerBadgeSeq=0;
+/* Circular photo avatar in a colored ring, with the name shown in a rounded
+   pill tooltip (not a plain rectangle like schools use) — plain HTML/CSS only,
+   deliberately NOT inline SVG, since this app runs inside iOS/Android WebViews
+   where inline SVG (clipPath/textPath/image-href) has repeatedly proven
+   unreliable. Distinctness from school labels comes from shape + color instead. */
 function _rangerBadgeHtml(r,color){
-  const id='rbadge'+(_rangerBadgeSeq++);
   const human=r.email?(DATA.humans||[]).find(h=>(h.Email||h.email||'').toLowerCase().trim()===r.email.toLowerCase().trim()):null;
   const photoUrl=human?getImgSrc(human['Main Image']||human.MainImage||''):'';
   const initials=ea(inits(r.name||r.email||''));
-  const size=34,rad=size/2,textR=rad+12,pad=15,svgSize=(textR+pad-6)*2;
-  const cx=svgSize/2,cy=svgSize/2;
-  const pol=(ang)=>{const a=ang*Math.PI/180;return [cx+textR*Math.cos(a),cy-textR*Math.sin(a)];};
-  const [x1,y1]=pol(200),[x2,y2]=pol(-20);
-  const arcPath=`M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${textR} ${textR} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-  const name=ea((r.name||r.email||'Ranger').split(' ')[0]||'Ranger');
+  const size=36;
   const avatarInner=photoUrl
-    ?`<image href="${ea(photoUrl)}" x="${cx-rad}" y="${cy-rad}" width="${size}" height="${size}" clip-path="url(#${id}c)" preserveAspectRatio="xMidYMid slice"/>`
-    :`<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${initials}</text>`;
+    ?`<img loading="lazy" src="${ea(photoUrl)}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.textContent='${initials}'">`
+    :initials;
   return {
-    size:svgSize,
-    html:`<svg class="ranger-badge-svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">
-      <defs><clipPath id="${id}c"><circle cx="${cx}" cy="${cy}" r="${rad}"/></clipPath><path id="${id}p" d="${arcPath}" fill="none"/></defs>
-      <circle cx="${cx}" cy="${cy}" r="${rad}" fill="${color}"/>
-      ${avatarInner}
-      <circle cx="${cx}" cy="${cy}" r="${rad}" fill="none" stroke="${color}" stroke-width="2.5"/>
-      <text font-size="9.5" font-weight="700" fill="${color}"><textPath href="#${id}p" startOffset="50%" text-anchor="middle">${name}</textPath></text>
-    </svg>`
+    size,
+    html:`<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;border:3px solid ${color};box-shadow:0 1px 6px rgba(0,0,0,.45);cursor:pointer;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-b);font-size:12px;font-weight:700">${avatarInner}</div>`
   };
 }
 /* Multiple rangers can share the exact same coordinate — most often because that
@@ -5000,6 +4990,9 @@ function buildSmartMapRangerMarkers(){
       marker.__email=(r.email||'').toLowerCase();
       const openHandler=()=>_smartMapRangerClick(r);
       marker.on('click',openHandler);
+      const label=(r.name||r.email||'Ranger').split(' ')[0]||'Ranger';
+      marker.bindTooltip(label,{permanent:true,direction:'top',className:'map-label ranger-badge-label',offset:[0,-(badge.size/2+4)],interactive:true});
+      marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.background=color;el.style.color='#fff';el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
       _smartMapRangerMarkers.push(marker);
     }catch(e){
       console.warn('Smart Map: skipped one ranger marker due to an error',r,e);
