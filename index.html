@@ -1615,15 +1615,34 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </div>
       </div>
       <div id="dataSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
-      <div style="display:flex;justify-content:center;margin:10px 0 8px">
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);text-align:center">Results</label>
-          <select id="dsResultsMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:16px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="setDataSchoolResultsMode(this.value)">
-            <option value="simple">Simple</option>
-            <option value="summary" selected>Summary</option>
-            <option value="detailed">Detailed</option>
-          </select>
-        </div>
+      <div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:4px;max-width:280px;margin:0 auto">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Sort By</label>
+        <select id="dsSortSelect" class="settings-input" style="margin:0" onchange="setDataSchoolSort(this.value)">
+          <option value="name-asc">Name (A → Z)</option>
+          <option value="name-desc">Name (Z → A)</option>
+          <option value="classstart-asc">Classes Start Date (Earliest First)</option>
+          <option value="classstart-desc">Classes Start Date (Latest First)</option>
+          <option value="classend-asc">Classes End Date (Earliest First)</option>
+          <option value="classend-desc">Classes End Date (Latest First)</option>
+          <option value="lastupdate-desc">Last Update (Newest First)</option>
+          <option value="lastupdate-asc">Last Update (Oldest First)</option>
+          <option value="progstarted-first">Program Started First</option>
+          <option value="ranger-asc">Ranger Name (A → Z)</option>
+          <option value="district-asc">District (A → Z)</option>
+          <option value="program-asc">Program Type (A → Z)</option>
+          <option value="units-desc">Ranger Program Units (High → Low)</option>
+          <option value="units-asc">Ranger Program Units (Low → High)</option>
+          <option value="enrollment-desc">Enrollment (High → Low)</option>
+          <option value="enrollment-asc">Enrollment (Low → High)</option>
+          <option value="po-first">Has PO First</option>
+          <option value="sched-first">Has Schedule First</option>
+        </select>
+      </div>
+      <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px;flex-wrap:wrap">
+        <button class="chip" id="dsViewSimpleBtn" onclick="setDataSchoolResultsMode('simple')">Simple</button>
+        <button class="chip active" id="dsViewSummaryBtn" onclick="setDataSchoolResultsMode('summary')">Summary</button>
+        <button class="chip" id="dsViewDetailedBtn" onclick="setDataSchoolResultsMode('detailed')">Detailed</button>
+        <button class="chip" id="dsViewPicturesBtn" onclick="setDataSchoolResultsMode('pictures')">Pictures</button>
       </div>
       <div class="dl" style="text-align:center;margin:18px 0 0">Adjust</div>
       <div style="display:flex;justify-content:center;margin:6px 0 8px">
@@ -1704,10 +1723,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v10.99';
+const APP_VERSION='v11.0';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-02 - The avatars weren\'t actually broken — with 180+ site labels and 48 permanent ranger labels sharing a city-wide view, most avatars were simply buried under the wall of overlapping text bubbles. Ranger name labels are now tap/hover-only (the avatar itself is always visible; tap it for the full name and card), and ranger pins now paint above site pins so they never get buried again.';
+const BUILD_STAMP='2026-09-03 - Data > Schools now matches the Rangers tab: Simple/Summary/Detailed/Pictures view chips (Pictures is a lazy-loaded photo grid, tap a card to open the school), plus a Sort By dropdown with 17 options — Name, Program Classes Start/End Date, Last Update, Program Started, Ranger Name, District, Program Type, Ranger Program Units, Enrollment, Has PO, and Has Schedule.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1739,7 +1758,7 @@ let SESSION=null;
 let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
-let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary';
+let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
 // Bulk-select + Adjust state for the Data > Schools list — same pattern as
 // Data > People's Select all / Adjust / Apply to Selected.
 let _dataSchoolsSelected=new Set(); // Set of site Keys (col A)
@@ -3645,7 +3664,18 @@ function setDataSchoolScheduleFilter(v){dsSchedF=v;renderDataSchools();}
 function setDataSchoolClassStartFilter(v){dsClassStartF=v;renderDataSchools();}
 function setDataSchoolClassEndFilter(v){dsClassEndF=v;renderDataSchools();}
 function setDataSchoolProgStartedFilter(v){dsProgStartedF=v;renderDataSchools();}
-function setDataSchoolResultsMode(v){dsResultsMode=v;renderDataSchools();}
+function setDataSchoolResultsMode(v){
+  if(v!==dsResultsMode){
+    dsResultsMode=v;
+    const siBtn=document.getElementById('dsViewSimpleBtn'),sBtn=document.getElementById('dsViewSummaryBtn'),dBtn=document.getElementById('dsViewDetailedBtn'),pBtn=document.getElementById('dsViewPicturesBtn');
+    if(siBtn)siBtn.classList.toggle('active',v==='simple');
+    if(sBtn)sBtn.classList.toggle('active',v==='summary');
+    if(dBtn)dBtn.classList.toggle('active',v==='detailed');
+    if(pBtn)pBtn.classList.toggle('active',v==='pictures');
+    renderDataSchools();
+  }
+}
+function setDataSchoolSort(v){dsSortMode=v;renderDataSchools();}
 
 function _dataSchoolsFiltered(){
   return DATA.sites.filter(s=>{
@@ -3828,6 +3858,7 @@ function _renderDataSchoolBatch(sites,from,batchSize,cardFn){
   }
   const old=container.querySelector('.list-sentinel');if(old)old.remove();
   container.appendChild(frag);
+  _initLazyImages();
   if(to<sites.length){
     const remaining=sites.length-to;
     const sentinel=document.createElement('div');
@@ -3951,17 +3982,142 @@ async function applyDataSchoolsBulkField(){
   renderDataSchools();
 }
 
+// Pictures: photo grid + name only, hotlinked to the site's detail card —
+// mirrors the Rangers tab's Pictures mode. No checkbox/bulk-select here,
+// same as Rangers Pictures — it's a visual browse mode, not an edit mode.
+function _dataSchoolPicCardHtml(s){
+  const name=sf(s,'Name','name');
+  const siteKey=sf(s,'Key','key')||'';
+  const imgUrl=getImgSrc(sf(s,'Main Image','MainImage'));
+  const initials=inits(name);
+  return `<div class="ranger-pic-card" onclick="showSchoolDetailByKey('${esc(siteKey)}')">
+    <div class="ranger-pic-fallback">${initials}</div>
+    ${imgUrl?`<img data-lazy="${ea(imgUrl)}" alt="${initials}" style="opacity:0;transition:opacity .25s" onerror="this.style.display='none'">`:''}
+    <div class="ranger-pic-name">${escHtml(name)}</div>
+  </div>`;
+}
+
+// Sort comparator for the Schools "Sort By" dropdown — mirrors
+// _rangerSortCompare's shape (blank values always sort to the end,
+// regardless of direction; ties fall back to Name A→Z).
+function _dataSchoolSortCompare(a,b,sortKey){
+  const nameA=(sf(a,'Name','name')||'').toLowerCase();
+  const nameB=(sf(b,'Name','name')||'').toLowerCase();
+  switch(sortKey){
+    case 'name-desc': return nameB.localeCompare(nameA);
+    case 'classstart-asc':
+    case 'classstart-desc': {
+      const da=dateInputVal(sf(a,'Program Classes Start Date','ProgramClassesStartDate'));
+      const db=dateInputVal(sf(b,'Program Classes Start Date','ProgramClassesStartDate'));
+      const aBlank=!da,bBlank=!db;
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return sortKey==='classstart-asc'?da.localeCompare(db):db.localeCompare(da);
+    }
+    case 'classend-asc':
+    case 'classend-desc': {
+      const da=dateInputVal(sf(a,'Program Classes End Date','ProgramClassesEndDate'));
+      const db=dateInputVal(sf(b,'Program Classes End Date','ProgramClassesEndDate'));
+      const aBlank=!da,bBlank=!db;
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return sortKey==='classend-asc'?da.localeCompare(db):db.localeCompare(da);
+    }
+    case 'lastupdate-asc':
+    case 'lastupdate-desc': {
+      const ta=new Date(sf(a,'Last Update','LastUpdate')||'').getTime();
+      const tb=new Date(sf(b,'Last Update','LastUpdate')||'').getTime();
+      const aBlank=isNaN(ta),bBlank=isNaN(tb);
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return sortKey==='lastupdate-asc'?ta-tb:tb-ta;
+    }
+    case 'progstarted-first': {
+      const pa=String(sf(a,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true';
+      const pb=String(sf(b,'Program Started?','ProgramStarted','programStarted')||'').toLowerCase()==='true';
+      if(pa===pb)return nameA.localeCompare(nameB);
+      return pa?-1:1;
+    }
+    case 'ranger-asc': {
+      const r1eA=sf(a,'Ranger 1','Ranger1'),r1eB=sf(b,'Ranger 1','Ranger1');
+      const ra=(r1eA?(hn(r1eA)||sf(a,'Ranger 1 Name','Ranger1Name')):'').toLowerCase();
+      const rb=(r1eB?(hn(r1eB)||sf(b,'Ranger 1 Name','Ranger1Name')):'').toLowerCase();
+      const aBlank=!ra,bBlank=!rb;
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return ra.localeCompare(rb)||nameA.localeCompare(nameB);
+    }
+    case 'district-asc': {
+      const da=(sf(a,'District','district')||'').toLowerCase();
+      const db=(sf(b,'District','district')||'').toLowerCase();
+      const aBlank=!da,bBlank=!db;
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return da.localeCompare(db)||nameA.localeCompare(nameB);
+    }
+    case 'program-asc': {
+      const pa=(sf(a,'Type','type')||'').toLowerCase();
+      const pb=(sf(b,'Type','type')||'').toLowerCase();
+      const aBlank=!pa,bBlank=!pb;
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return pa.localeCompare(pb)||nameA.localeCompare(nameB);
+    }
+    case 'units-asc':
+    case 'units-desc': {
+      const ua=parseFloat(sf(a,'Ranger Program Units'));
+      const ub=parseFloat(sf(b,'Ranger Program Units'));
+      const aBlank=isNaN(ua),bBlank=isNaN(ub);
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return sortKey==='units-asc'?ua-ub:ub-ua;
+    }
+    case 'enrollment-asc':
+    case 'enrollment-desc': {
+      const na=parseFloat(sf(a,'enrollment','Enrollment'));
+      const nb=parseFloat(sf(b,'enrollment','Enrollment'));
+      const aBlank=isNaN(na),bBlank=isNaN(nb);
+      if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+      if(aBlank)return 1;
+      if(bBlank)return -1;
+      return sortKey==='enrollment-asc'?na-nb:nb-na;
+    }
+    case 'po-first': {
+      const pa=String(sf(a,'PO Number')||'').trim()!=='';
+      const pb=String(sf(b,'PO Number')||'').trim()!=='';
+      if(pa===pb)return nameA.localeCompare(nameB);
+      return pa?-1:1;
+    }
+    case 'sched-first': {
+      const sa=String(sf(a,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+      const sb=String(sf(b,'Schedule Contents','ScheduleContents')||'').trim()!=='';
+      if(sa===sb)return nameA.localeCompare(nameB);
+      return sa?-1:1;
+    }
+    case 'name-asc':
+    default: return nameA.localeCompare(nameB);
+  }
+}
+
 function renderDataSchools(){
   _fillDataSchoolDynamicFilters();
-  const sites=_dataSchoolsFiltered().slice().sort((a,b)=>(sf(a,'Name','name')||'').localeCompare(sf(b,'Name','name')||''));
+  const sites=_dataSchoolsFiltered().slice().sort((a,b)=>_dataSchoolSortCompare(a,b,dsSortMode));
   const countEl=document.getElementById('dataSchoolsCount');
   if(countEl)countEl.textContent=sites.length+' sites';
   const sumEl=document.getElementById('dataSchoolsSummarySentence');
   if(sumEl)sumEl.textContent=_dataSchoolsSummaryText(sites.length);
   const listEl=document.getElementById('dataSchoolsList');
   if(!listEl)return;
+  listEl.classList.toggle('pictures-grid',dsResultsMode==='pictures');
   if(!sites.length){listEl.innerHTML=empty('—','No results','Try a different filter.');_populateDataSchoolsBulkValueOptions();_updateDataSchoolsSelCount();return;}
-  const cardFn=dsResultsMode==='simple'?_dataSchoolSimpleCardHtml:dsResultsMode==='detailed'?_dataSchoolDetailedCardHtml:_dataSchoolSummaryCardHtml;
+  const cardFn=dsResultsMode==='simple'?_dataSchoolSimpleCardHtml:dsResultsMode==='detailed'?_dataSchoolDetailedCardHtml:dsResultsMode==='pictures'?_dataSchoolPicCardHtml:_dataSchoolSummaryCardHtml;
   _renderDataSchoolBatch(sites,0,40,cardFn);
   _populateDataSchoolsBulkValueOptions();
   _updateDataSchoolsSelCount();
