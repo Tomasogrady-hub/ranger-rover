@@ -626,11 +626,19 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <option value="unassigned">Unassigned</option>
         </select>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger</label>
-        <select id="schoolRangerFilter" class="settings-input" style="margin:0" onchange="setSchoolRangerFilter(this.value)">
-          <option value="all">All Rangers</option>
-        </select>
+      <div style="display:flex;flex-direction:row;gap:8px;flex:2;min-width:300px">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger</label>
+          <select id="schoolRangerFilter" class="settings-input" style="margin:0" onchange="setSchoolRangerFilter(this.value)">
+            <option value="all">All Rangers</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Number</label>
+          <select id="schoolRangerNumberFilter" class="settings-input" style="margin:0" onchange="setSchoolRangerNumberFilter(this.value)">
+            <option value="all">All Ranger Numbers</option>
+          </select>
+        </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
         <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Day of Week</label>
@@ -1753,10 +1761,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.1';
+const APP_VERSION='v11.2';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-03 - Correction: the Simple/Summary/Detailed/Pictures view chips + Sort By dropdown from v11.0 landed on Data > Schools, but that was the wrong Schools tab — this build adds the same chips and dropdown to the actual Schools tab (bottom nav). Detailed is the existing full field card; Summary is a lighter name+ranger+day+PO card; Pictures is a lazy-loaded photo grid; Sort By adds 19 options including Distance (Nearest First), which Data > Schools does not have room for.';
+const BUILD_STAMP='2026-09-03 - Schools tab: split the By Ranger filter box into two side by side — By Ranger stays on the left, a new By Ranger Number select is on the right, pulling from the same Ranger Rates list the Rangers tab already uses. Matches either assigned ranger (Ranger 1 or Ranger 2) on the site.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1785,7 +1793,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
 let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
@@ -3640,6 +3648,19 @@ function _fillSchoolDynamicFilters(){
     uSel.innerHTML='<option value="all">All</option>'+nums.map(n=>`<option value="${ea(n)}">${escHtml(n)}</option>`).join('');
     uSel.value=[...uSel.options].some(o=>o.value===current)?current:'all';
   }
+  if(!_rangerRatesCache){_getRangerRates().then(()=>_fillSchoolRangerNumberFilterSelect());}
+  else{_fillSchoolRangerNumberFilterSelect();}
+}
+// "By Ranger Number" — same cached Ranger Rates list (Items All, Type 2)
+// used by the Rangers tab's own Ranger Number filter, so no extra fetch.
+function _fillSchoolRangerNumberFilterSelect(){
+  const sel=document.getElementById('schoolRangerNumberFilter');
+  if(!sel)return;
+  const rates=_rangerRatesCache||[];
+  const current=sel.value||'all';
+  sel.innerHTML='<option value="all">All Ranger Numbers</option>'+
+    rates.map(r=>`<option value="${ea(r.name)}">${escHtml(r.name)}</option>`).join('');
+  sel.value=[...sel.options].some(o=>o.value===current)?current:'all';
 }
 
 /* ═══ DATA > SCHOOLS ═══ */
@@ -4166,6 +4187,12 @@ function renderSchools(){
       if(csRangerF==='none'){
         if(r1e||r2e)return false;
       } else if(csRangerF!=='all'&&r1e!==csRangerF&&r2e!==csRangerF)return false;
+      if(csRangerNumF!=='all'){
+        const r1h=r1e?gh(r1e):null,r2h=r2e?gh(r2e):null;
+        const rn1=r1h?(sf(r1h,'Ranger Number','RangerNumber')||''):'';
+        const rn2=r2h?(sf(r2h,'Ranger Number','RangerNumber')||''):'';
+        if(rn1!==csRangerNumF&&rn2!==csRangerNumF)return false;
+      }
       if(csDayF!=='all'){
         const d1=(sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'').trim().toLowerCase();
         if(csDayF==='none'){
@@ -8178,6 +8205,7 @@ function switchTab(tab,initMapFlag=false){
 function setSchoolProgramFilter(v){csProgF=v;renderSchools();}
 function setSchoolPlacementFilter(v){csPlaceF=v;renderSchools();}
 function setSchoolRangerFilter(v){csRangerF=v;renderSchools();}
+function setSchoolRangerNumberFilter(v){csRangerNumF=v;renderSchools();}
 function setSchoolDayFilter(v){csDayF=v;renderSchools();}
 function setSchoolPoFilter(v){csPoF=v;renderSchools();}
 function setSchoolUnitsFilter(v){csUnitsF=v;renderSchools();}
