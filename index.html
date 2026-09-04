@@ -693,6 +693,36 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         </select>
       </div>
     </div>
+    <div style="padding:10px 16px 4px;display:flex;flex-direction:column;gap:4px;max-width:280px;margin:0 auto">
+      <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Sort By</label>
+      <select id="csSortSelect" class="settings-input" style="margin:0" onchange="setSchoolSort(this.value)">
+        <option value="name-asc">Name (A → Z)</option>
+        <option value="name-desc">Name (Z → A)</option>
+        <option value="distance-asc">Distance (Nearest First)</option>
+        <option value="classstart-asc">Classes Start Date (Earliest First)</option>
+        <option value="classstart-desc">Classes Start Date (Latest First)</option>
+        <option value="classend-asc">Classes End Date (Earliest First)</option>
+        <option value="classend-desc">Classes End Date (Latest First)</option>
+        <option value="lastupdate-desc">Last Update (Newest First)</option>
+        <option value="lastupdate-asc">Last Update (Oldest First)</option>
+        <option value="progstarted-first">Program Started First</option>
+        <option value="ranger-asc">Ranger Name (A → Z)</option>
+        <option value="district-asc">District (A → Z)</option>
+        <option value="program-asc">Program Type (A → Z)</option>
+        <option value="units-desc">Ranger Program Units (High → Low)</option>
+        <option value="units-asc">Ranger Program Units (Low → High)</option>
+        <option value="enrollment-desc">Enrollment (High → Low)</option>
+        <option value="enrollment-asc">Enrollment (Low → High)</option>
+        <option value="po-first">Has PO First</option>
+        <option value="sched-first">Has Schedule First</option>
+      </select>
+    </div>
+    <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 8px;flex-wrap:wrap">
+      <button class="chip" id="csViewSimpleBtn" onclick="setSchoolResultsMode('simple')">Simple</button>
+      <button class="chip active" id="csViewSummaryBtn" onclick="setSchoolResultsMode('summary')">Summary</button>
+      <button class="chip" id="csViewDetailedBtn" onclick="setSchoolResultsMode('detailed')">Detailed</button>
+      <button class="chip" id="csViewPicturesBtn" onclick="setSchoolResultsMode('pictures')">Pictures</button>
+    </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
   </div>
@@ -1723,10 +1753,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.0';
+const APP_VERSION='v11.1';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-03 - Data > Schools now matches the Rangers tab: Simple/Summary/Detailed/Pictures view chips (Pictures is a lazy-loaded photo grid, tap a card to open the school), plus a Sort By dropdown with 17 options — Name, Program Classes Start/End Date, Last Update, Program Started, Ranger Name, District, Program Type, Ranger Program Units, Enrollment, Has PO, and Has Schedule.';
+const BUILD_STAMP='2026-09-03 - Correction: the Simple/Summary/Detailed/Pictures view chips + Sort By dropdown from v11.0 landed on Data > Schools, but that was the wrong Schools tab — this build adds the same chips and dropdown to the actual Schools tab (bottom nav). Detailed is the existing full field card; Summary is a lighter name+ranger+day+PO card; Pictures is a lazy-loaded photo grid; Sort By adds 19 options including Distance (Nearest First), which Data > Schools does not have room for.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1755,7 +1785,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
 let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
@@ -4174,9 +4204,6 @@ function renderSchools(){
     }
     return true;
   });
-  // Distances are still computed for the badge shown on each card whenever the
-  // user's location is known (e.g. via the Map tab's Locate Me), independent
-  // of the filters above.
   const sitesWithDist=sites.map(s=>{
     let distM=null;
     if(_userLat!==null){
@@ -4185,6 +4212,7 @@ function renderSchools(){
     }
     return {s,distM};
   });
+  sitesWithDist.sort((x,y)=>_schoolSortCompare(x,y,csSortMode));
   const sortedSites=sitesWithDist.map(x=>x.s);
   window._fsDistMap=Object.fromEntries(sitesWithDist.map(({s,distM})=>[sf(s,'Name','name'),distM]));
   window._fs=sortedSites;
@@ -4192,8 +4220,70 @@ function renderSchools(){
   const filtersRow=document.getElementById('schoolFilters');
   if(filtersRow)filtersRow.style.display=SESSION&&SESSION.accessLevel>=3?'none':'flex';
   if(SESSION&&SESSION.accessLevel<=2)_fillSchoolDynamicFilters();
-  if(!sortedSites.length){document.getElementById('schoolList').innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):empty('—','No results','Try a different search or filter.');return;}
-  _renderSchoolBatch(sortedSites,0,40);
+  const listEl=document.getElementById('schoolList');
+  listEl.classList.toggle('pictures-grid',csResultsMode==='pictures');
+  if(!sortedSites.length){listEl.innerHTML=SESSION&&SESSION.accessLevel>=3?empty('—','No schools assigned','Contact your administrator.'):empty('—','No results','Try a different search or filter.');return;}
+  const cardFn=csResultsMode==='simple'?_schoolSimpleCardHtml:csResultsMode==='detailed'?_schoolCardHtml:csResultsMode==='pictures'?_dataSchoolPicCardHtml:_schoolSummaryCardHtml;
+  _renderSchoolBatch(sortedSites,0,40,cardFn);
+}
+function setSchoolResultsMode(v){
+  if(v!==csResultsMode){
+    csResultsMode=v;
+    const siBtn=document.getElementById('csViewSimpleBtn'),sBtn=document.getElementById('csViewSummaryBtn'),dBtn=document.getElementById('csViewDetailedBtn'),pBtn=document.getElementById('csViewPicturesBtn');
+    if(siBtn)siBtn.classList.toggle('active',v==='simple');
+    if(sBtn)sBtn.classList.toggle('active',v==='summary');
+    if(dBtn)dBtn.classList.toggle('active',v==='detailed');
+    if(pBtn)pBtn.classList.toggle('active',v==='pictures');
+    renderSchools();
+  }
+}
+function setSchoolSort(v){csSortMode=v;renderSchools();}
+// Distance needs the precomputed {s,distM} wrapper (siteslatlong vs the
+// user's live position — not a stored sheet field), so it's handled here;
+// every other key reuses _dataSchoolSortCompare, same comparator as Data > Schools.
+function _schoolSortCompare(x,y,sortKey){
+  if(sortKey==='distance-asc'){
+    const da=x.distM,db=y.distM;
+    const aBlank=da===null||da===undefined,bBlank=db===null||db===undefined;
+    const nameA=(sf(x.s,'Name','name')||'').toLowerCase(),nameB=(sf(y.s,'Name','name')||'').toLowerCase();
+    if(aBlank&&bBlank)return nameA.localeCompare(nameB);
+    if(aBlank)return 1;
+    if(bBlank)return -1;
+    return da-db;
+  }
+  return _dataSchoolSortCompare(x.s,y.s,sortKey);
+}
+
+// Simple: just a name, hotlinked to the site's detail card — no photo, no
+// ranger, no chores — for a fast, easy-to-scan plain list (mirrors Rangers/Data > Schools Simple).
+function _schoolSimpleCardHtml(s){
+  const name=sf(s,'Name','name');
+  const siteKey=sf(s,'Key','key')||'';
+  return `<div class="ranger-simple-row" onclick="showSchoolDetailByKey('${esc(siteKey)}')">${escHtml(name)}</div>`;
+}
+// Summary: name + program + assigned ranger + day + PO status — the lighter
+// alternative to the full field card below (mirrors Data > Schools Summary).
+function _schoolSummaryCardHtml(s){
+  const name=sf(s,'Name','name');
+  const siteKey=sf(s,'Key','key')||'';
+  const type=sf(s,'Type','type')||'';
+  const r1e=sf(s,'Ranger 1','Ranger1');
+  const r1n=r1e?(hn(r1e)||sf(s,'Ranger 1 Name','Ranger1Name')):'';
+  const day=sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1')||'';
+  const hasPO=String(sf(s,'PO Number')||'').trim()!=='';
+  const canLink=SESSION&&SESSION.accessLevel<=2;
+  return `<div class="school-card" data-sitekey="${ea(siteKey)}" onclick="showSchoolDetailByKey(this.dataset.sitekey)">
+    <div class="school-info">
+      <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
+      ${type?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}</div>`:''}
+      ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${canLink?`<button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button>`:`<span style="font-size:15px">${escHtml(r1n)}</span>`}</div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        ${day?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(day)}</span>`:''}
+        <span class="chore-pill" style="background:${hasPO?'#eaf3ea':'var(--warn-bg)'};color:${hasPO?'var(--sage)':'var(--amber)'}">${hasPO?'✓ PO on file':'⚠ No PO'}</span>
+      </div>
+    </div>
+    <span class="school-chevron">›</span>
+  </div>`;
 }
 
 function _schoolCardHtml(s,i){
@@ -4234,18 +4324,20 @@ function _schoolCardHtml(s,i){
 }
 
 let _schoolListObs=null;
-function _renderSchoolBatch(sites,from,batchSize){
+function _renderSchoolBatch(sites,from,batchSize,cardFn){
+  cardFn=cardFn||_schoolCardHtml;
   const container=document.getElementById('schoolList');
   if(from===0){container.innerHTML='';}
   const to=Math.min(from+batchSize,sites.length);
   const frag=document.createDocumentFragment();
   for(let i=from;i<to;i++){
     const el=document.createElement('div');
-    el.innerHTML=_schoolCardHtml(sites[i],i);
+    el.innerHTML=cardFn(sites[i],i);
     frag.appendChild(el.firstChild);
   }
   const old=container.querySelector('.list-sentinel');if(old)old.remove();
   container.appendChild(frag);
+  _initLazyImages();
   if(to<sites.length){
     const remaining=sites.length-to;
     const sentinel=document.createElement('div');
@@ -4257,7 +4349,7 @@ function _renderSchoolBatch(sites,from,batchSize){
       if(!entries[0].isIntersecting)return;
       _schoolListObs.disconnect();_schoolListObs=null;
       sentinel.remove();
-      _renderSchoolBatch(sites,to,batchSize);
+      _renderSchoolBatch(sites,to,batchSize,cardFn);
     },{rootMargin:'300px'});
     _schoolListObs.observe(sentinel);
   }
