@@ -1231,6 +1231,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
         <span class="page-title" id="schoolReachAskTitle">Reach</span>
         <span class="page-count" id="schoolReachAskCount"></span>
       </div>
+      <div style="padding:0 14px 10px">
+        <button class="reach-token-chip" style="width:100%;text-align:center;padding:9px 12px" onclick="openSchoolReachAddContacts()">➕ Add / Remove People</button>
+      </div>
       <div class="card-list" id="schoolReachAskList"></div>
       <div id="schoolReachAskActionBar" style="position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--mist);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;z-index:5">
         <button class="reach-action-btn" onclick="doReach('email_individual')">&#9993; Email Individually</button>
@@ -1791,10 +1794,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.4';
+const APP_VERSION='v11.5';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-05 - Schools tab (Access Level 1–2 only): added a Reach button next to Ask About This School. Tapping it asks which of Principal / Ranger / Garden Keeper / Senior Leadership (Access Level 2 staff) — or All of the above — to reach for that school, then jumps into the normal Reach flow (Email/Text, Individually/Together) with those people already selected.';
+const BUILD_STAMP='2026-09-06 - School Reach picker: fixed the picker popping up behind the school card (z-index); now lists every actual contact by name (Principal, Ranger(s), Garden Keeper, SAA, Main Contacts 1-3, Plant Manager, CPM, Teachers, Other Contacts, plus Senior Leadership) with an icon showing whether each has a mobile on file for texting, instead of just role counts. The Reach screen you land on now also has an Add/Remove People button so you can pull in or drop anyone from the full roster before sending.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5660,51 +5663,95 @@ function _schoolReachCta(site){
   if(!key)return '';
   return `<a class="dcta" href="javascript:void(0)" onclick="openSchoolReachPicker('${esc(key)}')">📡 Reach</a>`;
 }
-let _schoolReachGroups=[];
-let _schoolReachChecked=new Set();
+let _schoolReachContacts=[];   // [{email,name,mobile,roles}] — every resolvable contact
+let _schoolReachChecked=new Set();  // emails checked in the picker
 let _schoolReachSiteName='';
+// Every site field that can hold a contact (mirrors SITE_EMAIL_COLS below, which
+// the app already uses for email-change cascades) — walking this same list
+// guarantees the Reach picker never misses a contact type the rest of the app
+// treats as one. Each field may hold a single email/name or a comma/newline
+// separated list of them (Teachers, Other Contacts especially).
+const SCHOOL_REACH_FIELDS=[
+  ['Ranger 1','Ranger'],['Ranger 2','Ranger'],['Principal','Principal'],
+  ['School Administrative Assistant','School Admin Assistant'],
+  ['Main Contact 1','Main Contact'],['Main Contact 2','Main Contact'],['Main Contact 3','Main Contact'],
+  ['Plant Manager','Plant Manager'],['CPM','CPM'],['Teachers','Teacher'],['Other Contacts','Other Contact'],
+  ['Garden Keeper','Garden Keeper']
+];
 function openSchoolReachPicker(siteKey){
   if(!SESSION||SESSION.accessLevel>2){showToast('Not available at your access level');return;}
   const site=(DATA.sites||[]).find(s=>(s.Key||s.key||'')===siteKey);
   if(!site){showToast('School not found');return;}
-  const name=sf(site,'Name','name')||'this school';
-  const r1e=sf(site,'Ranger 1','Ranger1'),r2e=sf(site,'Ranger 2','Ranger2');
-  const gke=sf(site,'Garden Keeper','GardenKeeper');
-  const pe=sf(site,'Principal','principal');
-  const seniorEmails=(DATA.humans||[]).filter(h=>String(h['Access Level']||'').trim()==='2').map(h=>h.Email||h.email||'').filter(Boolean);
-  const groups=[
-    {key:'principal',label:'Principal',            emails:[pe].filter(Boolean)},
-    {key:'ranger',   label:'Ranger',                emails:[...new Set([r1e,r2e].filter(Boolean))]},
-    {key:'keeper',   label:'Garden Keeper',         emails:[gke].filter(Boolean)},
-    {key:'senior',   label:'Senior Leadership',     emails:seniorEmails}
-  ].filter(g=>g.emails.length);
-  if(!groups.length){showToast('No contacts on file for this school yet');return;}
-  _schoolReachSiteName=name;
-  _schoolReachGroups=groups;
+  _schoolReachSiteName=sf(site,'Name','name')||'this school';
+  const bucket={}; // lowercased email -> {email,roles:Set}
+  const addContact=(label,raw)=>{
+    raw=(raw||'').trim();
+    if(!raw)return;
+    let email='';
+    if(raw.includes('@')){email=raw;}
+    else{
+      // Field held a plain name rather than an email — see if it matches
+      // a known person so we can still reach them.
+      const h=DATA.humans.find(p=>(fullName(p)||'').toLowerCase()===raw.toLowerCase());
+      email=h?(h.Email||h.email||''):'';
+    }
+    email=email.trim();
+    if(!email)return;
+    const key=email.toLowerCase();
+    if(!bucket[key])bucket[key]={email,roles:new Set()};
+    bucket[key].roles.add(label);
+  };
+  SCHOOL_REACH_FIELDS.forEach(([col,label])=>{
+    const raw=String(sf(site,col)||site[col]||'').trim();
+    if(!raw)return;
+    raw.split(/[,\n]+/).map(x=>x.trim()).filter(Boolean).forEach(tok=>addContact(label,tok));
+  });
+  // Senior Leadership = every Access Level 2 person, org-wide (not tied to
+  // this specific school's sheet columns, but always offered per the usual
+  // "loop in leadership" option).
+  (DATA.humans||[]).forEach(h=>{
+    if(String(h['Access Level']||'').trim()==='2'){
+      addContact('Senior Leadership', h.Email||h.email||'');
+    }
+  });
+  const contacts=Object.values(bucket).map(b=>({
+    email:b.email,
+    name:hn(b.email)||b.email,
+    mobile:hm(b.email)||'',
+    roles:[...b.roles].join(', ')
+  }));
+  if(!contacts.length){showToast('No contacts on file for this school yet');return;}
+  // Stable, readable order: alphabetical by name.
+  contacts.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  _schoolReachContacts=contacts;
   _schoolReachChecked=new Set();
   _renderSchoolReachModal();
 }
 function _renderSchoolReachModal(){
   const old=document.getElementById('schoolReachModal');if(old)old.remove();
-  const allChecked=_schoolReachGroups.length>0&&_schoolReachGroups.every(g=>_schoolReachChecked.has(g.key));
-  const rows=_schoolReachGroups.map(g=>`
+  const allChecked=_schoolReachContacts.length>0&&_schoolReachContacts.every(c=>_schoolReachChecked.has(c.email));
+  const rows=_schoolReachContacts.map(c=>`
       <label style="display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--mist);cursor:pointer">
-        <input type="checkbox" ${_schoolReachChecked.has(g.key)?'checked':''} onchange="_toggleSchoolReachGroup('${g.key}')" style="width:20px;height:20px;flex-shrink:0">
-        <span style="font-size:15px;font-weight:600;color:var(--ink)">${escHtml(g.label)}</span>
-        <span style="margin-left:auto;font-size:12px;color:var(--silver)">${g.emails.length}</span>
+        <input type="checkbox" ${_schoolReachChecked.has(c.email)?'checked':''} onchange="_toggleSchoolReachContact('${ea(c.email)}')" style="width:20px;height:20px;flex-shrink:0">
+        <span style="flex:1;min-width:0">
+          <span style="display:block;font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.name)}</span>
+          <span style="display:block;font-size:12px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.roles)}</span>
+        </span>
+        <span style="font-size:16px;flex-shrink:0" title="${c.mobile?'Email + Text available':'Email only — no mobile on file'}">✉${c.mobile?'📱':''}</span>
       </label>`).join('');
   const div=document.createElement('div');
   div.className='reach-step-modal';
   div.id='schoolReachModal';
+  div.style.zIndex='9999';
   div.innerHTML=`
-    <div class="reach-step-box" style="text-align:left">
+    <div class="reach-step-box" style="text-align:left;max-height:82vh;display:flex;flex-direction:column">
       <div class="reach-step-name" style="text-align:center;margin-bottom:2px">Reach: ${escHtml(_schoolReachSiteName)}</div>
-      <div class="reach-step-info" style="text-align:center;margin-bottom:14px">Who do you want to reach?</div>
+      <div class="reach-step-info" style="text-align:center;margin-bottom:14px">Who do you want to reach? (✉ email · 📱 has a mobile on file for text)</div>
       <label style="display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:2px solid var(--mist);cursor:pointer">
         <input type="checkbox" ${allChecked?'checked':''} onchange="_toggleSchoolReachAll(this.checked)" style="width:20px;height:20px;flex-shrink:0">
         <span style="font-size:15px;font-weight:700;color:var(--ink)">All of the above</span>
       </label>
-      ${rows}
+      <div style="overflow-y:auto;flex:1;min-height:0">${rows}</div>
       <div class="reach-step-row" style="margin-top:16px">
         <button class="reach-step-btn" style="background:var(--mist);color:var(--ink)" onclick="document.getElementById('schoolReachModal').remove()">Cancel</button>
         <button class="reach-step-btn" style="background:var(--enrich-dark);color:#fff" onclick="_confirmSchoolReach()">📡 Continue</button>
@@ -5712,27 +5759,46 @@ function _renderSchoolReachModal(){
     </div>`;
   document.body.appendChild(div);
 }
-function _toggleSchoolReachGroup(key){
-  if(_schoolReachChecked.has(key))_schoolReachChecked.delete(key);else _schoolReachChecked.add(key);
+function _toggleSchoolReachContact(email){
+  if(_schoolReachChecked.has(email))_schoolReachChecked.delete(email);else _schoolReachChecked.add(email);
   _renderSchoolReachModal();
 }
 function _toggleSchoolReachAll(checked){
   _schoolReachChecked=new Set();
-  if(checked)_schoolReachGroups.forEach(g=>_schoolReachChecked.add(g.key));
+  if(checked)_schoolReachContacts.forEach(c=>_schoolReachChecked.add(c.email));
   _renderSchoolReachModal();
 }
 function _confirmSchoolReach(){
-  if(!_schoolReachChecked.size){showToast('Pick at least one group');return;}
-  const emails=new Set();
-  _schoolReachGroups.forEach(g=>{if(_schoolReachChecked.has(g.key))g.emails.forEach(e=>emails.add(e));});
+  if(!_schoolReachChecked.size){showToast('Pick at least one person');return;}
   const old=document.getElementById('schoolReachModal');if(old)old.remove();
-  if(!emails.size){showToast('No contacts on file for that selection');return;}
   _reachSelected.clear();
-  emails.forEach(e=>_reachSelected.add(e));
+  _schoolReachChecked.forEach(e=>_reachSelected.add(e));
   closeDetailBtnChime();
   switchTab('reach');
   showReachPage('schoolask');
   showToast('📡 Choose how to reach them');
+}
+// ── Add/remove people from an in-progress school Reach selection without
+//    losing what's already checked (unlike the browse pages elsewhere in
+//    Reach, which intentionally reset the selection each time they're opened). ──
+function openSchoolReachAddContacts(){
+  const old=document.getElementById('schoolReachAddModal');if(old)old.remove();
+  const people=(DATA.humans||[]).filter(h=>(h.Email||h.email||'').trim()).slice()
+    .sort((a,b)=>(fullName(a)||'').localeCompare(fullName(b)||''));
+  const div=document.createElement('div');
+  div.className='reach-step-modal';
+  div.id='schoolReachAddModal';
+  div.style.zIndex='9999';
+  div.innerHTML=`
+    <div class="reach-step-box" style="text-align:left;max-height:82vh;display:flex;flex-direction:column">
+      <div class="reach-step-name" style="text-align:center;margin-bottom:10px">Add or Remove People</div>
+      <input type="search" class="edit-input" placeholder="🔍 Search by name…" style="margin-bottom:10px" oninput="filterReachSearch('schoolReachAddList', this.value)">
+      <div class="card-list" id="schoolReachAddList" style="overflow-y:auto;flex:1;min-height:0">${people.map(_reachPersonCardHtml).join('')}</div>
+      <div class="reach-step-row" style="margin-top:14px">
+        <button class="reach-step-btn" style="background:var(--enrich-dark);color:#fff;width:100%" onclick="document.getElementById('schoolReachAddModal').remove();renderSchoolReachAsk();">Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
 }
 
 function showSchoolBasicByKey(key,showRangerNeedInfo){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolBasic(site,showRangerNeedInfo);openDetail();}
