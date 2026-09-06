@@ -111,6 +111,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="settings"] {background:#F0C040;color:#1e3a1e}
 .nav-btn[data-tab="data"]  {background:#6B4E9B;color:#fff}
 .nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
+.rr-util-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:42px;padding:0 16px;background:var(--enrich-dark);border-top:1px solid rgba(255,255,255,.08)}
+.rr-util-back{justify-self:start;background:none;border:none;color:#fff;font-size:26px;line-height:1;padding:4px 12px;cursor:pointer;font-family:var(--font-b);transition:opacity .15s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.rr-util-home{justify-self:center;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.16);border:none;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 
 /* ── CONTENT ── */
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -1757,14 +1760,23 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <div class="nav-row" id="navRow2" style="display:none"></div>
   <!-- Row 3: Reach row for levels 1-2 -->
   <div class="nav-row" id="navRow3" style="display:none"></div>
+  <!-- Utility row: sits below the tab rows so it's the last thing before the
+       device edge. Gives an in-app Back / Home pair that doesn't depend on
+       the OS/gesture back button (which, with no browser history pushed,
+       was exiting the app straight from whatever screen you were on). -->
+  <div class="rr-util-bar">
+    <button type="button" class="rr-util-back" id="rrBackBtn" onclick="_navBack()" aria-label="Back">‹</button>
+    <button type="button" class="rr-util-home" id="rrHomeBtn" onclick="_navHome()" aria-label="Home">⌂</button>
+    <span></span>
+  </div>
 </div>
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.2';
+const APP_VERSION='v11.3';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-03 - Schools tab: split the By Ranger filter box into two side by side — By Ranger stays on the left, a new By Ranger Number select is on the right, pulling from the same Ranger Rates list the Rangers tab already uses. Matches either assigned ranger (Ranger 1 or Ranger 2) on the site.';
+const BUILD_STAMP='2026-09-05 - Ask about this school now opens Gmail web compose (gmailUrl) instead of mailto:, so it behaves the same on Windows/Android/iOS. Added in-app Back/Home navigation: a utility row below the tab bar (‹ back, home circle) plus history-based interception of the OS/gesture back button, so back no longer exits the app straight from a tab or open school/person sheet — it steps back one screen instead, only exiting once you are back at Home with nothing open.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5591,9 +5603,12 @@ function showSchoolDetailByName(name){const site=DATA.sites.find(s=>sf(s,'Name',
 // Stripped-down, non-editable school card — Main Image, Address, Directions
 // only. Used on the Map's "All Active Schools" filter for level 3, since
 // those sites aren't necessarily the ranger's own to view/edit in full.
-/* ═══ "Ask about this school" — mailto: link (opens the device's own mail
-   app, not a Gmail web compose) pre-addressed to every Access Level 2
-   person on file, with a pre-filled subject/body naming the school. ═══ */
+/* ═══ "Ask about this school" — opens a Gmail web compose (via gmailUrl(),
+   same helper the rest of the app uses for admin email links) pre-addressed
+   to every Access Level 2 person on file, with a pre-filled subject/body
+   naming the school. Uses Gmail web instead of mailto: so it behaves the
+   same on Windows/Android/iOS instead of depending on each device's default
+   mail app (or lack of one). ═══ */
 function _level2Emails(){
   if(!DATA.humans||!DATA.humans.length)return [];
   const seen=new Set();
@@ -5608,12 +5623,12 @@ function askAboutSchoolMailto(name){
   const to=_level2Emails().join(',');
   const subject='I have a question about '+name;
   const body='I have a question about '+name+'\n\n';
-  return `mailto:${encodeURIComponent(to).replace(/%2C/g,',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return gmailUrl(to,subject,body);
 }
 function _askAboutSchoolCta(name){
   const to=_level2Emails();
   if(!to.length)return '';
-  return `<a class="dcta" href="${askAboutSchoolMailto(name)}">✉ Ask about this school</a>`;
+  return `<a class="dcta" href="${askAboutSchoolMailto(name)}" target="_blank" rel="noopener">✉ Ask about this school</a>`;
 }
 
 function showSchoolBasicByKey(key,showRangerNeedInfo){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;renderSchoolBasic(site,showRangerNeedInfo);openDetail();}
@@ -6893,9 +6908,18 @@ async function saveNewContactForSite(returnBtnId){
 }
 
 /* ═══ OVERLAY ═══ */
-function openDetail(){const o=document.getElementById('detail-overlay');o.style.display='flex';requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,80);});}
-function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;window._isNewSiteDraft=false;window._newSiteDraftData=null;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);}
-function closeDetailImmediate(){const o=document.getElementById('detail-overlay');o.classList.remove('open');o.style.display='none';}
+function openDetail(){
+  const o=document.getElementById('detail-overlay');
+  const wasOpen=o.style.display==='flex';
+  o.style.display='flex';
+  requestAnimationFrame(()=>{o.classList.add('open');setTimeout(_initLazyImages,80);});
+  // Only push a history entry the first time this sheet opens — later
+  // openDetail() calls just refresh its content while it's already showing.
+  if(!wasOpen){try{history.pushState({rrNav:true,detail:true},'','');}catch(e){}}
+  _updateNavUtilBar();
+}
+function closeDetail(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;window._isNewSiteDraft=false;window._newSiteDraftData=null;const o=document.getElementById('detail-overlay');o.classList.remove('open');setTimeout(()=>{o.style.display='none';},320);_updateNavUtilBar();}
+function closeDetailImmediate(){const o=document.getElementById('detail-overlay');o.classList.remove('open');o.style.display='none';_updateNavUtilBar();}
 function closeDetailChime(e){if(e&&e.target!==document.getElementById('detail-overlay'))return;_playChime();closeDetail(e);}
 function closeDetailBtnChime(){window._isNewSiteDraft=false;window._newSiteDraftData=null;_playChime();closeDetailImmediate();}
 
@@ -8170,9 +8194,64 @@ function renderOperationsHome(){
   }).join('');
 }
 
+// ── In-app Back/Home navigation ──────────────────────────────────────────
+// Fixes the Android hardware/gesture back button exiting the app outright:
+// since this SPA never pushed browser history entries for tab switches or
+// the detail sheet, there was nothing for "back" to go back to. Every real
+// tab switch now pushes a history entry and remembers the tab it came from;
+// popstate (fired by the OS/gesture back button) is intercepted to close an
+// open detail sheet or step back one tab instead of leaving the app. Once
+// there's nothing left in that stack (i.e. you're already on Home/Notes
+// with nothing open), back is left alone and behaves normally.
+let _tabHistory=[];
+let _navigatingBack=false;
+function _updateNavUtilBar(){
+  const backBtn=document.getElementById('rrBackBtn');
+  if(!backBtn)return;
+  const overlay=document.getElementById('detail-overlay');
+  const canGoBack=(overlay&&overlay.classList.contains('open'))||_tabHistory.length>0;
+  backBtn.style.opacity=canGoBack?'0.95':'0.3';
+  backBtn.style.pointerEvents=canGoBack?'auto':'none';
+}
+function _navBack(){
+  const overlay=document.getElementById('detail-overlay');
+  if(overlay&&overlay.classList.contains('open')){closeDetailBtnChime();_updateNavUtilBar();return;}
+  if(_tabHistory.length){
+    const prev=_tabHistory.pop();
+    _navigatingBack=true;switchTab(prev);_navigatingBack=false;
+  }
+}
+function _navHome(){
+  const overlay=document.getElementById('detail-overlay');
+  if(overlay&&overlay.classList.contains('open'))closeDetailImmediate();
+  _tabHistory=[];
+  _navigatingBack=true;switchTab('notes');_navigatingBack=false;
+  try{history.pushState({rrNav:true,tab:'notes'},'','');}catch(e){}
+  _updateNavUtilBar();
+}
+window.addEventListener('popstate',()=>{
+  const overlay=document.getElementById('detail-overlay');
+  if(overlay&&overlay.classList.contains('open')){
+    closeDetailImmediate();
+    try{history.pushState({rrNav:true,tab:_activeTab},'','');}catch(e){}
+    _updateNavUtilBar();
+    return;
+  }
+  if(_tabHistory.length){
+    const prev=_tabHistory.pop();
+    _navigatingBack=true;switchTab(prev);_navigatingBack=false;
+    try{history.pushState({rrNav:true,tab:prev},'','');}catch(e){}
+  }
+  // else: nothing left in our in-app stack — let the back action proceed
+  // normally (this is the one case where leaving the app is expected).
+});
 function switchTab(tab,initMapFlag=false){
   const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   if(tab!=='operations')_exitSmartMapFullscreen();
+  if(tab!==_activeTab&&!_navigatingBack){
+    _tabHistory.push(_activeTab);
+    try{history.pushState({rrNav:true,tab},'','');}catch(e){}
+  }
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
@@ -8201,6 +8280,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='notes'){const ta=document.getElementById('notesArea');if(ta)setTimeout(()=>ta.focus(),80);}
   // Render this tab if it has pending data changes
   if(_tabDirty[tab])_renderDirtyTab(tab);
+  _updateNavUtilBar();
 }
 function setSchoolProgramFilter(v){csProgF=v;renderSchools();}
 function setSchoolPlacementFilter(v){csPlaceF=v;renderSchools();}
