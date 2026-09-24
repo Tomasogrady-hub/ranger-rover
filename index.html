@@ -919,6 +919,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <!-- SUB (substitute Ranger requests) -->
   <div class="tab-pane" id="tab-sub">
     <div class="page-header"><span class="page-title">Sub</span><span class="page-count" id="subCount"></span></div>
+    <div style="margin:0 16px 10px;padding:12px 14px;background:#fff3d6;border:2px solid #F5A623;border-radius:var(--r-md);font-size:16px;line-height:1.45;color:#6b4a00">
+      <b>⚠️ Testing only.</b> This is for testing purposes only. This is still under development. Please do your sub requests the normal way until you have been notified that this system is ready.
+    </div>
     <div style="padding:0 16px 6px;display:flex;gap:8px;justify-content:flex-end">
       <button class="sub-btn alt" onclick="loadSubs(true)">↻ Refresh</button>
       <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Need a Sub</button>
@@ -1834,10 +1837,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.7';
+const APP_VERSION='v11.8';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-24 10:20 PT - Sub tab: Approve and Send now opens a sheet to choose recipients (All, None, Nearest 5/10, search, hand-pick; sorted by distance; shows who gets texts) and to edit the email subject, email message and text message ({{FirstName}}, {{Link}} filled per person; live text length counter). Email/Text toggles. New Send to More button on open shifts (people already sent start unchecked). Level 1-2 created requests open the same sheet. Requires GAS New Deployment.';
+const BUILD_STAMP='2026-09-24 10:40 PT - Sub tab: added a yellow Testing only notice at the top telling Rangers to keep doing sub requests the normal way until notified the system is ready. No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
