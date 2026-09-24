@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.6 | 2026-09-24 | Sub feature';
+const GAS_BUILD = 'v11.7 | 2026-09-24 | Sub: choose recipients + edit message';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -3979,7 +3979,7 @@ function handleGetActivity() {
 var SUBS_TAB = 'Subs';
 var SUB_VOL_TAB = 'Sub Volunteers';
 var SUBS_HEADERS = ['ID','Request ID','Created','Requested By','Site','Date','Start','End','Notes','Status',
-  'Approved By','Approved At','Assigned To','Assigned At','Decline Note','Reminder Sent','Escalated','Updated'];
+  'Approved By','Approved At','Assigned To','Assigned At','Decline Note','Reminder Sent','Escalated','Updated','Notified'];
 var SUB_VOL_HEADERS = ['Sub ID','Volunteer','Offered At','Note','Status'];
 var SUB_APP_URL = 'https://tomasogrady-hub.github.io/ranger-rover/';
 var SUB_ELIGIBLE_CATS = ['ranger','master_ranger','garden_keeper'];
@@ -4157,9 +4157,11 @@ function _subSmsSafe(s) {
 function _subNotify(person, subject, emailBody, smsBody, opts) {
   opts = opts || {};
   if (!person || !person.email) return;
-  try {
-    GmailApp.sendEmail(person.email, subject, emailBody, { name: 'Enrich LA Ranger Rover' });
-  } catch(e) { Logger.log('sub email fail ' + person.email + ': ' + e.message); }
+  if (!opts.noEmail && emailBody) {
+    try {
+      GmailApp.sendEmail(person.email, subject, emailBody, { name: 'Enrich LA Ranger Rover' });
+    } catch(e) { Logger.log('sub email fail ' + person.email + ': ' + e.message); }
+  }
   if (opts.noSms || !smsBody || !person.sms) return;
   var to = _subE164(person.mobile);
   if (!to) return;
@@ -4251,7 +4253,8 @@ function handleRequestSub(p) {
     var sh = _subGetSheet(SUBS_TAB, SUBS_HEADERS);
     var h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
     var reqId = 'R' + Utilities.getUuid().slice(0, 7);
-    var autoApprove = me.level <= 2;
+    var byAdmin = me.level <= 2; // admin-created: no approval emails; client opens Approve & Send
+    var autoApprove = false;
     var now = new Date();
     var created = shifts.map(function(s, i){
       var o = {
@@ -4274,9 +4277,7 @@ function handleRequestSub(p) {
     lock.releaseLock();
 
     var shiftLines = created.map(function(o){ return '- ' + _subFmtShift(o); }).join('\n');
-    if (autoApprove) {
-      _subBroadcastOpen(people, site, created, requester);
-    } else {
+    if (!byAdmin) {
       _subApprovers(people).forEach(function(a){
         _subNotify(a,
           'Sub request needs approval - ' + site.name,
@@ -4292,30 +4293,56 @@ function handleRequestSub(p) {
     }
     try { logActivity(me.email, 'requestSub', site.key, 'Site', created.length + ' shift(s), request ' + reqId); } catch(e) {}
     _subFlushSms();
-    return { ok: true, requestId: reqId, status: autoApprove ? 'Open' : 'Pending Approval' };
+    return { ok: true, requestId: reqId, status: 'Pending Approval', byAdmin: byAdmin, firstId: created[0].ID };
   } catch(e) {
     try { lock.releaseLock(); } catch(x) {}
     return { ok: false, error: e.message };
   }
 }
 
-function _subBroadcastOpen(people, site, shifts, requester) {
-  var lines = shifts.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n');
+// Sends the "sub needed" alert. opts (all optional, from the Approve & Send
+// sheet): recipients [emails] (default = every eligible Ranger), subject,
+// emailBody, smsBody (tokens {{FirstName}} and {{Link}}), noEmail, noSms.
+// Returns the list of emails notified.
+function _subDefaultBroadcast(site, shifts) {
   var first = shifts[0];
+  var lines = shifts.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n');
   var smsWhen = shifts.length === 1 ? _subFmtShift(first) : shifts.length + ' shifts starting ' + _subFmtDate(first.Date);
+  var where = site.name + (site.city ? ' (' + site.city + ')' : '');
+  return {
+    subject: 'Sub needed - ' + site.name + ', ' + _subFmtDate(first.Date),
+    emailBody: 'Hi {{FirstName}},\n\nA sub is needed at ' + where + ':\n' + lines +
+      (site.address ? '\n\nAddress: ' + site.address : '') +
+      (first.Notes ? '\n\nNotes: ' + first.Notes : '') +
+      '\n\nIf you can take it, tap "I can take it" in Ranger Rover:\n{{Link}}\n\nThank you!\nEnrich LA',
+    smsBody: 'Enrich LA - Sub needed: ' + where + ', ' + smsWhen + '. Can you take it? {{Link}}'
+  };
+}
+function _subBroadcastOpen(people, site, shifts, requester, opts) {
+  opts = opts || {};
+  var def = _subDefaultBroadcast(site, shifts);
+  var subject = String(opts.subject || def.subject).slice(0, 200);
+  var emailT = String(opts.emailBody || def.emailBody).slice(0, 10000);
+  var smsT = String(opts.smsBody || def.smsBody).slice(0, 600);
+  var link = _subLink(shifts[0].ID);
+  var only = null;
+  if (Array.isArray(opts.recipients)) {
+    only = {};
+    opts.recipients.forEach(function(e){ only[String(e || '').trim().toLowerCase()] = true; });
+  }
+  var sent = [];
   Object.keys(people).forEach(function(k){
     var p = people[k];
-    if (!p.eligible || p.email === requester.email) return;
-    _subNotify(p,
-      'Sub needed - ' + site.name + ', ' + _subFmtDate(first.Date),
-      'Hi ' + p.first + ',\n\nA sub is needed at ' + site.name + (site.city ? ' (' + site.city + ')' : '') + ':\n' +
-        lines + (site.address ? '\n\nAddress: ' + site.address : '') +
-        (first.Notes ? '\n\nNotes: ' + first.Notes : '') +
-        '\n\nIf you can take it, tap "I can take it" in Ranger Rover:\n' + _subLink(first.ID) +
-        '\n\nThank you!\nEnrich LA',
-      'Enrich LA - Sub needed: ' + site.name + (site.city ? ' (' + site.city + ')' : '') + ', ' + smsWhen +
-        '. Can you take it? ' + _subLink(first.ID));
+    if (p.email === requester.email) return;
+    if (only ? !only[p.email] : !p.eligible) return;
+    var fill = function(t){
+      return t.replace(/\{\{\s*FirstName\s*\}\}/gi, p.first || '').replace(/\{\{\s*Link\s*\}\}/gi, link);
+    };
+    _subNotify(p, subject.replace(/\{\{\s*FirstName\s*\}\}/gi, p.first || ''), fill(emailT), fill(smsT),
+      { noEmail: !!opts.noEmail, noSms: !!opts.noSms });
+    sent.push(p.email);
   });
+  return sent;
 }
 
 function handleApproveSub(p) {
@@ -4324,24 +4351,40 @@ function handleApproveSub(p) {
     var me = _subActor(p, people);
     if (me.level > 2) return { ok: false, error: 'Only Level 1-2 can approve.' };
     var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+    var resend = p.resend === true || p.resend === 'true';
     var rows = tbl.rows.filter(function(s){
-      return s.Status === 'Pending Approval' && (s['Request ID'] === p.requestId || s.ID === p.subId);
+      return s.Status === (resend ? 'Open' : 'Pending Approval') &&
+        (p.requestId ? s['Request ID'] === p.requestId : s.ID === p.subId);
     });
-    if (!rows.length) return { ok: false, error: 'Nothing pending for that request (already handled?).' };
+    if (!rows.length) return { ok: false, error: resend ? 'No open shifts to send for that request.' : 'Nothing pending for that request (already handled?).' };
     var sites = _subSites();
     var site = _subSite(sites, rows[0].Site);
     var requester = people[rows[0]['Requested By'].toLowerCase()] || { email: rows[0]['Requested By'], name: rows[0]['Requested By'], first: '' };
     var approve = p.approve !== false && p.approve !== 'false';
     var now = new Date();
+    var bOpts = { recipients: p.recipients, subject: p.subject, emailBody: p.emailBody, smsBody: p.smsBody,
+                  noEmail: p.sendEmail === false, noSms: p.sendSms === false };
+    if (resend) {
+      var sentR = _subBroadcastOpen(people, site, rows, requester, bOpts);
+      _subMarkNotified(tbl, rows, sentR);
+      try { logActivity(me.email, 'resendSub', site.key, 'Site', 'to ' + sentR.length + ' people'); } catch(e) {}
+      _subFlushSms();
+      return { ok: true, count: rows.length, sent: sentR.length };
+    }
+    if (approve && Array.isArray(p.recipients) && !p.recipients.length)
+      return { ok: false, error: 'Pick at least one person to send to.' };
     rows.forEach(function(s){
       _subSet(tbl, s, approve
         ? { 'Status': 'Open', 'Approved By': me.email, 'Approved At': now }
         : { 'Status': 'Declined', 'Approved By': me.email, 'Approved At': now, 'Decline Note': String(p.note || '') });
     });
     var lines = rows.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n');
+    var sentN = 0;
     if (approve) {
-      _subBroadcastOpen(people, site, rows, requester);
-      _subNotify(requester, 'Sub request approved - ' + site.name,
+      var sent = _subBroadcastOpen(people, site, rows, requester, bOpts);
+      sentN = sent.length;
+      _subMarkNotified(tbl, rows, sent);
+      if (requester.email !== me.email) _subNotify(requester, 'Sub request approved - ' + site.name,
         'Your sub request for ' + site.name + ' was approved and sent to the other Rangers:\n' + lines +
         '\n\nYou will be told as soon as a sub is confirmed.',
         'Enrich LA - Your sub request for ' + site.name + ' was approved and sent to Rangers. We will confirm your sub soon.');
@@ -4353,8 +4396,17 @@ function handleApproveSub(p) {
     }
     try { logActivity(me.email, approve ? 'approveSub' : 'declineSub', site.key, 'Site', rows.length + ' shift(s)'); } catch(e) {}
     _subFlushSms();
-    return { ok: true, count: rows.length };
+    return { ok: true, count: rows.length, sent: sentN };
   } catch(e) { return { ok: false, error: e.message }; }
+}
+
+// Records who has been sent each shift (so "Send to more" can skip them).
+function _subMarkNotified(tbl, rows, emails) {
+  rows.forEach(function(s){
+    var cur = String(s.Notified || '').split(',').map(function(x){ return x.trim().toLowerCase(); }).filter(String);
+    emails.forEach(function(e){ if (cur.indexOf(e) === -1) cur.push(e); });
+    _subSet(tbl, s, { 'Notified': cur.join(', ') });
+  });
 }
 
 function handleVolunteerSub(p) {
