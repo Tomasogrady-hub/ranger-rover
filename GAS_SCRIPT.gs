@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v10.90 | 2026-09-02';
+const GAS_BUILD = 'v11.6 | 2026-09-24 | Sub feature';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -608,6 +608,14 @@ function doPost(e) {
       case 'emailFormPdf':      return respond(handleEmailFormPdf(p));
       case 'sendFormPdfByRule': return respond(handleSendFormPdfByRule(p));
       case 'getActiveRangersForForms': return respond(handleGetActiveRangersForForms());
+
+      // ── SUB (substitute Ranger) ─────────────────────────────────────────────
+      case 'getSubs':      return respond(handleGetSubs(p));
+      case 'requestSub':   return respond(handleRequestSub(p));
+      case 'approveSub':   return respond(handleApproveSub(p));
+      case 'volunteerSub': return respond(handleVolunteerSub(p));
+      case 'assignSub':    return respond(handleAssignSub(p));
+      case 'cancelSub':    return respond(handleCancelSub(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -3955,5 +3963,592 @@ function handleGetActivity() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ── SUB FEATURE (v11.6) ─────────────────────────────────────────────────────
+// A Ranger who can't make it posts one or more shifts (school + date + times).
+// Flow: Pending Approval -> (Level 1-2 approves) -> Open -> Rangers volunteer
+// -> Level 1-2 picks one -> Filled.  Also: Declined / Cancelled / Expired.
+// Tabs live in the Ranger Rover (SITES_ID) spreadsheet and are auto-created:
+//   Subs            one row per shift (school + date)
+//   Sub Volunteers  one row per volunteer offer
+// Stored values are Site Keys and emails only (never display names).
+// Daily trigger subDailyCheck(): evening-before reminder to the assigned sub,
+// 48h escalation to Level 1-2 for unfilled/unapproved shifts, expiry.
+// SMS text is plain ASCII (hyphens, no emoji) so it stays GSM-7.
+// ════════════════════════════════════════════════════════════════════════════
+var SUBS_TAB = 'Subs';
+var SUB_VOL_TAB = 'Sub Volunteers';
+var SUBS_HEADERS = ['ID','Request ID','Created','Requested By','Site','Date','Start','End','Notes','Status',
+  'Approved By','Approved At','Assigned To','Assigned At','Decline Note','Reminder Sent','Escalated','Updated'];
+var SUB_VOL_HEADERS = ['Sub ID','Volunteer','Offered At','Note','Status'];
+var SUB_APP_URL = 'https://tomasogrady-hub.github.io/ranger-rover/';
+var SUB_ELIGIBLE_CATS = ['ranger','master_ranger','garden_keeper'];
 
+function _subTz() { return Session.getScriptTimeZone() || 'America/Los_Angeles'; }
 
+function _subGetSheet(name, headers) {
+  var ss = SpreadsheetApp.openById(SITES_ID);
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    // Date / Start / End as plain text so Sheets never converts them
+    if (name === SUBS_TAB) {
+      ['Date','Start','End'].forEach(function(c){
+        sh.getRange(1, headers.indexOf(c) + 1, sh.getMaxRows(), 1).setNumberFormat('@');
+      });
+    }
+    return sh;
+  }
+  // Add any missing headers (safe schema growth)
+  var cur = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(String);
+  var missing = headers.filter(function(h){ return cur.indexOf(h) === -1; });
+  if (missing.length) sh.getRange(1, cur.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+  return sh;
+}
+
+// Normalises a cell to text. Dates/times that Sheets auto-converted come back
+// as Date objects — format them back to yyyy-MM-dd / HH:mm.
+function _subCell(v, kind) {
+  if (v instanceof Date) {
+    if (kind === 'date') return Utilities.formatDate(v, _subTz(), 'yyyy-MM-dd');
+    if (kind === 'time') return Utilities.formatDate(v, _subTz(), 'HH:mm');
+    return v.toISOString();
+  }
+  return String(v === null || v === undefined ? '' : v).trim();
+}
+
+function _subReadAll(sh) {
+  var data = sh.getDataRange().getValues();
+  var h = data[0].map(String);
+  var rows = [];
+  for (var r = 1; r < data.length; r++) {
+    if (!data[r].join('')) continue;
+    var o = { _row: r + 1 };
+    h.forEach(function(k, i){
+      o[k] = _subCell(data[r][i], k === 'Date' ? 'date' : (k === 'Start' || k === 'End') ? 'time' : '');
+    });
+    rows.push(o);
+  }
+  return { h: h, rows: rows, sheet: sh };
+}
+
+function _subSet(tbl, rowObj, updates) {
+  Object.keys(updates).forEach(function(k){
+    var ci = tbl.h.indexOf(k);
+    if (ci === -1) return;
+    tbl.sheet.getRange(rowObj._row, ci + 1).setValue(updates[k]);
+    rowObj[k] = updates[k] instanceof Date ? updates[k].toISOString() : String(updates[k]);
+  });
+  var ui = tbl.h.indexOf('Updated');
+  if (ui !== -1) tbl.sheet.getRange(rowObj._row, ui + 1).setValue(new Date());
+}
+
+// ── People ───────────────────────────────────────────────────────────────────
+function _subRoleCat(roleName, roleCats) {
+  var n = String(roleName || '').toLowerCase().replace(/[\s\-]+/g, '_').trim();
+  if (!n) return '';
+  if (SUB_ELIGIBLE_CATS.indexOf(n) !== -1) return n;
+  return roleCats[n] || '';
+}
+
+function _subPeople() {
+  var roleCats = {};
+  getRoles().forEach(function(r){
+    var k = String(r.name || '').toLowerCase().replace(/[\s\-]+/g, '_').trim();
+    roleCats[k] = String(r.category || '').toLowerCase().replace(/[\s\-]+/g, '_').trim();
+  });
+  var d = humansData();
+  var idx = function(n){ return d.h.indexOf(n); };
+  var ei = idx('Email'), fi = idx('First Name'), li = idx('Last Name'), ni = idx('Name'),
+      mi = idx('Mobile'), ri = idx('Role'), rai = idx('Role Additional'),
+      ai = idx('Access Level'), ci = idx('SMS Consent');
+  var map = {};
+  for (var r = 1; r < d.data.length; r++) {
+    var row = d.data[r];
+    var email = String(row[ei] || '').trim().toLowerCase();
+    if (!email) continue;
+    var first = fi > -1 ? String(row[fi] || '').trim() : '';
+    var last  = li > -1 ? String(row[li] || '').trim() : '';
+    var name  = (first + ' ' + last).trim() || (ni > -1 ? String(row[ni] || '').trim() : '') || email;
+    var cats = [ri > -1 ? row[ri] : '', rai > -1 ? row[rai] : ''].map(function(x){ return _subRoleCat(x, roleCats); });
+    map[email] = {
+      email: email, name: name, first: first || name.split(' ')[0],
+      mobile: mi > -1 ? String(row[mi] || '').trim() : '',
+      sms: ci > -1 && String(row[ci] || '').trim().toUpperCase() === 'TRUE',
+      level: ai > -1 ? (parseInt(row[ai], 10) || 3) : 3,
+      eligible: cats.some(function(c){ return SUB_ELIGIBLE_CATS.indexOf(c) !== -1; })
+    };
+  }
+  return map;
+}
+
+function _subApprovers(people) {
+  return Object.keys(people).map(function(k){ return people[k]; })
+    .filter(function(p){ return p.level === 1 || p.level === 2; });
+}
+
+// ── Sites (only the columns the messages need) ───────────────────────────────
+function _subSites() {
+  var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+  var data = sh.getDataRange().getValues();
+  var h = data[0].map(function(x){ return String(x).trim(); });
+  var g = function(row, n){ var i = h.indexOf(n); return i > -1 ? String(row[i] || '').trim() : ''; };
+  var map = {};
+  for (var r = 1; r < data.length; r++) {
+    var key = g(data[r], 'Key') || String(data[r][0] || '').trim();
+    var name = g(data[r], 'Name');
+    if (!key && !name) continue;
+    var o = {
+      key: key, name: name, city: g(data[r], 'City'),
+      address: g(data[r], 'Full Address') || [g(data[r],'Street Address'), g(data[r],'City')].filter(String).join(', '),
+      phone: g(data[r], 'Telephone'), details: g(data[r], 'Site Details'),
+      principal: g(data[r], 'Principal'), plantManager: g(data[r], 'Plant Manager'),
+      schedule: g(data[r], 'Schedule'),
+      rangers: [g(data[r],'Ranger 1'), g(data[r],'Ranger 2'), g(data[r],'Garden Keeper')]
+        .map(function(e){ return e.toLowerCase(); }).filter(String)
+    };
+    if (key) map[key] = o;
+    if (name) map['name:' + name.toLowerCase()] = o;
+  }
+  return map;
+}
+function _subSite(sites, keyOrName) {
+  return sites[keyOrName] || sites['name:' + String(keyOrName || '').toLowerCase()] ||
+    { key: keyOrName, name: keyOrName, city: '', address: '', phone: '', details: '', rangers: [] };
+}
+
+// ── Formatting ──────────────────────────────────────────────────────────────
+function _subFmtTime(t) {
+  var m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+  if (!m) return String(t || '');
+  var hh = parseInt(m[1], 10), ap = hh >= 12 ? 'pm' : 'am';
+  hh = hh % 12 || 12;
+  return hh + (m[2] === '00' ? '' : ':' + m[2]) + ap;
+}
+function _subFmtDate(ds) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ds || ''));
+  if (!m) return String(ds || '');
+  var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  return Utilities.formatDate(d, _subTz(), 'EEE MMM d');
+}
+function _subFmtShift(s) {
+  var t = (s.Start || s.End) ? ', ' + _subFmtTime(s.Start) + (s.End ? '-' + _subFmtTime(s.End) : '') : '';
+  return _subFmtDate(s.Date) + t;
+}
+function _subToday() { return Utilities.formatDate(new Date(), _subTz(), 'yyyy-MM-dd'); }
+function _subAddDays(n) { return Utilities.formatDate(new Date(Date.now() + n * 86400000), _subTz(), 'yyyy-MM-dd'); }
+
+// ── Delivery ────────────────────────────────────────────────────────────────
+function _subE164(m) {
+  var d = String(m || '').replace(/[^\d+]/g, '');
+  if (!d) return '';
+  if (d.charAt(0) === '+') return d;
+  if (d.length === 10) return '+1' + d;
+  if (d.length === 11 && d.charAt(0) === '1') return '+' + d;
+  return '';
+}
+// Plain ASCII only for SMS: strip em/en dashes, smart quotes, emoji.
+function _subSmsSafe(s) {
+  return String(s || '').replace(/[\u2013\u2014]/g, '-').replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"').replace(/[^\x20-\x7E\n]/g, '').slice(0, 600);
+}
+function _subNotify(person, subject, emailBody, smsBody, opts) {
+  opts = opts || {};
+  if (!person || !person.email) return;
+  try {
+    GmailApp.sendEmail(person.email, subject, emailBody, { name: 'Enrich LA Ranger Rover' });
+  } catch(e) { Logger.log('sub email fail ' + person.email + ': ' + e.message); }
+  if (opts.noSms || !smsBody || !person.sms) return;
+  var to = _subE164(person.mobile);
+  if (!to) return;
+  _SUB_SMS_Q.push({ to: to, body: _subSmsSafe(smsBody) });
+}
+// SMS are queued during a handler and sent together in parallel (fetchAll)
+// by _subFlushSms() — one broadcast to every Ranger is a single round of calls.
+var _SUB_SMS_Q = [];
+function _subFlushSms() {
+  if (!_SUB_SMS_Q.length) return 0;
+  var q = _SUB_SMS_Q; _SUB_SMS_Q = [];
+  var props = PropertiesService.getScriptProperties();
+  var sid = props.getProperty('twilio_sid') || '', keySid = props.getProperty('twilio_key_sid') || '',
+      keySec = props.getProperty('twilio_key_secret') || '', from = props.getProperty('twilio_from') || '';
+  if (from && from.charAt(0) !== '+') from = '+' + from;
+  if (!sid || !keySid || !keySec || !from) { Logger.log('sub sms: missing Twilio credentials'); return 0; }
+  var auth = Utilities.base64Encode(keySid + ':' + keySec);
+  var url = 'https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json';
+  var sent = 0;
+  for (var i = 0; i < q.length; i += 40) {
+    var reqs = q.slice(i, i + 40).map(function(m){
+      return { url: url, method: 'post', headers: { 'Authorization': 'Basic ' + auth },
+               payload: { To: m.to, From: from, Body: m.body }, muteHttpExceptions: true };
+    });
+    try {
+      UrlFetchApp.fetchAll(reqs).forEach(function(r){ if (r.getResponseCode() < 300) sent++; });
+    } catch(e) { Logger.log('sub sms batch fail: ' + e.message); }
+  }
+  return sent;
+}
+function _subLink(id) { return SUB_APP_URL + '#sub=' + encodeURIComponent(id); }
+
+function _subShiftBlock(site, s) {
+  return site.name + (site.city ? ' (' + site.city + ')' : '') + '\n' + _subFmtShift(s) +
+    (site.address ? '\n' + site.address : '');
+}
+
+// ── Actions ─────────────────────────────────────────────────────────────────
+function _subActor(p, people) {
+  var a = people[String(p.actor || '').trim().toLowerCase()];
+  if (!a) throw new Error('Unknown user - please sign in again.');
+  return a;
+}
+
+function handleGetSubs(p) {
+  try {
+    _subEnsureTrigger();
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var subs = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS)).rows;
+    var vols = _subReadAll(_subGetSheet(SUB_VOL_TAB, SUB_VOL_HEADERS)).rows;
+    var cutoff = _subAddDays(-14);
+    var admin = me.level <= 2;
+    subs = subs.filter(function(s){
+      if (s.Date && s.Date < cutoff) return false;
+      if (admin) return true;
+      var mine = s['Requested By'].toLowerCase() === me.email || s['Assigned To'].toLowerCase() === me.email;
+      return mine || s.Status === 'Open';
+    });
+    var ids = {};
+    subs.forEach(function(s){ ids[s.ID] = true; });
+    vols = vols.filter(function(v){
+      if (!ids[v['Sub ID']] || v.Status === 'Withdrawn') return false;
+      return admin || v.Volunteer.toLowerCase() === me.email;
+    });
+    var clean = function(o){ var c = {}; Object.keys(o).forEach(function(k){ if (k !== '_row') c[k] = o[k]; }); return c; };
+    return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), level: me.level, today: _subToday() };
+  } catch(e) { return { ok: false, error: e.message }; }
+}
+
+function handleRequestSub(p) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var sites = _subSites();
+    var site = _subSite(sites, p.siteKey);
+    if (!site.key) return { ok: false, error: 'School not found.' };
+    var requester = me;
+    if (p.forEmail && me.level <= 2) requester = people[String(p.forEmail).toLowerCase()] || me;
+    if (me.level > 2 && site.rangers.indexOf(me.email) === -1)
+      return { ok: false, error: 'You can only request a sub for your own schools.' };
+    var shifts = (p.shifts || []).filter(function(s){ return /^\d{4}-\d{2}-\d{2}$/.test(String(s.date || '')); });
+    if (!shifts.length) return { ok: false, error: 'Add at least one date.' };
+    var today = _subToday();
+    if (shifts.some(function(s){ return s.date < today; })) return { ok: false, error: 'Dates must be today or later.' };
+
+    var sh = _subGetSheet(SUBS_TAB, SUBS_HEADERS);
+    var h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    var reqId = 'R' + Utilities.getUuid().slice(0, 7);
+    var autoApprove = me.level <= 2;
+    var now = new Date();
+    var created = shifts.map(function(s, i){
+      var o = {
+        'ID': 'S' + Utilities.getUuid().slice(0, 7), 'Request ID': reqId, 'Created': now,
+        'Requested By': requester.email, 'Site': site.key, 'Date': s.date,
+        'Start': String(s.start || ''), 'End': String(s.end || ''),
+        'Notes': String(p.notes || '').slice(0, 2000),
+        'Status': autoApprove ? 'Open' : 'Pending Approval',
+        'Approved By': autoApprove ? me.email : '', 'Approved At': autoApprove ? now : '', 'Updated': now
+      };
+      return o;
+    });
+    var startRow = sh.getLastRow() + 1;
+    var values = created.map(function(o){ return h.map(function(k){ return o[k] !== undefined ? o[k] : ''; }); });
+    // Force Date/Start/End to text before writing so Sheets keeps them as typed
+    ['Date','Start','End'].forEach(function(c){
+      sh.getRange(startRow, h.indexOf(c) + 1, values.length, 1).setNumberFormat('@');
+    });
+    sh.getRange(startRow, 1, values.length, h.length).setValues(values);
+    lock.releaseLock();
+
+    var shiftLines = created.map(function(o){ return '- ' + _subFmtShift(o); }).join('\n');
+    if (autoApprove) {
+      _subBroadcastOpen(people, site, created, requester);
+    } else {
+      _subApprovers(people).forEach(function(a){
+        _subNotify(a,
+          'Sub request needs approval - ' + site.name,
+          requester.name + ' needs a sub at ' + site.name + (site.city ? ' (' + site.city + ')' : '') + ':\n' +
+            shiftLines + (p.notes ? '\n\nNotes: ' + p.notes : '') +
+            '\n\nApprove or decline in Ranger Rover:\n' + _subLink(created[0].ID),
+          'Enrich LA - ' + requester.name + ' needs a sub at ' + site.name + ' (' + created.length +
+            ' shift' + (created.length > 1 ? 's' : '') + '). Approve: ' + _subLink(created[0].ID));
+      });
+      _subNotify(requester, 'Sub request received - ' + site.name,
+        'Your sub request for ' + site.name + ' was received and is waiting for approval:\n' + shiftLines +
+        '\n\nYou will hear back once it is approved and sent to other Rangers.', '', { noSms: true });
+    }
+    try { logActivity(me.email, 'requestSub', site.key, 'Site', created.length + ' shift(s), request ' + reqId); } catch(e) {}
+    _subFlushSms();
+    return { ok: true, requestId: reqId, status: autoApprove ? 'Open' : 'Pending Approval' };
+  } catch(e) {
+    try { lock.releaseLock(); } catch(x) {}
+    return { ok: false, error: e.message };
+  }
+}
+
+function _subBroadcastOpen(people, site, shifts, requester) {
+  var lines = shifts.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n');
+  var first = shifts[0];
+  var smsWhen = shifts.length === 1 ? _subFmtShift(first) : shifts.length + ' shifts starting ' + _subFmtDate(first.Date);
+  Object.keys(people).forEach(function(k){
+    var p = people[k];
+    if (!p.eligible || p.email === requester.email) return;
+    _subNotify(p,
+      'Sub needed - ' + site.name + ', ' + _subFmtDate(first.Date),
+      'Hi ' + p.first + ',\n\nA sub is needed at ' + site.name + (site.city ? ' (' + site.city + ')' : '') + ':\n' +
+        lines + (site.address ? '\n\nAddress: ' + site.address : '') +
+        (first.Notes ? '\n\nNotes: ' + first.Notes : '') +
+        '\n\nIf you can take it, tap "I can take it" in Ranger Rover:\n' + _subLink(first.ID) +
+        '\n\nThank you!\nEnrich LA',
+      'Enrich LA - Sub needed: ' + site.name + (site.city ? ' (' + site.city + ')' : '') + ', ' + smsWhen +
+        '. Can you take it? ' + _subLink(first.ID));
+  });
+}
+
+function handleApproveSub(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    if (me.level > 2) return { ok: false, error: 'Only Level 1-2 can approve.' };
+    var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+    var rows = tbl.rows.filter(function(s){
+      return s.Status === 'Pending Approval' && (s['Request ID'] === p.requestId || s.ID === p.subId);
+    });
+    if (!rows.length) return { ok: false, error: 'Nothing pending for that request (already handled?).' };
+    var sites = _subSites();
+    var site = _subSite(sites, rows[0].Site);
+    var requester = people[rows[0]['Requested By'].toLowerCase()] || { email: rows[0]['Requested By'], name: rows[0]['Requested By'], first: '' };
+    var approve = p.approve !== false && p.approve !== 'false';
+    var now = new Date();
+    rows.forEach(function(s){
+      _subSet(tbl, s, approve
+        ? { 'Status': 'Open', 'Approved By': me.email, 'Approved At': now }
+        : { 'Status': 'Declined', 'Approved By': me.email, 'Approved At': now, 'Decline Note': String(p.note || '') });
+    });
+    var lines = rows.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n');
+    if (approve) {
+      _subBroadcastOpen(people, site, rows, requester);
+      _subNotify(requester, 'Sub request approved - ' + site.name,
+        'Your sub request for ' + site.name + ' was approved and sent to the other Rangers:\n' + lines +
+        '\n\nYou will be told as soon as a sub is confirmed.',
+        'Enrich LA - Your sub request for ' + site.name + ' was approved and sent to Rangers. We will confirm your sub soon.');
+    } else {
+      _subNotify(requester, 'Sub request not approved - ' + site.name,
+        'Your sub request for ' + site.name + ' was not approved:\n' + lines +
+        (p.note ? '\n\nNote from ' + me.name + ': ' + p.note : '') + '\n\nPlease reach out with any questions.',
+        'Enrich LA - Your sub request for ' + site.name + ' was not approved.' + (p.note ? ' Note: ' + p.note : '') + ' Details: ' + _subLink(rows[0].ID));
+    }
+    try { logActivity(me.email, approve ? 'approveSub' : 'declineSub', site.key, 'Site', rows.length + ' shift(s)'); } catch(e) {}
+    _subFlushSms();
+    return { ok: true, count: rows.length };
+  } catch(e) { return { ok: false, error: e.message }; }
+}
+
+function handleVolunteerSub(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+    var s = tbl.rows.filter(function(x){ return x.ID === p.subId; })[0];
+    if (!s) return { ok: false, error: 'Shift not found.' };
+    var vt = _subReadAll(_subGetSheet(SUB_VOL_TAB, SUB_VOL_HEADERS));
+    var existing = vt.rows.filter(function(v){ return v['Sub ID'] === s.ID && v.Volunteer.toLowerCase() === me.email; })[0];
+    if (p.withdraw) {
+      if (existing) _subSet(vt, existing, { 'Status': 'Withdrawn' });
+      return { ok: true, withdrawn: true };
+    }
+    if (s.Status !== 'Open') return { ok: false, error: 'This shift is no longer open (' + s.Status + ').' };
+    if (s['Requested By'].toLowerCase() === me.email) return { ok: false, error: 'This is your own request.' };
+    if (existing) {
+      _subSet(vt, existing, { 'Status': 'Offered', 'Offered At': new Date(), 'Note': String(p.note || existing.Note || '') });
+    } else {
+      vt.sheet.appendRow([s.ID, me.email, new Date(), String(p.note || '').slice(0, 500), 'Offered']);
+    }
+    var site = _subSite(_subSites(), s.Site);
+    _subApprovers(people).forEach(function(a){
+      _subNotify(a, 'Sub volunteer - ' + me.name + ' for ' + site.name,
+        me.name + ' can take this shift:\n' + _subShiftBlock(site, s) +
+          (p.note ? '\n\nTheir note: ' + p.note : '') + '\n\nPick the sub in Ranger Rover:\n' + _subLink(s.ID),
+        'Enrich LA - ' + me.name + ' volunteered to sub at ' + site.name + ', ' + _subFmtShift(s) + '. Pick: ' + _subLink(s.ID));
+    });
+    _subFlushSms();
+    try { logActivity(me.email, 'volunteerSub', site.key, 'Site', s.ID); } catch(e) {}
+    return { ok: true };
+  } catch(e) { return { ok: false, error: e.message }; }
+}
+
+function handleAssignSub(p) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    if (me.level > 2) { lock.releaseLock(); return { ok: false, error: 'Only Level 1-2 can assign a sub.' }; }
+    var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+    var s = tbl.rows.filter(function(x){ return x.ID === p.subId; })[0];
+    if (!s) { lock.releaseLock(); return { ok: false, error: 'Shift not found.' }; }
+    if (s.Status !== 'Open' && s.Status !== 'Pending Approval') { lock.releaseLock(); return { ok: false, error: 'Shift is ' + s.Status + '.' }; }
+    var sub = people[String(p.assignee || '').toLowerCase()];
+    if (!sub) { lock.releaseLock(); return { ok: false, error: 'Pick a person from the list.' }; }
+    var now = new Date();
+    var upd = { 'Status': 'Filled', 'Assigned To': sub.email, 'Assigned At': now };
+    if (!s['Approved By']) { upd['Approved By'] = me.email; upd['Approved At'] = now; }
+    _subSet(tbl, s, upd);
+    lock.releaseLock();
+
+    var site = _subSite(_subSites(), s.Site);
+    var requester = people[s['Requested By'].toLowerCase()] || { email: s['Requested By'], name: s['Requested By'], first: '' };
+    var contact = function(email){ var x = people[String(email || '').toLowerCase()]; return x ? x.name + (x.mobile ? ' ' + x.mobile : '') + ' <' + x.email + '>' : email; };
+    _subNotify(sub, 'You are confirmed as sub - ' + site.name + ', ' + _subFmtDate(s.Date),
+      'Hi ' + sub.first + ',\n\nThank you! You are confirmed to sub:\n' + _subShiftBlock(site, s) +
+        (site.phone ? '\nSchool phone: ' + site.phone : '') +
+        (site.details ? '\n\nSite details (parking, gates, access):\n' + site.details : '') +
+        (s.Notes ? '\n\nNotes from ' + requester.name + ':\n' + s.Notes : '') +
+        '\n\nContacts:' +
+        '\n- Regular Ranger: ' + contact(requester.email) +
+        (site.principal ? '\n- Principal: ' + site.principal : '') +
+        (site.plantManager ? '\n- Plant Manager: ' + site.plantManager : '') +
+        (site.schedule ? '\n\nSchedule: ' + site.schedule : '') +
+        '\n\nFull details in Ranger Rover:\n' + _subLink(s.ID),
+      'Enrich LA - Confirmed! You are subbing at ' + site.name + ', ' + _subFmtShift(s) + '. ' +
+        (site.address ? site.address + '. ' : '') + 'Details: ' + _subLink(s.ID));
+    _subNotify(requester, 'Your sub is confirmed - ' + site.name + ', ' + _subFmtDate(s.Date),
+      sub.name + ' will cover for you at ' + site.name + ' on ' + _subFmtShift(s) + '.\n\nTheir contact: ' + contact(sub.email),
+      'Enrich LA - ' + sub.name + ' will sub for you at ' + site.name + ', ' + _subFmtShift(s) + '.' + (sub.mobile ? ' Their mobile: ' + sub.mobile : ''));
+    // Other volunteers: email only (no text pile-up)
+    var vt = _subReadAll(_subGetSheet(SUB_VOL_TAB, SUB_VOL_HEADERS));
+    vt.rows.forEach(function(v){
+      if (v['Sub ID'] !== s.ID || v.Status === 'Withdrawn') return;
+      var isSub = v.Volunteer.toLowerCase() === sub.email;
+      _subSet(vt, v, { 'Status': isSub ? 'Assigned' : 'Not Needed' });
+      if (!isSub) {
+        var vp = people[v.Volunteer.toLowerCase()];
+        if (vp) _subNotify(vp, 'Sub shift filled - ' + site.name,
+          'Thank you for offering to sub at ' + site.name + ' on ' + _subFmtShift(s) + '. It has been filled - we really appreciate you stepping up!',
+          '', { noSms: true });
+      }
+    });
+    _subFlushSms();
+    try { logActivity(me.email, 'assignSub', site.key, 'Site', s.ID + ' -> ' + sub.email); } catch(e) {}
+    return { ok: true };
+  } catch(e) {
+    try { lock.releaseLock(); } catch(x) {}
+    return { ok: false, error: e.message };
+  }
+}
+
+function handleCancelSub(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+    var rows = tbl.rows.filter(function(s){
+      return (p.subId ? s.ID === p.subId : s['Request ID'] === p.requestId) &&
+        ['Pending Approval','Open','Filled'].indexOf(s.Status) !== -1;
+    });
+    if (!rows.length) return { ok: false, error: 'Nothing to cancel.' };
+    if (me.level > 2 && rows.some(function(s){ return s['Requested By'].toLowerCase() !== me.email; }))
+      return { ok: false, error: 'You can only cancel your own requests.' };
+    var sites = _subSites();
+    var vt = _subReadAll(_subGetSheet(SUB_VOL_TAB, SUB_VOL_HEADERS));
+    rows.forEach(function(s){
+      var wasFilled = s.Status === 'Filled';
+      _subSet(tbl, s, { 'Status': 'Cancelled' });
+      var site = _subSite(sites, s.Site);
+      if (wasFilled) {
+        var sub = people[s['Assigned To'].toLowerCase()];
+        _subNotify(sub, 'Sub shift cancelled - ' + site.name + ', ' + _subFmtDate(s.Date),
+          'The sub shift at ' + site.name + ' on ' + _subFmtShift(s) + ' has been cancelled - you are no longer needed. Thank you!',
+          'Enrich LA - CANCELLED: the sub shift at ' + site.name + ', ' + _subFmtShift(s) + ' is no longer needed. Thank you!');
+      }
+      vt.rows.forEach(function(v){
+        if (v['Sub ID'] !== s.ID || v.Status !== 'Offered') return;
+        _subSet(vt, v, { 'Status': 'Not Needed' });
+        var vp = people[v.Volunteer.toLowerCase()];
+        if (vp && !wasFilled) _subNotify(vp, 'Sub shift cancelled - ' + site.name,
+          'The sub shift at ' + site.name + ' on ' + _subFmtShift(s) + ' was cancelled. Thank you for offering!', '', { noSms: true });
+      });
+    });
+    var site0 = _subSite(sites, rows[0].Site);
+    _subApprovers(people).forEach(function(a){
+      if (a.email === me.email) return;
+      _subNotify(a, 'Sub request cancelled - ' + site0.name,
+        me.name + ' cancelled ' + rows.length + ' sub shift(s) at ' + site0.name + ':\n' +
+        rows.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n'), '', { noSms: true });
+    });
+    _subFlushSms();
+    try { logActivity(me.email, 'cancelSub', site0.key, 'Site', rows.length + ' shift(s)'); } catch(e) {}
+    return { ok: true, count: rows.length };
+  } catch(e) { return { ok: false, error: e.message }; }
+}
+
+// ── Daily trigger: reminders, escalation, expiry ────────────────────────────
+function subDailyCheck() {
+  var people = _subPeople();
+  var sites = _subSites();
+  var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+  var today = _subToday(), tomorrow = _subAddDays(1), in2 = _subAddDays(2);
+  var escalate = [];
+  tbl.rows.forEach(function(s){
+    if (!s.Date) return;
+    if ((s.Status === 'Open' || s.Status === 'Pending Approval') && s.Date < today) {
+      _subSet(tbl, s, { 'Status': 'Expired' }); return;
+    }
+    if (s.Status === 'Filled' && s.Date === tomorrow && !s['Reminder Sent']) {
+      var sub = people[s['Assigned To'].toLowerCase()];
+      var site = _subSite(sites, s.Site);
+      _subNotify(sub, 'Reminder: you are subbing tomorrow - ' + site.name,
+        'Hi ' + (sub ? sub.first : '') + ',\n\nReminder - you are subbing tomorrow:\n' + _subShiftBlock(site, s) +
+          (site.details ? '\n\nSite details:\n' + site.details : '') + '\n\nDetails: ' + _subLink(s.ID),
+        'Enrich LA - Reminder: you are subbing tomorrow at ' + site.name + ', ' + _subFmtShift(s) + '. ' +
+          (site.address ? site.address + '. ' : '') + _subLink(s.ID));
+      _subSet(tbl, s, { 'Reminder Sent': new Date() });
+    }
+    if ((s.Status === 'Open' || s.Status === 'Pending Approval') && s.Date <= in2 && !s.Escalated) {
+      escalate.push(s);
+      _subSet(tbl, s, { 'Escalated': new Date() });
+    }
+  });
+  if (escalate.length) {
+    var lines = escalate.map(function(s){
+      var site = _subSite(sites, s.Site);
+      return '- ' + site.name + ', ' + _subFmtShift(s) + ' [' + s.Status + ']';
+    }).join('\n');
+    _subApprovers(people).forEach(function(a){
+      _subNotify(a, 'URGENT: ' + escalate.length + ' sub shift(s) within 48 hours still unfilled',
+        'These sub shifts are coming up and are not filled yet:\n' + lines + '\n\nOpen Ranger Rover: ' + SUB_APP_URL + '#sub=',
+        'Enrich LA - URGENT: ' + escalate.length + ' sub shift(s) in the next 48h still unfilled. ' + SUB_APP_URL + '#sub=');
+    });
+  }
+  _subFlushSms();
+}
+
+// Installs the daily 5pm trigger once. Called lazily from getSubs; can also be
+// run by hand from the Apps Script editor (select installSubTrigger -> Run).
+function installSubTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if (t.getHandlerFunction() === 'subDailyCheck') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('subDailyCheck').timeBased().everyDays(1).atHour(17).inTimezone(_subTz()).create();
+  PropertiesService.getScriptProperties().setProperty('sub_trigger_v1', String(new Date()));
+  return 'ok';
+}
+function _subEnsureTrigger() {
+  try {
+    if (PropertiesService.getScriptProperties().getProperty('sub_trigger_v1')) return;
+    installSubTrigger();
+  } catch(e) { Logger.log('sub trigger install failed: ' + e.message); }
+}
