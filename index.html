@@ -111,6 +111,36 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="settings"] {background:#F0C040;color:#1e3a1e}
 .nav-btn[data-tab="data"]  {background:#6B4E9B;color:#fff}
 .nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
+.nav-btn[data-tab="sub"]      {background:#E07A3F;color:#fff}
+/* ── SUB TAB (v11.6) ── */
+.nav-badge{position:absolute;top:6px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fff;color:#C0392B;font-size:11px;font-weight:900;line-height:18px;text-align:center;letter-spacing:0}
+.sub-sec{padding:6px 16px 2px;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
+.sub-card{background:#fff;border:1px solid var(--mist);border-radius:var(--r-md);padding:14px 15px;margin:8px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.sub-card.hl{outline:3px solid #E07A3F;outline-offset:1px}
+.sub-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sub-school{font-size:19px;font-weight:700;color:var(--grove);line-height:1.2}
+.sub-when{font-size:17px;font-weight:600;color:var(--ink);margin-top:3px}
+.sub-meta{font-size:14px;color:var(--stone);margin-top:4px;line-height:1.45}
+.sub-notes{font-size:15px;color:var(--ink);background:var(--fog);border-radius:var(--r-sm);padding:8px 10px;margin-top:8px;white-space:pre-wrap}
+.sub-pill{flex-shrink:0;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:99px;background:var(--fog);color:var(--stone)}
+.sub-pill.pending{background:#fff3d6;color:#9a6a00}.sub-pill.open{background:#fde8dc;color:#b4501c}
+.sub-pill.filled{background:#dff3e4;color:#1e6b34}.sub-pill.off{background:#eee;color:#888}
+.sub-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.sub-btn{padding:10px 14px;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;background:var(--grove);color:#fff}
+.sub-btn.alt{background:var(--fog);color:var(--grove);border:1px solid var(--mist)}
+.sub-btn.warn{background:#fff;color:var(--clay);border:1px solid var(--clay)}
+.sub-btn.hot{background:#E07A3F}
+.sub-btn:disabled{opacity:.5}
+.sub-vol{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--mist);font-size:15px}
+.sub-empty{padding:18px 16px;color:var(--silver);font-size:16px;text-align:center}
+.sub-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:15000;display:flex;align-items:flex-end;justify-content:center}
+.sub-sheet{background:var(--white);width:100%;max-width:560px;max-height:92%;overflow:auto;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:18px 18px calc(18px + var(--safe-bottom))}
+.sub-sheet h3{font-family:var(--font-d);font-style:italic;font-weight:400;font-size:30px;color:var(--ink);margin-bottom:10px}
+.sub-lbl{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--stone);margin:12px 0 5px}
+.sub-in{width:100%;padding:11px 12px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;background:#fff;color:var(--ink)}
+.sub-shift{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px}
+.sub-shift .sub-in{padding:9px 6px;font-size:15px}
+.sub-x{border:none;background:none;font-size:20px;color:var(--clay);cursor:pointer;padding:4px}
 .rr-util-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:42px;padding:0 16px;background:var(--enrich-dark);border-top:1px solid rgba(255,255,255,.08)}
 .rr-util-back{justify-self:start;background:none;border:none;color:#fff;font-size:26px;line-height:1;padding:4px 12px;cursor:pointer;font-family:var(--font-b);transition:opacity .15s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .rr-util-home{justify-self:center;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.16);border:none;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -884,6 +914,16 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <button onclick="showAddChore()" style="padding:10px 16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">+ New Chore</button>
     </div>
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
+  </div>
+
+  <!-- SUB (substitute Ranger requests) -->
+  <div class="tab-pane" id="tab-sub">
+    <div class="page-header"><span class="page-title">Sub</span><span class="page-count" id="subCount"></span></div>
+    <div style="padding:0 16px 6px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="sub-btn alt" onclick="loadSubs(true)">↻ Refresh</button>
+      <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Need a Sub</button>
+    </div>
+    <div id="subBody"><div class="spinner"></div></div>
   </div>
 
   <!-- PLANTS -->
@@ -1794,10 +1834,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.5';
+const APP_VERSION='v11.6';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-06 - School Reach picker: fixed the picker popping up behind the school card (z-index); now lists every actual contact by name (Principal, Ranger(s), Garden Keeper, SAA, Main Contacts 1-3, Plant Manager, CPM, Teachers, Other Contacts, plus Senior Leadership) with an icon showing whether each has a mobile on file for texting, instead of just role counts. The Reach screen you land on now also has an Add/Remove People button so you can pull in or drop anyone from the full roster before sending.';
+const BUILD_STAMP='2026-09-24 09:45 PT - NEW Sub tab: a Ranger who cannot make it requests a sub (school, one or more dates, start/end times, notes). Level 1-2 approves, then all Rangers, Master Rangers and Garden Keepers get an email + text. Rangers tap I Can Take It; Level 1-2 picks the sub from the volunteers (or assigns anyone). Sub, requester and other volunteers are notified; evening-before reminder text; 48h unfilled alert to Level 1-2. Nav badge shows items needing action. Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2585,7 +2625,8 @@ function buildNav(lvl){
       _nb('latest','Latest'),
       _nb('schools','Schools'),
       _nb('map','Map'),
-      _nb('chores','Chores')].filter(Boolean).join('')||'';
+      _nb('chores','Chores'),
+      _nb('sub','Sub')].filter(Boolean).join('')||'';
     const row2l3tabs=[];
     if(_navTabAllowed('notes',lvl)) row2l3tabs.push(_navBtn('notes','Notes'));
     if(_navTabAllowed('plants',lvl)) row2l3tabs.push(_navBtn('plants','Plants'));
@@ -2602,7 +2643,8 @@ function buildNav(lvl){
       _nb('latest','Latest'),
       _nb('schools','Schools'),
       _nb('map','Map'),
-      _nb('chores','Chores')].filter(Boolean).join('')||'';
+      _nb('chores','Chores'),
+      _nb('sub','Sub')].filter(Boolean).join('')||'';
     // Row 2: Notes, Rangers, People, Plants(if allowed), Settings(lvl1) — Control moved to Row 3 to avoid crowding
     let row2tabs=[];
     if(_navTabAllowed('notes',lvl))    row2tabs.push(_navBtn('notes','Notes'));
@@ -2641,6 +2683,7 @@ function buildNav(lvl){
   }
   // re-apply active state
   const active=document.querySelector('#nav .nav-btn.active');
+  if(typeof _subBadge==='function')setTimeout(_subBadge,0);
   if(!active){const first=row1.querySelector('.nav-btn');if(first)first.classList.add('active');}
   // Update nav height CSS var for toast positioning
   if(lvl>=3){
@@ -2671,6 +2714,7 @@ function showApp(){
   loadNotes();
   loadData();
   loadAppSettings(); // load plants-on/off + broadcast message
+  setTimeout(()=>loadSubs(false),4000); // Sub badge — background, never blocks startup
 }
 
 /* ═══ API ═══ */
@@ -8440,6 +8484,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
   if(tab==='action')renderAction();
+  if(tab==='sub'){renderSubs();loadSubs(false);}
   if(tab==='operations')showOperationsPage(_opsCurrentPage||'home');
   if(tab==='latest'){
     _activityLoaded=false;loadActivity();
@@ -10066,8 +10111,8 @@ function _sanitizeNavVisibility(){
   // Anyone whose per-level array already had 'control' explicitly toggled on/off
   // needs that carried over to 'data' once, so the rename doesn't silently hide
   // the new page for levels that had it customized.
-  const toBackfill=['site_ops_btn_v2','operations','data_v1'].filter(k=>!v.__migratedKeys.includes(k));
-  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data'};
+  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1'].filter(k=>!v.__migratedKeys.includes(k));
+  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub'};
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
@@ -10437,6 +10482,351 @@ function _fmtActivityTs(iso){
 
 /* ═══ BOOT ═══ */
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);
+/* ═══════════════════════════════════════════════════════════════════
+   SUB — substitute Ranger requests  (v11.6)
+   Flow: Ranger requests -> Level 1-2 approves -> Rangers volunteer ->
+   Level 1-2 picks the sub -> Filled. GAS sends every email + text.
+   Speed: its own small getSubs payload, fetched in the background a
+   few seconds after app open (for the nav badge) and cached; the tab
+   renders instantly from memory and refreshes behind the scenes.
+   No images anywhere in this tab.
+   ═══════════════════════════════════════════════════════════════════*/
+let _SUB={subs:[],volunteers:[],loaded:false,loading:false,ts:0};
+let _subHighlight='';
+const SUB_ELIGIBLE_CATS=['ranger','master_ranger','garden_keeper'];
+function _subMe(){return (SESSION&&SESSION.email||'').toLowerCase().trim();}
+function _subIsAdmin(){return !!(SESSION&&SESSION.accessLevel<=2);}
+function _subToday(){return new Date().toLocaleDateString('en-CA');}
+function _subCacheKey(){return 'rr_subs_cache_'+_subMe();}
+function _subSiteByKey(key){return (DATA.sites||[]).find(s=>(s.Key||s.key||'')===key)||(DATA.sites||[]).find(s=>sf(s,'Name','name')===key)||null;}
+function _subSiteName(key){const s=_subSiteByKey(key);return s?sf(s,'Name','name'):key;}
+function _subSitesOf(email){
+  const e=String(email||'').toLowerCase().trim();if(!e)return [];
+  return (DATA.sites||[]).filter(s=>[sf(s,'Ranger 1','Ranger1'),sf(s,'Ranger 2','Ranger2'),sf(s,'Garden Keeper','GardenKeeper')]
+    .some(x=>String(x||'').toLowerCase().trim()===e));
+}
+function _subLatLng(site){
+  if(!site)return null;
+  const p=String(sf(site,'Siteslatlong','SitesLatLong','siteslatlong')||'').split(',');
+  const la=Number(p[0]),ln=Number(p[1]);
+  return (p.length===2&&isFinite(la)&&isFinite(ln)&&(la||ln))?[la,ln]:null;
+}
+function _subMi(m){return (m/1609.34).toFixed(1)+' mi';}
+// Distance label for a shift: from the viewer's live location if known,
+// otherwise from the nearest of their own schools.
+function _subDistLabel(site,email,useLive){
+  const t=_subLatLng(site);if(!t)return '';
+  if(useLive&&_userLat!==null&&_userLng!==null)return _subMi(_haversine(Number(_userLat),Number(_userLng),t[0],t[1]))+' from you';
+  let best=null,bestName='';
+  _subSitesOf(email).forEach(s=>{
+    if(s===site)return;
+    const ll=_subLatLng(s);if(!ll)return;
+    const d=_haversine(ll[0],ll[1],t[0],t[1]);
+    if(best===null||d<best){best=d;bestName=sf(s,'Name','name');}
+  });
+  return best===null?'':_subMi(best)+' from '+bestName;
+}
+function _subFmtTime(t){
+  const m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return String(t||'');
+  let h=parseInt(m[1],10);const ap=h>=12?'pm':'am';h=h%12||12;
+  return h+(m[2]==='00'?'':':'+m[2])+ap;
+}
+function _subFmtDate(ds){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ds||''));if(!m)return String(ds||'');
+  return new Date(+m[1],+m[2]-1,+m[3],12).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+function _subFmtShift(s){
+  const t=(s.Start||s.End)?' · '+_subFmtTime(s.Start)+(s.End?'–'+_subFmtTime(s.End):''):'';
+  return _subFmtDate(s.Date)+t;
+}
+function _subPerson(email){const h=gh(email);return {name:h?fullName(h):email,mobile:h?(h.Mobile||h.mobile||''):''};}
+function _subVolsFor(id){return _SUB.volunteers.filter(v=>v['Sub ID']===id&&v.Status!=='Withdrawn');}
+function _subMapUrl(site){const a=sf(site,'Full Address','FullAddress')||sf(site,'Name','name');return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a);}
+
+async function loadSubs(force){
+  if(!SESSION||!CFG.URL)return;
+  if(!_SUB.loaded){
+    try{const c=JSON.parse(localStorage.getItem(_subCacheKey())||'null');
+      if(c&&c.subs){_SUB.subs=c.subs;_SUB.volunteers=c.volunteers||[];_SUB.loaded=true;_SUB.ts=0;renderSubs();_subBadge();}}catch(e){}
+  }
+  if(_SUB.loading)return;
+  if(!force&&_SUB.ts&&Date.now()-_SUB.ts<60000){renderSubs();return;}
+  _SUB.loading=true;
+  try{
+    const r=await gasPost({action:'getSubs',actor:SESSION.email});
+    if(r&&r.ok){
+      _SUB.subs=r.subs||[];_SUB.volunteers=r.volunteers||[];_SUB.loaded=true;_SUB.ts=Date.now();
+      try{localStorage.setItem(_subCacheKey(),JSON.stringify({subs:_SUB.subs,volunteers:_SUB.volunteers}));}catch(e){}
+    }else if(!_SUB.loaded){
+      const b=document.getElementById('subBody');
+      if(b)b.innerHTML='<div class="sub-empty">'+escHtml((r&&r.error)||'Could not load subs.')+'<br><small>If this says unknown action, the Apps Script needs a New Deployment.</small></div>';
+    }
+  }catch(e){
+    if(!_SUB.loaded){const b=document.getElementById('subBody');if(b)b.innerHTML='<div class="sub-empty">Connection error - tap Refresh.</div>';}
+  }
+  _SUB.loading=false;
+  if(_SUB.loaded)renderSubs();
+  _subBadge();
+}
+
+function _subBadgeCount(){
+  if(!_SUB.loaded)return 0;
+  const me=_subMe(),today=_subToday();
+  const up=_SUB.subs.filter(s=>s.Date>=today);
+  if(_subIsAdmin()){
+    const pendReq=new Set(up.filter(s=>s.Status==='Pending Approval').map(s=>s['Request ID']));
+    const needPick=up.filter(s=>s.Status==='Open'&&_subVolsFor(s.ID).some(v=>v.Status==='Offered')).length;
+    return pendReq.size+needPick;
+  }
+  return up.filter(s=>s.Status==='Open'&&String(s['Requested By']).toLowerCase()!==me&&
+    !_SUB.volunteers.some(v=>v['Sub ID']===s.ID&&String(v.Volunteer).toLowerCase()===me&&v.Status!=='Withdrawn')).length;
+}
+function _subBadge(){
+  const b=document.getElementById('nav_sub');if(!b)return;
+  let el=b.querySelector('.nav-badge');const n=_subBadgeCount();
+  if(!n){if(el)el.remove();return;}
+  if(!el){el=document.createElement('span');el.className='nav-badge';b.appendChild(el);}
+  el.textContent=n>9?'9+':String(n);
+}
+
+function _subSec(title,cards,emptyMsg){
+  if(!cards.length&&!emptyMsg)return '';
+  return '<div class="sub-sec">'+escHtml(title)+(cards.length?' ('+cards.length+')':'')+'</div>'+
+    (cards.length?cards.join(''):'<div class="sub-empty">'+escHtml(emptyMsg)+'</div>');
+}
+function _subPill(s){
+  const st=s.Status||'';
+  const cls=st==='Pending Approval'?'pending':st==='Open'?'open':st==='Filled'?'filled':'off';
+  return '<span class="sub-pill '+cls+'">'+escHtml(st==='Pending Approval'?'Needs approval':st)+'</span>';
+}
+function _subHead(site,siteKey,whenHtml,pill){
+  return '<div class="sub-top"><div><div class="sub-school">'+escHtml(site?sf(site,'Name','name'):siteKey)+'</div>'+
+    (site&&sf(site,'City','city')?'<div class="sub-meta" style="margin-top:1px">'+escHtml(sf(site,'City','city'))+'</div>':'')+
+    '<div class="sub-when">'+whenHtml+'</div></div>'+(pill||'')+'</div>';
+}
+function _subCardHl(id){return id&&_subHighlight&&(id===_subHighlight)?' hl':'';}
+
+// Pending approval — one card per request (may hold several dates)
+function _subPendingCard(group){
+  const s=group[0],site=_subSiteByKey(s.Site),req=_subPerson(s['Requested By']);
+  const hl=group.some(x=>x.ID===_subHighlight)?' hl':'';
+  return '<div class="sub-card'+hl+'" id="subcard_'+ea(s.ID)+'">'+
+    _subHead(site,s.Site,group.map(x=>escHtml(_subFmtShift(x))).join('<br>'),_subPill(s))+
+    '<div class="sub-meta">Requested by <b>'+escHtml(req.name)+'</b></div>'+
+    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+
+    '<div class="sub-actions">'+
+      '<button class="sub-btn" onclick="subApprove(\''+ea(s['Request ID'])+'\')">✓ Approve &amp; Send</button>'+
+      '<button class="sub-btn warn" onclick="subDecline(\''+ea(s['Request ID'])+'\')">Decline</button>'+
+    '</div></div>';
+}
+function _subEligibleOptions(excludeEmails){
+  const ex=new Set((excludeEmails||[]).map(e=>String(e).toLowerCase()));
+  return (DATA.humans||[]).filter(h=>{
+    const e=String(h.Email||h.email||'').toLowerCase();
+    return e&&!ex.has(e)&&humanRoleCats(h).some(c=>SUB_ELIGIBLE_CATS.includes(c));
+  }).sort((a,b)=>fullName(a).localeCompare(fullName(b)))
+    .map(h=>'<option value="'+ea(h.Email||h.email)+'">'+escHtml(fullName(h))+'</option>').join('');
+}
+// Open shift — admin view (volunteers + pick) or ranger view (volunteer)
+function _subOpenCard(s){
+  const me=_subMe(),admin=_subIsAdmin(),site=_subSiteByKey(s.Site),req=_subPerson(s['Requested By']);
+  const vols=_subVolsFor(s.ID);
+  const mineReq=String(s['Requested By']).toLowerCase()===me;
+  let body='';
+  if(admin){
+    body+=vols.length?vols.map(v=>{
+      const p=_subPerson(v.Volunteer),dist=_subDistLabel(site,v.Volunteer,false);
+      return '<div class="sub-vol"><div><b>'+escHtml(p.name)+'</b>'+
+        (p.mobile?' · <a href="tel:'+ea(p.mobile)+'">'+escHtml(p.mobile)+'</a>':'')+
+        (dist?'<div class="sub-meta" style="margin:0">'+escHtml(dist)+'</div>':'')+
+        (v.Note?'<div class="sub-meta" style="margin:0">“'+escHtml(v.Note)+'”</div>':'')+
+        '</div><button class="sub-btn" onclick="subAssign(\''+ea(s.ID)+'\',\''+ea(v.Volunteer)+'\')">Pick</button></div>';
+    }).join(''):'<div class="sub-meta">No volunteers yet.</div>';
+    body+='<div class="sub-actions"><select class="sub-in" id="subOther_'+ea(s.ID)+'" style="flex:1;min-width:160px;font-size:15px;padding:9px">'+
+      '<option value="">Assign someone else…</option>'+_subEligibleOptions([s['Requested By']])+'</select>'+
+      '<button class="sub-btn alt" onclick="subAssignOther(\''+ea(s.ID)+'\')">Assign</button></div>';
+  }else if(!mineReq){
+    const mine=vols.find(v=>String(v.Volunteer).toLowerCase()===me&&v.Status==='Offered');
+    body+='<div class="sub-actions">'+(mine
+      ?'<span class="sub-meta" style="align-self:center">✓ You offered - waiting to hear back</span><button class="sub-btn alt" onclick="subWithdraw(\''+ea(s.ID)+'\')">Withdraw</button>'
+      :'<button class="sub-btn hot" onclick="subVolunteer(\''+ea(s.ID)+'\')">🙋 I Can Take It</button>')+
+      (site?'<a class="sub-btn alt" style="text-decoration:none" target="_blank" href="'+ea(_subMapUrl(site))+'">Map</a>':'')+'</div>';
+  }
+  const dist=admin?'':_subDistLabel(site,me,true);
+  const actions=(admin||mineReq)?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'';
+  return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
+    _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s))+
+    '<div class="sub-meta">'+(mineReq?'Your request':'For <b>'+escHtml(req.name)+'</b>')+(dist?' · '+escHtml(dist):'')+'</div>'+
+    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+body+actions+'</div>';
+}
+// Shift the viewer is confirmed to cover — full site details
+function _subAssignedCard(s){
+  const site=_subSiteByKey(s.Site),req=_subPerson(s['Requested By']);
+  const addr=site?sf(site,'Full Address','FullAddress'):'',phone=site?sf(site,'Telephone','telephone'):'';
+  const det=site?sf(site,'SiteDetails','Site Details','siteDetails'):'';
+  return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
+    _subHead(site,s.Site,escHtml(_subFmtShift(s)),'<span class="sub-pill filled">You\'re subbing</span>')+
+    (addr?'<div class="sub-meta">📍 <a target="_blank" href="'+ea(_subMapUrl(site))+'">'+escHtml(addr)+'</a></div>':'')+
+    (phone?'<div class="sub-meta">📞 <a href="tel:'+ea(phone)+'">'+escHtml(phone)+'</a></div>':'')+
+    '<div class="sub-meta">Covering for <b>'+escHtml(req.name)+'</b>'+(req.mobile?' · <a href="tel:'+ea(req.mobile)+'">'+escHtml(req.mobile)+'</a>':'')+'</div>'+
+    (det?'<div class="sub-notes"><b>Site details:</b> '+escHtml(det)+'</div>':'')+
+    (s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':'')+
+    (site?'<div class="sub-actions"><button class="sub-btn alt" onclick="showSchoolDetailByKey(\''+ea(site.Key||site.key||'')+'\')">Open School</button></div>':'')+
+    '</div>';
+}
+function _subOtherCard(s){
+  const me=_subMe(),admin=_subIsAdmin(),site=_subSiteByKey(s.Site);
+  const mineReq=String(s['Requested By']).toLowerCase()===me;
+  let who='';
+  if(s.Status==='Filled'){const p=_subPerson(s['Assigned To']);who='Covered by <b>'+escHtml(p.name)+'</b>'+(p.mobile?' · <a href="tel:'+ea(p.mobile)+'">'+escHtml(p.mobile)+'</a>':'');}
+  else if(s.Status==='Declined')who='Not approved'+(s['Decline Note']?': '+escHtml(s['Decline Note']):'');
+  if(admin&&!mineReq)who=(who?who+'<br>':'')+'Requested by '+escHtml(_subPerson(s['Requested By']).name);
+  const canCancel=(admin||mineReq)&&['Pending Approval','Filled'].includes(s.Status)&&s.Date>=_subToday();
+  return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
+    _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s))+
+    (who?'<div class="sub-meta">'+who+'</div>':'')+
+    (canCancel?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'')+
+    '</div>';
+}
+
+function renderSubs(){
+  const body=document.getElementById('subBody');if(!body)return;
+  if(!_SUB.loaded){body.innerHTML='<div class="spinner"></div>';return;}
+  const me=_subMe(),admin=_subIsAdmin(),today=_subToday();
+  const subs=_SUB.subs.slice().sort((a,b)=>((a.Date||'')+(a.Start||'')).localeCompare((b.Date||'')+(b.Start||'')));
+  const up=subs.filter(s=>s.Date>=today);
+  const isMe=e=>String(e||'').toLowerCase()===me;
+  let html='';
+  html+=_subSec('You Are Subbing',up.filter(s=>s.Status==='Filled'&&isMe(s['Assigned To'])).map(_subAssignedCard));
+  if(admin){
+    const groups={};
+    up.filter(s=>s.Status==='Pending Approval').forEach(s=>{(groups[s['Request ID']]=groups[s['Request ID']]||[]).push(s);});
+    html+=_subSec('Needs Approval',Object.values(groups).map(_subPendingCard));
+    const open=up.filter(s=>s.Status==='Open');
+    const withV=open.filter(s=>_subVolsFor(s.ID).some(v=>v.Status==='Offered'));
+    html+=_subSec('Volunteers Waiting - Pick a Sub',withV.map(_subOpenCard));
+    html+=_subSec('Open - No Volunteers Yet',open.filter(s=>!withV.includes(s)).map(_subOpenCard));
+    html+=_subSec('Filled - Upcoming',up.filter(s=>s.Status==='Filled'&&!isMe(s['Assigned To'])).map(_subOtherCard));
+  }else{
+    html+=_subSec('Open Opportunities',up.filter(s=>s.Status==='Open'&&!isMe(s['Requested By'])).map(_subOpenCard),'No open sub shifts right now.');
+  }
+  const mine=subs.filter(s=>isMe(s['Requested By'])&&(admin?true:true));
+  const mineUp=mine.filter(s=>s.Date>=today);
+  html+=_subSec('My Requests',mineUp.map(s=>s.Status==='Open'&&!admin?_subOpenCard(s):_subOtherCard(s)),
+    'None. Tap “+ I Need a Sub” if you can’t make it to a school.');
+  body.innerHTML=html||'<div class="sub-empty">Nothing here yet.</div>';
+  const cnt=document.getElementById('subCount');
+  if(cnt){const n=_subBadgeCount();cnt.textContent=n?(n+(admin?' need action':' open')):'';}
+  if(_subHighlight){
+    const el=document.getElementById('subcard_'+_subHighlight)||[...body.querySelectorAll('.sub-card.hl')][0];
+    if(el)setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'center'}),60);
+  }
+}
+
+// ── Request form ────────────────────────────────────────────────────────────
+function _subShiftRow(date,start,end){
+  const t=_subToday();
+  return '<div class="sub-shift"><input type="date" class="sub-in" min="'+t+'" value="'+ea(date||'')+'">'+
+    '<input type="time" class="sub-in" value="'+ea(start||'')+'"><input type="time" class="sub-in" value="'+ea(end||'')+'">'+
+    '<button class="sub-x" onclick="this.parentElement.remove()">✕</button></div>';
+}
+function subAddShiftRow(){
+  const box=document.getElementById('subShifts');if(!box)return;
+  const rows=box.querySelectorAll('.sub-shift'),last=rows[rows.length-1];
+  let d='',st='',en='';
+  if(last){const i=last.querySelectorAll('input');st=i[1].value;en=i[2].value;
+    if(i[0].value){const x=new Date(i[0].value+'T12:00:00');x.setDate(x.getDate()+7);d=x.toLocaleDateString('en-CA');}}
+  box.insertAdjacentHTML('beforeend',_subShiftRow(d,st,en));
+}
+function _subFillSchoolSelect(){
+  const sel=document.getElementById('subSite');if(!sel)return;
+  const admin=_subIsAdmin(),forEl=document.getElementById('subFor');
+  const who=forEl?forEl.value:_subMe();
+  const own=_subSitesOf(who);
+  const nm=s=>sf(s,'Name','name'),key=s=>s.Key||s.key||nm(s);
+  let html=own.length?'<optgroup label="'+(who===_subMe()?'My schools':'Their schools')+'">'+own.map(s=>'<option value="'+ea(key(s))+'">'+escHtml(nm(s))+'</option>').join('')+'</optgroup>':'';
+  if(admin){
+    const rest=(DATA.sites||[]).filter(s=>!own.includes(s)).sort((a,b)=>nm(a).localeCompare(nm(b)));
+    html+='<optgroup label="All schools">'+rest.map(s=>'<option value="'+ea(key(s))+'">'+escHtml(nm(s))+'</option>').join('')+'</optgroup>';
+  }
+  sel.innerHTML=html;
+}
+function showSubRequestForm(){
+  const admin=_subIsAdmin(),me=_subMe();
+  if(!admin&&!_subSitesOf(me).length){alert('You are not assigned to any schools yet, so there is nothing to request a sub for. Please contact the office.');return;}
+  let last={};try{last=JSON.parse(localStorage.getItem('rr_sub_last_times')||'{}');}catch(e){}
+  const tmr=new Date();tmr.setDate(tmr.getDate()+1);
+  const forHtml=admin?'<div class="sub-lbl">Sub needed for</div><select class="sub-in" id="subFor" onchange="_subFillSchoolSelect()">'+
+    '<option value="'+ea(me)+'">Me</option>'+_subEligibleOptions([me])+'</select>':'';
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='subOverlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>I Need a Sub</h3>'+forHtml+
+    '<div class="sub-lbl">School</div><select class="sub-in" id="subSite"></select>'+
+    '<div class="sub-lbl">Date · Start · End</div><div id="subShifts">'+_subShiftRow(tmr.toLocaleDateString('en-CA'),last.start||'',last.end||'')+'</div>'+
+    '<button class="sub-btn alt" style="margin-top:4px" onclick="subAddShiftRow()">+ Add Another Date</button>'+
+    '<div class="sub-lbl">Notes for the sub</div><textarea class="sub-in" id="subNotes" rows="4" placeholder="What to do that day, which classes, where tools are…"></textarea>'+
+    '<div class="sub-meta">The school address, phone and site details (parking, gates) are included automatically.'+
+      (admin?' Requests you create go straight out to Rangers.':' Your request goes to the office for approval, then out to other Rangers.')+'</div>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'subOverlay\').remove()">Cancel</button>'+
+    '<button class="sub-btn hot" id="subSendBtn" onclick="submitSubRequest()">Send Request</button></div></div>';
+  document.body.appendChild(ov);
+  _subFillSchoolSelect();
+}
+async function submitSubRequest(){
+  const siteKey=(document.getElementById('subSite')||{}).value;
+  const forEl=document.getElementById('subFor');
+  const notes=(document.getElementById('subNotes')||{}).value||'';
+  const shifts=[...document.querySelectorAll('#subShifts .sub-shift')].map(r=>{const i=r.querySelectorAll('input');return {date:i[0].value,start:i[1].value,end:i[2].value};}).filter(x=>x.date);
+  if(!siteKey){alert('Pick a school.');return;}
+  if(!shifts.length){alert('Add at least one date.');return;}
+  const today=_subToday();
+  if(shifts.some(x=>x.date<today)){alert('Dates must be today or later.');return;}
+  if(shifts.some(x=>x.start&&x.end&&x.end<=x.start)){alert('An end time is before its start time.');return;}
+  const btn=document.getElementById('subSendBtn');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  try{
+    const r=await gasPost({action:'requestSub',actor:SESSION.email,siteKey,shifts,notes,forEmail:forEl?forEl.value:''});
+    if(r&&r.ok){
+      try{localStorage.setItem('rr_sub_last_times',JSON.stringify({start:shifts[0].start,end:shifts[0].end}));}catch(e){}
+      const ov=document.getElementById('subOverlay');if(ov)ov.remove();
+      showSaveToast(r.status==='Open'?'✅ Sent to Rangers':'✅ Sent for approval');
+      loadSubs(true);
+    }else{alert((r&&r.error)||'Could not send.');if(btn){btn.disabled=false;btn.textContent='Send Request';}}
+  }catch(e){alert('Connection error - please try again.');if(btn){btn.disabled=false;btn.textContent='Send Request';}}
+}
+
+// ── Actions ─────────────────────────────────────────────────────────────────
+async function _subAct(payload,doneMsg,busyMsg){
+  showPersistentToast(busyMsg||'Sending…');
+  try{
+    const r=await gasPost(Object.assign({actor:SESSION.email},payload));
+    hidePersistentToast();
+    if(r&&r.ok){showSaveToast(doneMsg);await loadSubs(true);}
+    else{alert((r&&r.error)||'Something went wrong.');loadSubs(true);}
+  }catch(e){hidePersistentToast();alert('Connection error - please try again.');}
+}
+function subApprove(reqId){_subAct({action:'approveSub',requestId:reqId,approve:true},'✅ Approved - Rangers notified','Approving & notifying Rangers…');}
+function subDecline(reqId){
+  const note=prompt('Decline this request? Optional note to the Ranger:','');
+  if(note===null)return;
+  _subAct({action:'approveSub',requestId:reqId,approve:false,note},'Request declined');
+}
+function subVolunteer(id){
+  const note=prompt('Offer to take this shift? Optional note (e.g. “can only stay until 11”):','');
+  if(note===null)return;
+  _subAct({action:'volunteerSub',subId:id,note},'🙋 Thanks! The office will confirm');
+}
+function subWithdraw(id){if(confirm('Withdraw your offer for this shift?'))_subAct({action:'volunteerSub',subId:id,withdraw:true},'Offer withdrawn');}
+function subAssign(id,email){
+  if(!confirm('Confirm '+_subPerson(email).name+' as the sub? They, the requesting Ranger and other volunteers will be notified.'))return;
+  _subAct({action:'assignSub',subId:id,assignee:email},'✅ Sub confirmed - everyone notified','Confirming sub…');
+}
+function subAssignOther(id){
+  const sel=document.getElementById('subOther_'+id);
+  if(!sel||!sel.value){alert('Pick someone from the list first.');return;}
+  subAssign(id,sel.value);
+}
+function subCancel(id){if(confirm('Cancel this sub shift? Anyone involved will be notified.'))_subAct({action:'cancelSub',subId:id},'Shift cancelled');}
+
 const _saved=localStorage.getItem(CFG.SK);
 if(_saved){try{SESSION=JSON.parse(_saved);showApp();_tryDeepLink(25);}catch(e){localStorage.removeItem(CFG.SK);}}
 
@@ -10444,6 +10834,17 @@ if(_saved){try{SESSION=JSON.parse(_saved);showApp();_tryDeepLink(25);}catch(e){l
 // emails so a school name is a real clickable link) opens straight to that
 // school's detail once Sites data has loaded, instead of just the home tab.
 function _tryDeepLink(retries){
+  // Deep link: .../ranger-rover/#sub=S1234567 (from sub request emails/texts)
+  const msub=/[#&]sub=([^&]*)/.exec(location.hash);
+  if(msub){
+    if(!SESSION)return;
+    _subHighlight=decodeURIComponent(msub[1]||'');
+    if(DATA.sites&&DATA.sites.length){
+      switchTab('sub');loadSubs(true);
+      try{history.replaceState(null,'',location.pathname);}catch(e){}
+    }else if(retries>0){setTimeout(()=>_tryDeepLink(retries-1),400);}
+    return;
+  }
   const ms=/[#&]school=([^&]+)/.exec(location.hash);
   if(ms){
     const key=decodeURIComponent(ms[1]);
@@ -12107,6 +12508,7 @@ const NAV_ALL_TABS = [
   {key:'schools',  label:'🏫 Schools'},
   {key:'map',      label:'🗺 Map'},
   {key:'chores',   label:'✅ Chores'},
+  {key:'sub',      label:'🙋 Sub'},
   {key:'latest',   label:'🕐 Latest'},
   {key:'rangers',  label:'🌿 Rangers'},
   {key:'people',   label:'👥 People'},
