@@ -1834,10 +1834,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.6';
+const APP_VERSION='v11.7';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-24 09:45 PT - NEW Sub tab: a Ranger who cannot make it requests a sub (school, one or more dates, start/end times, notes). Level 1-2 approves, then all Rangers, Master Rangers and Garden Keepers get an email + text. Rangers tap I Can Take It; Level 1-2 picks the sub from the volunteers (or assigns anyone). Sub, requester and other volunteers are notified; evening-before reminder text; 48h unfilled alert to Level 1-2. Nav badge shows items needing action. Requires GAS New Deployment.';
+const BUILD_STAMP='2026-09-24 10:20 PT - Sub tab: Approve and Send now opens a sheet to choose recipients (All, None, Nearest 5/10, search, hand-pick; sorted by distance; shows who gets texts) and to edit the email subject, email message and text message ({{FirstName}}, {{Link}} filled per person; live text length counter). Email/Text toggles. New Send to More button on open shifts (people already sent start unchecked). Level 1-2 created requests open the same sheet. Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10615,7 +10615,7 @@ function _subPendingCard(group){
     '<div class="sub-meta">Requested by <b>'+escHtml(req.name)+'</b></div>'+
     (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+
     '<div class="sub-actions">'+
-      '<button class="sub-btn" onclick="subApprove(\''+ea(s['Request ID'])+'\')">✓ Approve &amp; Send</button>'+
+      '<button class="sub-btn" onclick="subOpenSendSheet(\''+ea(s['Request ID'])+'\',false)">✓ Approve &amp; Send…</button>'+
       '<button class="sub-btn warn" onclick="subDecline(\''+ea(s['Request ID'])+'\')">Decline</button>'+
     '</div></div>';
 }
@@ -10644,7 +10644,9 @@ function _subOpenCard(s){
     }).join(''):'<div class="sub-meta">No volunteers yet.</div>';
     body+='<div class="sub-actions"><select class="sub-in" id="subOther_'+ea(s.ID)+'" style="flex:1;min-width:160px;font-size:15px;padding:9px">'+
       '<option value="">Assign someone else…</option>'+_subEligibleOptions([s['Requested By']])+'</select>'+
-      '<button class="sub-btn alt" onclick="subAssignOther(\''+ea(s.ID)+'\')">Assign</button></div>';
+      '<button class="sub-btn alt" onclick="subAssignOther(\''+ea(s.ID)+'\')">Assign</button></div>'+
+      '<div class="sub-actions"><button class="sub-btn alt" onclick="subOpenSendSheet(\''+ea(s['Request ID'])+'\',true)">📣 Send to More…</button>'+
+      (s.Notified?'<span class="sub-meta" style="align-self:center">Sent to '+String(s.Notified).split(',').filter(x=>x.trim()).length+' so far</span>':'')+'</div>';
   }else if(!mineReq){
     const mine=vols.find(v=>String(v.Volunteer).toLowerCase()===me&&v.Status==='Offered');
     body+='<div class="sub-actions">'+(mine
@@ -10766,7 +10768,7 @@ function showSubRequestForm(){
     '<button class="sub-btn alt" style="margin-top:4px" onclick="subAddShiftRow()">+ Add Another Date</button>'+
     '<div class="sub-lbl">Notes for the sub</div><textarea class="sub-in" id="subNotes" rows="4" placeholder="What to do that day, which classes, where tools are…"></textarea>'+
     '<div class="sub-meta">The school address, phone and site details (parking, gates) are included automatically.'+
-      (admin?' Requests you create go straight out to Rangers.':' Your request goes to the office for approval, then out to other Rangers.')+'</div>'+
+      (admin?' Next you’ll choose who to send it to and can edit the message.':' Your request goes to the office for approval, then out to other Rangers.')+'</div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'subOverlay\').remove()">Cancel</button>'+
     '<button class="sub-btn hot" id="subSendBtn" onclick="submitSubRequest()">Send Request</button></div></div>';
   document.body.appendChild(ov);
@@ -10788,8 +10790,11 @@ async function submitSubRequest(){
     if(r&&r.ok){
       try{localStorage.setItem('rr_sub_last_times',JSON.stringify({start:shifts[0].start,end:shifts[0].end}));}catch(e){}
       const ov=document.getElementById('subOverlay');if(ov)ov.remove();
-      showSaveToast(r.status==='Open'?'✅ Sent to Rangers':'✅ Sent for approval');
-      loadSubs(true);
+      if(r.byAdmin){
+        showSaveToast('Request created - choose who to send it to');
+        _SUB.loading=false;await loadSubs(true);
+        subOpenSendSheet(r.requestId,false);
+      }else{showSaveToast('✅ Sent for approval');loadSubs(true);}
     }else{alert((r&&r.error)||'Could not send.');if(btn){btn.disabled=false;btn.textContent='Send Request';}}
   }catch(e){alert('Connection error - please try again.');if(btn){btn.disabled=false;btn.textContent='Send Request';}}
 }
@@ -10804,7 +10809,7 @@ async function _subAct(payload,doneMsg,busyMsg){
     else{alert((r&&r.error)||'Something went wrong.');loadSubs(true);}
   }catch(e){hidePersistentToast();alert('Connection error - please try again.');}
 }
-function subApprove(reqId){_subAct({action:'approveSub',requestId:reqId,approve:true},'✅ Approved - Rangers notified','Approving & notifying Rangers…');}
+function subApprove(reqId){subOpenSendSheet(reqId,false);}
 function subDecline(reqId){
   const note=prompt('Decline this request? Optional note to the Ranger:','');
   if(note===null)return;
@@ -10826,6 +10831,120 @@ function subAssignOther(id){
   subAssign(id,sel.value);
 }
 function subCancel(id){if(confirm('Cancel this sub shift? Anyone involved will be notified.'))_subAct({action:'cancelSub',subId:id},'Shift cancelled');}
+// ── Approve & Send sheet (v11.7) ────────────────────────────────────────────
+// Level 1-2 chooses exactly who gets the "sub needed" alert (All / None /
+// Nearest N / hand-pick, sorted by distance) and can edit the email subject,
+// email body and text before it goes out. {{FirstName}} and {{Link}} are
+// filled in per person by GAS. Also used for "Send to More" on open shifts
+// (already-notified people start unchecked).
+function _subDefaultMsg(group){
+  const s0=group[0],site=_subSiteByKey(s0.Site);
+  const name=site?sf(site,'Name','name'):s0.Site,city=site?sf(site,'City','city'):'';
+  const addr=site?sf(site,'Full Address','FullAddress'):'';
+  const where=name+(city?' ('+city+')':'');
+  const plain=s=>_subFmtDate(s.Date)+((s.Start||s.End)?', '+_subFmtTime(s.Start)+(s.End?'-'+_subFmtTime(s.End):''):'');
+  const when=group.length===1?plain(s0):group.length+' shifts starting '+_subFmtDate(s0.Date);
+  return {
+    subject:'Sub needed - '+name+', '+_subFmtDate(s0.Date),
+    email:'Hi {{FirstName}},\n\nA sub is needed at '+where+':\n'+group.map(s=>'- '+plain(s)).join('\n')+
+      (addr?'\n\nAddress: '+addr:'')+(s0.Notes?'\n\nNotes: '+s0.Notes:'')+
+      '\n\nIf you can take it, tap "I can take it" in Ranger Rover:\n{{Link}}\n\nThank you!\nEnrich LA',
+    sms:'Enrich LA - Sub needed: '+where+', '+when+'. Can you take it? {{Link}}'
+  };
+}
+function _subSmsCount(){
+  const ta=document.getElementById('subSendSms'),out=document.getElementById('subSmsCount');if(!ta||!out)return;
+  const raw=ta.value,len=raw.replace(/\{\{\s*Link\s*\}\}/gi,'x'.repeat(58)).replace(/\{\{\s*FirstName\s*\}\}/gi,'xxxxxxxx').length;
+  const seg=len<=160?1:Math.ceil(len/153);
+  const bad=/[^\x20-\x7E\n\u2013\u2014\u2018\u2019\u201C\u201D]/.test(raw);
+  out.innerHTML='About '+len+' characters · '+seg+' text'+(seg>1?'s':'')+' per person'+
+    (bad?' · <span style="color:var(--clay)">emoji/special characters will be removed</span>':'')+
+    (/\{\{\s*Link\s*\}\}/i.test(raw)?'':' · <span style="color:var(--clay)">no {{Link}} - they won’t get a tap-through link</span>');
+}
+function _subSendCount(){
+  const all=[...document.querySelectorAll('#subSendList input[type=checkbox]')];
+  const n=all.filter(c=>c.checked).length;
+  const el=document.getElementById('subSendSel');if(el)el.textContent=n+' of '+all.length+' selected';
+  const btn=document.getElementById('subSendGo');
+  if(btn&&!btn.disabled)btn.textContent=(btn.dataset.resend==='1'?'Send to ':'Approve & Send to ')+n;
+}
+function subSendPick(mode,n){
+  const boxes=[...document.querySelectorAll('#subSendList input[type=checkbox]')];
+  boxes.forEach((c,i)=>{c.checked=mode==='all'?true:mode==='none'?false:(i<n);});
+  _subSendCount();
+}
+function subSendFilter(q){
+  q=String(q||'').toLowerCase().trim();
+  document.querySelectorAll('#subSendList .sub-vol').forEach(r=>{r.style.display=!q||r.dataset.name.includes(q)?'':'none';});
+}
+function subOpenSendSheet(reqId,resend){
+  const status=resend?'Open':'Pending Approval';
+  const group=_SUB.subs.filter(s=>s['Request ID']===reqId&&s.Status===status)
+    .sort((a,b)=>((a.Date||'')+(a.Start||'')).localeCompare((b.Date||'')+(b.Start||'')));
+  if(!group.length){alert('Nothing to send for this request - try Refresh.');return;}
+  const s0=group[0],site=_subSiteByKey(s0.Site),reqEmail=String(s0['Requested By']).toLowerCase();
+  const already=new Set();
+  group.forEach(s=>String(s.Notified||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean).forEach(e=>already.add(e)));
+  const t=_subLatLng(site);
+  const people=(DATA.humans||[]).filter(h=>{
+    const e=String(h.Email||h.email||'').toLowerCase();
+    return e&&e!==reqEmail&&humanRoleCats(h).some(c=>SUB_ELIGIBLE_CATS.includes(c));
+  }).map(h=>{
+    const e=String(h.Email||h.email).toLowerCase();
+    let d=null,from='';
+    if(t)_subSitesOf(e).forEach(x=>{if(x===site)return;const ll=_subLatLng(x);if(!ll)return;const m=_haversine(ll[0],ll[1],t[0],t[1]);if(d===null||m<d){d=m;from=sf(x,'Name','name');}});
+    const mob=h.Mobile||h.mobile||'';
+    const sms=!!mob&&String(h['SMS Consent']||'').trim().toUpperCase()==='TRUE';
+    return {e,name:fullName(h)||e,d,from,sms,mob,sent:already.has(e)};
+  }).sort((a,b)=>(a.d===null)-(b.d===null)||(a.d||0)-(b.d||0)||a.name.localeCompare(b.name));
+  const msg=_subDefaultMsg(group);
+  const rows=people.map(p=>'<label class="sub-vol" data-name="'+ea(p.name.toLowerCase())+'" style="cursor:pointer">'+
+    '<span style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-email="'+ea(p.e)+'" '+((resend?!p.sent:true)?'checked':'')+' onchange="_subSendCount()" style="width:20px;height:20px">'+
+    '<span><b>'+escHtml(p.name)+'</b>'+(p.sent?' <span class="sub-pill off">already sent</span>':'')+
+    '<div class="sub-meta" style="margin:0">'+(p.d!==null?escHtml(_subMi(p.d)+' from '+p.from):'distance unknown')+'</div></span></span>'+
+    '<span style="font-size:15px;white-space:nowrap" title="'+(p.sms?'Gets email + text':'Email only (no SMS consent/mobile)')+'">✉️'+(p.sms?' 📱':'')+'</span></label>').join('');
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='subSendOverlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>'+(resend?'Send to More Rangers':'Approve &amp; Send')+'</h3>'+
+    '<div class="sub-school">'+escHtml(site?sf(site,'Name','name'):s0.Site)+'</div>'+
+    '<div class="sub-meta">'+group.map(s=>escHtml(_subFmtShift(s))).join('<br>')+'<br>Requested by <b>'+escHtml(_subPerson(s0['Requested By']).name)+'</b></div>'+
+    '<div class="sub-lbl">Send to <span id="subSendSel" style="text-transform:none;letter-spacing:0;font-weight:600"></span></div>'+
+    '<div class="sub-actions" style="margin-top:0">'+
+      '<button class="sub-btn alt" onclick="subSendPick(\'all\')">All</button>'+
+      '<button class="sub-btn alt" onclick="subSendPick(\'none\')">None</button>'+
+      '<button class="sub-btn alt" onclick="subSendPick(\'near\',5)">Nearest 5</button>'+
+      '<button class="sub-btn alt" onclick="subSendPick(\'near\',10)">Nearest 10</button></div>'+
+    '<input class="sub-in" placeholder="Search names…" oninput="subSendFilter(this.value)" style="margin-top:8px">'+
+    '<div id="subSendList" style="max-height:260px;overflow:auto;margin-top:6px;border:1px solid var(--mist);border-radius:var(--r-sm);padding:0 10px;background:#fff">'+
+      (rows||'<div class="sub-empty">No Rangers found.</div>')+'</div>'+
+    '<div class="sub-lbl">Send by</div>'+
+    '<label style="margin-right:18px;font-size:16px"><input type="checkbox" id="subSendByEmail" checked> Email</label>'+
+    '<label style="font-size:16px"><input type="checkbox" id="subSendBySms" checked> Text (📱 people only)</label>'+
+    '<div class="sub-lbl">Email subject</div><input class="sub-in" id="subSendSubject" value="'+ea(msg.subject)+'">'+
+    '<div class="sub-lbl">Email message</div><textarea class="sub-in" id="subSendEmail" rows="10">'+escHtml(msg.email)+'</textarea>'+
+    '<div class="sub-lbl">Text message</div><textarea class="sub-in" id="subSendSms" rows="4" oninput="_subSmsCount()">'+escHtml(msg.sms)+'</textarea>'+
+    '<div class="sub-meta" id="subSmsCount"></div>'+
+    '<div class="sub-meta"><b>{{FirstName}}</b> and <b>{{Link}}</b> are filled in for each person. {{Link}} opens this shift in the app.</div>'+
+    '<div class="sub-actions" style="justify-content:flex-end">'+
+      '<button class="sub-btn alt" onclick="document.getElementById(\'subSendOverlay\').remove()">Cancel</button>'+
+      '<button class="sub-btn hot" id="subSendGo" data-resend="'+(resend?'1':'0')+'" onclick="subSendFromSheet(\''+ea(reqId)+'\','+(resend?'true':'false')+')">Send</button></div></div>';
+  document.body.appendChild(ov);
+  _subSendCount();_subSmsCount();
+}
+async function subSendFromSheet(reqId,resend){
+  const recipients=[...document.querySelectorAll('#subSendList input[type=checkbox]:checked')].map(c=>c.dataset.email);
+  const sendEmail=document.getElementById('subSendByEmail').checked,sendSms=document.getElementById('subSendBySms').checked;
+  if(!recipients.length){alert('Pick at least one person.');return;}
+  if(!sendEmail&&!sendSms){alert('Turn on Email, Text, or both.');return;}
+  const payload={action:'approveSub',requestId:reqId,approve:true,resend:!!resend,recipients,sendEmail,sendSms,
+    subject:document.getElementById('subSendSubject').value.trim(),
+    emailBody:document.getElementById('subSendEmail').value,
+    smsBody:document.getElementById('subSendSms').value.trim()};
+  if(sendEmail&&!payload.emailBody.trim()){alert('The email message is empty.');return;}
+  if(sendSms&&!payload.smsBody){alert('The text message is empty.');return;}
+  const ov=document.getElementById('subSendOverlay');if(ov)ov.remove();
+  await _subAct(payload,(resend?'✅ Sent to ':'✅ Approved - sent to ')+recipients.length,'Sending to '+recipients.length+' people…');
+}
 
 const _saved=localStorage.getItem(CFG.SK);
 if(_saved){try{SESSION=JSON.parse(_saved);showApp();_tryDeepLink(25);}catch(e){localStorage.removeItem(CFG.SK);}}
