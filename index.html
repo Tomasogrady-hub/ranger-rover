@@ -1837,10 +1837,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.8';
+const APP_VERSION='v11.9';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-09-24 10:40 PT - Sub tab: added a yellow Testing only notice at the top telling Rangers to keep doing sub requests the normal way until notified the system is ready. No GAS change.';
+const BUILD_STAMP='2026-09-28 10:05 PT - Reach: Reuse a Past Message now pages through all past messages 20 at a time with Newer and Older buttons at the bottom. Next page prefetched in background. No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -12415,8 +12415,73 @@ function closeReachCompose() {
 }
 
 // ── Reuse a past message: pull recent sends from the Memos sheet and let the
-//    user load one straight into Subject + Message as a starting template ────
+//    user load one straight into Subject + Message as a starting template.
+//    Paged: shows one page at a time with Newer / Older buttons. Only the first
+//    page is fetched up front; the next page is prefetched quietly in the
+//    background so Older feels instant. GAS listMemos returns newest-first
+//    de-duped templates up to limit, so a bigger limit = further back.
 let _reachTemplateCache = [];
+const _REACH_TPL_PAGE = 20;
+let _reachTplPage = 0;
+let _reachTplAllLoaded = false;
+let _reachTplFetching = null;
+function _reachTplFetch(need) {
+  // need = how many templates we want in the cache; ask for one extra so we
+  // can tell whether an older page exists.
+  if (_reachTplAllLoaded || _reachTemplateCache.length > need) return Promise.resolve();
+  if (_reachTplFetching) return _reachTplFetching;
+  const lim = need + 1;
+  _reachTplFetching = gasPost({ action: 'listMemos', limit: lim }).then(res => {
+    const memos = (res && res.memos) || [];
+    _reachTemplateCache = memos;
+    if (memos.length < lim) _reachTplAllLoaded = true;
+  }).finally(() => { _reachTplFetching = null; });
+  return _reachTplFetching;
+}
+function _renderReachTplPage() {
+  const listEl = document.getElementById('reachTemplateList');
+  const navEl  = document.getElementById('reachTemplateNav');
+  if (!listEl) return;
+  const s = _reachTplPage * _REACH_TPL_PAGE;
+  const items = _reachTemplateCache.slice(s, s + _REACH_TPL_PAGE);
+  if (!items.length) {
+    listEl.innerHTML = '<div style="color:var(--silver);padding:20px 0;text-align:center">No past messages yet</div>';
+    if (navEl) navEl.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = items.map((m, j) => {
+    const i = s + j;
+    return `
+      <button type="button" onclick="_applyReachTemplate(${i})" style="text-align:left;padding:10px 12px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);cursor:pointer">
+        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(m.subject || '(no subject)')}</div>
+        <div style="font-size:12px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">${escHtml((m.message || '').replace(/\n/g,' ').slice(0,90))}</div>
+        <div style="font-size:11px;color:var(--silver);margin-top:3px">${escHtml(m.type || '')}${m.timestamp ? ' · ' + new Date(m.timestamp).toLocaleDateString() : ''}</div>
+      </button>`;
+  }).join('');
+  const hasNewer = _reachTplPage > 0;
+  const hasOlder = _reachTemplateCache.length > s + _REACH_TPL_PAGE || !_reachTplAllLoaded;
+  const btn = (on, label, fn) => `<button type="button" ${on ? `onclick="${fn}"` : 'disabled'} style="flex:1;padding:10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:${on ? 'var(--fog)' : 'transparent'};color:${on ? 'inherit' : 'var(--silver)'};font-weight:600;cursor:${on ? 'pointer' : 'default'}">${label}</button>`;
+  if (navEl) navEl.innerHTML = (hasNewer || hasOlder)
+    ? `${btn(hasNewer, '◀ Newer', '_reachTplGo(-1)')}<span style="font-size:12px;color:var(--stone);white-space:nowrap;padding:0 8px">Page ${_reachTplPage + 1}</span>${btn(hasOlder, 'Older ▶', '_reachTplGo(1)')}`
+    : '';
+  const panelBox = listEl.parentElement;
+  if (panelBox) panelBox.scrollTop = 0;
+  // Quietly prefetch the page after this one so Older is instant
+  _reachTplFetch((_reachTplPage + 2) * _REACH_TPL_PAGE).catch(() => {});
+}
+async function _reachTplGo(dir) {
+  const next = Math.max(0, _reachTplPage + dir);
+  const need = (next + 1) * _REACH_TPL_PAGE;
+  if (dir > 0 && _reachTemplateCache.length < need && !_reachTplAllLoaded) {
+    const navEl = document.getElementById('reachTemplateNav');
+    if (navEl) navEl.innerHTML = '<div style="flex:1;text-align:center;font-size:12px;color:var(--stone);padding:10px">Loading older…</div>';
+    try { await _reachTplFetch(need); }
+    catch (e) { _renderReachTplPage(); return; }
+  }
+  if (next * _REACH_TPL_PAGE >= _reachTemplateCache.length && next > 0) { _renderReachTplPage(); return; }
+  _reachTplPage = next;
+  _renderReachTplPage();
+}
 async function openReachTemplatePicker() {
   let panel = document.getElementById('reachTemplatePanel');
   if (!panel) {
@@ -12429,26 +12494,22 @@ async function openReachTemplatePicker() {
         <button onclick="closeReachTemplatePicker()" style="background:none;border:none;font-size:20px;color:var(--stone);cursor:pointer">✕</button>
       </div>
       <div id="reachTemplateList" style="display:flex;flex-direction:column;gap:8px">Loading…</div>
+      <div id="reachTemplateNav" style="display:flex;align-items:center;gap:8px;margin-top:12px"></div>
     </div>`;
     document.body.appendChild(panel);
   }
   panel.style.display = 'flex';
   const listEl = document.getElementById('reachTemplateList');
+  const navEl  = document.getElementById('reachTemplateNav');
   listEl.innerHTML = 'Loading…';
+  if (navEl) navEl.innerHTML = '';
+  // Fresh list each open (new sends may have happened since last time)
+  _reachTemplateCache = [];
+  _reachTplAllLoaded = false;
+  _reachTplPage = 0;
   try {
-    const res = await gasPost({ action: 'listMemos', limit: 25 });
-    const memos = (res && res.memos) || [];
-    _reachTemplateCache = memos;
-    if (!memos.length) {
-      listEl.innerHTML = '<div style="color:var(--silver);padding:20px 0;text-align:center">No past messages yet</div>';
-      return;
-    }
-    listEl.innerHTML = memos.map((m, i) => `
-      <button type="button" onclick="_applyReachTemplate(${i})" style="text-align:left;padding:10px 12px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);cursor:pointer">
-        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.subject || '(no subject)'}</div>
-        <div style="font-size:12px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">${(m.message || '').replace(/\n/g,' ').slice(0,90)}</div>
-        <div style="font-size:11px;color:var(--silver);margin-top:3px">${m.type || ''}${m.timestamp ? ' · ' + new Date(m.timestamp).toLocaleDateString() : ''}</div>
-      </button>`).join('');
+    await _reachTplFetch(_REACH_TPL_PAGE);
+    _renderReachTplPage();
   } catch (e) {
     listEl.innerHTML = '<div style="color:var(--tomato,#c0392b);padding:20px 0;text-align:center">⚠ Could not load past messages</div>';
   }
