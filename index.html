@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.10 | BUILDITALL: 2026-10-03 | Ranger Rover PWA -->
+<!-- v11.11 | BUILDITALL: 2026-10-03 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1847,10 +1847,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.10';
+const APP_VERSION='v11.11';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-03 18:00 PT - Level 3 Schools tab split into My Garden Ranger Schools and My Garden Keeper Schools (Keeper list only if they have any). Level 3 map Mine view marks Garden Keeper schools with teal square pins and legend. No GAS change.';
+const BUILD_STAMP='2026-10-03 18:30 PT - Level 3 map filters now match Schools tab: My Garden Ranger Schools, My Garden Keeper Schools (each only if they have any), Unassigned Schools (Active Ranger Program, no Ranger 1 or 2, PO on file). All Active Schools chip removed. No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4948,7 +4948,10 @@ function initMap(){
   if(mapInited)return;mapInited=true;
   // Level 3 defaults to their own assigned schools; levels 1-2 keep the
   // existing type-based filter set, defaulting to "All" as before.
-  if(SESSION&&SESSION.accessLevel>=3)cmf='mine';
+  if(SESSION&&SESSION.accessLevel>=3){
+    const mine=getMySchools()||[];
+    cmf=mine.some(s=>_mySiteRoles(s).ranger)?'mine-ranger':mine.some(s=>_mySiteRoles(s).gk)?'mine-gk':'unassigned';
+  }
   _renderMapFilterChips();
   _loadLeaflet(()=>{
     _leafletMap=L.map('map',{zoomControl:true}).setView([34.05,-118.35],10);
@@ -4961,14 +4964,15 @@ function initMap(){
 
 // Level 3 gets exactly two filters — Mine (default) and All Active Schools.
 // Levels 1-2 keep the full type-based filter set used for site management.
+function _l3HasRole(role){return (getMySchools()||[]).some(s=>_mySiteRoles(s)[role]);}
 function _renderMapFilterChips(){
   const wrap=document.getElementById('mapTypeFilters');
   if(!wrap)return;
   if(SESSION&&SESSION.accessLevel>=3){
     wrap.innerHTML=`
-      <button class="map-chip${cmf==='mine'?' active':''}" data-filter="mine" onclick="filterMap('mine')">📍 Mine</button>
-      <button class="map-chip${cmf==='all-active'?' active':''}" data-filter="all-active" onclick="filterMap('all-active')">🟢 All Active Schools</button>
-      <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">❔ Unassigned</button>`;
+      ${_l3HasRole('ranger')?`<button class="map-chip${cmf==='mine-ranger'?' active':''}" data-filter="mine-ranger" onclick="filterMap('mine-ranger')">🌱 My Garden Ranger Schools</button>`:''}
+      ${_l3HasRole('gk')?`<button class="map-chip${cmf==='mine-gk'?' active':''}" data-filter="mine-gk" onclick="filterMap('mine-gk')">🌻 My Garden Keeper Schools</button>`:''}
+      <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">❔ Unassigned Schools</button>`;
   } else {
     wrap.innerHTML=`
       <button class="map-chip${cmf==='all'?' active':''}" data-filter="all" onclick="filterMap('all')">All</button>
@@ -4990,23 +4994,20 @@ function buildMapMarkers(){
     // "Unassigned": sites with no Ranger 1 AND no Ranger 2 on file yet
     // (same "unassigned" definition used by the Schools tab's By Ranger
     // Placement filter).
-    if(cmf==='all-active'){
-      sites=DATA.sites.filter(s=>{
-        const t=(sf(s,'Type','type')||'').toLowerCase();
-        return t.includes('active')&&!t.includes('inactive');
-      });
-    } else if(cmf==='unassigned'){
-      // Only pull from active-program schools — not the whole Sites list —
-      // so this doesn't surface future/inactive/possible sites that were
-      // never going to have a ranger assigned yet.
+    if(cmf==='unassigned'){
+      // Unassigned = Active Ranger Program, no Ranger 1 AND no Ranger 2,
+      // and a PO Number on file (school has paid, just needs a ranger).
       sites=DATA.sites.filter(s=>{
         const t=(sf(s,'Type','type')||'').trim();
         if(t!=='Active Ranger Program')return false;
-        const r1=sf(s,'Ranger 1','Ranger1'),r2=sf(s,'Ranger 2','Ranger2');
-        return !r1&&!r2;
+        const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
+        if(r1||r2)return false;
+        return String(sf(s,'PO Number')||'').trim()!=='';
       });
+    } else if(cmf==='mine-gk'){
+      sites=(getMySchools()||[]).filter(s=>_mySiteRoles(s).gk);
     } else {
-      sites=getMySchools()||[];
+      sites=(getMySchools()||[]).filter(s=>_mySiteRoles(s).ranger);
     }
   } else {
     sites=DATA.sites;
@@ -5027,16 +5028,16 @@ function buildMapMarkers(){
   // assigned sites. "Unassigned" additionally surfaces ranger scheduling
   // fields (day-of-week, program units) so ops staff can see what a new
   // placement would need.
-  const useBasicCard=lvl3&&(cmf==='all-active'||cmf==='unassigned');
+  const useBasicCard=lvl3&&cmf==='unassigned';
   const showRangerNeedInfo=lvl3&&cmf==='unassigned';
   // Level 3 "Mine": Garden Ranger schools = round green dot; Garden Keeper
   // schools = teal square + teal label. Legend only if they have GK schools.
-  const roleMode=lvl3&&cmf==='mine';
+  const roleMode=lvl3&&cmf==='mine-gk';
   const legendEl=document.getElementById('mapRoleLegend');
   if(legendEl){
     const hasGk=roleMode&&sites.some(s=>_mySiteRoles(s).gk);
     const hasRg=roleMode&&sites.some(s=>_mySiteRoles(s).ranger);
-    legendEl.style.display=hasGk?'flex':'none';
+    legendEl.style.display='none';
     legendEl.innerHTML=hasGk?((hasRg?'<span><i style="background:#1e3a1e;border-radius:50%"></i>Garden Ranger</span>':'')+'<span><i style="background:#00838f;border-radius:2px"></i>Garden Keeper</span>'):'';
   }
   sites.forEach(s=>{
