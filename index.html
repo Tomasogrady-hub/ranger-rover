@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.11 | BUILDITALL: 2026-10-03 | Ranger Rover PWA -->
+<!-- v11.12 | BUILDITALL: 2026-10-03 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -329,6 +329,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .map-chip[data-filter="inactive"].active{background:var(--stone)}
 .map-chip[data-filter="possible"].active{background:var(--amber)}
 .map-chip[data-filter="open-chores"].active{background:var(--warn);color:white}
+.map-chip[data-filter="mine-ranger"].active{background:var(--grove,#1e3a1e)}
+.map-chip[data-filter="mine-gk"].active{background:#00838f}
+.map-chip[data-filter="unassigned"].active{background:#6a4c93}
 .leaflet-tooltip.map-label{background:white;border:none;box-shadow:0 1px 5px rgba(0,0,0,.2);border-radius:4px;padding:3px 7px;font-size:13px;font-family:'Outfit',sans-serif;font-weight:500;white-space:nowrap;color:#1a1a1a;pointer-events:auto!important;cursor:pointer}
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
 .leaflet-tooltip.map-label.ranger-label{background:#efe7fa;color:#5a3fa0;font-weight:700}
@@ -1847,10 +1850,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.11';
+const APP_VERSION='v11.12';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-03 18:30 PT - Level 3 map filters now match Schools tab: My Garden Ranger Schools, My Garden Keeper Schools (each only if they have any), Unassigned Schools (Active Ranger Program, no Ranger 1 or 2, PO on file). All Active Schools chip removed. No GAS change.';
+const BUILD_STAMP='2026-10-03 20:45 PT - Fix Level 3 map chips: Ranger and Garden Keeper chips now appear once site data loads (map was locking to Unassigned if opened early). Active chip colors added so selected chip is readable.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4948,10 +4951,7 @@ function initMap(){
   if(mapInited)return;mapInited=true;
   // Level 3 defaults to their own assigned schools; levels 1-2 keep the
   // existing type-based filter set, defaulting to "All" as before.
-  if(SESSION&&SESSION.accessLevel>=3){
-    const mine=getMySchools()||[];
-    cmf=mine.some(s=>_mySiteRoles(s).ranger)?'mine-ranger':mine.some(s=>_mySiteRoles(s).gk)?'mine-gk':'unassigned';
-  }
+  _syncL3MapFilter();
   _renderMapFilterChips();
   _loadLeaflet(()=>{
     _leafletMap=L.map('map',{zoomControl:true}).setView([34.05,-118.35],10);
@@ -4965,6 +4965,23 @@ function initMap(){
 // Level 3 gets exactly two filters — Mine (default) and All Active Schools.
 // Levels 1-2 keep the full type-based filter set used for site management.
 function _l3HasRole(role){return (getMySchools()||[]).some(s=>_mySiteRoles(s)[role]);}
+// Level 3 map default/validity. Runs whenever the map draws, so if the map
+// was opened before site data finished loading, the Ranger / Garden Keeper
+// chips appear and the default switches to their own schools once data lands.
+// A chip the user tapped is kept as long as it is still valid.
+let _l3MapPicked=false;
+function _syncL3MapFilter(){
+  if(!(SESSION&&SESSION.accessLevel>=3))return false;
+  const hasR=_l3HasRole('ranger'),hasG=_l3HasRole('gk');
+  const valid=cmf==='unassigned'||(cmf==='mine-ranger'&&hasR)||(cmf==='mine-gk'&&hasG);
+  const want=hasR?'mine-ranger':hasG?'mine-gk':'unassigned';
+  const before=cmf+'|'+hasR+hasG;
+  if(!valid||!_l3MapPicked)cmf=want;
+  const after=cmf+'|'+hasR+hasG;
+  const changed=before!==after||window._l3ChipSig!==after;
+  window._l3ChipSig=after;
+  return changed;
+}
 function _renderMapFilterChips(){
   const wrap=document.getElementById('mapTypeFilters');
   if(!wrap)return;
@@ -4987,6 +5004,7 @@ function _renderMapFilterChips(){
 function buildMapMarkers(){
   if(!_leafletMap)return;
   const lvl3=SESSION&&SESSION.accessLevel>=3;
+  if(lvl3&&_syncL3MapFilter())_renderMapFilterChips();
   let sites;
   if(lvl3){
     // "Mine": schools where I'm Ranger 1, Ranger 2, or Garden Keeper.
@@ -5069,6 +5087,7 @@ function buildMapMarkers(){
 }
 
 function filterMap(f){
+  if(SESSION&&SESSION.accessLevel>=3)_l3MapPicked=true;
   cmf=f;
   document.querySelectorAll('#mapTypeFilters .map-chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));
   refreshMapChores();
