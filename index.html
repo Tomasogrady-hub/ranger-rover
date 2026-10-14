@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.12 | BUILDITALL: 2026-10-03 | Ranger Rover PWA -->
+<!-- v11.13 | BUILDITALL: 2026-10-14 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -336,6 +336,31 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
 .leaflet-tooltip.map-label.ranger-label{background:#efe7fa;color:#5a3fa0;font-weight:700}
 .leaflet-tooltip.map-label::before{display:none}
+/* ── MAP tab: fullscreen + open-chores hover + right-side chore list (v11.13) ── */
+#tab-map.map-fs{position:fixed!important;inset:0;z-index:9999;width:100vw;height:100dvh!important;background:var(--paper)}
+#mapFsBtn{position:absolute;top:50%;right:8px;transform:translateY(-50%);z-index:1001;width:40px;height:40px;border:none;border-radius:50%;background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(0,0,0,.22);cursor:pointer;font-size:17px;line-height:1;color:var(--stone);display:flex;align-items:center;justify-content:center}
+#tab-map{--mcp-w:0px}
+#tab-map.map-fs.mcp-on{--mcp-w:clamp(230px,32vw,360px)}
+#tab-map.map-fs #mapContainer{right:var(--mcp-w)}
+#tab-map.map-fs #mapFsBtn,#tab-map.map-fs #locateBtn{right:calc(var(--mcp-w) + 10px)}
+#tab-map.map-fs #mapTypeFilters{left:calc(50% - var(--mcp-w) / 2)}
+#mapChorePanel{position:absolute;top:0;right:0;bottom:0;width:var(--mcp-w);background:var(--paper);border-left:1px solid var(--mist);box-shadow:-3px 0 14px rgba(0,0,0,.15);z-index:1002;display:none;flex-direction:column;font-family:var(--font-b)}
+#tab-map.map-fs.mcp-on #mapChorePanel{display:flex}
+.mcp-head{padding:14px 14px 10px;border-bottom:1px solid var(--mist);background:var(--warn,#c07000);color:#fff}
+.mcp-title{font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.mcp-sub{font-size:12px;opacity:.9;margin-top:2px}
+.mcp-body{flex:1;overflow-y:auto;padding:6px 0 20px}
+.mcp-site{padding:10px 14px 4px;font-size:13px;font-weight:700;color:var(--stone);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.mcp-chore{margin:4px 10px;padding:8px 10px;border-radius:8px;background:#fff8ee;border-left:3px solid #c07000;cursor:pointer;font-size:14px;color:#1a1a1a;line-height:1.3}
+.mcp-chore:hover,.mcp-chore.hl{background:#ffecc9}
+.mcp-chore.urgent{border-left-color:#d33b2f}
+.mcp-meta{font-size:11px;color:var(--silver);margin-top:3px}
+.mcp-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:#d33b2f;color:#fff;border-radius:4px;padding:1px 5px;margin-right:5px;vertical-align:1px}
+.leaflet-popup.chore-hover-pop .leaflet-popup-content-wrapper{border-radius:8px;box-shadow:0 3px 14px rgba(0,0,0,.28)}
+.leaflet-popup.chore-hover-pop .leaflet-popup-content{margin:9px 12px;font-family:var(--font-b);font-size:13px;min-width:180px;max-width:280px}
+.chp-site{font-weight:700;color:#c07000;margin-bottom:5px}
+.chp-item{padding:3px 0;border-top:1px solid #f0e6d6;line-height:1.3}
+.chp-item:first-of-type{border-top:none}
 @keyframes rangerPinPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 .ranger-pin-pulse{animation:rangerPinPulse 1.6s ease-in-out infinite}
 
@@ -898,6 +923,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     <div id="mapTypeFilters"></div>
     <div id="mapRoleLegend" class="map-role-legend" style="display:none"></div>
     <div id="mapContainer"><div class="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div><div id="map"></div></div>
+    <button id="mapFsBtn" onclick="toggleMapFullscreen()" title="Full screen">⛶</button>
+    <div id="mapChorePanel"><div class="mcp-head"><div class="mcp-title">⚠ Open Chores</div><div class="mcp-sub" id="mcpSub"></div></div><div class="mcp-body" id="mcpBody"></div></div>
     <button id="locateBtn" title="My location" onclick="locateMe()" style="display:none">📍</button>
     <div id="nearMeToast">
       <div class="toast-icon">📍</div>
@@ -1850,10 +1877,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.12';
+const APP_VERSION='v11.13';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-03 20:45 PT - Fix Level 3 map chips: Ranger and Garden Keeper chips now appear once site data loads (map was locking to Unassigned if opened early). Active chip colors added so selected chip is readable.';
+const BUILD_STAMP='2026-10-14 08:05 PT - Map tab: full screen button; Open Chores filter shows the school chores on hover; in full screen with Open Chores chosen, a chore list runs down the right side (tap a school to zoom, tap a chore to open it).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5058,13 +5085,15 @@ function buildMapMarkers(){
     legendEl.style.display='none';
     legendEl.innerHTML=hasGk?((hasRg?'<span><i style="background:#1e3a1e;border-radius:50%"></i>Garden Ranger</span>':'')+'<span><i style="background:#00838f;border-radius:2px"></i>Garden Keeper</span>'):'';
   }
+  _mapMarkersByKey={};
   sites.forEach(s=>{
     const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
     const parts=ll.toString().split(',');if(parts.length<2)return;
     const lat=parseFloat(parts[0]),lng=parseFloat(parts[1]);if(isNaN(lat)||isNaN(lng))return;
     const name=sf(s,'Name','name');
     const t=(sf(s,'Type','type')||'').toLowerCase();
-    const openC=openChoresForSite(sf(s,'Key','key')).length;
+    const siteKeyM=sf(s,'Key','key')||'';
+    const openC=openChoresForSite(siteKeyM).length;
     const label=shortLabel(name)+(openC>0?` (${openC}⚠)`:'');
     /* color: open chores = amber/warn; else by type */
     const roles=roleMode?_mySiteRoles(s):null;
@@ -5078,13 +5107,85 @@ function buildMapMarkers(){
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
     const openHandler=useBasicCard
-      ?()=>{showSchoolBasicByKey(sf(s,'Key','key')||'',showRangerNeedInfo);}
-      :()=>{showSchoolDetailByKey(sf(s,'Key','key')||'');};
+      ?()=>{_exitMapFullscreen();showSchoolBasicByKey(siteKeyM,showRangerNeedInfo);}
+      :()=>{_exitMapFullscreen();showSchoolDetailByKey(siteKeyM);};
     marker.on('click',openHandler);
+    if(siteKeyM)_mapMarkersByKey[siteKeyM]=marker;
+    // Open Chores filter: hovering the dot or its label shows that school's chores
+    const hoverOn=()=>{if(cmf==='open-chores'&&openC>0)_mapShowChoreHover(siteKeyM);};
+    const hoverOff=()=>_mapHideChoreHoverSoon();
+    marker.on('mouseover',hoverOn);marker.on('mouseout',hoverOff);
     marker.bindTooltip((isGkOnly?'🌻 ':'')+label,{permanent:true,direction:'top',className:`map-label${openC>0?' has-chores':isGkOnly?' gk-label':''}`,offset:[0,-10],interactive:true});
-    marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);}});
+    marker.on('tooltipopen',function(){const el=this.getTooltip().getElement();if(el){el.style.cursor='pointer';el.addEventListener('click',openHandler);el.addEventListener('mouseenter',hoverOn);el.addEventListener('mouseleave',hoverOff);}});
   });
+  _renderMapChorePanel();
 }
+
+/* ═══ MAP tab: fullscreen, open-chore hover, right-side chore list ═══ */
+let _mapMarkersByKey={};
+let _mapHoverPop=null,_mapHoverTimer=null;
+function _mapChoreAssignee(c){
+  const em=c['Assigned to']||c.AssignedTo||c['Asked of']||'';
+  if(!em)return '';
+  const h=gh(em);return h?(fullName(h)||em):em.split('@')[0];
+}
+function _mapIsUrgent(c){const u=(c.Urgency||c.urgency||'').toLowerCase();return u.includes('asap')||u==='urgent';}
+function _mapShowChoreHover(siteKey){
+  if(!_leafletMap||!siteKey)return;
+  const m=_mapMarkersByKey[siteKey];if(!m)return;
+  clearTimeout(_mapHoverTimer);
+  const chores=openChoresForSite(siteKey);if(!chores.length)return;
+  const html=`<div class="chp-site">${escHtml(siteNameFromKey(siteKey))} · ${chores.length} open</div>`+
+    chores.map(c=>`<div class="chp-item">${_mapIsUrgent(c)?'<span class="mcp-tag">ASAP</span>':''}${escHtml(c.Task||c.task||'(no description)')}${_mapChoreAssignee(c)?`<div class="mcp-meta">→ ${escHtml(_mapChoreAssignee(c))}</div>`:''}</div>`).join('');
+  if(!_mapHoverPop)_mapHoverPop=L.popup({autoPan:false,closeButton:false,className:'chore-hover-pop',offset:[0,-28]});
+  _mapHoverPop.setLatLng(m.getLatLng()).setContent(html);
+  if(!_leafletMap.hasLayer(_mapHoverPop))_mapHoverPop.openOn(_leafletMap);
+  document.querySelectorAll('#mcpBody .mcp-chore').forEach(el=>el.classList.toggle('hl',el.dataset.site===siteKey));
+}
+function _mapHideChoreHoverSoon(){
+  clearTimeout(_mapHoverTimer);
+  _mapHoverTimer=setTimeout(()=>{if(_leafletMap&&_mapHoverPop)_leafletMap.closePopup(_mapHoverPop);document.querySelectorAll('#mcpBody .mcp-chore.hl').forEach(el=>el.classList.remove('hl'));},180);
+}
+function _mapPanelSite(siteKey){
+  const m=_mapMarkersByKey[siteKey];if(!m||!_leafletMap)return;
+  _leafletMap.setView(m.getLatLng(),Math.max(_leafletMap.getZoom(),14),{animate:true});
+  setTimeout(()=>_mapShowChoreHover(siteKey),260);
+}
+function _mapPanelChore(id){_exitMapFullscreen();showChoreDetail(id);}
+function _renderMapChorePanel(){
+  const tab=document.getElementById('tab-map');if(!tab)return;
+  const isFs=tab.classList.contains('map-fs');
+  const show=isFs&&cmf==='open-chores';
+  const was=tab.classList.contains('mcp-on');
+  tab.classList.toggle('mcp-on',show);
+  if(was!==show)setTimeout(()=>{if(_leafletMap)_leafletMap.invalidateSize();},60);
+  if(!show)return;
+  // Group the open chores of the schools currently on the map; ASAP schools first, then A-Z
+  const groups=Object.keys(_mapMarkersByKey).map(k=>({k,name:siteNameFromKey(k),chores:openChoresForSite(k)})).filter(g=>g.chores.length);
+  groups.forEach(g=>{g.urg=g.chores.some(_mapIsUrgent);g.chores.sort((a,b)=>_mapIsUrgent(b)-_mapIsUrgent(a));});
+  groups.sort((a,b)=>(b.urg-a.urg)||a.name.localeCompare(b.name));
+  const total=groups.reduce((n,g)=>n+g.chores.length,0);
+  document.getElementById('mcpSub').textContent=`${total} chore${total===1?'':'s'} · ${groups.length} school${groups.length===1?'':'s'}`;
+  document.getElementById('mcpBody').innerHTML=groups.length?groups.map(g=>
+    `<div class="mcp-site" onclick="_mapPanelSite('${ea(g.k)}')">📍 ${escHtml(g.name)}</div>`+
+    g.chores.map(c=>{const id=c.ID||c.id||'';const who=_mapChoreAssignee(c);const urg=_mapIsUrgent(c);
+      return `<div class="mcp-chore${urg?' urgent':''}" data-site="${ea(g.k)}" onmouseenter="_mapShowChoreHover('${ea(g.k)}')" onmouseleave="_mapHideChoreHoverSoon()" onclick="_mapPanelChore('${ea(id)}')">${urg?'<span class="mcp-tag">ASAP</span>':''}${escHtml(c.Task||c.task||'(no description)')}${who?`<div class="mcp-meta">→ ${escHtml(who)}</div>`:''}</div>`;}).join('')
+  ).join(''):'<div style="padding:20px 14px;color:var(--silver);font-size:14px">No open chores on the map.</div>';
+}
+function toggleMapFullscreen(){
+  const tab=document.getElementById('tab-map');if(!tab)return;
+  const isFs=tab.classList.toggle('map-fs');
+  const btn=document.getElementById('mapFsBtn');
+  if(btn){btn.textContent=isFs?'✕':'⛶';btn.title=isFs?'Exit full screen':'Full screen';}
+  _renderMapChorePanel();
+  setTimeout(()=>{if(_leafletMap)_leafletMap.invalidateSize();},220);
+}
+function _exitMapFullscreen(){
+  const tab=document.getElementById('tab-map');
+  if(!tab||!tab.classList.contains('map-fs'))return;
+  toggleMapFullscreen();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')_exitMapFullscreen();});
 
 function filterMap(f){
   if(SESSION&&SESSION.accessLevel>=3)_l3MapPicked=true;
@@ -5095,6 +5196,7 @@ function filterMap(f){
 
 function refreshMapChores(){
   if(!_leafletMap)return;
+  if(_mapHoverPop)_leafletMap.closePopup(_mapHoverPop);
   _leafletMap.eachLayer(l=>{if(l instanceof L.Marker)_leafletMap.removeLayer(l);});
   buildMapMarkers();
   if(_userLat!==null)_placeUserMarker();
@@ -8543,6 +8645,7 @@ window.addEventListener('popstate',()=>{
 function switchTab(tab,initMapFlag=false){
   const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   if(tab!=='operations')_exitSmartMapFullscreen();
+  if(tab!=='map')_exitMapFullscreen();
   if(tab!==_activeTab&&!_navigatingBack){
     _tabHistory.push(_activeTab);
     try{history.pushState({rrNav:true,tab},'','');}catch(e){}
