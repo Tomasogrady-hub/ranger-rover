@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.13 | BUILDITALL: 2026-10-14 | Ranger Rover PWA -->
+<!-- v11.14 | BUILDITALL: 2026-10-16 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -686,6 +686,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <option value="Future Ranger Program">Future Ranger Program</option>
           <option value="Inactive Ranger Program">Inactive Ranger Program</option>
           <option value="Possible Ranger Program">Possible Ranger Program</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By District</label>
+        <select id="schoolDistrictFilter" class="settings-input" style="margin:0" onchange="setSchoolDistrictFilter(this.value)">
+          <option value="all">All Districts</option>
         </select>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
@@ -1877,10 +1883,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.13';
+const APP_VERSION='v11.14';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-14 08:05 PT - Map tab: full screen button; Open Chores filter shows the school chores on hover; in full screen with Open Chores chosen, a chore list runs down the right side (tap a school to zoom, tap a chore to open it).';
+const BUILD_STAMP='2026-10-16 17:40 PT - Program Details column shown on site card and editable in Edit Site and Operations; Other Contacts shown and editable as a multi-person list with add-new-contact and duplicate email check; Schools tab District filter.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -1909,7 +1915,7 @@ const CFG={
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
 let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
@@ -3750,6 +3756,21 @@ function _fillSchoolProgramFilterSelect(){
 // DATA.sites (no network round trip) so they always reflect the freshest
 // assignments/units without adding a load delay.
 function _fillSchoolDynamicFilters(){
+  // By District — built from the districts actually present in Sites (with counts)
+  const dSel=document.getElementById('schoolDistrictFilter');
+  if(dSel){
+    const cnt={};let blanks=0;
+    DATA.sites.forEach(s=>{const d=String(sf(s,'District','district')||'').trim();if(d)cnt[d]=(cnt[d]||0)+1;else blanks++;});
+    const names=Object.keys(cnt).sort((a,b)=>a.localeCompare(b));
+    const sig=names.map(n=>n+cnt[n]).join('|')+'|'+blanks;
+    if(dSel.dataset.sig!==sig){
+      const current=dSel.value||csDistF||'all';
+      dSel.innerHTML='<option value="all">All Districts</option>'+(blanks?`<option value="none">No District (${blanks})</option>`:'')+
+        names.map(n=>`<option value="${ea(n)}">${escHtml(n)} (${cnt[n]})</option>`).join('');
+      dSel.value=[...dSel.options].some(o=>o.value===current)?current:'all';
+      dSel.dataset.sig=sig;
+    }
+  }
   if(!_siteTypesCache){_getSiteTypes().then(()=>_fillSchoolProgramFilterSelect());}
   else if(!_schoolProgramFilterFilled){_fillSchoolProgramFilterSelect();}
   const rSel=document.getElementById('schoolRangerFilter');
@@ -4311,6 +4332,11 @@ function renderSchools(){
     if(q&&!(name+dist+r1n+r1e+gkn).toLowerCase().includes(q))return false;
     if(SESSION&&SESSION.accessLevel<=2){
       if(csProgF!=='all'&&type.toLowerCase()!==csProgF.toLowerCase())return false;
+      if(csDistF!=='all'){
+        const _d=String(dist||'').trim();
+        if(csDistF==='none'){if(_d)return false;}
+        else if(_d.toLowerCase()!==csDistF.toLowerCase())return false;
+      }
       if(csPlaceF==='assigned'&&!(r1e||r2e))return false;
       if(csPlaceF==='unassigned'&&(r1e||r2e))return false;
       if(csRangerF==='none'){
@@ -6061,6 +6087,57 @@ function renderSchoolBasic(site,showRangerNeedInfo){
     <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
 }
 
+// Program Details — new Sites column. Resolve the exact header name from the
+// loaded data so a stray space/case difference in the sheet header still saves.
+function _progDetailsCol(){
+  const s=(DATA.sites||[]).find(x=>x&&Object.keys(x).some(k=>/^\s*program\s*details\s*$/i.test(k)));
+  if(s){const k=Object.keys(s).find(k=>/^\s*program\s*details\s*$/i.test(k));if(k)return k;}
+  return 'Program Details';
+}
+function _progDetailsVal(site){
+  if(!site)return '';
+  const k=Object.keys(site).find(k=>/^\s*program\s*details\s*$/i.test(k));
+  return k?String(site[k]==null?'':site[k]):'';
+}
+// Other Contacts holds MANY people (comma/semicolon/newline separated emails,
+// or legacy plain names) — unlike Ranger 1/2 etc which hold one.
+function _splitContacts(raw){
+  return String(raw||'').split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
+}
+window._ocList=[];
+function _ocRender(){
+  const wrap=document.getElementById('oc-chips');if(!wrap)return;
+  const list=window._ocList||[];
+  wrap.innerHTML=list.length?list.map((t,i)=>{
+    const h=t.includes('@')?gh(t):DATA.humans.find(p=>(fullName(p)||'').toLowerCase()===t.toLowerCase());
+    const nm=h?(fullName(h)||t):t;
+    const em=t.includes('@')?t:(h?(h.Email||h.email||''):'');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog)">
+      <div style="flex:1;min-width:0"><div style="font-family:var(--font-b);font-size:15px;color:var(--ink)">${escHtml(nm)}</div>${em&&em!==nm?`<div style="font-size:13px;color:var(--silver);overflow:hidden;text-overflow:ellipsis">${escHtml(em)}</div>`:''}</div>
+      <button type="button" onclick="_ocRemove(${i})" style="border:none;background:var(--danger-bg);color:var(--danger);border-radius:var(--r-sm);padding:6px 10px;font-size:14px;cursor:pointer">✕</button>
+    </div>`;}).join('')
+    :`<div style="font-family:var(--font-b);font-size:14px;color:var(--silver);padding:2px 0 8px">No other contacts yet.</div>`;
+}
+function _ocAdd(email){
+  email=String(email||'').trim();if(!email)return false;
+  window._ocList=window._ocList||[];
+  if(window._ocList.some(x=>x.toLowerCase()===email.toLowerCase())){showToast&&showToast('Already in Other Contacts');return false;}
+  window._ocList.push(email);_ocRender();return true;
+}
+function _ocRemove(i){(window._ocList||[]).splice(i,1);_ocRender();}
+function _ocPick(el){
+  const panel=el.closest('.dropdown-panel');if(panel)panel.classList.remove('open');
+  _ocAdd(el.dataset.email);
+}
+// "Use existing person" button shown by the Add New Contact duplicate check
+function _acfsUseExisting(email,returnBtnId){
+  const h=gh(email);const nm=h?(fullName(h)||email):email;
+  if(returnBtnId==='dsb-oc'){_ocAdd(email);}
+  else{const btn=document.getElementById(returnBtnId);if(btn){btn.textContent=nm;btn.dataset.value=email;}}
+  document.getElementById('acfs-modal')?.remove();
+  showSaveToast('✓ '+nm+' selected — tap Save to keep');
+}
+
 function renderSchoolDetail(site,editMode,opsMode){
   opsMode=!!opsMode;
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
@@ -6087,6 +6164,8 @@ function renderSchoolDetail(site,editMode,opsMode){
   const saa=sf(site,'School Administrative Assistant','SchoolAdministrativeAssistant');
   const mc1=sf(site,'Main Contact 1','MainContact1'),mc2=sf(site,'Main Contact 2','MainContact2'),mc3=sf(site,'Main Contact 3','MainContact3');
   const pme=sf(site,'Plant Manager','PlantManager');
+  const otherContacts=_splitContacts(sf(site,'Other Contacts','OtherContacts'));
+  const progDetails=_progDetailsVal(site);
   const maps=addr?`https://maps.google.com/?q=${encodeURIComponent(addr)}`:`https://maps.google.com/?q=${encodeURIComponent(name+' Los Angeles')}`;
   const openChores=openChoresForSite(sf(site,'Key','key'));
   // Ops-mode quick-edit fields, computed early so they can be placed at the top of the form
@@ -6171,8 +6250,22 @@ function renderSchoolDetail(site,editMode,opsMode){
       <div class="edit-wrap" style="position:relative;z-index:65"><div class="edit-label">Main Contact 2</div>${bdd('mc2',allH,mc2,'')}</div>
       <div class="edit-wrap" style="position:relative;z-index:60"><div class="edit-label">Main Contact 3</div>${bdd('mc3',allH,mc3,'')}</div>
       <div class="edit-wrap" style="position:relative;z-index:55"><div class="edit-label">Plant Manager</div>${bdd('pm',plantManagers,pme,'Plant Manager')}</div>
+      <div class="edit-wrap" style="position:relative;z-index:50"><div class="edit-label">Other Contacts</div>
+        <div id="oc-chips"></div>
+        <div class="custom-select" id="ds-oc">
+          <button type="button" class="custom-select-btn" onclick="toggleDropdown('dd-oc')" id="dsb-oc" data-value="">+ Add a contact…</button>
+          <div class="dropdown-panel" id="dd-oc">
+            <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('dd-oc',this.value)"></div>
+            <div class="dropdown-list">
+              ${allH.map(h=>{const n=fullName(h)||h.Email;const e=h.Email||h.email||'';return e?`<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="_ocPick(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`:'';}).join('')}
+            </div>
+            <div class="dropdown-add" onclick="showAddContactForSite('${ea(name)}','','dsb-oc');document.getElementById('dd-oc').classList.remove('open')">+ Add new contact…</div>
+          </div>
+        </div>
+      </div>
       <hr class="section-divider">`:''}
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
+      <div class="edit-wrap"><div class="edit-label">Program Details</div><textarea class="edit-textarea" id="ef-ProgramDetails" placeholder="Details about the program at this school">${ea(progDetails)}</textarea></div>
       ${_siteScheduleUploadRow(site)}
       ${opsMode?(()=>{
         const program=sf(site,'Program')||'';
@@ -6309,6 +6402,7 @@ function renderSchoolDetail(site,editMode,opsMode){
     window._currentEditContext='sites';
     window._opsEditMode=opsMode;
     window._currentSite=site;
+    window._ocList=otherContacts.slice();_ocRender();
     if(window._isNewSiteDraft)_populateDistrictDropdown(dist);
     setTimeout(()=>{document.getElementById('detail-sheet').addEventListener('click',function(e){if(!e.target.closest('.custom-select'))document.querySelectorAll('.dropdown-panel.open').forEach(d=>d.classList.remove('open'));});},100);
   } else {
@@ -6349,7 +6443,9 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${videoSrc?`<div class="ds"><div class="dl">Video</div><div class="dv">${videoLinkHtml(videoSrc)}</div></div>`:''}
       ${ranger1Html}${ranger2Html}${keeperHtml}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
+      ${otherContacts.map(t=>crow('Other Contact',t)).join('')}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
+      ${progDetails.trim()?`<div class="ds"><div class="dl">Program Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65;white-space:pre-wrap">${escHtml(progDetails)}</div></div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a>${_askAboutSchoolCta(name)}${_schoolReachCta(site)}</div>
     <button class="btn-edit" onclick="renderSchoolDetail(window._currentSite,true)">✏ Edit Site</button>
@@ -6381,6 +6477,8 @@ function _collectSiteEditFormValues(){
     updates['Full Address']=buildFullAddress(_stAddr,_stCity,_stState,_stZip,_stCountry);
   }
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
+  const pdtV=gv('ef-ProgramDetails');if(pdtV!==null)updates[_progDetailsCol()]=pdtV;
+  if(document.getElementById('oc-chips'))updates['Other Contacts']=(window._ocList||[]).join(', ');
   // Schedule (the file) uploads and saves itself immediately on file pick
   // (see _siteScheduleUploadRow / handleSiteScheduleFile) — but Schedule
   // Contents is a plain textarea so a human can correct an OCR/extraction
@@ -7223,7 +7321,9 @@ async function saveNewContactForSite(returnBtnId){
   if(dup){
     const dupName=((dup['First Name']||dup.firstName||'').trim()+' '+(dup['Last Name']||dup.lastName||'').trim()).trim()||email;
     m.className='save-msg err';
-    m.textContent='⚠ '+email+' already exists as "'+dupName+'". You can assign them using the people picker instead.';
+    const dupEmail=dup.Email||dup.email||email;
+    m.innerHTML='⚠ '+escHtml(email)+' already exists as "'+escHtml(dupName)+'". No new contact was created.'+
+      (returnBtnId?`<div style="margin-top:10px"><button type="button" class="btn-save" style="padding:10px 14px" onclick="_acfsUseExisting('${ea(dupEmail)}','${ea(returnBtnId)}')">Use ${escHtml(dupName)} instead</button></div>`:'');
     return;
   }
   const roleBtn=document.getElementById('acfs-role-btn');
@@ -7252,6 +7352,7 @@ async function saveNewContactForSite(returnBtnId){
     'dsb-mc2':  'Main Contact 2',
     'dsb-mc3':  'Main Contact 3',
     'dsb-pm':   'Plant Manager',
+    'dsb-oc':   'Other Contacts',
   };
   const siteCol=BTN_TO_COL[returnBtnId];
 
@@ -7263,7 +7364,9 @@ async function saveNewContactForSite(returnBtnId){
     //    write their email into the correct column of the Sites sheet too.
     if(siteName && siteCol){
       const displayName=(fn+' '+ln).trim()||email;
-      const siteUpdates={[siteCol]:email};
+      let siteUpdates={[siteCol]:email};
+      // Other Contacts is a multi-person list — append, never replace
+      if(siteCol==='Other Contacts'){_ocAdd(email);siteUpdates={'Other Contacts':(window._ocList||[]).join(', ')};}
       // Rangers and Garden Keepers also have a companion "Name" column
       if(siteCol==='Ranger 1')      siteUpdates['Ranger 1 Name']=displayName;
       if(siteCol==='Ranger 2')      siteUpdates['Ranger 2 Name']=displayName;
@@ -7285,7 +7388,7 @@ async function saveNewContactForSite(returnBtnId){
     m.textContent='✓ Added!';
     // Auto-select the new contact in the originating dropdown
     const displayName=(fn+' '+ln).trim()||email;
-    const btn=document.getElementById(returnBtnId);
+    const btn=returnBtnId==='dsb-oc'?null:document.getElementById(returnBtnId);
     if(btn){btn.textContent=displayName;btn.dataset.value=email;}
     // Inject them into the open dropdown list so they appear immediately
     const ddPanelId='dd-'+returnBtnId.replace('dsb-','');
@@ -7295,7 +7398,8 @@ async function saveNewContactForSite(returnBtnId){
       item.className='dropdown-item selected';
       item.dataset.email=email;item.dataset.name=displayName;
       item.innerHTML=displayName+`<span style="font-size:14px;color:var(--silver);margin-left:6px">${email}</span>`;
-      item.onclick=function(){selectDropdown(this);};
+      item.onclick=returnBtnId==='dsb-oc'?function(){_ocPick(this);}:function(){selectDropdown(this);};
+      if(returnBtnId==='dsb-oc')item.classList.remove('selected');
       list.appendChild(item);
     }
     setTimeout(()=>document.getElementById('acfs-modal')?.remove(),700);
@@ -8687,6 +8791,7 @@ function setSchoolRangerFilter(v){csRangerF=v;renderSchools();}
 function setSchoolRangerNumberFilter(v){csRangerNumF=v;renderSchools();}
 function setSchoolDayFilter(v){csDayF=v;renderSchools();}
 function setSchoolPoFilter(v){csPoF=v;renderSchools();}
+function setSchoolDistrictFilter(v){csDistF=v;renderSchools();}
 function setSchoolUnitsFilter(v){csUnitsF=v;renderSchools();}
 function setSchoolScheduleFilter(v){csSchedF=v;renderSchools();}
 function setSchoolClassStartFilter(v){csClassStartF=v;renderSchools();}
