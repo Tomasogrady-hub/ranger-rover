@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.14 | BUILDITALL: 2026-10-16 | Ranger Rover PWA -->
+<!-- v11.15 | BUILDITALL: 2026-10-16 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -141,6 +141,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .sub-shift{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px}
 .sub-shift .sub-in{padding:9px 6px;font-size:15px}
 .sub-x{border:none;background:none;font-size:20px;color:var(--clay);cursor:pointer;padding:4px}
+.sub-mode{display:flex;gap:8px;margin:0 0 6px}
+.sub-mode-btn{flex:1;padding:10px 8px;border:2px solid var(--mist);border-radius:var(--r-md);background:#fff;font-family:var(--font-b);font-size:15px;font-weight:700;color:var(--grove);cursor:pointer;text-align:center;line-height:1.25}
+.sub-mode-btn small{display:block;font-size:12px;font-weight:500;color:var(--stone);margin-top:2px}
+.sub-mode-btn.on{border-color:#E07A3F;background:#fdf0e7}
 .rr-util-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:42px;padding:0 16px;background:var(--enrich-dark);border-top:1px solid rgba(255,255,255,.08)}
 .rr-util-back{justify-self:start;background:none;border:none;color:#fff;font-size:26px;line-height:1;padding:4px 12px;cursor:pointer;font-family:var(--font-b);transition:opacity .15s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .rr-util-home{justify-self:center;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.16);border:none;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -970,7 +974,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     </div>
     <div style="padding:0 16px 6px;display:flex;gap:8px;justify-content:flex-end">
       <button class="sub-btn alt" onclick="loadSubs(true)">↻ Refresh</button>
-      <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Need a Sub</button>
+      <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Can’t Make It</button>
     </div>
     <div id="subBody"><div class="spinner"></div></div>
   </div>
@@ -1883,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.14';
+const APP_VERSION='v11.15';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-16 17:40 PT - Program Details column shown on site card and editable in Edit Site and Operations; Other Contacts shown and editable as a multi-person list with add-new-contact and duplicate email check; Schools tab District filter.';
+const BUILD_STAMP='2026-10-16 18:30 PT - Sub tab: button is now I Cant Make It. The form auto-fills the next scheduled Ranger day for the chosen school from Ranger Day Of Week 1/2/3 (re-fills when the school changes; Add Another Date jumps to the following scheduled day). New Reschedule option in the same form: pick the missed day(s), suggest alternative dates/times and a note, then Continue to Reach opens with everyone associated with the school pre-selected and a ready-made editable message (replies go to the Ranger). No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11004,7 +11008,7 @@ function renderSubs(){
   const mine=subs.filter(s=>isMe(s['Requested By'])&&(admin?true:true));
   const mineUp=mine.filter(s=>s.Date>=today);
   html+=_subSec('My Requests',mineUp.map(s=>s.Status==='Open'&&!admin?_subOpenCard(s):_subOtherCard(s)),
-    'None. Tap “+ I Need a Sub” if you can’t make it to a school.');
+    'None. Tap “+ I Can’t Make It” to find a sub or reschedule with the school.');
   body.innerHTML=html||'<div class="sub-empty">Nothing here yet.</div>';
   const cnt=document.getElementById('subCount');
   if(cnt){const n=_subBadgeCount();cnt.textContent=n?(n+(admin?' need action':' open')):'';}
@@ -11015,20 +11019,66 @@ function renderSubs(){
 }
 
 // ── Request form ────────────────────────────────────────────────────────────
+// ── Ranger schedule helpers (v11.15) ────────────────────────────────────────
+// A school's ranger days come from Ranger Day Of Week 1/2/3 (names like
+// "Tuesday"; also tolerates "Tue" or ISO numbers 1=Mon..7=Sun).
+const _SUB_DOW={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};
+function _subSiteDays(site){
+  if(!site)return [];
+  const out=[];
+  [sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')]
+    .forEach(v=>{
+      const t=String(v||'').trim().toLowerCase();if(!t)return;
+      let d=null;
+      if(/^\d$/.test(t)){const n=+t;d=n===7||n===0?0:(n>=1&&n<=6?n:null);}
+      else d=_SUB_DOW[t.slice(0,3)];
+      if(d!==undefined&&d!==null&&!out.includes(d))out.push(d);
+    });
+  return out;
+}
+function _subDayNames(days){return days.map(d=>['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d]).join(', ');}
+function _subYmd(d){return d.toLocaleDateString('en-CA');}
+// Next scheduled ranger day strictly after `afterYmd` (or the first one from
+// today if afterYmd is empty: today counts only before 10am, so a Ranger who
+// wakes up sick can still flag today). Falls back to the next weekday.
+function _subNextScheduled(site,afterYmd){
+  const days=_subSiteDays(site);
+  let d;
+  if(afterYmd){d=new Date(afterYmd+'T12:00:00');d.setDate(d.getDate()+1);}
+  else{d=new Date();if(d.getHours()>=10)d.setDate(d.getDate()+1);d.setHours(12,0,0,0);}
+  for(let i=0;i<21;i++){
+    const w=d.getDay();
+    if(days.length?days.includes(w):(w>=1&&w<=5))return _subYmd(d);
+    d.setDate(d.getDate()+1);
+  }
+  return _subYmd(d);
+}
+function _subFormSite(){const sel=document.getElementById('subSite');return sel?_subSiteByKey(sel.value):null;}
+
 function _subShiftRow(date,start,end){
   const t=_subToday();
   return '<div class="sub-shift"><input type="date" class="sub-in" min="'+t+'" value="'+ea(date||'')+'">'+
     '<input type="time" class="sub-in" value="'+ea(start||'')+'"><input type="time" class="sub-in" value="'+ea(end||'')+'">'+
     '<button class="sub-x" onclick="this.parentElement.remove()">✕</button></div>';
 }
-function subAddShiftRow(){
-  const box=document.getElementById('subShifts');if(!box)return;
+// "+ Add Another Date" → the next scheduled ranger day after the last row
+function subAddShiftRow(boxId){
+  const box=document.getElementById(boxId||'subShifts');if(!box)return;
   const rows=box.querySelectorAll('.sub-shift'),last=rows[rows.length-1];
   let d='',st='',en='';
-  if(last){const i=last.querySelectorAll('input');st=i[1].value;en=i[2].value;
-    if(i[0].value){const x=new Date(i[0].value+'T12:00:00');x.setDate(x.getDate()+7);d=x.toLocaleDateString('en-CA');}}
+  if(last){const i=last.querySelectorAll('input');st=i[1].value;en=i[2].value;}
+  const lastDate=last?last.querySelector('input').value:'';
+  if(boxId==='subAltDates'){
+    // suggestions: the next weekday after the last suggestion (or after the missed day)
+    const missed=[...document.querySelectorAll('#subShifts .sub-shift input[type=date]')].map(i=>i.value);
+    const base=lastDate||_subFirstMissed();
+    const x=new Date((base||_subToday())+'T12:00:00');
+    do{x.setDate(x.getDate()+1);}while(x.getDay()===0||x.getDay()===6||missed.includes(_subYmd(x)));
+    d=_subYmd(x);
+  }else d=_subNextScheduled(_subFormSite(),lastDate);
   box.insertAdjacentHTML('beforeend',_subShiftRow(d,st,en));
 }
+function _subFirstMissed(){const i=document.querySelector('#subShifts .sub-shift input');return i?i.value:'';}
 function _subFillSchoolSelect(){
   const sel=document.getElementById('subSite');if(!sel)return;
   const admin=_subIsAdmin(),forEl=document.getElementById('subFor');
@@ -11041,27 +11091,117 @@ function _subFillSchoolSelect(){
     html+='<optgroup label="All schools">'+rest.map(s=>'<option value="'+ea(key(s))+'">'+escHtml(nm(s))+'</option>').join('')+'</optgroup>';
   }
   sel.innerHTML=html;
+  _subSchoolChanged();
+}
+// School picked/changed → re-prompt the dates from that school's ranger days
+function _subSchoolChanged(){
+  const site=_subFormSite(),days=_subSiteDays(site);
+  const hint=document.getElementById('subDayHint');
+  if(hint)hint.innerHTML=site?(days.length?'📅 Ranger day'+(days.length>1?'s':'')+' at this school: <b>'+escHtml(_subDayNames(days))+'</b>':'📅 No Ranger Day Of Week on file for this school - pick the date yourself'):'';
+  let last={};try{last=JSON.parse(localStorage.getItem('rr_sub_last_times')||'{}');}catch(e){}
+  const box=document.getElementById('subShifts');
+  if(box){
+    const first=_subNextScheduled(site,'');
+    box.innerHTML=_subShiftRow(first,last.start||'',last.end||'');
+    const d=document.getElementById('subDateLbl');
+    if(d)d.textContent=(_subMode==='resched'?'Day(s) I can’t make it':'Date · Start · End');
+  }
+  _subResetAlts();
+}
+function _subResetAlts(){
+  const alt=document.getElementById('subAltDates');if(!alt)return;
+  let last={};try{last=JSON.parse(localStorage.getItem('rr_sub_last_times')||'{}');}catch(e){}
+  alt.innerHTML='';
+  for(let i=0;i<3;i++)subAddShiftRow('subAltDates');
+  alt.querySelectorAll('.sub-shift').forEach(r=>{const i=r.querySelectorAll('input');if(!i[1].value)i[1].value=last.start||'';if(!i[2].value)i[2].value=last.end||'';});
+}
+let _subMode='sub';
+function subSetMode(m){
+  _subMode=m;
+  document.querySelectorAll('.sub-mode-btn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+  const show=(id,on)=>{const el=document.getElementById(id);if(el)el.style.display=on?'':'none';};
+  show('subModeSub',m==='sub');show('subModeResched',m==='resched');
+  if(m==='resched')_subResetAlts();
+  const h=document.querySelector('#subOverlay h3');if(h)h.textContent=m==='resched'?'Reschedule with School':'I Need a Sub';
+  const lbl=document.getElementById('subDateLbl');if(lbl)lbl.textContent=m==='resched'?'Day(s) I can’t make it':'Date · Start · End';
+  const btn=document.getElementById('subSendBtn');
+  if(btn){btn.textContent=m==='resched'?'Continue to Reach →':'Send Request';btn.onclick=m==='resched'?subStartReschedule:submitSubRequest;}
 }
 function showSubRequestForm(){
   const admin=_subIsAdmin(),me=_subMe();
   if(!admin&&!_subSitesOf(me).length){alert('You are not assigned to any schools yet, so there is nothing to request a sub for. Please contact the office.');return;}
-  let last={};try{last=JSON.parse(localStorage.getItem('rr_sub_last_times')||'{}');}catch(e){}
-  const tmr=new Date();tmr.setDate(tmr.getDate()+1);
+  _subMode='sub';
   const forHtml=admin?'<div class="sub-lbl">Sub needed for</div><select class="sub-in" id="subFor" onchange="_subFillSchoolSelect()">'+
     '<option value="'+ea(me)+'">Me</option>'+_subEligibleOptions([me])+'</select>':'';
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='subOverlay';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
-  ov.innerHTML='<div class="sub-sheet"><h3>I Need a Sub</h3>'+forHtml+
-    '<div class="sub-lbl">School</div><select class="sub-in" id="subSite"></select>'+
-    '<div class="sub-lbl">Date · Start · End</div><div id="subShifts">'+_subShiftRow(tmr.toLocaleDateString('en-CA'),last.start||'',last.end||'')+'</div>'+
-    '<button class="sub-btn alt" style="margin-top:4px" onclick="subAddShiftRow()">+ Add Another Date</button>'+
-    '<div class="sub-lbl">Notes for the sub</div><textarea class="sub-in" id="subNotes" rows="4" placeholder="What to do that day, which classes, where tools are…"></textarea>'+
-    '<div class="sub-meta">The school address, phone and site details (parking, gates) are included automatically.'+
-      (admin?' Next you’ll choose who to send it to and can edit the message.':' Your request goes to the office for approval, then out to other Rangers.')+'</div>'+
+  ov.innerHTML='<div class="sub-sheet"><h3>I Need a Sub</h3>'+
+    '<div class="sub-mode">'+
+      '<button class="sub-mode-btn on" data-mode="sub" onclick="subSetMode(\'sub\')">🙋 Find a Sub<small>Another Ranger covers for me</small></button>'+
+      '<button class="sub-mode-btn" data-mode="resched" onclick="subSetMode(\'resched\')">📅 Reschedule<small>Ask the school for another day</small></button>'+
+    '</div>'+forHtml+
+    '<div class="sub-lbl">School</div><select class="sub-in" id="subSite" onchange="_subSchoolChanged()"></select>'+
+    '<div class="sub-meta" id="subDayHint"></div>'+
+    '<div class="sub-lbl" id="subDateLbl">Date · Start · End</div><div id="subShifts"></div>'+
+    '<button class="sub-btn alt" style="margin-top:4px" onclick="subAddShiftRow(\'subShifts\')">+ Add Another Date</button>'+
+    '<div id="subModeSub">'+
+      '<div class="sub-lbl">Notes for the sub</div><textarea class="sub-in" id="subNotes" rows="4" placeholder="What to do that day, which classes, where tools are…"></textarea>'+
+      '<div class="sub-meta">The school address, phone and site details (parking, gates) are included automatically.'+
+        (admin?' Next you’ll choose who to send it to and can edit the message.':' Your request goes to the office for approval, then out to other Rangers.')+'</div>'+
+    '</div>'+
+    '<div id="subModeResched" style="display:none">'+
+      '<div class="sub-lbl">Days I could come instead (suggest a few)</div><div id="subAltDates"></div>'+
+      '<button class="sub-btn alt" style="margin-top:4px" onclick="subAddShiftRow(\'subAltDates\')">+ Suggest Another Date</button>'+
+      '<div class="sub-lbl">Note to the school</div><textarea class="sub-in" id="subReschedNote" rows="3" placeholder="e.g. I’m sorry for the change - would any of these work for your classes?"></textarea>'+
+      '<div class="sub-meta">Next you’ll see everyone associated with the school (principal, office, contacts, teachers, plant manager) in Reach, with a ready-made message you can edit before sending by email or text. Replies come back to you.</div>'+
+    '</div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'subOverlay\').remove()">Cancel</button>'+
     '<button class="sub-btn hot" id="subSendBtn" onclick="submitSubRequest()">Send Request</button></div></div>';
   document.body.appendChild(ov);
   _subFillSchoolSelect();
+}
+// ── Reschedule → hand off to Reach with the school's people + a draft ───────
+function _subSchoolContactEmails(site){
+  const me=_subMe(),seen=new Set(),out=[];
+  SCHOOL_REACH_FIELDS.forEach(([col])=>{
+    String(sf(site,col)||site[col]||'').split(/[,\n]+/).map(x=>x.trim()).filter(Boolean).forEach(tok=>{
+      let e=tok;
+      if(!tok.includes('@')){const h=(DATA.humans||[]).find(p=>(fullName(p)||'').toLowerCase()===tok.toLowerCase());e=h?(h.Email||h.email||''):'';}
+      e=String(e||'').trim();const k=e.toLowerCase();
+      if(!e||k===me||seen.has(k))return;
+      // Reach selections key on the Humans-sheet spelling of the email
+      const h=(DATA.humans||[]).find(p=>String(p.Email||p.email||'').toLowerCase()===k);
+      if(!h)return;
+      seen.add(k);out.push(h.Email||h.email);
+    });
+  });
+  return out;
+}
+function subStartReschedule(){
+  const site=_subFormSite();if(!site){alert('Pick a school.');return;}
+  const rd=boxId=>[...document.querySelectorAll('#'+boxId+' .sub-shift')].map(r=>{const i=r.querySelectorAll('input');return {date:i[0].value,start:i[1].value,end:i[2].value};}).filter(x=>x.date);
+  const missed=rd('subShifts'),alts=rd('subAltDates');
+  if(!missed.length){alert('Add the day you can’t make it.');return;}
+  if(!alts.length&&!confirm('No alternative dates suggested. Continue and just ask the school for a new day?'))return;
+  const contacts=_subSchoolContactEmails(site);
+  if(!contacts.length){alert('There are no contacts on file for this school yet. Please contact the office.');return;}
+  const note=(document.getElementById('subReschedNote')||{}).value||'';
+  try{localStorage.setItem('rr_sub_last_times',JSON.stringify({start:missed[0].start,end:missed[0].end}));}catch(e){}
+  const plain=s=>_subFmtDate(s.date)+((s.start||s.end)?', '+_subFmtTime(s.start)+(s.end?'-'+_subFmtTime(s.end):''):'');
+  const name=sf(site,'Name','name');
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email,meFirst=meH?(meH['First Name']||meName.split(' ')[0]):'';
+  const subject='Garden Ranger visit - schedule change at '+name;
+  const msg='Hello,\n\nI’m sorry, but I won’t be able to make my Garden Ranger visit'+(missed.length>1?'s':'')+' at '+name+' on:\n'+
+    missed.map(s=>'- '+plain(s)).join('\n')+'\n\n'+
+    (alts.length?'Could we reschedule? I’m available on:\n'+alts.map(s=>'- '+plain(s)).join('\n')+'\n\nPlease let me know which works best for you, or suggest another day and time.':'Could you let me know another day and time that would work for you?')+
+    (note.trim()?'\n\n'+note.trim():'')+
+    '\n\nThank you,\n'+meName+'\nGarden Ranger, Enrich LA'+(hm(SESSION.email)?'\n'+hm(SESSION.email):'')+'\n'+SESSION.email;
+  const ov=document.getElementById('subOverlay');if(ov)ov.remove();
+  _schoolReachSiteName=name;
+  _reachSelected.clear();contacts.forEach(e=>_reachSelected.add(e));
+  _reachForwardPrefill={subject,message:msg};
+  switchTab('reach');showReachPage('schoolask');
+  showToast('📅 '+contacts.length+' school contact'+(contacts.length>1?'s':'')+' selected - tip: Email Together keeps everyone on one thread');
 }
 async function submitSubRequest(){
   const siteKey=(document.getElementById('subSite')||{}).value;
