@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.18 | 2026-10-17 | Sub activity logged as site (names show in Latest)';
+const GAS_BUILD = 'v11.19 | 2026-10-18 | Force Sign-Out token on live-sync heartbeat';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -500,6 +500,8 @@ function _liveGetVersions() {
   var props = PropertiesService.getScriptProperties();
   var out = { ok: true, live: 1, serverTime: Date.now() };
   LIVE_SCOPES.forEach(function(k) { out[k] = Number(props.getProperty('rr_ver_' + k) || 0); });
+  // Force Sign-Out token rides on the heartbeat so open apps react within ~20s
+  try { var st = JSON.parse(props.getProperty('app_settings') || '{}'); if (st.forceLogoutToken) out.flt = String(st.forceLogoutToken); } catch (e) {}
   return out;
 }
 

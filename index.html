@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.18 | BUILDITALL: 2026-10-17 | Ranger Rover PWA -->
+<!-- v11.19 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1887,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.18';
+const APP_VERSION='v11.19';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-17 17:55 PT - Latest tab: sub activity now shows the school name (was showing the school ID like j9jnurc because those entries were logged as Site instead of site) and reads in plain English (asked for a sub at / approved a sub request for / sent a sub request for / volunteered to sub at / assigned a sub at / cancelled a sub shift at). GAS now logs sub activity the standard way.';
+const BUILD_STAMP='2026-10-18 08:45 PT - Fix: Force Sign-Out + Update (All Users) only reached devices that fully reloaded the app; a home-screen app switched back to never re-checked. Now the 20-second live-sync check carries the sign-out signal (after GAS redeploy), and returning to the app re-checks settings right away (works now). Also: when a newer version is published, open apps show a New version available bar and update themselves when the person is not mid-edit.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -7765,6 +7765,7 @@ async function _liveCheck(){
   try{
     const v=await _liveFetchVer();
     if(!v)return;
+    if(v.flt)_checkForceLogout(String(v.flt));   // Force Sign-Out reaches open apps within ~20s
     setSync(true);
     const stored=_liveStored(),pend=LIVE.pending;
     const known=k=>(pend&&pend.scopes.includes(k))?pend.ver[k]:(stored[k]||0);
@@ -7830,6 +7831,45 @@ function _liveApply(){
   }catch(e){}
   if(window.scrollY!==sy)window.scrollTo(0,sy);
 }
+// ── Resume checks (v11.19) ──────────────────────────────────────────────────
+// A home-screen app that is switched back to is NOT reloaded, so the Force
+// Sign-Out token (checked in loadAppSettings) and new versions were only ever
+// picked up on a cold start. Now, whenever the app comes back to the front
+// (and every 5 min while open), at most once per 2 min:
+//   • re-check app settings → Force Sign-Out works without anyone reloading
+//   • compare this build to the live sw.js → if a newer version is published,
+//     show an "Update now" bar (applies itself automatically when the person
+//     isn't in the middle of a card or typing)
+let _resumeLast=0;
+function _resumeChecks(){
+  if(!SESSION||Date.now()-_resumeLast<120000)return;
+  _resumeLast=Date.now();
+  try{loadAppSettings();}catch(e){}
+  _checkNewAppVersion();
+}
+function _verNum(s){const m=/v?(\d+)[.\-](\d+)/.exec(String(s||''));return m?(+m[1])*10000+(+m[2]):0;}
+async function _checkNewAppVersion(){
+  try{
+    const t=await (await fetch('./sw.js?t='+Date.now(),{cache:'no-store'})).text();
+    const m=/ranger-rover-v(\d+)-(\d+)/.exec(t);if(!m)return;
+    const live=(+m[1])*10000+(+m[2]);
+    if(live>_verNum(APP_VERSION))_showUpdateBar('v'+m[1]+'.'+m[2]);
+  }catch(e){}
+}
+function _showUpdateBar(ver){
+  if(document.getElementById('rrUpdateBar'))return;
+  const b=document.createElement('div');b.id='rrUpdateBar';
+  b.style='position:fixed;left:12px;right:12px;top:calc(var(--safe-top) + 8px);z-index:30000;background:var(--enrich-dark);color:#fff;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.3);font-family:var(--font-b);font-size:15px';
+  b.innerHTML='<span style="flex:1">✨ New version '+escHtml(ver)+' is available</span><button style="background:#F5A623;color:#1e3a1e;border:none;border-radius:8px;padding:9px 14px;font-weight:800;font-size:14px;cursor:pointer" onclick="forceAppUpdate()">Update now</button>';
+  document.body.appendChild(b);
+  // apply on its own once the person is not mid-edit (checked every 5s, up to 2 min).
+  // Only auto-apply once per version per 15 min, so if the web host is still
+  // serving the old page for a few minutes we never loop reloading.
+  let last={};try{last=JSON.parse(localStorage.getItem('rr_upd_try')||'{}');}catch(e){}
+  if(last.v===ver&&Date.now()-(last.t||0)<15*60*1000)return;
+  try{localStorage.setItem('rr_upd_try',JSON.stringify({v:ver,t:Date.now()}));}catch(e){}
+  let tries=0;const iv=setInterval(()=>{tries++;if(!_liveUserBusy()){clearInterval(iv);forceAppUpdate();}else if(tries>24)clearInterval(iv);},5000);
+}
 function _liveSchedule(){
   clearTimeout(LIVE.timer);
   if(LIVE.off)return;
@@ -7838,8 +7878,9 @@ function _liveSchedule(){
 }
 (function _liveStart(){
   document.addEventListener('visibilitychange',()=>{
-    if(!document.hidden){LIVE.lastInput=Date.now();_liveCheck();_liveSchedule();}
+    if(!document.hidden){LIVE.lastInput=Date.now();_liveCheck();_liveSchedule();_resumeChecks();}
   });
+  setInterval(()=>{if(!document.hidden)_resumeChecks();},5*60*1000);
   window.addEventListener('online',()=>{_liveCheck();});
   const wake=()=>{
     const wasIdle=Date.now()-LIVE.lastInput>LIVE.IDLE_AFTER;
