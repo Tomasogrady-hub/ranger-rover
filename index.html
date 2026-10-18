@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.19 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.20 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1887,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.19';
+const APP_VERSION='v11.20';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 08:45 PT - Fix: Force Sign-Out + Update (All Users) only reached devices that fully reloaded the app; a home-screen app switched back to never re-checked. Now the 20-second live-sync check carries the sign-out signal (after GAS redeploy), and returning to the app re-checks settings right away (works now). Also: when a newer version is published, open apps show a New version available bar and update themselves when the person is not mid-edit.';
+const BUILD_STAMP='2026-10-18 08:50 PT - Sub tab: cancelled, declined and expired shifts no longer sit in My Requests. They move to a collapsed Cancelled and Past section with a Remove button on each and a Clear all button. Level 1 removal also deletes the rows from the Subs sheet (after GAS redeploy); for everyone else it hides them on their device.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11281,7 +11281,33 @@ function _subOtherCard(s){
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     (who?'<div class="sub-meta">'+who+'</div>':'')+
     (canCancel?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'')+
+    (['Cancelled','Declined','Expired'].includes(s.Status)?'<div class="sub-actions"><button class="sub-btn alt" onclick="subRemove(\''+ea(s.ID)+'\')">🗑 Remove</button></div>':'')+
     '</div>';
+}
+// ── Removing finished (cancelled/declined/expired) shifts ───────────────────
+// Hidden right away on this device; Level 1 also deletes the rows from the
+// Subs sheet, everyone else's removal just hides it for them (the office keeps
+// the record). Works before the GAS redeploy too (hide-only).
+let _subPastOpen=false;
+function _subHiddenSet(){try{return new Set(JSON.parse(localStorage.getItem('rr_sub_hidden_'+_subMe())||'[]'));}catch(e){return new Set();}}
+function _subHide(ids){
+  const s=_subHiddenSet();ids.forEach(i=>s.add(i));
+  try{localStorage.setItem('rr_sub_hidden_'+_subMe(),JSON.stringify([...s].slice(-500)));}catch(e){}
+}
+async function _subRemoveIds(ids){
+  _subHide(ids);renderSubs();_subBadge();
+  if(SESSION&&SESSION.accessLevel===1){
+    try{const r=await gasPost({action:'deleteSubs',actor:SESSION.email,ids});
+      if(r&&r.ok){_SUB.subs=_SUB.subs.filter(s=>!ids.includes(s.ID));renderSubs();}}catch(e){}
+  }
+  showSaveToast('🗑 Removed');
+}
+function subRemove(id){_subRemoveIds([id]);}
+function subRemoveAllPast(){
+  const ids=_SUB.subs.filter(s=>['Cancelled','Declined','Expired'].includes(s.Status)&&!_subHiddenSet().has(s.ID)&&(_subIsAdmin()||String(s['Requested By']).toLowerCase()===_subMe())).map(s=>s.ID);
+  if(!ids.length)return;
+  if(!confirm('Remove all '+ids.length+' cancelled/past shift'+(ids.length>1?'s':'')+' from this list?'))return;
+  _subRemoveIds(ids);
 }
 
 function renderSubs(){
@@ -11305,10 +11331,19 @@ function renderSubs(){
   }else{
     html+=_subSec('Open Opportunities',up.filter(s=>s.Status==='Open'&&!isMe(s['Requested By'])).map(_subOpenCard),'No open sub shifts right now.');
   }
-  const mine=subs.filter(s=>isMe(s['Requested By'])&&(admin?true:true));
-  const mineUp=mine.filter(s=>s.Date>=today);
+  const DONE=['Cancelled','Declined','Expired'];
+  const hidden=_subHiddenSet();
+  const mine=subs.filter(s=>isMe(s['Requested By']));
+  const mineUp=mine.filter(s=>s.Date>=today&&!DONE.includes(s.Status));
   html+=_subSec('My Requests',mineUp.map(s=>s.Status==='Open'&&!admin?_subOpenCard(s):_subOtherCard(s)),
     'None. Tap “+ I Can’t Make an Upcoming School Session” to find a sub or reschedule with the school.');
+  // Cancelled / declined / expired (mine, or any for Level 1-2) — tucked away, removable
+  const past=subs.filter(s=>DONE.includes(s.Status)&&!hidden.has(s.ID)&&(admin||isMe(s['Requested By'])));
+  if(past.length){
+    html+='<details class="sub-past"'+(_subPastOpen?' open':'')+' ontoggle="_subPastOpen=this.open"><summary class="sub-sec" style="cursor:pointer">Cancelled &amp; Past ('+past.length+')</summary>'+
+      '<div style="padding:0 16px"><button class="sub-btn alt" style="margin:6px 0" onclick="subRemoveAllPast()">🗑 Clear all</button></div>'+
+      past.slice().reverse().map(_subOtherCard).join('')+'</details>';
+  }
   body.innerHTML=html||'<div class="sub-empty">Nothing here yet.</div>';
   const cnt=document.getElementById('subCount');
   if(cnt){const n=_subBadgeCount();cnt.textContent=n?(n+(admin?' need action':' open')):'';}

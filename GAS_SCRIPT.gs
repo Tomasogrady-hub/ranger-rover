@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.19 | 2026-10-18 | Force Sign-Out token on live-sync heartbeat';
+const GAS_BUILD = 'v11.20 | 2026-10-18 | deleteSubs (Level 1 removes finished sub shifts)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -493,7 +493,7 @@ var LIVE_ACTION_SCOPES = {
   addChore: ['chores'], uploadChoreImage: ['chores'], saveChore: ['chores'], deleteChore: ['chores'],
   uploadSiteImage: ['sites'], uploadSiteSchedule: ['sites'], removeSiteSchedule: ['sites'],
   createSite: ['sites'], deleteSite: ['sites'],
-  requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs']
+  requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs']
 };
 
 function _liveGetVersions() {
@@ -767,6 +767,7 @@ function _doPostRoute(e) {
       case 'volunteerSub': return respond(handleVolunteerSub(p));
       case 'assignSub':    return respond(handleAssignSub(p));
       case 'cancelSub':    return respond(handleCancelSub(p));
+      case 'deleteSubs':   return respond(handleDeleteSubs(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -4762,4 +4763,32 @@ function _subEnsureTrigger() {
     if (PropertiesService.getScriptProperties().getProperty('sub_trigger_v1')) return;
     installSubTrigger();
   } catch(e) { Logger.log('sub trigger install failed: ' + e.message); }
+}
+
+// Level 1 only: permanently delete finished (Cancelled / Declined / Expired)
+// shifts and their volunteer rows. Active shifts are never deleted here.
+function handleDeleteSubs(p) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    if (me.level !== 1) return { ok: false, error: 'Only Level 1 can delete sub records.' };
+    var ids = {};
+    (p.ids || []).forEach(function(i){ ids[String(i)] = true; });
+    var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+    var DONE = ['Cancelled', 'Declined', 'Expired'];
+    var rows = tbl.rows.filter(function(s){ return ids[s.ID] && DONE.indexOf(s.Status) !== -1; });
+    var gone = {};
+    rows.sort(function(a, b){ return b._row - a._row; }).forEach(function(s){ tbl.sheet.deleteRow(s._row); gone[s.ID] = true; });
+    var vt = _subReadAll(_subGetSheet(SUB_VOL_TAB, SUB_VOL_HEADERS));
+    vt.rows.filter(function(v){ return gone[v['Sub ID']]; })
+      .sort(function(a, b){ return b._row - a._row; })
+      .forEach(function(v){ vt.sheet.deleteRow(v._row); });
+    return { ok: true, deleted: rows.length };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  } finally {
+    try { lock.releaseLock(); } catch (x) {}
+  }
 }
