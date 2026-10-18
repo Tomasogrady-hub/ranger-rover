@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.7 | 2026-09-24 | Sub: choose recipients + edit message';
+const GAS_BUILD = 'v11.16 | 2026-10-17 | Live sync: type=ver/sites/chores, version bumps, 1-min watcher';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -464,17 +464,152 @@ function handleGetMyLocation(p) {
   }
 }
 
+// ── LIVE SYNC ────────────────────────────────────────────────────────────────
+// The app polls doGet?type=ver every ~20s. That call reads 4 tiny Script
+// Properties and nothing else, so it returns fast. Each value is a timestamp
+// (ms) of the last change to that data set. When a number changes, the app
+// fetches ONLY that data set (type=sites / chores / humans) or reloads Subs.
+//
+// Versions are bumped two ways:
+//   1. Instantly, at the end of doPost, for any write made through the app.
+//   2. Within ~1 minute, by liveSyncWatch() (time trigger), for edits made
+//      OUTSIDE the app: typing in the sheet, AppSheet, Johanna's sync
+//      scripts, other GAS triggers. It checks each file's Drive "last
+//      updated" time first (cheap), and only then hashes the relevant tabs,
+//      so Activity-log writes in the Sites file don't cause false refreshes.
+// The trigger installs itself on the first type=ver call (no manual step).
+var LIVE_SCOPES = ['sites', 'humans', 'chores', 'subs'];
+var LIVE_FILES = [
+  { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'], subs: ['Subs', 'Sub Volunteers'] } },
+  { key: 'humans', id: HUMANS_ID, scopes: { humans: ['Humans', 'Roles'] } },
+  { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
+];
+var LIVE_ACTION_SCOPES = {
+  addHuman: ['humans'], addRole: ['humans'], deleteHuman: ['humans', 'sites'],
+  uploadHumanImage: ['humans'], uploadHumanDoc: ['humans'], removeHumanFile: ['humans'],
+  saveComments: ['humans'], publicSmsOptIn: ['humans'],
+  cascadeEmail: ['humans', 'sites', 'chores'], clearRangerFromSites: ['sites'],
+  reassignChore: ['chores'], closeChore: ['chores'], updateChore: ['chores'],
+  addChore: ['chores'], uploadChoreImage: ['chores'], saveChore: ['chores'], deleteChore: ['chores'],
+  uploadSiteImage: ['sites'], uploadSiteSchedule: ['sites'], removeSiteSchedule: ['sites'],
+  createSite: ['sites'], deleteSite: ['sites'],
+  requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs']
+};
+
+function _liveGetVersions() {
+  var props = PropertiesService.getScriptProperties();
+  var out = { ok: true, live: 1, serverTime: Date.now() };
+  LIVE_SCOPES.forEach(function(k) { out[k] = Number(props.getProperty('rr_ver_' + k) || 0); });
+  return out;
+}
+
+function bumpLiveVersion(scopes) {
+  if (!scopes || !scopes.length) return;
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var now = String(Date.now());
+    var set = {};
+    scopes.forEach(function(k) { set['rr_ver_' + k] = now; });
+    props.setProperties(set, false);
+  } catch (e) { Logger.log('bumpLiveVersion failed: ' + e.message); }
+}
+
+// Which data sets a doPost action changes. Default (no action) = handleSaveEdit.
+function _liveScopesForAction(p) {
+  if (!p) return [];
+  if (!p.action) return [p.sheet === 'Humans' ? 'humans' : 'sites'];
+  return LIVE_ACTION_SCOPES[p.action] || [];
+}
+
+function _liveHashTabs(ss, tabs) {
+  var parts = [];
+  tabs.forEach(function(t) {
+    var sh = ss.getSheetByName(t);
+    parts.push(t + ':' + (sh ? JSON.stringify(sh.getDataRange().getValues()) : '-'));
+  });
+  return Utilities.base64Encode(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, parts.join('|'), Utilities.Charset.UTF_8));
+}
+
+// Time trigger (every minute). Detects edits made outside the app.
+function liveSyncWatch() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(2000)) return;
+  try {
+    var props = PropertiesService.getScriptProperties();
+    LIVE_FILES.forEach(function(f) {
+      try {
+        var lu = DriveApp.getFileById(f.id).getLastUpdated().getTime();
+        var seen = Number(props.getProperty('rr_lu_' + f.key) || 0);
+        if (lu <= seen) return;                       // file untouched since last check
+        props.setProperty('rr_lu_' + f.key, String(lu));
+        var ss = SpreadsheetApp.openById(f.id);
+        Object.keys(f.scopes).forEach(function(scope) {
+          var hash = _liveHashTabs(ss, f.scopes[scope]);
+          if (hash === props.getProperty('rr_hash_' + scope)) return;  // e.g. only Activity log changed
+          props.setProperty('rr_hash_' + scope, hash);
+          var ver = Number(props.getProperty('rr_ver_' + scope) || 0);
+          // If the app already bumped this scope at/after the file's last edit,
+          // that change came through the app — no second bump needed.
+          if (lu > ver + 5000) bumpLiveVersion([scope]);
+        });
+      } catch (e) { Logger.log('liveSyncWatch ' + f.key + ': ' + e.message); }
+    });
+  } finally { lock.releaseLock(); }
+}
+
+// Safe to run by hand from the editor; also runs automatically once.
+function installLiveSyncTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'liveSyncWatch') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('liveSyncWatch').timeBased().everyMinutes(1).create();
+  PropertiesService.getScriptProperties().setProperty('livesync_trigger_v1', String(Date.now()));
+}
+
+function _liveEnsureTrigger() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty('livesync_trigger_v1')) return;
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(3000)) return;
+    try {
+      if (props.getProperty('livesync_trigger_v1')) return;
+      installLiveSyncTrigger();
+    } finally { lock.releaseLock(); }
+  } catch (e) { Logger.log('live trigger install failed: ' + e.message); }
+}
+
 // ── doGet ─────────────────────────────────────────────────────────────────────
 function doGet(e) {
+  var type = (e && e.parameter && e.parameter.type) || 'all';
+
+  // Live-sync heartbeat — must stay tiny and fast (no sheet reads).
+  if (type === 'ver') {
+    _liveEnsureTrigger();
+    return respond(_liveGetVersions());
+  }
+
   // One-time migration: convert Site Names → Keys in Chores + Humans sheets
   migrateSiteNamesToKeys();
   // One-time migration: add Operations financial columns to Sites sheet
   ensureOperationsColumns();
 
   // type=core   → Sites + Chores only  (fast first paint)
+  // type=sites  → Sites only           (live sync)
+  // type=chores → Chores only          (live sync)
   // type=humans → Humans + Roles only  (loaded in background)
   // (default)   → everything           (backward-compatible / cache warm-up)
-  var type = (e && e.parameter && e.parameter.type) || 'all';
+
+  if (type === 'sites') {
+    var sitesMapS = getFolderIndex(SITES_IMG_FOLDER);
+    return respond({ sites: readSheet(SITES_ID, 'Sites', BLOCKED_S, SITES_IMG_COLS, sitesMapS) });
+  }
+
+  if (type === 'chores') {
+    var choresMapC = getFolderIndex(CHORES_IMG_FOLDER);
+    return respond({ chores: getOpenChores(choresMapC) });
+  }
 
   if (type === 'core') {
     var sitesMap  = getFolderIndex(SITES_IMG_FOLDER);
@@ -504,7 +639,21 @@ function doGet(e) {
 
 
 // ── doPost ────────────────────────────────────────────────────────────────────
+// Wrapper: route the request, then bump live-sync versions for successful writes.
 function doPost(e) {
+  var out = _doPostRoute(e);
+  try {
+    var p = JSON.parse(e.postData.contents);
+    var scopes = _liveScopesForAction(p);
+    if (scopes.length) {
+      var res = JSON.parse(out.getContent() || '{}');
+      if (!res || res.ok !== false) bumpLiveVersion(scopes);
+    }
+  } catch (err) { /* never let live sync break a save */ }
+  return out;
+}
+
+function _doPostRoute(e) {
   try {
     var p = JSON.parse(e.postData.contents);
 

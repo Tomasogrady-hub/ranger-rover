@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.15 | BUILDITALL: 2026-10-16 | Ranger Rover PWA -->
+<!-- v11.16 | BUILDITALL: 2026-10-17 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1887,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.15';
+const APP_VERSION='v11.16';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-16 18:30 PT - Sub tab: button is now I Cant Make It. The form auto-fills the next scheduled Ranger day for the chosen school from Ranger Day Of Week 1/2/3 (re-fills when the school changes; Add Another Date jumps to the following scheduled day). New Reschedule option in the same form: pick the missed day(s), suggest alternative dates/times and a note, then Continue to Reach opens with everyone associated with the school pre-selected and a ready-made editable message (replies go to the Ranger). No GAS change.';
+const BUILD_STAMP='2026-10-17 17:40 PT - Live sync: the app now checks for changes every 20 seconds (tiny request) and pulls only the sheet that changed (Sites, Chores, Humans or Subs). Edits made directly in the sheets or AppSheet show up within about a minute. Updates wait while a card or form is open, pause when the app is in the background, and slow to every 2 minutes after 10 minutes idle. Opening the app always checks right away instead of trusting a 30 minute old copy. REQUIRES GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2823,7 +2823,7 @@ async function loadData(force=false){
         DATA=JSON.parse(c);
         _humansLoaded=!!(DATA.humans&&DATA.humans.length);
         syncTS(ts);renderAll();
-        if(age<CFG.TTL)return;
+        if(age<CFG.TTL){setTimeout(_liveCheck,50);return;}
         _refreshAllBackground();return;
       }catch(e){}
     }
@@ -2850,10 +2850,12 @@ async function loadData(force=false){
   // ── PHASE 1: Sites + Chores (fast) ────────────────────────────────────────
   try{
     setSync(true);
+    const _vp=_liveFetchVer();
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
     const j=await r.json();
     if(j.sites){
       DATA.sites=j.sites;DATA.chores=j.chores||[];
+      _vp.then(v=>{if(v)_liveAdopt(v,['sites','chores']);});
       // Render schools & chores tabs right away
       renderAll();
     }
@@ -2866,11 +2868,13 @@ async function loadData(force=false){
 async function _loadHumansBackground(){
   if(!CFG.URL)return;
   try{
+    const _vp=_liveFetchVer();
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
     const j=await r.json();
     if(j.humans){
       DATA.humans=j.humans;DATA.roles=j.roles||[];
       _humansLoaded=true;
+      _vp.then(v=>{if(v)_liveAdopt(v,['humans']);});
       _updateHdrAvatar();
       setSync(true);
       const n=Date.now();
@@ -7619,6 +7623,7 @@ async function forceRefresh(){
   _showRefreshBlocker();
   showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
   try{
+    const _vp=_liveFetchVer();
     // Phase 1 — sites + chores
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
     const j=await r.json();
@@ -7630,6 +7635,7 @@ async function forceRefresh(){
         const n=Date.now();localStorage.setItem(CFG.CK,JSON.stringify(DATA));localStorage.setItem(CFG.TK,n);syncTS(n);
         _updateHdrAvatar();renderAll();setSync(true);
         _resyncOwnAccessLevel();
+        _vp.then(v=>{if(v)_liveAdopt(v,['sites','chores','humans']);});
       }).catch(()=>{});
     // This button was the one gap in the Force Sign-Out kill switch: it
     // refreshed data but never touched _appSettings, so pressing it never
@@ -7649,6 +7655,7 @@ async function forceRefresh(){
 }
 async function _refreshAllBackground(){
   if(!CFG.URL)return;
+  const _vp=_liveFetchVer();
   try{
     const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
     const j=await r.json();
@@ -7662,8 +7669,145 @@ async function _refreshAllBackground(){
   const n=Date.now();
   localStorage.setItem(CFG.CK,JSON.stringify(DATA));
   localStorage.setItem(CFG.TK,n);syncTS(n);setSync(true);
+  _vp.then(v=>{if(v)_liveAdopt(v,['sites','chores','humans']);});
   renderAll();
 }
+
+/* ═══ LIVE SYNC (v11.16) ═══
+   Every ~20s (while the app is open and in front) we ask GAS for 4 tiny
+   version numbers (?type=ver). Only when one changes do we pull that one
+   data set — Sites, Chores, Humans — or reload Subs. New data waits while a
+   card/form is open or the user is typing, then drops in when they're done.
+   Background tab = no polling; 10 min with no taps = poll every 2 min.
+   If GAS hasn't been redeployed yet (no type=ver), this switches itself off
+   for the session so it never pulls the full payload on a loop. */
+const LIVE={VK:'rr_live_ver',FAST:20000,SLOW:120000,IDLE_AFTER:10*60*1000,
+  timer:null,busy:false,off:false,lastInput:Date.now(),pending:null,ver:null};
+function _liveStored(){
+  if(LIVE.ver)return LIVE.ver;
+  try{LIVE.ver=JSON.parse(localStorage.getItem(LIVE.VK)||'null')||{};}catch(e){LIVE.ver={};}
+  return LIVE.ver;
+}
+function _liveAdopt(v,scopes){
+  const cur=Object.assign({},_liveStored());
+  scopes.forEach(k=>{if(v&&v[k]!==undefined)cur[k]=v[k];});
+  LIVE.ver=cur;
+  try{localStorage.setItem(LIVE.VK,JSON.stringify(cur));}catch(e){}
+}
+async function _liveFetchVer(){
+  if(!CFG.URL||LIVE.off)return null;
+  try{
+    const r=await fetch(CFG.URL+'?type=ver&t='+Date.now());
+    const v=await r.json();
+    if(v&&v.ok&&v.live===1)return v;
+    if(v&&(v.sites||v.humans)){LIVE.off=true;}   // old GAS: answered with full data
+  }catch(e){}
+  return null;
+}
+function _liveUserBusy(){
+  const o=document.getElementById('detail-overlay');
+  if(o&&o.style.display==='flex')return true;
+  if(document.getElementById('refresh-blocker'))return true;
+  const a=document.activeElement;
+  if(a){
+    const t=a.tagName;
+    if(t==='TEXTAREA'||t==='SELECT'||a.isContentEditable)return true;
+    if(t==='INPUT'&&!/^(button|submit|checkbox|radio|range|color|file)$/i.test(a.type||''))return true;
+  }
+  return false;
+}
+async function _liveCheck(){
+  if(LIVE.off||LIVE.busy||!CFG.URL||!SESSION||document.hidden)return;
+  LIVE.busy=true;
+  try{
+    const v=await _liveFetchVer();
+    if(!v)return;
+    setSync(true);
+    const stored=_liveStored(),pend=LIVE.pending;
+    const known=k=>(pend&&pend.scopes.includes(k))?pend.ver[k]:(stored[k]||0);
+    const changed=['sites','chores','humans','subs'].filter(k=>(v[k]||0)!==known(k));
+    if(!changed.length)return;
+
+    // Subs have their own loader/cache — just reload if the tab has been used.
+    if(changed.includes('subs')){
+      _liveAdopt(v,['subs']);
+      if(typeof _SUB!=='undefined'&&_SUB.loaded&&!_liveUserBusy())loadSubs(true);
+    }
+    const need=changed.filter(k=>k!=='subs');
+    if(!need.length)return;
+
+    const got={scopes:need,ver:v};
+    const wantS=need.includes('sites'),wantC=need.includes('chores');
+    const jobs=[];
+    if(wantS||wantC){
+      const type=(wantS&&wantC)?'core':(wantS?'sites':'chores');
+      jobs.push(fetch(CFG.URL+'?t='+Date.now()+'&type='+type).then(r=>r.json()).then(j=>{
+        if(wantS&&j.sites&&j.sites.length)got.sites=j.sites;
+        if(wantC&&j.chores)got.chores=j.chores;
+      }));
+    }
+    if(need.includes('humans')){
+      jobs.push(fetch(CFG.URL+'?t='+Date.now()+'&type=humans').then(r=>r.json()).then(j=>{
+        if(j.humans&&j.humans.length){got.humans=j.humans;got.roles=j.roles||[];}
+      }));
+    }
+    await Promise.all(jobs);
+    // Only mark scopes whose data actually arrived
+    got.scopes=need.filter(k=>(k==='sites'&&got.sites)||(k==='chores'&&got.chores)||(k==='humans'&&got.humans));
+    if(!got.scopes.length)return;
+    if(pend){  // merge with anything still waiting
+      ['sites','chores','humans','roles'].forEach(k=>{if(got[k]===undefined&&pend[k]!==undefined)got[k]=pend[k];});
+      pend.scopes.forEach(k=>{if(!got.scopes.includes(k)){got.scopes.push(k);}});
+      got.ver=Object.assign({},pend.ver,v);
+    }
+    LIVE.pending=got;
+    _liveApply();
+  }catch(e){
+  }finally{LIVE.busy=false;}
+}
+function _liveApply(){
+  const p=LIVE.pending;
+  if(!p||_liveUserBusy())return;
+  LIVE.pending=null;
+  if(p.sites)DATA.sites=p.sites;
+  if(p.chores)DATA.chores=p.chores;
+  if(p.humans){DATA.humans=p.humans;DATA.roles=p.roles||DATA.roles||[];_humansLoaded=true;}
+  const n=Date.now();
+  try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));localStorage.setItem(CFG.TK,n);}catch(e){}
+  syncTS(n);
+  _liveAdopt(p.ver,p.scopes);
+  const sy=window.scrollY;
+  try{
+    renderAll();
+    if(p.humans){
+      _tabDirty.rangers=true;_tabDirty.people=true;_tabDirty.reach=true;
+      _updateHdrAvatar();_resyncOwnAccessLevel();
+    }
+    _initLazyImages();
+  }catch(e){}
+  if(window.scrollY!==sy)window.scrollTo(0,sy);
+}
+function _liveSchedule(){
+  clearTimeout(LIVE.timer);
+  if(LIVE.off)return;
+  const idle=Date.now()-LIVE.lastInput>LIVE.IDLE_AFTER;
+  LIVE.timer=setTimeout(async()=>{await _liveCheck();_liveSchedule();},idle?LIVE.SLOW:LIVE.FAST);
+}
+(function _liveStart(){
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden){LIVE.lastInput=Date.now();_liveCheck();_liveSchedule();}
+  });
+  window.addEventListener('online',()=>{_liveCheck();});
+  const wake=()=>{
+    const wasIdle=Date.now()-LIVE.lastInput>LIVE.IDLE_AFTER;
+    LIVE.lastInput=Date.now();
+    if(wasIdle){_liveCheck();_liveSchedule();}
+  };
+  ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,wake,{passive:true,capture:true}));
+  // Drop waiting updates in as soon as the user closes a card / leaves a field
+  setInterval(_liveApply,2000);
+  _liveSchedule();
+})();
 
 /* ═══ TABS ═══ */
 
