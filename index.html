@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.20 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.21 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1887,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.20';
+const APP_VERSION='v11.21';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 08:50 PT - Sub tab: cancelled, declined and expired shifts no longer sit in My Requests. They move to a collapsed Cancelled and Past section with a Remove button on each and a Clear all button. Level 1 removal also deletes the rows from the Subs sheet (after GAS redeploy); for everyone else it hides them on their device.';
+const BUILD_STAMP='2026-10-18 09:50 PT - Sub tab Reschedule: the Reach list it opens now also pre-selects Senior Leadership (everyone with Access Level 2), same as the school card Reach picker. No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11488,7 +11488,7 @@ function showSubRequestForm(){
       '<div class="sub-lbl">Days I could come instead (suggest a few)</div><div id="subAltDates"></div>'+
       '<button class="sub-btn alt" style="margin-top:4px" onclick="subAddShiftRow(\'subAltDates\')">+ Suggest Another Date</button>'+
       '<div class="sub-lbl">Note to the school</div><textarea class="sub-in" id="subReschedNote" rows="3" placeholder="e.g. I’m sorry for the change - would any of these work for your classes?"></textarea>'+
-      '<div class="sub-meta">Next you’ll see everyone associated with the school (principal, office, contacts, teachers, plant manager) in Reach, with a ready-made message you can edit before sending by email or text. Replies come back to you.</div>'+
+      '<div class="sub-meta">Next you’ll see everyone associated with the school (principal, office, contacts, teachers, plant manager) plus Enrich LA senior leadership in Reach, with a ready-made message you can edit before sending by email or text. Replies come back to you.</div>'+
     '</div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'subOverlay\').remove()">Cancel</button>'+
     '<button class="sub-btn hot" id="subSendBtn" onclick="submitSubRequest()">Send Request</button></div></div>';
@@ -11509,6 +11509,14 @@ function _subSchoolContactEmails(site){
       if(!h)return;
       seen.add(k);out.push(h.Email||h.email);
     });
+  });
+  // Senior Leadership = everyone with Access Level 2 (same rule as the school
+  // card's Reach picker), so the office is always looped in on a reschedule.
+  (DATA.humans||[]).forEach(h=>{
+    const e=String(h.Email||h.email||'').trim(),k=e.toLowerCase();
+    if(!e||k===me||seen.has(k))return;
+    if(String(h['Access Level']||'').trim()!=='2')return;
+    seen.add(k);out.push(e);
   });
   return out;
 }
