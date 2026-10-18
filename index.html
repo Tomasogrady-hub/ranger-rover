@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.22 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.23 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -114,9 +114,14 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="sub"]      {background:#E07A3F;color:#fff}
 /* ── SUB TAB (v11.6) ── */
 .nav-badge{position:absolute;top:6px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fff;color:#C0392B;font-size:11px;font-weight:900;line-height:18px;text-align:center;letter-spacing:0}
-.sub-sec{padding:6px 16px 2px;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
+.sub-sec{padding:8px 16px 2px;font-size:16px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
 .sub-card{background:#fff;border:1px solid var(--mist);border-radius:var(--r-md);padding:14px 15px;margin:8px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
 .sub-card.hl{outline:3px solid #E07A3F;outline-offset:1px}
+.sub-card.tap{cursor:pointer}
+.sub-card.tap:active{background:#fbf7f2}
+.sub-more{font-size:13px;font-weight:700;color:#E07A3F;margin-top:8px;letter-spacing:.03em}
+.sub-dl{font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--stone);margin:14px 0 4px}
+.sub-dv{font-size:16px;color:var(--ink);line-height:1.5;white-space:pre-wrap}
 .sub-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .sub-school{font-size:19px;font-weight:700;color:var(--grove);line-height:1.2}
 .sub-when{font-size:17px;font-weight:600;color:var(--ink);margin-top:3px}
@@ -1887,10 +1892,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.22';
+const APP_VERSION='v11.23';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 10:40 PT - Sub data now lives in its own Sub spreadsheet (Subs, Sub Volunteers, Reschedules, Reschedule Options, History, Guide; old rows copied over automatically). Reschedule: each suggested date in the message to the school is a tap-to-confirm link (reschedule.html). The school picks one, the Reschedules row is marked Confirmed with the chosen date, and the Ranger (email + text), Level 1-2 and everyone on the message are notified. The school can also reply None of these work with their own suggestion. Sub tab shows Reschedules with status. Requires GAS New Deployment.';
+const BUILD_STAMP='2026-10-18 13:45 PT - Sub tab: section headings larger; Open is now shown as Available (Available Opportunities). Tap any shift card to open a full-detail card (school, date/time, address and map, phone, Ranger, notes, Program Details, site details, schedule, actions) with a Reach button that opens Reach with Senior Leadership (Access Level 2) and the Ranger pre-selected, a ready-made message, and an immediate Email or Text choice. No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11184,7 +11189,7 @@ function _subSec(title,cards,emptyMsg){
 function _subPill(s){
   const st=s.Status||'';
   const cls=st==='Pending Approval'?'pending':st==='Open'?'open':st==='Filled'?'filled':'off';
-  return '<span class="sub-pill '+cls+'">'+escHtml(st==='Pending Approval'?'Needs approval':st)+'</span>';
+  return '<span class="sub-pill '+cls+'">'+escHtml(st==='Pending Approval'?'Needs approval':st==='Open'?'Available':st)+'</span>';
 }
 function _subHead(site,siteKey,whenHtml,pill,fbName){
   return '<div class="sub-top"><div><div class="sub-school">'+escHtml(site?sf(site,'Name','name'):siteNameFromKey(siteKey,fbName))+'</div>'+
@@ -11203,7 +11208,7 @@ function _subCardHl(id){return id&&_subHighlight&&(id===_subHighlight)?' hl':'';
 function _subPendingCard(group){
   const s=group[0],site=_subSiteByKey(s.Site),req=_subPerson(s['Requested By']);
   const hl=group.some(x=>x.ID===_subHighlight)?' hl':'';
-  return '<div class="sub-card'+hl+'" id="subcard_'+ea(s.ID)+'">'+
+  return '<div class="sub-card tap'+hl+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,group.map(x=>escHtml(_subFmtShift(x))).join('<br>'),_subPill(s),s.SiteName)+
     '<div class="sub-meta">Requested by <b>'+escHtml(req.name)+'</b></div>'+
     (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+
@@ -11249,17 +11254,18 @@ function _subOpenCard(s){
   }
   const dist=admin?'':_subDistLabel(site,me,true);
   const actions=(admin||mineReq)?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'';
-  return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
+  return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     '<div class="sub-meta">'+(mineReq?'Your request':'For <b>'+escHtml(req.name)+'</b>')+(dist?' · '+escHtml(dist):'')+'</div>'+
-    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+body+actions+'</div>';
+    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+body+actions+
+    '<div class="sub-more">Tap for all details &amp; Reach ›</div></div>';
 }
 // Shift the viewer is confirmed to cover — full site details
 function _subAssignedCard(s){
   const site=_subSiteByKey(s.Site),req=_subPerson(s['Requested By']);
   const addr=site?sf(site,'Full Address','FullAddress'):'',phone=site?sf(site,'Telephone','telephone'):'';
   const det=site?sf(site,'SiteDetails','Site Details','siteDetails'):'';
-  return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
+  return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),'<span class="sub-pill filled">You\'re subbing</span>',s.SiteName)+
     (addr?'<div class="sub-meta">📍 <a target="_blank" href="'+ea(_subMapUrl(site))+'">'+escHtml(addr)+'</a></div>':'')+
     (phone?'<div class="sub-meta">📞 <a href="tel:'+ea(phone)+'">'+escHtml(phone)+'</a></div>':'')+
@@ -11278,12 +11284,107 @@ function _subOtherCard(s){
   else if(s.Status==='Declined')who='Not approved'+(s['Decline Note']?': '+escHtml(s['Decline Note']):'');
   if(admin&&!mineReq)who=(who?who+'<br>':'')+'Requested by '+escHtml(_subPerson(s['Requested By']).name);
   const canCancel=(admin||mineReq)&&['Pending Approval','Filled'].includes(s.Status)&&s.Date>=_subToday();
-  return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
+  return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     (who?'<div class="sub-meta">'+who+'</div>':'')+
     (canCancel?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'')+
     (['Cancelled','Declined','Expired'].includes(s.Status)?'<div class="sub-actions"><button class="sub-btn alt" onclick="subRemove(\''+ea(s.ID)+'\')">🗑 Remove</button></div>':'')+
     '</div>';
+}
+// ── Shift detail card (v11.23) ──────────────────────────────────────────────
+// Tapping any shift card opens a full-detail sheet: school, date/time, address
+// + map, phone, who it's for, notes, Program Details, site details, schedule,
+// the same action buttons as the card, and a 📡 Reach button that opens Reach
+// with Senior Leadership (Access Level 2) + the Ranger pre-selected and a
+// ready-made message, then asks Email or Text.
+function _subCardTap(ev,id){
+  const t=ev&&ev.target;
+  if(t&&t.closest&&t.closest('button,a,select,input,textarea,label,details summary'))return;
+  subOpenDetail(id);
+}
+function subOpenDetail(id){
+  const s=_SUB.subs.find(x=>x.ID===id);if(!s)return;
+  const me=_subMe(),admin=_subIsAdmin(),site=_subSiteByKey(s.Site),req=_subPerson(s['Requested By']);
+  const mineReq=String(s['Requested By']).toLowerCase()===me,mineSub=String(s['Assigned To']||'').toLowerCase()===me;
+  const addr=site?sf(site,'Full Address','FullAddress'):'',phone=site?sf(site,'Telephone','telephone'):'';
+  const det=site?sf(site,'SiteDetails','Site Details','siteDetails'):'',sched=site?sf(site,'Schedule','schedule'):'';
+  const prog=site&&typeof _progDetailsVal==='function'?String(_progDetailsVal(site)||'').trim():'';
+  const _dt=_subDistTo(site,me);
+  const dist=_dt.m!==null?_dt.label:(_subDistLabel(site,me,true)||'');
+  const row=(lbl,val)=>val?'<div class="sub-dl">'+lbl+'</div><div class="sub-dv">'+val+'</div>':'';
+  const vols=_subVolsFor(s.ID);
+  let acts='';
+  if(s.Status==='Open'&&!admin&&!mineReq){
+    const mine=vols.find(v=>String(v.Volunteer).toLowerCase()===me&&v.Status==='Offered');
+    acts+=mine?'<button class="sub-btn alt" onclick="_subCloseDetail();subWithdraw(\''+ea(s.ID)+'\')">Withdraw my offer</button>'
+              :'<button class="sub-btn hot" onclick="_subCloseDetail();subVolunteer(\''+ea(s.ID)+'\')">🙋 I Can Take It</button>';
+  }
+  if(s.Status==='Pending Approval'&&admin)acts+='<button class="sub-btn" onclick="_subCloseDetail();subOpenSendSheet(\''+ea(s['Request ID'])+'\',false)">✓ Approve &amp; Send…</button>';
+  if(s.Status==='Open'&&admin)acts+='<button class="sub-btn alt" onclick="_subCloseDetail();subOpenSendSheet(\''+ea(s['Request ID'])+'\',true)">📣 Send to More…</button>';
+  acts+='<button class="sub-btn hot" onclick="subReachFromShift(\''+ea(s.ID)+'\')">📡 Reach</button>';
+  if(site)acts+='<a class="sub-btn alt" style="text-decoration:none" target="_blank" href="'+ea(_subMapUrl(site))+'">Map</a>';
+  if(site)acts+='<button class="sub-btn alt" onclick="_subCloseDetail();showSchoolDetailByKey(\''+ea(site.Key||site.key||'')+'\')">Open School</button>';
+  const who=s.Status==='Filled'?_subPerson(s['Assigned To']):null;
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='subDetailOverlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet">'+
+    _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
+    (dist?'<div class="sub-meta">'+escHtml(dist)+'</div>':'')+
+    row('Ranger needing a sub',escHtml(mineReq?'You':req.name)+(req.mobile&&!mineReq?' · <a href="tel:'+ea(req.mobile)+'">'+escHtml(req.mobile)+'</a>':''))+
+    (who?row('Covered by',escHtml(who.name)+(who.mobile?' · <a href="tel:'+ea(who.mobile)+'">'+escHtml(who.mobile)+'</a>':'')):'')+
+    row('Address',addr?'<a target="_blank" href="'+ea(_subMapUrl(site))+'">'+escHtml(addr)+'</a>':'')+
+    row('School phone',phone?'<a href="tel:'+ea(phone)+'">'+escHtml(phone)+'</a>':'')+
+    row('Program details',escHtml(prog))+
+    row('Notes from the Ranger',escHtml(s.Notes||''))+
+    ((admin||mineReq||mineSub)?row('Site details (parking, gates, access)',escHtml(det)):'')+
+    row('Schedule',sched?'<a target="_blank" href="'+ea(sched)+'">Open schedule</a>':'')+
+    (admin&&vols.length?row('Volunteers',vols.map(v=>escHtml(_subPerson(v.Volunteer).name)+(v.Note?' - “'+escHtml(v.Note)+'”':'')).join('<br>')):'')+
+    '<div class="sub-actions" style="margin-top:16px">'+acts+'</div>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="_subCloseDetail()">Close</button></div></div>';
+  _subCloseDetail();document.body.appendChild(ov);
+}
+function _subCloseDetail(){const o=document.getElementById('subDetailOverlay');if(o)o.remove();}
+function subReachFromShift(id){
+  const s=_SUB.subs.find(x=>x.ID===id);if(!s)return;
+  const me=_subMe(),site=_subSiteByKey(s.Site);
+  const name=site?sf(site,'Name','name'):siteNameFromKey(s.Site,s.SiteName);
+  // Senior Leadership (Access Level 2) + the Ranger who needs the sub (+ the sub, if filled)
+  const pick=new Set();
+  const add=e=>{const h=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===String(e||'').toLowerCase());
+    if(h&&String(h.Email||h.email).toLowerCase()!==me)pick.add(h.Email||h.email);};
+  (DATA.humans||[]).forEach(h=>{if(String(h['Access Level']||'').trim()==='2')add(h.Email||h.email);});
+  add(s['Requested By']);if(s['Assigned To'])add(s['Assigned To']);
+  if(!pick.size){alert('No Senior Leadership or Ranger contacts found to reach.');return;}
+  const prog=site&&typeof _progDetailsVal==='function'?String(_progDetailsVal(site)||'').trim():'';
+  const addr=site?sf(site,'Full Address','FullAddress'):'';
+  const plain=_subFmtDate(s.Date)+((s.Start||s.End)?', '+_subFmtTime(s.Start)+(s.End?'-'+_subFmtTime(s.End):''):'');
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
+  const subject='Sub shift - '+name+', '+_subFmtDate(s.Date);
+  const msg='Hi,\n\nAbout the sub shift at '+name+':\n- '+plain+(addr?'\n- '+addr:'')+
+    '\n- Ranger: '+_subPerson(s['Requested By']).name+'\n- Status: '+(s.Status==='Open'?'Available':s.Status)+
+    (prog?'\n\nProgram details: '+prog:'')+(s.Notes?'\n\nNotes: '+s.Notes:'')+
+    '\n\n\n\nThank you,\n'+meName+(hm(SESSION.email)?'\n'+hm(SESSION.email):'')+'\n'+SESSION.email+
+    '\n\nOpen in Ranger Rover: '+REACH_APP_URL+'#sub='+encodeURIComponent(s.ID);
+  _subCloseDetail();
+  _schoolReachSiteName=name+' - sub shift';
+  _reachSelected.clear();pick.forEach(e=>_reachSelected.add(e));
+  _reachForwardPrefill={subject,message:msg};
+  switchTab('reach');showReachPage('schoolask');
+  _subAskReachMode(pick.size);
+}
+// Pops up right away: email or text, together or one by one
+function _subAskReachMode(n){
+  const old=document.getElementById('subReachAsk');if(old)old.remove();
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='subReachAsk';ov.style.alignItems='center';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const b=(mode,label,hot)=>'<button class="sub-btn'+(hot?' hot':' alt')+'" style="width:100%;margin:5px 0;padding:14px" onclick="document.getElementById(\'subReachAsk\').remove();doReach(\''+mode+'\')">'+label+'</button>';
+  ov.innerHTML='<div class="sub-sheet" style="border-radius:var(--r-lg);max-width:420px;margin:0 16px">'+
+    '<h3 style="font-size:26px">Reach '+n+' '+(n===1?'person':'people')+'</h3>'+
+    '<div class="sub-meta" style="margin-bottom:8px">Senior Leadership and the Ranger are selected. How do you want to reach them?</div>'+
+    b('email_together','✉ Email - one thread',true)+b('text_together','💬 Text - group',false)+
+    b('email_individual','✉ Email each person',false)+b('text_individual','💬 Text each person',false)+
+    '<button class="sub-btn alt" style="width:100%;margin-top:10px;background:none;border:none" onclick="document.getElementById(\'subReachAsk\').remove()">Change who’s selected first</button></div>';
+  document.body.appendChild(ov);
 }
 // ── Reschedules (asked the school for another date) ─────────────────────────
 function _subResPill(st){
@@ -11367,10 +11468,10 @@ function renderSubs(){
     const open=up.filter(s=>s.Status==='Open');
     const withV=open.filter(s=>_subVolsFor(s.ID).some(v=>v.Status==='Offered'));
     html+=_subSec('Volunteers Waiting - Pick a Sub',withV.map(_subOpenCard));
-    html+=_subSec('Open - No Volunteers Yet',open.filter(s=>!withV.includes(s)).map(_subOpenCard));
+    html+=_subSec('Available - No Volunteers Yet',open.filter(s=>!withV.includes(s)).map(_subOpenCard));
     html+=_subSec('Filled - Upcoming',up.filter(s=>s.Status==='Filled'&&!isMe(s['Assigned To'])).map(_subOtherCard));
   }else{
-    html+=_subSec('Open Opportunities',up.filter(s=>s.Status==='Open'&&!isMe(s['Requested By'])).map(_subOpenCard),'No open sub shifts right now.');
+    html+=_subSec('Available Opportunities',up.filter(s=>s.Status==='Open'&&!isMe(s['Requested By'])).map(_subOpenCard),'No available sub shifts right now.');
   }
   const DONE=['Cancelled','Declined','Expired'];
   const hidden=_subHiddenSet();
