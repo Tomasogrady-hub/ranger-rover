@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.16 | BUILDITALL: 2026-10-17 | Ranger Rover PWA -->
+<!-- v11.17 | BUILDITALL: 2026-10-17 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -974,7 +974,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
     </div>
     <div style="padding:0 16px 6px;display:flex;gap:8px;justify-content:flex-end">
       <button class="sub-btn alt" onclick="loadSubs(true)">↻ Refresh</button>
-      <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Can’t Make It</button>
+      <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Can’t Make an Upcoming School Session</button>
     </div>
     <div id="subBody"><div class="spinner"></div></div>
   </div>
@@ -1887,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.16';
+const APP_VERSION='v11.17';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-17 17:40 PT - Live sync: the app now checks for changes every 20 seconds (tiny request) and pulls only the sheet that changed (Sites, Chores, Humans or Subs). Edits made directly in the sheets or AppSheet show up within about a minute. Updates wait while a card or form is open, pause when the app is in the background, and slow to every 2 minutes after 10 minutes idle. Opening the app always checks right away instead of trusting a 30 minute old copy. REQUIRES GAS New Deployment.';
+const BUILD_STAMP='2026-10-17 18:05 PT - Sub tab: Approve and Send (and volunteer lists) now show each Rangers distance from HOME to the school needing the sub, sorted nearest first (falls back to their nearest school only if no home address). Button renamed I Cant Make an Upcoming School Session. School picker lists only schools where you are Ranger 1/2 (not Garden Keeper). Program Details shown on sub cards and in the default alert email. Fix: schools no longer show as an ID (e.g. jqjnurc) - lookups ignore case/spaces and an unknown ID quietly refreshes the Sites list; Subs also carry the school name from the server. Built on v11.16 live sync. Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2578,10 +2578,53 @@ function openChoresForHuman(email){
 
 // Resolve a site Key (col A) to its display Name. Falls back to the key itself
 // if not found (handles pre-migration data or unknown keys gracefully).
-function siteNameFromKey(key){
+// ── Site lookup by Key (v11.17) ─────────────────────────────────────────────
+// Tolerant of stray spaces / upper-lower case in Keys, and also accepts a
+// school Name (older rows stored names). If a Key isn't in the loaded Sites
+// list (e.g. a school added after this device cached its data), we quietly
+// pull a fresh Sites list once and re-render, instead of showing the raw ID.
+let _siteIdx=null,_siteIdxSrc=null,_siteIdxLen=-1;
+const _siteMissTried=new Set(),_siteMissDone=new Set();let _siteMissTimer=null,_siteMissBusy=false;
+function _siteByKeyLoose(key){
+  const k=String(key==null?'':key).trim().toLowerCase();if(!k)return null;
+  const arr=DATA.sites||[];
+  if(_siteIdxSrc!==arr||_siteIdxLen!==arr.length){
+    _siteIdx=new Map();_siteIdxSrc=arr;_siteIdxLen=arr.length;
+    arr.forEach(s=>{const n=String(sf(s,'Name','name')||'').trim().toLowerCase();if(n&&!_siteIdx.has(n))_siteIdx.set(n,s);});
+    arr.forEach(s=>{const kk=String(s.Key||s.key||'').trim().toLowerCase();if(kk)_siteIdx.set(kk,s);});
+  }
+  const s=_siteIdx.get(k)||null;
+  if(!s)_siteMissing(k);
+  return s;
+}
+function _siteLooksLikeKey(k){return /^[a-z0-9]{5,10}$/i.test(String(k||'').trim());}
+function _siteMissing(k){
+  if(!CFG.URL||!(DATA.sites&&DATA.sites.length)||!_siteLooksLikeKey(k)||_siteMissTried.has(k))return;
+  _siteMissTried.add(k);
+  clearTimeout(_siteMissTimer);_siteMissTimer=setTimeout(_refetchSitesForMissing,400);
+}
+async function _refetchSitesForMissing(){
+  if(_siteMissBusy)return;_siteMissBusy=true;
+  try{
+    const j=await (await fetch(CFG.URL+'?t='+Date.now()+'&type=sites')).json();
+    if(j&&j.sites&&j.sites.length){
+      DATA.sites=j.sites;
+      try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(e){}
+      try{renderAll();}catch(e){}
+      if(_activeTab==='sub'&&typeof renderSubs==='function')renderSubs();
+    }
+  }catch(e){}
+  _siteMissTried.forEach(k=>_siteMissDone.add(k));
+  _siteMissBusy=false;
+}
+function siteNameFromKey(key,fallbackName){
   if(!key)return '';
-  const s=DATA.sites.find(s=>(s.Key||s.key||'')=== key);
-  return s?sf(s,'Name','name'):key;
+  const s=_siteByKeyLoose(key);
+  if(s)return sf(s,'Name','name');
+  if(fallbackName)return String(fallbackName);
+  // Never show a bare internal ID as if it were a school name
+  if(!_siteLooksLikeKey(key))return String(key);
+  return _siteMissDone.has(String(key).trim().toLowerCase())?'Unknown school (removed?)':'School (updating…)';
 }
 
 /* ═══ CHORE CARD HTML (list — no images for speed; photo loads in detail only) ═══ */
@@ -5861,7 +5904,7 @@ function showSiteChores(siteKey){
   openDetail();
 }
 function showSchoolDetail(idx){const site=(window._fs||DATA.sites)[idx];if(!site)return;renderSchoolDetail(site,false);openDetail();}
-function showSchoolDetailByKey(key,focus){const site=DATA.sites.find(s=>(s.Key||s.key||'')===key);if(!site)return;window._opsEditMode=false;renderSchoolDetail(site,false);openDetail();if(focus)_focusSchoolDetailSection(focus);}
+function showSchoolDetailByKey(key,focus){const site=_siteByKeyLoose(key);if(!site)return;window._opsEditMode=false;renderSchoolDetail(site,false);openDetail();if(focus)_focusSchoolDetailSection(focus);}
 // Deep-links into an already-open school detail sheet — used by the "smart click"
 // badges on the Data > Schools cards (e.g. tapping the Schedule pill scrolls straight
 // to the Schedule section and auto-expands the extracted contents, instead of landing
@@ -8920,7 +8963,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
   if(tab==='action')renderAction();
-  if(tab==='sub'){renderSubs();loadSubs(false);}
+  if(tab==='sub'){renderSubs();loadSubs(false);if(_subIsAdmin()&&!_subHomeLL)_subLoadHomes().then(ok=>{if(ok&&_activeTab==='sub')renderSubs();});}
   if(tab==='operations')showOperationsPage(_opsCurrentPage||'home');
   if(tab==='latest'){
     _activityLoaded=false;loadActivity();
@@ -10935,8 +10978,14 @@ function _subMe(){return (SESSION&&SESSION.email||'').toLowerCase().trim();}
 function _subIsAdmin(){return !!(SESSION&&SESSION.accessLevel<=2);}
 function _subToday(){return new Date().toLocaleDateString('en-CA');}
 function _subCacheKey(){return 'rr_subs_cache_'+_subMe();}
-function _subSiteByKey(key){return (DATA.sites||[]).find(s=>(s.Key||s.key||'')===key)||(DATA.sites||[]).find(s=>sf(s,'Name','name')===key)||null;}
-function _subSiteName(key){const s=_subSiteByKey(key);return s?sf(s,'Name','name'):key;}
+function _subSiteByKey(key){return _siteByKeyLoose(key);}
+function _subSiteName(key,fb){return siteNameFromKey(key,fb);}
+// Schools where this person is Ranger 1 or Ranger 2 (NOT Garden Keeper)
+function _subRangerSitesOf(email){
+  const e=String(email||'').toLowerCase().trim();if(!e)return [];
+  return (DATA.sites||[]).filter(s=>[sf(s,'Ranger 1','Ranger1'),sf(s,'Ranger 2','Ranger2')]
+    .some(x=>String(x||'').toLowerCase().trim()===e));
+}
 function _subSitesOf(email){
   const e=String(email||'').toLowerCase().trim();if(!e)return [];
   return (DATA.sites||[]).filter(s=>[sf(s,'Ranger 1','Ranger1'),sf(s,'Ranger 2','Ranger2'),sf(s,'Garden Keeper','GardenKeeper')]
@@ -10962,6 +11011,49 @@ function _subDistLabel(site,email,useLive){
     if(best===null||d<best){best=d;bestName=sf(s,'Name','name');}
   });
   return best===null?'':_subMi(best)+' from '+bestName;
+}
+// Distance from a person's HOME (Humans "Home LatLng", geocoded from their
+// address by the Smart Map) to the given school. Falls back to the nearest of
+// their own schools only when no home location is on file.
+let _subHomeLL=null,_subHomeLoading=false;
+function _subHomeOf(email){
+  const e=String(email||'').toLowerCase();
+  if(_subHomeLL&&_subHomeLL[e])return _subHomeLL[e];
+  const h=gh(email)||(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===e);
+  const p=String(h&&h['Home LatLng']||'').split(',');
+  const la=Number(p[0]),ln=Number(p[1]);
+  return (p.length===2&&isFinite(la)&&isFinite(ln)&&(la||ln))?[la,ln]:null;
+}
+// Level 1-2 only: fetch/geocode home locations once (same call the Smart Map uses)
+async function _subLoadHomes(){
+  if(_subHomeLL||_subHomeLoading||!_subIsAdmin())return false;
+  _subHomeLoading=true;
+  try{
+    const map={};let remaining=1,guard=0;
+    while(remaining>0&&guard<6){
+      const j=await gasPost({action:'getRangerLocations'});
+      if(!j||j.ok===false)break;
+      (j.locations||[]).forEach(l=>{if(l&&l.email)map[String(l.email).toLowerCase()]=[Number(l.lat),Number(l.lng)];});
+      remaining=j.remaining||0;guard++;
+    }
+    _subHomeLL=map;
+  }catch(e){}
+  _subHomeLoading=false;
+  return true;
+}
+// -> {m: meters|null, label: 'x.x mi from home' | 'x.x mi from <their school>' | ''}
+function _subDistTo(site,email){
+  const t=_subLatLng(site);if(!t)return {m:null,label:''};
+  const home=_subHomeOf(email);
+  if(home){const m=_haversine(home[0],home[1],t[0],t[1]);return {m,label:'🏠 '+_subMi(m)+' from home'};}
+  let best=null,bestName='';
+  _subSitesOf(email).forEach(s=>{
+    if(s===site)return;
+    const ll=_subLatLng(s);if(!ll)return;
+    const d=_haversine(ll[0],ll[1],t[0],t[1]);
+    if(best===null||d<best){best=d;bestName=sf(s,'Name','name');}
+  });
+  return best===null?{m:null,label:'no home address on file'}:{m:best,label:'🏫 '+_subMi(best)+' from '+bestName+' (no home address)'};
 }
 function _subFmtTime(t){
   const m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return String(t||'');
@@ -11036,10 +11128,16 @@ function _subPill(s){
   const cls=st==='Pending Approval'?'pending':st==='Open'?'open':st==='Filled'?'filled':'off';
   return '<span class="sub-pill '+cls+'">'+escHtml(st==='Pending Approval'?'Needs approval':st)+'</span>';
 }
-function _subHead(site,siteKey,whenHtml,pill){
-  return '<div class="sub-top"><div><div class="sub-school">'+escHtml(site?sf(site,'Name','name'):siteKey)+'</div>'+
+function _subHead(site,siteKey,whenHtml,pill,fbName){
+  return '<div class="sub-top"><div><div class="sub-school">'+escHtml(site?sf(site,'Name','name'):siteNameFromKey(siteKey,fbName))+'</div>'+
     (site&&sf(site,'City','city')?'<div class="sub-meta" style="margin-top:1px">'+escHtml(sf(site,'City','city'))+'</div>':'')+
     '<div class="sub-when">'+whenHtml+'</div></div>'+(pill||'')+'</div>';
+}
+// Program Details (Sites column) for the school, shown on every sub card
+function _subProgDetails(site){
+  if(!site||typeof _progDetailsVal!=='function')return '';
+  const v=String(_progDetailsVal(site)||'').trim();
+  return v?'<div class="sub-notes"><b>Program details:</b> '+escHtml(v)+'</div>':'';
 }
 function _subCardHl(id){return id&&_subHighlight&&(id===_subHighlight)?' hl':'';}
 
@@ -11048,9 +11146,9 @@ function _subPendingCard(group){
   const s=group[0],site=_subSiteByKey(s.Site),req=_subPerson(s['Requested By']);
   const hl=group.some(x=>x.ID===_subHighlight)?' hl':'';
   return '<div class="sub-card'+hl+'" id="subcard_'+ea(s.ID)+'">'+
-    _subHead(site,s.Site,group.map(x=>escHtml(_subFmtShift(x))).join('<br>'),_subPill(s))+
+    _subHead(site,s.Site,group.map(x=>escHtml(_subFmtShift(x))).join('<br>'),_subPill(s),s.SiteName)+
     '<div class="sub-meta">Requested by <b>'+escHtml(req.name)+'</b></div>'+
-    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+
+    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+
     '<div class="sub-actions">'+
       '<button class="sub-btn" onclick="subOpenSendSheet(\''+ea(s['Request ID'])+'\',false)">✓ Approve &amp; Send…</button>'+
       '<button class="sub-btn warn" onclick="subDecline(\''+ea(s['Request ID'])+'\')">Decline</button>'+
@@ -11072,7 +11170,7 @@ function _subOpenCard(s){
   let body='';
   if(admin){
     body+=vols.length?vols.map(v=>{
-      const p=_subPerson(v.Volunteer),dist=_subDistLabel(site,v.Volunteer,false);
+      const p=_subPerson(v.Volunteer),dist=_subDistTo(site,v.Volunteer).label;
       return '<div class="sub-vol"><div><b>'+escHtml(p.name)+'</b>'+
         (p.mobile?' · <a href="tel:'+ea(p.mobile)+'">'+escHtml(p.mobile)+'</a>':'')+
         (dist?'<div class="sub-meta" style="margin:0">'+escHtml(dist)+'</div>':'')+
@@ -11094,9 +11192,9 @@ function _subOpenCard(s){
   const dist=admin?'':_subDistLabel(site,me,true);
   const actions=(admin||mineReq)?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'';
   return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
-    _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s))+
+    _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     '<div class="sub-meta">'+(mineReq?'Your request':'For <b>'+escHtml(req.name)+'</b>')+(dist?' · '+escHtml(dist):'')+'</div>'+
-    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+body+actions+'</div>';
+    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+body+actions+'</div>';
 }
 // Shift the viewer is confirmed to cover — full site details
 function _subAssignedCard(s){
@@ -11104,11 +11202,12 @@ function _subAssignedCard(s){
   const addr=site?sf(site,'Full Address','FullAddress'):'',phone=site?sf(site,'Telephone','telephone'):'';
   const det=site?sf(site,'SiteDetails','Site Details','siteDetails'):'';
   return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
-    _subHead(site,s.Site,escHtml(_subFmtShift(s)),'<span class="sub-pill filled">You\'re subbing</span>')+
+    _subHead(site,s.Site,escHtml(_subFmtShift(s)),'<span class="sub-pill filled">You\'re subbing</span>',s.SiteName)+
     (addr?'<div class="sub-meta">📍 <a target="_blank" href="'+ea(_subMapUrl(site))+'">'+escHtml(addr)+'</a></div>':'')+
     (phone?'<div class="sub-meta">📞 <a href="tel:'+ea(phone)+'">'+escHtml(phone)+'</a></div>':'')+
     '<div class="sub-meta">Covering for <b>'+escHtml(req.name)+'</b>'+(req.mobile?' · <a href="tel:'+ea(req.mobile)+'">'+escHtml(req.mobile)+'</a>':'')+'</div>'+
     (det?'<div class="sub-notes"><b>Site details:</b> '+escHtml(det)+'</div>':'')+
+    _subProgDetails(site)+
     (s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':'')+
     (site?'<div class="sub-actions"><button class="sub-btn alt" onclick="showSchoolDetailByKey(\''+ea(site.Key||site.key||'')+'\')">Open School</button></div>':'')+
     '</div>';
@@ -11122,7 +11221,7 @@ function _subOtherCard(s){
   if(admin&&!mineReq)who=(who?who+'<br>':'')+'Requested by '+escHtml(_subPerson(s['Requested By']).name);
   const canCancel=(admin||mineReq)&&['Pending Approval','Filled'].includes(s.Status)&&s.Date>=_subToday();
   return '<div class="sub-card'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'">'+
-    _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s))+
+    _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     (who?'<div class="sub-meta">'+who+'</div>':'')+
     (canCancel?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'')+
     '</div>';
@@ -11152,7 +11251,7 @@ function renderSubs(){
   const mine=subs.filter(s=>isMe(s['Requested By'])&&(admin?true:true));
   const mineUp=mine.filter(s=>s.Date>=today);
   html+=_subSec('My Requests',mineUp.map(s=>s.Status==='Open'&&!admin?_subOpenCard(s):_subOtherCard(s)),
-    'None. Tap “+ I Can’t Make It” to find a sub or reschedule with the school.');
+    'None. Tap “+ I Can’t Make an Upcoming School Session” to find a sub or reschedule with the school.');
   body.innerHTML=html||'<div class="sub-empty">Nothing here yet.</div>';
   const cnt=document.getElementById('subCount');
   if(cnt){const n=_subBadgeCount();cnt.textContent=n?(n+(admin?' need action':' open')):'';}
@@ -11227,7 +11326,7 @@ function _subFillSchoolSelect(){
   const sel=document.getElementById('subSite');if(!sel)return;
   const admin=_subIsAdmin(),forEl=document.getElementById('subFor');
   const who=forEl?forEl.value:_subMe();
-  const own=_subSitesOf(who);
+  const own=_subRangerSitesOf(who);
   const nm=s=>sf(s,'Name','name'),key=s=>s.Key||s.key||nm(s);
   let html=own.length?'<optgroup label="'+(who===_subMe()?'My schools':'Their schools')+'">'+own.map(s=>'<option value="'+ea(key(s))+'">'+escHtml(nm(s))+'</option>').join('')+'</optgroup>':'';
   if(admin){
@@ -11266,20 +11365,20 @@ function subSetMode(m){
   const show=(id,on)=>{const el=document.getElementById(id);if(el)el.style.display=on?'':'none';};
   show('subModeSub',m==='sub');show('subModeResched',m==='resched');
   if(m==='resched')_subResetAlts();
-  const h=document.querySelector('#subOverlay h3');if(h)h.textContent=m==='resched'?'Reschedule with School':'I Need a Sub';
+  const h=document.querySelector('#subOverlay h3');if(h)h.textContent=m==='resched'?'Reschedule with School':'Find a Sub';
   const lbl=document.getElementById('subDateLbl');if(lbl)lbl.textContent=m==='resched'?'Day(s) I can’t make it':'Date · Start · End';
   const btn=document.getElementById('subSendBtn');
   if(btn){btn.textContent=m==='resched'?'Continue to Reach →':'Send Request';btn.onclick=m==='resched'?subStartReschedule:submitSubRequest;}
 }
 function showSubRequestForm(){
   const admin=_subIsAdmin(),me=_subMe();
-  if(!admin&&!_subSitesOf(me).length){alert('You are not assigned to any schools yet, so there is nothing to request a sub for. Please contact the office.');return;}
+  if(!admin&&!_subRangerSitesOf(me).length){alert('You are not assigned as Ranger to any schools yet, so there is nothing to request a sub for. Please contact the office.');return;}
   _subMode='sub';
   const forHtml=admin?'<div class="sub-lbl">Sub needed for</div><select class="sub-in" id="subFor" onchange="_subFillSchoolSelect()">'+
     '<option value="'+ea(me)+'">Me</option>'+_subEligibleOptions([me])+'</select>':'';
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='subOverlay';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
-  ov.innerHTML='<div class="sub-sheet"><h3>I Need a Sub</h3>'+
+  ov.innerHTML='<div class="sub-sheet"><h3>Find a Sub</h3><div class="sub-meta" style="margin:-6px 0 10px">I can’t make an upcoming school session</div>'+
     '<div class="sub-mode">'+
       '<button class="sub-mode-btn on" data-mode="sub" onclick="subSetMode(\'sub\')">🙋 Find a Sub<small>Another Ranger covers for me</small></button>'+
       '<button class="sub-mode-btn" data-mode="resched" onclick="subSetMode(\'resched\')">📅 Reschedule<small>Ask the school for another day</small></button>'+
@@ -11421,6 +11520,7 @@ function _subDefaultMsg(group){
     subject:'Sub needed - '+name+', '+_subFmtDate(s0.Date),
     email:'Hi {{FirstName}},\n\nA sub is needed at '+where+':\n'+group.map(s=>'- '+plain(s)).join('\n')+
       (addr?'\n\nAddress: '+addr:'')+(s0.Notes?'\n\nNotes: '+s0.Notes:'')+
+      (site&&String(_progDetailsVal(site)||'').trim()?'\n\nProgram details: '+String(_progDetailsVal(site)).trim():'')+
       '\n\nIf you can take it, tap "I can take it" in Ranger Rover:\n{{Link}}\n\nThank you!\nEnrich LA',
     sms:'Enrich LA - Sub needed: '+where+', '+when+'. Can you take it? {{Link}}'
   };
@@ -11464,8 +11564,7 @@ function subOpenSendSheet(reqId,resend){
     return e&&e!==reqEmail&&humanRoleCats(h).some(c=>SUB_ELIGIBLE_CATS.includes(c));
   }).map(h=>{
     const e=String(h.Email||h.email).toLowerCase();
-    let d=null,from='';
-    if(t)_subSitesOf(e).forEach(x=>{if(x===site)return;const ll=_subLatLng(x);if(!ll)return;const m=_haversine(ll[0],ll[1],t[0],t[1]);if(d===null||m<d){d=m;from=sf(x,'Name','name');}});
+    const dd=_subDistTo(site,e),d=dd.m,from=dd.label;
     const mob=h.Mobile||h.mobile||'';
     const sms=!!mob&&String(h['SMS Consent']||'').trim().toUpperCase()==='TRUE';
     return {e,name:fullName(h)||e,d,from,sms,mob,sent:already.has(e)};
@@ -11474,14 +11573,15 @@ function subOpenSendSheet(reqId,resend){
   const rows=people.map(p=>'<label class="sub-vol" data-name="'+ea(p.name.toLowerCase())+'" style="cursor:pointer">'+
     '<span style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-email="'+ea(p.e)+'" '+((resend?!p.sent:true)?'checked':'')+' onchange="_subSendCount()" style="width:20px;height:20px">'+
     '<span><b>'+escHtml(p.name)+'</b>'+(p.sent?' <span class="sub-pill off">already sent</span>':'')+
-    '<div class="sub-meta" style="margin:0">'+(p.d!==null?escHtml(_subMi(p.d)+' from '+p.from):'distance unknown')+'</div></span></span>'+
+    '<div class="sub-meta" style="margin:0">'+escHtml(p.from||'distance unknown')+'</div></span></span>'+
     '<span style="font-size:15px;white-space:nowrap" title="'+(p.sms?'Gets email + text':'Email only (no SMS consent/mobile)')+'">✉️'+(p.sms?' 📱':'')+'</span></label>').join('');
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='subSendOverlay';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
   ov.innerHTML='<div class="sub-sheet"><h3>'+(resend?'Send to More Rangers':'Approve &amp; Send')+'</h3>'+
-    '<div class="sub-school">'+escHtml(site?sf(site,'Name','name'):s0.Site)+'</div>'+
+    '<div class="sub-school">'+escHtml(site?sf(site,'Name','name'):siteNameFromKey(s0.Site,s0.SiteName))+'</div>'+
     '<div class="sub-meta">'+group.map(s=>escHtml(_subFmtShift(s))).join('<br>')+'<br>Requested by <b>'+escHtml(_subPerson(s0['Requested By']).name)+'</b></div>'+
     '<div class="sub-lbl">Send to <span id="subSendSel" style="text-transform:none;letter-spacing:0;font-weight:600"></span></div>'+
+    '<div class="sub-meta" style="margin:0 0 6px">Sorted by distance from each Ranger’s home to '+escHtml(site?sf(site,'Name','name'):'this school')+'.</div>'+
     '<div class="sub-actions" style="margin-top:0">'+
       '<button class="sub-btn alt" onclick="subSendPick(\'all\')">All</button>'+
       '<button class="sub-btn alt" onclick="subSendPick(\'none\')">None</button>'+
@@ -11503,6 +11603,23 @@ function subOpenSendSheet(reqId,resend){
       '<button class="sub-btn hot" id="subSendGo" data-resend="'+(resend?'1':'0')+'" onclick="subSendFromSheet(\''+ea(reqId)+'\','+(resend?'true':'false')+')">Send</button></div></div>';
   document.body.appendChild(ov);
   _subSendCount();_subSmsCount();
+  // First time: pull Rangers' home locations, then redraw with home distances
+  if(!_subHomeLL&&_subIsAdmin()){
+    const st=document.getElementById('subSendSel');if(st)st.textContent+=' · locating homes…';
+    _subLoadHomes().then(ok=>{
+      if(!ok||!document.getElementById('subSendOverlay'))return;
+      const keep={checked:new Set([...document.querySelectorAll('#subSendList input[type=checkbox]:checked')].map(c=>c.dataset.email)),
+        subj:document.getElementById('subSendSubject').value,email:document.getElementById('subSendEmail').value,
+        sms:document.getElementById('subSendSms').value,byE:document.getElementById('subSendByEmail').checked,byS:document.getElementById('subSendBySms').checked};
+      document.getElementById('subSendOverlay').remove();
+      subOpenSendSheet(reqId,resend);
+      document.querySelectorAll('#subSendList input[type=checkbox]').forEach(c=>{c.checked=keep.checked.has(c.dataset.email);});
+      document.getElementById('subSendSubject').value=keep.subj;document.getElementById('subSendEmail').value=keep.email;
+      document.getElementById('subSendSms').value=keep.sms;document.getElementById('subSendByEmail').checked=keep.byE;
+      document.getElementById('subSendBySms').checked=keep.byS;_subSendCount();_subSmsCount();
+      if(_activeTab==='sub')renderSubs();
+    });
+  }
 }
 async function subSendFromSheet(reqId,resend){
   const recipients=[...document.querySelectorAll('#subSendList input[type=checkbox]:checked')].map(c=>c.dataset.email);

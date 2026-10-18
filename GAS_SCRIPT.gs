@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.16 | 2026-10-17 | Live sync: type=ver/sites/chores, version bumps, 1-min watcher';
+const GAS_BUILD = 'v11.17 | 2026-10-17 | Sub: SiteName on subs, Program Details in sub confirmation, tolerant site keys (on top of v11.16 live sync)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -4255,16 +4255,18 @@ function _subSites() {
       phone: g(data[r], 'Telephone'), details: g(data[r], 'Site Details'),
       principal: g(data[r], 'Principal'), plantManager: g(data[r], 'Plant Manager'),
       schedule: g(data[r], 'Schedule'),
+      programDetails: (function(){ for (var i = 0; i < h.length; i++) if (/^\s*program\s*details\s*$/i.test(h[i])) return String(data[r][i] || '').trim(); return ''; })(),
       rangers: [g(data[r],'Ranger 1'), g(data[r],'Ranger 2'), g(data[r],'Garden Keeper')]
         .map(function(e){ return e.toLowerCase(); }).filter(String)
     };
-    if (key) map[key] = o;
+    if (key) { map[key] = o; map['key:' + key.toLowerCase()] = o; }
     if (name) map['name:' + name.toLowerCase()] = o;
   }
   return map;
 }
 function _subSite(sites, keyOrName) {
-  return sites[keyOrName] || sites['name:' + String(keyOrName || '').toLowerCase()] ||
+  var k = String(keyOrName || '').trim();
+  return sites[k] || sites['key:' + k.toLowerCase()] || sites['name:' + k.toLowerCase()] ||
     { key: keyOrName, name: keyOrName, city: '', address: '', phone: '', details: '', rangers: [] };
 }
 
@@ -4376,7 +4378,12 @@ function handleGetSubs(p) {
       if (!ids[v['Sub ID']] || v.Status === 'Withdrawn') return false;
       return admin || v.Volunteer.toLowerCase() === me.email;
     });
-    var clean = function(o){ var c = {}; Object.keys(o).forEach(function(k){ if (k !== '_row') c[k] = o[k]; }); return c; };
+    var sitesN = _subSites();
+    var clean = function(o){
+      var c = {}; Object.keys(o).forEach(function(k){ if (k !== '_row') c[k] = o[k]; });
+      if (o.Site) { var st = _subSite(sitesN, o.Site); if (st && st.name && st.name !== o.Site) c.SiteName = st.name; }
+      return c;
+    };
     return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), level: me.level, today: _subToday() };
   } catch(e) { return { ok: false, error: e.message }; }
 }
@@ -4617,6 +4624,7 @@ function handleAssignSub(p) {
       'Hi ' + sub.first + ',\n\nThank you! You are confirmed to sub:\n' + _subShiftBlock(site, s) +
         (site.phone ? '\nSchool phone: ' + site.phone : '') +
         (site.details ? '\n\nSite details (parking, gates, access):\n' + site.details : '') +
+        (site.programDetails ? '\n\nProgram details:\n' + site.programDetails : '') +
         (s.Notes ? '\n\nNotes from ' + requester.name + ':\n' + s.Notes : '') +
         '\n\nContacts:' +
         '\n- Regular Ranger: ' + contact(requester.email) +
