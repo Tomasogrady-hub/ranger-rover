@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.17 | 2026-10-17 | Sub: SiteName on subs, Program Details in sub confirmation, tolerant site keys (on top of v11.16 live sync)';
+const GAS_BUILD = 'v11.18 | 2026-10-17 | Sub activity logged as site (names show in Latest)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -4447,7 +4447,7 @@ function handleRequestSub(p) {
         'Your sub request for ' + site.name + ' was received and is waiting for approval:\n' + shiftLines +
         '\n\nYou will hear back once it is approved and sent to other Rangers.', '', { noSms: true });
     }
-    try { logActivity(me.email, 'requestSub', site.key, 'Site', created.length + ' shift(s), request ' + reqId); } catch(e) {}
+    try { logActivity(me.email, 'requestSub', site.key, 'site', created.length + ' shift(s), request ' + reqId); } catch(e) {}
     _subFlushSms();
     return { ok: true, requestId: reqId, status: 'Pending Approval', byAdmin: byAdmin, firstId: created[0].ID };
   } catch(e) {
@@ -4523,7 +4523,7 @@ function handleApproveSub(p) {
     if (resend) {
       var sentR = _subBroadcastOpen(people, site, rows, requester, bOpts);
       _subMarkNotified(tbl, rows, sentR);
-      try { logActivity(me.email, 'resendSub', site.key, 'Site', 'to ' + sentR.length + ' people'); } catch(e) {}
+      try { logActivity(me.email, 'resendSub', site.key, 'site', 'to ' + sentR.length + ' people'); } catch(e) {}
       _subFlushSms();
       return { ok: true, count: rows.length, sent: sentR.length };
     }
@@ -4550,7 +4550,7 @@ function handleApproveSub(p) {
         (p.note ? '\n\nNote from ' + me.name + ': ' + p.note : '') + '\n\nPlease reach out with any questions.',
         'Enrich LA - Your sub request for ' + site.name + ' was not approved.' + (p.note ? ' Note: ' + p.note : '') + ' Details: ' + _subLink(rows[0].ID));
     }
-    try { logActivity(me.email, approve ? 'approveSub' : 'declineSub', site.key, 'Site', rows.length + ' shift(s)'); } catch(e) {}
+    try { logActivity(me.email, approve ? 'approveSub' : 'declineSub', site.key, 'site', rows.length + ' shift(s)'); } catch(e) {}
     _subFlushSms();
     return { ok: true, count: rows.length, sent: sentN };
   } catch(e) { return { ok: false, error: e.message }; }
@@ -4593,7 +4593,7 @@ function handleVolunteerSub(p) {
         'Enrich LA - ' + me.name + ' volunteered to sub at ' + site.name + ', ' + _subFmtShift(s) + '. Pick: ' + _subLink(s.ID));
     });
     _subFlushSms();
-    try { logActivity(me.email, 'volunteerSub', site.key, 'Site', s.ID); } catch(e) {}
+    try { logActivity(me.email, 'volunteerSub', site.key, 'site', s.ID); } catch(e) {}
     return { ok: true };
   } catch(e) { return { ok: false, error: e.message }; }
 }
@@ -4651,7 +4651,7 @@ function handleAssignSub(p) {
       }
     });
     _subFlushSms();
-    try { logActivity(me.email, 'assignSub', site.key, 'Site', s.ID + ' -> ' + sub.email); } catch(e) {}
+    try { logActivity(me.email, 'assignSub', site.key, 'site', s.ID + ' -> ' + sub.email); } catch(e) {}
     return { ok: true };
   } catch(e) {
     try { lock.releaseLock(); } catch(x) {}
@@ -4699,7 +4699,7 @@ function handleCancelSub(p) {
         rows.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n'), '', { noSms: true });
     });
     _subFlushSms();
-    try { logActivity(me.email, 'cancelSub', site0.key, 'Site', rows.length + ' shift(s)'); } catch(e) {}
+    try { logActivity(me.email, 'cancelSub', site0.key, 'site', rows.length + ' shift(s)'); } catch(e) {}
     return { ok: true, count: rows.length };
   } catch(e) { return { ok: false, error: e.message }; }
 }

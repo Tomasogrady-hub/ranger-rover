@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.17 | BUILDITALL: 2026-10-17 | Ranger Rover PWA -->
+<!-- v11.18 | BUILDITALL: 2026-10-17 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1887,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.17';
+const APP_VERSION='v11.18';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-17 18:05 PT - Sub tab: Approve and Send (and volunteer lists) now show each Rangers distance from HOME to the school needing the sub, sorted nearest first (falls back to their nearest school only if no home address). Button renamed I Cant Make an Upcoming School Session. School picker lists only schools where you are Ranger 1/2 (not Garden Keeper). Program Details shown on sub cards and in the default alert email. Fix: schools no longer show as an ID (e.g. jqjnurc) - lookups ignore case/spaces and an unknown ID quietly refreshes the Sites list; Subs also carry the school name from the server. Built on v11.16 live sync. Requires GAS New Deployment.';
+const BUILD_STAMP='2026-10-17 17:55 PT - Latest tab: sub activity now shows the school name (was showing the school ID like j9jnurc because those entries were logged as Site instead of site) and reads in plain English (asked for a sub at / approved a sub request for / sent a sub request for / volunteered to sub at / assigned a sub at / cancelled a sub shift at). GAS now logs sub activity the standard way.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10787,6 +10787,9 @@ async function loadActivity(force=false){
 }
 
 function activityRowHtml(item){
+  // Sub-feature entries were logged with SubjectType "Site" (capital S), which
+  // skipped the site-name lookup below and showed the raw Key (e.g. j9jnurc).
+  item=Object.assign({},item,{subjectType:String(item.subjectType||'').trim().toLowerCase(),subject:String(item.subject==null?'':item.subject)});
   const actorH=DATA.humans.find(h=>(h.Email||h.email||'').toLowerCase()===(item.actor||'').toLowerCase());
   const actorName=actorH?((actorH['First Name']||'')+' '+(actorH['Last Name']||'')).trim():((item.actor||'').split('@')[0]);
   const ts=item.ts?_fmtActivityTs(item.ts):'';
@@ -10823,11 +10826,11 @@ function activityRowHtml(item){
   } else if(item.subjectType==='site'){
     // subject stored as site Key (new) or Name (old logs) — try both
     const _subjNorm=(item.subject||'').trim().toLowerCase().replace(/\s+/g,' ');
-    const _siteByKey=(DATA.sites||[]).find(s=>(s.Key||s.key||'').trim()===item.subject.trim());
+    const _siteByKey=_siteByKeyLoose(item.subject);
     const _siteByName=!_siteByKey?(DATA.sites||[]).find(s=>(s.Name||s.name||'').trim().toLowerCase().replace(/\s+/g,' ')===_subjNorm):null;
     const _siteRow=_siteByKey||_siteByName;
     const _siteKey=_siteRow?(_siteRow.Key||_siteRow.key||''):'';
-    const _siteName=_siteRow?(_siteRow.Name||_siteRow.name||item.subject):item.subject;
+    const _siteName=_siteRow?(_siteRow.Name||_siteRow.name||item.subject):siteNameFromKey(item.subject);
     if(_siteKey){subjectLink=`<button class="contact-tap" style="font-size:inherit" onclick="showSchoolDetailByKey('${ea(_siteKey)}')">${_siteName}</button>`;}
     else{subjectLink=`<span style="font-weight:500">${_siteName||item.subject||''}</span>`;}
   } else if(item.subjectType==='person'){
@@ -10901,6 +10904,7 @@ function activityRowHtml(item){
   else if(_isSiteType  && item.action==='uploaded photo') _cleanAction='added a photo to';
   else if(_isSiteType  && item.action==='uploaded video') _cleanAction='added a video to';
   else if(_isSiteType  && item.action==='edited')         _cleanAction='updated';
+  else if(_isSiteType  && _SUB_ACT_VERBS[item.action])     _cleanAction=_SUB_ACT_VERBS[item.action];
   else _cleanAction=(item.action||'').replace(/\b(sites|humans)\b/gi,'').replace(/\s{2,}/g,' ').trim();
   const line1=[actorLink,`<span style="color:var(--stone)"> ${_cleanAction} </span>`,subjectLink];
   if(_isChoreType){
@@ -10908,6 +10912,13 @@ function activityRowHtml(item){
     if(forSiteLink)line1.push(forSiteLink);
   } else if(_isSiteType){
     // Clean line: actor + action + site — no column lists, ever. Site itself is the subject.
+    if(_SUB_ACT_VERBS[item.action]){
+      const _sd=String(item.detail||'').replace(/,?\s*request\s+R[0-9a-f]+/i,'').replace(/\bS[0-9a-f]{7}\s*->\s*/i,'')
+        .replace(/^(\d+) shift\(s\)$/,(m,n)=>n==='1'?'1 shift':n+' shifts').replace(/^to (\d+) people$/,'to $1 more people').trim();
+      const _who=/^\S+@\S+\.\S+$/.test(_sd)?hn(_sd):'';
+      const _show=_who||(/^S[0-9a-f]{7}$/i.test(_sd)?'':_sd);
+      if(_show)line1.push(`<span style="color:var(--silver);font-size:14px"> — ${escHtml(_show)}</span>`);
+    }
   } else if(item.subjectType==='person' && item.action==='added person'){
     // detail is "email — role — site"; show the role, and a hotlinked "at [Site]".
     const _dParts=(item.detail||'').split(' — ').map(s=>s.trim()).filter(Boolean);
@@ -10940,6 +10951,11 @@ function activityRowHtml(item){
   </div>`;
 }
 
+const _SUB_ACT_VERBS={
+  requestSub:'asked for a sub at', approveSub:'approved a sub request for', declineSub:'declined a sub request for',
+  resendSub:'sent a sub request for', volunteerSub:'volunteered to sub at', assignSub:'assigned a sub at',
+  cancelSub:'cancelled a sub shift at'
+};
 function _fmtActivityTs(iso){
   try{
     const d=new Date(iso);
