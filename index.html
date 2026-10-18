@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.21 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.22 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1887,10 +1887,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.21';
+const APP_VERSION='v11.22';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 09:50 PT - Sub tab Reschedule: the Reach list it opens now also pre-selects Senior Leadership (everyone with Access Level 2), same as the school card Reach picker. No GAS change.';
+const BUILD_STAMP='2026-10-18 10:40 PT - Sub data now lives in its own Sub spreadsheet (Subs, Sub Volunteers, Reschedules, Reschedule Options, History, Guide; old rows copied over automatically). Reschedule: each suggested date in the message to the school is a tap-to-confirm link (reschedule.html). The school picks one, the Reschedules row is marked Confirmed with the chosen date, and the Ranger (email + text), Level 1-2 and everyone on the message are notified. The school can also reply None of these work with their own suggestion. Sub tab shows Reschedules with status. Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10995,7 +10995,8 @@ function activityRowHtml(item){
 const _SUB_ACT_VERBS={
   requestSub:'asked for a sub at', approveSub:'approved a sub request for', declineSub:'declined a sub request for',
   resendSub:'sent a sub request for', volunteerSub:'volunteered to sub at', assignSub:'assigned a sub at',
-  cancelSub:'cancelled a sub shift at'
+  cancelSub:'cancelled a sub shift at',
+  rescheduleAsk:'asked to reschedule a visit at', rescheduleConfirmed:'got a new visit date confirmed at', rescheduleSuggested:'heard back about a reschedule at'
 };
 function _fmtActivityTs(iso){
   try{
@@ -11028,7 +11029,7 @@ if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch
    renders instantly from memory and refreshes behind the scenes.
    No images anywhere in this tab.
    ═══════════════════════════════════════════════════════════════════*/
-let _SUB={subs:[],volunteers:[],loaded:false,loading:false,ts:0};
+let _SUB={subs:[],volunteers:[],reschedules:[],loaded:false,loading:false,ts:0};
 let _subHighlight='';
 const SUB_ELIGIBLE_CATS=['ranger','master_ranger','garden_keeper'];
 function _subMe(){return (SESSION&&SESSION.email||'').toLowerCase().trim();}
@@ -11133,7 +11134,7 @@ async function loadSubs(force){
   if(!SESSION||!CFG.URL)return;
   if(!_SUB.loaded){
     try{const c=JSON.parse(localStorage.getItem(_subCacheKey())||'null');
-      if(c&&c.subs){_SUB.subs=c.subs;_SUB.volunteers=c.volunteers||[];_SUB.loaded=true;_SUB.ts=0;renderSubs();_subBadge();}}catch(e){}
+      if(c&&c.subs){_SUB.subs=c.subs;_SUB.volunteers=c.volunteers||[];_SUB.reschedules=c.reschedules||[];_SUB.loaded=true;_SUB.ts=0;renderSubs();_subBadge();}}catch(e){}
   }
   if(_SUB.loading)return;
   if(!force&&_SUB.ts&&Date.now()-_SUB.ts<60000){renderSubs();return;}
@@ -11141,8 +11142,8 @@ async function loadSubs(force){
   try{
     const r=await gasPost({action:'getSubs',actor:SESSION.email});
     if(r&&r.ok){
-      _SUB.subs=r.subs||[];_SUB.volunteers=r.volunteers||[];_SUB.loaded=true;_SUB.ts=Date.now();
-      try{localStorage.setItem(_subCacheKey(),JSON.stringify({subs:_SUB.subs,volunteers:_SUB.volunteers}));}catch(e){}
+      _SUB.subs=r.subs||[];_SUB.volunteers=r.volunteers||[];_SUB.reschedules=r.reschedules||[];_SUB.loaded=true;_SUB.ts=Date.now();
+      try{localStorage.setItem(_subCacheKey(),JSON.stringify({subs:_SUB.subs,volunteers:_SUB.volunteers,reschedules:_SUB.reschedules}));}catch(e){}
     }else if(!_SUB.loaded){
       const b=document.getElementById('subBody');
       if(b)b.innerHTML='<div class="sub-empty">'+escHtml((r&&r.error)||'Could not load subs.')+'<br><small>If this says unknown action, the Apps Script needs a New Deployment.</small></div>';
@@ -11284,6 +11285,46 @@ function _subOtherCard(s){
     (['Cancelled','Declined','Expired'].includes(s.Status)?'<div class="sub-actions"><button class="sub-btn alt" onclick="subRemove(\''+ea(s.ID)+'\')">🗑 Remove</button></div>':'')+
     '</div>';
 }
+// ── Reschedules (asked the school for another date) ─────────────────────────
+function _subResPill(st){
+  const cls=st==='Confirmed'?'filled':(st==='Cancelled'?'off':(st==='School Suggested Other'?'open':'pending'));
+  const lbl=st==='Confirmed'?'Confirmed':st==='School Suggested Other'?'School replied':st==='Cancelled'?'Cancelled':'Waiting for school';
+  return '<span class="sub-pill '+cls+'">'+lbl+'</span>';
+}
+function _subResCard(r){
+  const site=_subSiteByKey(r.Site),admin=_subIsAdmin(),mine=String(r['Requested By']).toLowerCase()===_subMe();
+  const missed=String(r['Missed Dates']||'').split(';').map(x=>x.trim()).filter(Boolean).map(x=>{
+    const m=/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}:\d{2})?-(\d{1,2}:\d{2})?)?/.exec(x);
+    return m?_subFmtShift({Date:m[1],Start:m[2]||'',End:m[3]||''}):x;});
+  const opts=(r.options||[]);
+  let body='<div class="sub-meta">Can’t make: <b>'+missed.map(escHtml).join(', ')+'</b>'+(admin&&!mine?' · '+escHtml(_subPerson(r['Requested By']).name):'')+'</div>';
+  if(r['Chosen Date'])body+='<div class="sub-notes" style="background:#dff3e4"><b>✅ New date:</b> '+escHtml(_subFmtShift({Date:r['Chosen Date'],Start:r['Chosen Start'],End:r['Chosen End']}))+(r['Chosen By']?' · picked by '+escHtml(r['Chosen By']):'')+'</div>';
+  else if(opts.length)body+='<div class="sub-meta">Offered: '+opts.map(o=>escHtml(_subFmtShift({Date:o.date,Start:o.start,End:o.end}))).join(' · ')+'</div>';
+  if(r['School Suggestion'])body+='<div class="sub-notes"><b>School says:</b> '+escHtml(r['School Suggestion'])+'</div>';
+  const acts=[];
+  if((admin||mine)&&r.Status!=='Cancelled'&&!r['Chosen Date'])acts.push('<button class="sub-btn warn" onclick="subCancelResched(\''+ea(r.ID)+'\')">Cancel</button>');
+  if(r.Status==='Cancelled'||r['Chosen Date'])acts.push('<button class="sub-btn alt" onclick="subRemoveResched(\''+ea(r.ID)+'\')">🗑 Remove</button>');
+  return '<div class="sub-card" id="rescard_'+ea(r.ID)+'">'+_subHead(site,r.Site,'📅 Reschedule',_subResPill(r.Status),r.SiteName)+body+
+    (acts.length?'<div class="sub-actions">'+acts.join('')+'</div>':'')+'</div>';
+}
+function _subResSection(admin){
+  const hidden=_subHiddenSet();
+  const list=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)).slice().reverse();
+  if(!list.length)return '';
+  return _subSec(admin?'Reschedules':'My Reschedules',list.map(_subResCard));
+}
+function subCancelResched(id){
+  if(!confirm('Cancel this reschedule request? The date links in the message will stop working.'))return;
+  _subAct({action:'cancelReschedule',id},'Reschedule cancelled');
+}
+async function subRemoveResched(id){
+  _subHide([id]);renderSubs();
+  if(SESSION&&SESSION.accessLevel===1){
+    try{const r=await gasPost({action:'cancelReschedule',actor:SESSION.email,id,remove:true});
+      if(r&&r.ok){_SUB.reschedules=(_SUB.reschedules||[]).filter(x=>x.ID!==id);renderSubs();}}catch(e){}
+  }
+  showSaveToast('🗑 Removed');
+}
 // ── Removing finished (cancelled/declined/expired) shifts ───────────────────
 // Hidden right away on this device; Level 1 also deletes the rows from the
 // Subs sheet, everyone else's removal just hides it for them (the office keeps
@@ -11335,6 +11376,7 @@ function renderSubs(){
   const hidden=_subHiddenSet();
   const mine=subs.filter(s=>isMe(s['Requested By']));
   const mineUp=mine.filter(s=>s.Date>=today&&!DONE.includes(s.Status));
+  html+=_subResSection(admin);
   html+=_subSec('My Requests',mineUp.map(s=>s.Status==='Open'&&!admin?_subOpenCard(s):_subOtherCard(s)),
     'None. Tap “+ I Can’t Make an Upcoming School Session” to find a sub or reschedule with the school.');
   // Cancelled / declined / expired (mine, or any for Level 1-2) — tucked away, removable
@@ -11488,7 +11530,7 @@ function showSubRequestForm(){
       '<div class="sub-lbl">Days I could come instead (suggest a few)</div><div id="subAltDates"></div>'+
       '<button class="sub-btn alt" style="margin-top:4px" onclick="subAddShiftRow(\'subAltDates\')">+ Suggest Another Date</button>'+
       '<div class="sub-lbl">Note to the school</div><textarea class="sub-in" id="subReschedNote" rows="3" placeholder="e.g. I’m sorry for the change - would any of these work for your classes?"></textarea>'+
-      '<div class="sub-meta">Next you’ll see everyone associated with the school (principal, office, contacts, teachers, plant manager) plus Enrich LA senior leadership in Reach, with a ready-made message you can edit before sending by email or text. Replies come back to you.</div>'+
+      '<div class="sub-meta">Next you’ll see everyone associated with the school (principal, office, contacts, teachers, plant manager) plus Enrich LA senior leadership in Reach, with a ready-made message you can edit before sending by email or text. Each date in the message is a link - the school taps one to confirm it, and you and the office are notified right away.</div>'+
     '</div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'subOverlay\').remove()">Cancel</button>'+
     '<button class="sub-btn hot" id="subSendBtn" onclick="submitSubRequest()">Send Request</button></div></div>';
@@ -11520,7 +11562,7 @@ function _subSchoolContactEmails(site){
   });
   return out;
 }
-function subStartReschedule(){
+async function subStartReschedule(){
   const site=_subFormSite();if(!site){alert('Pick a school.');return;}
   const rd=boxId=>[...document.querySelectorAll('#'+boxId+' .sub-shift')].map(r=>{const i=r.querySelectorAll('input');return {date:i[0].value,start:i[1].value,end:i[2].value};}).filter(x=>x.date);
   const missed=rd('subShifts'),alts=rd('subAltDates');
@@ -11530,13 +11572,31 @@ function subStartReschedule(){
   if(!contacts.length){alert('There are no contacts on file for this school yet. Please contact the office.');return;}
   const note=(document.getElementById('subReschedNote')||{}).value||'';
   try{localStorage.setItem('rr_sub_last_times',JSON.stringify({start:missed[0].start,end:missed[0].end}));}catch(e){}
+  const btn=document.getElementById('subSendBtn');if(btn){btn.disabled=true;btn.textContent='Preparing…';}
+  // Log it in the Sub spreadsheet and get one link per offered date
+  let reg=null;
+  try{
+    const r=await gasPost({action:'createReschedule',actor:SESSION.email,siteKey:site.Key||site.key||'',missed,alts,note,recipients:contacts});
+    if(r&&r.ok)reg=r;
+  }catch(e){}
   const plain=s=>_subFmtDate(s.date)+((s.start||s.end)?', '+_subFmtTime(s.start)+(s.end?'-'+_subFmtTime(s.end):''):'');
   const name=sf(site,'Name','name');
-  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email,meFirst=meH?(meH['First Name']||meName.split(' ')[0]):'';
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
   const subject='Garden Ranger visit - schedule change at '+name;
+  let altBlock='';
+  if(alts.length){
+    if(reg&&reg.options&&reg.options.length){
+      altBlock='Could we reschedule? Please tap the date that works best for your school - it confirms it right away:\n\n'+
+        reg.options.map(o=>'- '+plain(o)+'\n  Tap to choose: '+o.url).join('\n\n')+
+        '\n\nIf none of these work, open any of the links and tap “None of these work” to suggest another day and time.';
+    }else{
+      altBlock='Could we reschedule? I’m available on:\n'+alts.map(s=>'- '+plain(s)).join('\n')+'\n\nPlease let me know which works best for you, or suggest another day and time.';
+    }
+  }else{
+    altBlock='Could you let me know another day and time that would work for you?'+(reg&&reg.page?'\nYou can reply here: '+reg.page:'');
+  }
   const msg='Hello,\n\nI’m sorry, but I won’t be able to make my Garden Ranger visit'+(missed.length>1?'s':'')+' at '+name+' on:\n'+
-    missed.map(s=>'- '+plain(s)).join('\n')+'\n\n'+
-    (alts.length?'Could we reschedule? I’m available on:\n'+alts.map(s=>'- '+plain(s)).join('\n')+'\n\nPlease let me know which works best for you, or suggest another day and time.':'Could you let me know another day and time that would work for you?')+
+    missed.map(s=>'- '+plain(s)).join('\n')+'\n\n'+altBlock+
     (note.trim()?'\n\n'+note.trim():'')+
     '\n\nThank you,\n'+meName+'\nGarden Ranger, Enrich LA'+(hm(SESSION.email)?'\n'+hm(SESSION.email):'')+'\n'+SESSION.email;
   const ov=document.getElementById('subOverlay');if(ov)ov.remove();
@@ -11544,7 +11604,8 @@ function subStartReschedule(){
   _reachSelected.clear();contacts.forEach(e=>_reachSelected.add(e));
   _reachForwardPrefill={subject,message:msg};
   switchTab('reach');showReachPage('schoolask');
-  showToast('📅 '+contacts.length+' school contact'+(contacts.length>1?'s':'')+' selected - tip: Email Together keeps everyone on one thread');
+  showToast(reg?'📅 Logged - each date in the message is a tap-to-confirm link':'📅 '+contacts.length+' school contacts selected (date links unavailable - Apps Script needs redeploy)');
+  if(reg)loadSubs(true);
 }
 async function submitSubRequest(){
   const siteKey=(document.getElementById('subSite')||{}).value;

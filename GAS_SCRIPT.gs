@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.20 | 2026-10-18 | deleteSubs (Level 1 removes finished sub shifts)';
+const GAS_BUILD = 'v11.22 | 2026-10-18 | Sub spreadsheet + reschedule date links';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -480,7 +480,8 @@ function handleGetMyLocation(p) {
 // The trigger installs itself on the first type=ver call (no manual step).
 var LIVE_SCOPES = ['sites', 'humans', 'chores', 'subs'];
 var LIVE_FILES = [
-  { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'], subs: ['Subs', 'Sub Volunteers'] } },
+  { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'] } },
+  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options'] } },
   { key: 'humans', id: HUMANS_ID, scopes: { humans: ['Humans', 'Roles'] } },
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
@@ -493,7 +494,8 @@ var LIVE_ACTION_SCOPES = {
   addChore: ['chores'], uploadChoreImage: ['chores'], saveChore: ['chores'], deleteChore: ['chores'],
   uploadSiteImage: ['sites'], uploadSiteSchedule: ['sites'], removeSiteSchedule: ['sites'],
   createSite: ['sites'], deleteSite: ['sites'],
-  requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs']
+  requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs'], createReschedule: ['subs'], cancelReschedule: ['subs'],
+  publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs']
 };
 
 function _liveGetVersions() {
@@ -768,6 +770,12 @@ function _doPostRoute(e) {
       case 'assignSub':    return respond(handleAssignSub(p));
       case 'cancelSub':    return respond(handleCancelSub(p));
       case 'deleteSubs':   return respond(handleDeleteSubs(p));
+      case 'createReschedule': return respond(handleCreateReschedule(p));
+      case 'cancelReschedule': return respond(handleCancelReschedule(p));
+      // public (school staff, no login) - token = Reschedule ID + Option ID
+      case 'publicRescheduleInfo':    return respond(handlePublicRescheduleInfo(p));
+      case 'publicRescheduleChoose':  return respond(handlePublicRescheduleChoose(p));
+      case 'publicRescheduleSuggest': return respond(handlePublicRescheduleSuggest(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -4138,19 +4146,105 @@ var SUB_ELIGIBLE_CATS = ['ranger','master_ranger','garden_keeper'];
 
 function _subTz() { return Session.getScriptTimeZone() || 'America/Los_Angeles'; }
 
+// ── Sub spreadsheet (v11.22) ────────────────────────────────────────────────
+// Everything for subs and reschedules lives in its own "Sub" spreadsheet so the
+// history is easy to browse. setupSubBook() runs once automatically (tracked in
+// Script Property sub_book_v1): creates every tab with headers, copies over any
+// Subs / Sub Volunteers rows that were in the Ranger Rover file, and adds a
+// Guide tab. It is safe to run again by hand from the editor.
+var SUB_BOOK_ID = '141id0wmTozw_Gl8tJu3CUYTrVFQ8bHgDii8Sd2e0Vcs';
+var RESCHED_TAB = 'Reschedules';
+var RESCHED_OPT_TAB = 'Reschedule Options';
+var SUB_HIST_TAB = 'History';
+var RESCHED_HEADERS = ['ID','Created','Requested By','Site','Missed Dates','Note','Status','Recipients',
+  'Chosen Option','Chosen Date','Chosen Start','Chosen End','Chosen By','Chosen At','School Suggestion','Updated'];
+var RESCHED_OPT_HEADERS = ['Option ID','Reschedule ID','Date','Start','End','Status','Chosen By','Chosen At'];
+var SUB_HIST_HEADERS = ['Timestamp','Type','Request ID','Item ID','Site','Action','Actor','Status After','Summary'];
+var RESCHED_PAGE_URL = 'https://tomasogrady-hub.github.io/ranger-rover/reschedule.html';
+var _SUB_SS = null;
+function _subBook() {
+  if (_SUB_SS) return _SUB_SS;
+  _SUB_SS = SpreadsheetApp.openById(SUB_BOOK_ID);
+  try {
+    if (!PropertiesService.getScriptProperties().getProperty('sub_book_v1')) setupSubBook();
+  } catch (e) { Logger.log('setupSubBook: ' + e.message); }
+  return _SUB_SS;
+}
+function setupSubBook() {
+  var ss = _SUB_SS || SpreadsheetApp.openById(SUB_BOOK_ID);
+  _SUB_SS = ss;
+  var tabs = [
+    [SUBS_TAB, SUBS_HEADERS], [SUB_VOL_TAB, SUB_VOL_HEADERS],
+    [RESCHED_TAB, RESCHED_HEADERS], [RESCHED_OPT_TAB, RESCHED_OPT_HEADERS], [SUB_HIST_TAB, SUB_HIST_HEADERS]
+  ];
+  tabs.forEach(function(t){ _subGetSheet(t[0], t[1]); });
+  // One-time copy of existing rows from the old location (Ranger Rover file)
+  try {
+    var old = SpreadsheetApp.openById(SITES_ID);
+    [[SUBS_TAB, SUBS_HEADERS], [SUB_VOL_TAB, SUB_VOL_HEADERS]].forEach(function(t){
+      var src = old.getSheetByName(t[0]), dst = ss.getSheetByName(t[0]);
+      if (!src || !dst || dst.getLastRow() > 1 || src.getLastRow() < 2) return;
+      var data = src.getDataRange().getValues(), h = data[0].map(String);
+      var dh = dst.getRange(1, 1, 1, dst.getLastColumn()).getValues()[0].map(String);
+      var rows = data.slice(1).filter(function(r){ return r.join('') !== ''; }).map(function(r){
+        return dh.map(function(k){ var i = h.indexOf(k); return i > -1 ? r[i] : ''; });
+      });
+      if (rows.length) dst.getRange(2, 1, rows.length, dh.length).setValues(rows);
+    });
+  } catch (e) { Logger.log('sub migration: ' + e.message); }
+  // Guide tab
+  var gd = ss.getSheetByName('Guide') || ss.insertSheet('Guide', 0);
+  gd.clear();
+  var guide = [
+    ['Sub spreadsheet - written by Ranger Rover (please do not rename tabs or headers)', ''],
+    ['', ''],
+    ['Tab', 'What it holds'],
+    ['Subs', 'One row per shift a Ranger cannot make (school + date). Status: Pending Approval > Open > Filled, or Declined / Cancelled / Expired.'],
+    ['Sub Volunteers', 'One row per Ranger who offered to cover a shift (Sub ID links to Subs > ID).'],
+    ['Reschedules', 'One row per reschedule request sent to a school. Status: Waiting for School > Confirmed (school picked a date) or School Suggested Other / Cancelled.'],
+    ['Reschedule Options', 'The alternative dates the Ranger offered. Each has its own link in the message; the school taps one to confirm it.'],
+    ['History', 'Every action, newest at the bottom: who did what, when, and the status afterwards. Use Data > Filter to search.'],
+    ['', ''],
+    ['IDs', 'Site = the school Key from the Ranger Rover Sites sheet. People are stored by email.'],
+    ['Dates', 'Dates are yyyy-mm-dd and times are 24h (HH:mm), stored as text so Sheets never changes them.']
+  ];
+  gd.getRange(1, 1, guide.length, 2).setValues(guide);
+  gd.getRange(1, 1).setFontWeight('bold').setFontSize(13);
+  gd.getRange(3, 1, 1, 2).setFontWeight('bold');
+  gd.setColumnWidth(1, 170); gd.setColumnWidth(2, 720);
+  gd.getRange(1, 2, guide.length, 1).setWrap(true);
+  // Remove the empty default tab
+  var s1 = ss.getSheetByName('Sheet1');
+  if (s1 && s1.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s1);
+  // History: a filter so it can be sorted/searched
+  try { var hs = ss.getSheetByName(SUB_HIST_TAB); if (!hs.getFilter()) hs.getRange(1, 1, Math.max(2, hs.getMaxRows()), SUB_HIST_HEADERS.length).createFilter(); } catch (e) {}
+  PropertiesService.getScriptProperties().setProperty('sub_book_v1', String(new Date()));
+  return 'ok';
+}
+// Append one History row (never throws)
+function _subHist(type, reqId, itemId, site, action, actor, status, summary) {
+  try {
+    _subGetSheet(SUB_HIST_TAB, SUB_HIST_HEADERS).appendRow([new Date(), type || '', reqId || '', itemId || '',
+      site || '', action || '', actor || '', status || '', String(summary || '').slice(0, 500)]);
+  } catch (e) { Logger.log('subHist: ' + e.message); }
+}
+
 function _subGetSheet(name, headers) {
-  var ss = SpreadsheetApp.openById(SITES_ID);
+  var ss = _SUB_SS || _subBook();
   var sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
     sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
     sh.setFrozenRows(1);
     // Date / Start / End as plain text so Sheets never converts them
-    if (name === SUBS_TAB) {
-      ['Date','Start','End'].forEach(function(c){
+    var textCols = { 'Subs': ['Date','Start','End'], 'Reschedule Options': ['Date','Start','End'],
+                     'Reschedules': ['Chosen Date','Chosen Start','Chosen End'] }[name];
+    if (textCols) {
+      textCols.forEach(function(c){
         sh.getRange(1, headers.indexOf(c) + 1, sh.getMaxRows(), 1).setNumberFormat('@');
       });
     }
+    sh.setFrozenRows(1);
     return sh;
   }
   // Add any missing headers (safe schema growth)
@@ -4387,7 +4481,23 @@ function handleGetSubs(p) {
       if (o.Site) { var st = _subSite(sitesN, o.Site); if (st && st.name && st.name !== o.Site) c.SiteName = st.name; }
       return c;
     };
-    return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), level: me.level, today: _subToday() };
+    var res = [];
+    try {
+      var rt = _subReadAll(_subGetSheet(RESCHED_TAB, RESCHED_HEADERS)).rows;
+      var ot = _subReadAll(_subGetSheet(RESCHED_OPT_TAB, RESCHED_OPT_HEADERS)).rows;
+      var rcut = _subAddDays(-21);
+      res = rt.filter(function(r){
+        if (!admin && r['Requested By'].toLowerCase() !== me.email) return false;
+        var last = r['Chosen Date'] || String(r['Missed Dates'] || '').split(';').map(function(x){ return x.trim().slice(0, 10); }).sort().pop() || '';
+        return !last || last >= rcut;
+      }).map(function(r){
+        var c = clean(r); delete c.Recipients;
+        c.options = ot.filter(function(o){ return o['Reschedule ID'] === r.ID; })
+          .map(function(o){ return { id: o['Option ID'], date: o.Date, start: o.Start, end: o.End, status: o.Status }; });
+        return c;
+      });
+    } catch (e) { Logger.log('getSubs reschedules: ' + e.message); }
+    return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), reschedules: res, level: me.level, today: _subToday() };
   } catch(e) { return { ok: false, error: e.message }; }
 }
 
@@ -4451,6 +4561,8 @@ function handleRequestSub(p) {
         '\n\nYou will hear back once it is approved and sent to other Rangers.', '', { noSms: true });
     }
     try { logActivity(me.email, 'requestSub', site.key, 'site', created.length + ' shift(s), request ' + reqId); } catch(e) {}
+    created.forEach(function(o){ _subHist('Sub', reqId, o.ID, site.key, 'Requested', me.email, o.Status,
+      site.name + ' - ' + _subFmtShift(o) + (requester.email !== me.email ? ' (for ' + requester.email + ')' : '')); });
     _subFlushSms();
     return { ok: true, requestId: reqId, status: 'Pending Approval', byAdmin: byAdmin, firstId: created[0].ID };
   } catch(e) {
@@ -4527,6 +4639,7 @@ function handleApproveSub(p) {
       var sentR = _subBroadcastOpen(people, site, rows, requester, bOpts);
       _subMarkNotified(tbl, rows, sentR);
       try { logActivity(me.email, 'resendSub', site.key, 'site', 'to ' + sentR.length + ' people'); } catch(e) {}
+      _subHist('Sub', rows[0]['Request ID'], '', site.key, 'Sent to more', me.email, 'Open', 'Sent to ' + sentR.length + ': ' + sentR.join(', '));
       _subFlushSms();
       return { ok: true, count: rows.length, sent: sentR.length };
     }
@@ -4554,6 +4667,8 @@ function handleApproveSub(p) {
         'Enrich LA - Your sub request for ' + site.name + ' was not approved.' + (p.note ? ' Note: ' + p.note : '') + ' Details: ' + _subLink(rows[0].ID));
     }
     try { logActivity(me.email, approve ? 'approveSub' : 'declineSub', site.key, 'site', rows.length + ' shift(s)'); } catch(e) {}
+    rows.forEach(function(s){ _subHist('Sub', s['Request ID'], s.ID, site.key, approve ? 'Approved' : 'Declined', me.email,
+      approve ? 'Open' : 'Declined', approve ? 'Sent to ' + sentN + ' people' : String(p.note || '')); });
     _subFlushSms();
     return { ok: true, count: rows.length, sent: sentN };
   } catch(e) { return { ok: false, error: e.message }; }
@@ -4597,6 +4712,7 @@ function handleVolunteerSub(p) {
     });
     _subFlushSms();
     try { logActivity(me.email, 'volunteerSub', site.key, 'site', s.ID); } catch(e) {}
+    _subHist('Sub', s['Request ID'], s.ID, site.key, 'Volunteered', me.email, 'Open', String(p.note || ''));
     return { ok: true };
   } catch(e) { return { ok: false, error: e.message }; }
 }
@@ -4655,6 +4771,7 @@ function handleAssignSub(p) {
     });
     _subFlushSms();
     try { logActivity(me.email, 'assignSub', site.key, 'site', s.ID + ' -> ' + sub.email); } catch(e) {}
+    _subHist('Sub', s['Request ID'], s.ID, site.key, 'Sub assigned', me.email, 'Filled', sub.email + ' covers ' + _subFmtShift(s));
     return { ok: true };
   } catch(e) {
     try { lock.releaseLock(); } catch(x) {}
@@ -4703,6 +4820,7 @@ function handleCancelSub(p) {
     });
     _subFlushSms();
     try { logActivity(me.email, 'cancelSub', site0.key, 'site', rows.length + ' shift(s)'); } catch(e) {}
+    rows.forEach(function(s){ _subHist('Sub', s['Request ID'], s.ID, s.Site, 'Cancelled', me.email, 'Cancelled', _subFmtShift(s)); });
     return { ok: true, count: rows.length };
   } catch(e) { return { ok: false, error: e.message }; }
 }
@@ -4780,7 +4898,9 @@ function handleDeleteSubs(p) {
     var DONE = ['Cancelled', 'Declined', 'Expired'];
     var rows = tbl.rows.filter(function(s){ return ids[s.ID] && DONE.indexOf(s.Status) !== -1; });
     var gone = {};
-    rows.sort(function(a, b){ return b._row - a._row; }).forEach(function(s){ tbl.sheet.deleteRow(s._row); gone[s.ID] = true; });
+    rows.sort(function(a, b){ return b._row - a._row; }).forEach(function(s){
+      _subHist('Sub', s['Request ID'], s.ID, s.Site, 'Deleted', me.email, '', 'Was ' + s.Status + ', ' + _subFmtShift(s));
+      tbl.sheet.deleteRow(s._row); gone[s.ID] = true; });
     var vt = _subReadAll(_subGetSheet(SUB_VOL_TAB, SUB_VOL_HEADERS));
     vt.rows.filter(function(v){ return gone[v['Sub ID']]; })
       .sort(function(a, b){ return b._row - a._row; })
@@ -4791,4 +4911,183 @@ function handleDeleteSubs(p) {
   } finally {
     try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── RESCHEDULE WITH THE SCHOOL (v11.22) ─────────────────────────────────────
+// A Ranger who can't make a session offers the school some other dates. Each
+// date gets its own link (reschedule.html?r=<Reschedule ID>&o=<Option ID>).
+// School staff tap a link, see the details and press Confirm — opening the
+// link alone never changes anything (email scanners pre-open links). The first
+// confirmation wins: the Reschedules row becomes Confirmed with the chosen
+// date, other options are marked Not Chosen, and the Ranger (email + text),
+// Level 1-2 and everyone the message went to get a confirmation email.
+// ════════════════════════════════════════════════════════════════════════════
+function _resId(prefix) { return prefix + Utilities.getUuid().replace(/-/g, '').slice(0, 11); }
+function _resShiftText(d) {
+  return d.date + ((d.start || d.end) ? ' ' + (d.start || '') + '-' + (d.end || '') : '');
+}
+function _resParseMissed(txt) {
+  return String(txt || '').split(';').map(function(x){
+    var m = /^\s*(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}:\d{2})?-(\d{1,2}:\d{2})?)?/.exec(x);
+    return m ? { Date: m[1], Start: m[2] || '', End: m[3] || '' } : null;
+  }).filter(Boolean);
+}
+function _resLink(rid, oid) { return RESCHED_PAGE_URL + '?r=' + encodeURIComponent(rid) + '&o=' + encodeURIComponent(oid); }
+
+function handleCreateReschedule(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var site = _subSite(_subSites(), p.siteKey);
+    if (!site.key) return { ok: false, error: 'School not found.' };
+    if (me.level > 2 && site.rangers.indexOf(me.email) === -1)
+      return { ok: false, error: 'You can only reschedule your own schools.' };
+    var ok = function(d){ return d && /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')); };
+    var missed = (p.missed || []).filter(ok), alts = (p.alts || []).filter(ok);
+    if (!missed.length) return { ok: false, error: 'Add the day you cannot make.' };
+    var rid = _resId('X'), now = new Date();
+    var recips = (p.recipients || []).map(function(e){ return String(e || '').trim().toLowerCase(); }).filter(String);
+    var rsh = _subGetSheet(RESCHED_TAB, RESCHED_HEADERS);
+    var rh = rsh.getRange(1, 1, 1, rsh.getLastColumn()).getValues()[0].map(String);
+    var row = { 'ID': rid, 'Created': now, 'Requested By': me.email, 'Site': site.key,
+      'Missed Dates': missed.map(_resShiftText).join('; '), 'Note': String(p.note || '').slice(0, 2000),
+      'Status': alts.length ? 'Waiting for School' : 'Asked School for a Date', 'Recipients': recips.join(', '), 'Updated': now };
+    rsh.appendRow(rh.map(function(k){ return row[k] !== undefined ? row[k] : ''; }));
+    var osh = _subGetSheet(RESCHED_OPT_TAB, RESCHED_OPT_HEADERS);
+    var oh = osh.getRange(1, 1, 1, osh.getLastColumn()).getValues()[0].map(String);
+    var opts = alts.map(function(a){
+      return { 'Option ID': _resId('O'), 'Reschedule ID': rid, 'Date': a.date, 'Start': String(a.start || ''), 'End': String(a.end || ''), 'Status': 'Offered' };
+    });
+    if (opts.length) {
+      var start = osh.getLastRow() + 1;
+      ['Date','Start','End'].forEach(function(c){ osh.getRange(start, oh.indexOf(c) + 1, opts.length, 1).setNumberFormat('@'); });
+      osh.getRange(start, 1, opts.length, oh.length).setValues(opts.map(function(o){ return oh.map(function(k){ return o[k] !== undefined ? o[k] : ''; }); }));
+    }
+    _subHist('Reschedule', rid, '', site.key, 'Sent to school', me.email, row.Status,
+      site.name + ' - missed ' + row['Missed Dates'] + (opts.length ? '; offered ' + opts.map(function(o){ return _resShiftText({date:o.Date,start:o.Start,end:o.End}); }).join(', ') : '') +
+      (recips.length ? '; to ' + recips.join(', ') : ''));
+    try { logActivity(me.email, 'rescheduleAsk', site.key, 'site', missed.length + ' day(s)'); } catch (e) {}
+    return { ok: true, id: rid, page: RESCHED_PAGE_URL + '?r=' + encodeURIComponent(rid),
+      options: opts.map(function(o){ return { id: o['Option ID'], date: o.Date, start: o.Start, end: o.End, url: _resLink(rid, o['Option ID']) }; }) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function _resLoad(rid) {
+  var rt = _subReadAll(_subGetSheet(RESCHED_TAB, RESCHED_HEADERS));
+  var r = rt.rows.filter(function(x){ return x.ID === String(rid || '').trim(); })[0];
+  if (!r) return null;
+  var ot = _subReadAll(_subGetSheet(RESCHED_OPT_TAB, RESCHED_OPT_HEADERS));
+  return { rt: rt, r: r, ot: ot, opts: ot.rows.filter(function(o){ return o['Reschedule ID'] === r.ID; }) };
+}
+function _resPublicView(L, people) {
+  var site = _subSite(_subSites(), L.r.Site);
+  var rg = people[String(L.r['Requested By']).toLowerCase()];
+  return {
+    ok: true, id: L.r.ID, status: L.r.Status,
+    school: site.name || '', city: site.city || '',
+    ranger: rg ? rg.first : 'Your Garden Ranger',
+    missed: _resParseMissed(L.r['Missed Dates']).map(function(m){ return { date: m.Date, start: m.Start, end: m.End, label: _subFmtShift(m) }; }),
+    note: L.r.Note || '',
+    options: L.opts.map(function(o){ return { id: o['Option ID'], date: o.Date, start: o.Start, end: o.End, status: o.Status, label: _subFmtShift(o) }; }),
+    chosen: L.r['Chosen Date'] ? { date: L.r['Chosen Date'], label: _subFmtShift({ Date: L.r['Chosen Date'], Start: L.r['Chosen Start'], End: L.r['Chosen End'] }), by: L.r['Chosen By'] } : null,
+    suggestion: L.r['School Suggestion'] || ''
+  };
+}
+function handlePublicRescheduleInfo(p) {
+  try {
+    var L = _resLoad(p.r);
+    if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
+    return _resPublicView(L, _subPeople());
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Who to tell when the school answers: the Ranger, Level 1-2, and everyone the message went to
+function _resNotifyAll(L, people, site, subject, body, rangerSms) {
+  var sent = {};
+  var rg = people[String(L.r['Requested By']).toLowerCase()];
+  if (rg) { _subNotify(rg, subject, 'Hi ' + rg.first + ',\n\n' + body, rangerSms); sent[rg.email] = true; }
+  _subApprovers(people).forEach(function(a){ if (!sent[a.email]) { _subNotify(a, subject, body, '', { noSms: true }); sent[a.email] = true; } });
+  String(L.r.Recipients || '').split(',').map(function(e){ return e.trim().toLowerCase(); }).filter(String).forEach(function(e){
+    if (sent[e]) return; sent[e] = true;
+    var person = people[e] || { email: e, first: '', sms: false };
+    _subNotify(person, subject, body, '', { noSms: true });
+  });
+}
+function handlePublicRescheduleChoose(p) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    var L = _resLoad(p.r);
+    if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
+    var people = _subPeople();
+    if (L.r.Status === 'Cancelled') return { ok: false, error: 'This reschedule request was cancelled by Enrich LA.' };
+    if (L.r['Chosen Date']) { var v0 = _resPublicView(L, people); v0.already = true; return v0; }
+    var opt = L.opts.filter(function(o){ return o['Option ID'] === String(p.o || '').trim(); })[0];
+    if (!opt) return { ok: false, error: 'That date was not found - please pick one of the dates listed.' };
+    var by = String(p.name || '').trim().slice(0, 120) || 'School staff';
+    var now = new Date();
+    L.opts.forEach(function(o){
+      _subSet(L.ot, o, o === opt ? { 'Status': 'Chosen', 'Chosen By': by, 'Chosen At': now } : { 'Status': 'Not Chosen' });
+    });
+    _subSet(L.rt, L.r, { 'Status': 'Confirmed', 'Chosen Option': opt['Option ID'], 'Chosen Date': opt.Date,
+      'Chosen Start': opt.Start, 'Chosen End': opt.End, 'Chosen By': by, 'Chosen At': now });
+    lock.releaseLock();
+    var site = _subSite(_subSites(), L.r.Site);
+    var when = _subFmtShift(opt);
+    _subHist('Reschedule', L.r.ID, opt['Option ID'], L.r.Site, 'School chose date', by, 'Confirmed', site.name + ' - ' + when);
+    try { logActivity(String(L.r['Requested By']), 'rescheduleConfirmed', L.r.Site, 'site', when + ' (by ' + by + ')'); } catch (e) {}
+    _resNotifyAll(L, people, site, 'Confirmed: Garden Ranger visit at ' + site.name + ' moved to ' + _subFmtDate(opt.Date),
+      by + ' confirmed the new Garden Ranger visit at ' + site.name + ':\n\n' + when +
+      '\n\n(Instead of: ' + _resParseMissed(L.r['Missed Dates']).map(_subFmtShift).join(', ') + ')\n\nThank you!\nEnrich LA',
+      'Enrich LA - ' + site.name + ' confirmed your new visit date: ' + when + '. Thank you!');
+    _subFlushSms();
+    return _resPublicView(_resLoad(p.r), people);
+  } catch (e) {
+    try { lock.releaseLock(); } catch (x) {}
+    return { ok: false, error: e.message };
+  }
+}
+function handlePublicRescheduleSuggest(p) {
+  try {
+    var L = _resLoad(p.r);
+    if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
+    if (L.r['Chosen Date']) return { ok: false, error: 'A date has already been confirmed for this visit.' };
+    var text = String(p.text || '').trim().slice(0, 1000);
+    if (!text) return { ok: false, error: 'Please write the day and time that would work.' };
+    var by = String(p.name || '').trim().slice(0, 120) || 'School staff';
+    var people = _subPeople();
+    var prev = L.r['School Suggestion'] ? L.r['School Suggestion'] + '\n' : '';
+    _subSet(L.rt, L.r, { 'Status': 'School Suggested Other', 'School Suggestion': prev + by + ': ' + text });
+    var site = _subSite(_subSites(), L.r.Site);
+    _subHist('Reschedule', L.r.ID, '', L.r.Site, 'School suggested other', by, 'School Suggested Other', text);
+    try { logActivity(String(L.r['Requested By']), 'rescheduleSuggested', L.r.Site, 'site', by); } catch (e) {}
+    var rg = people[String(L.r['Requested By']).toLowerCase()];
+    var body = by + ' at ' + site.name + ' replied about the Garden Ranger reschedule:\n\n"' + text + '"\n\nPlease follow up with the school to confirm. ' + SUB_APP_URL + '#sub=';
+    if (rg) _subNotify(rg, 'School replied: reschedule at ' + site.name, 'Hi ' + rg.first + ',\n\n' + body,
+      'Enrich LA - ' + site.name + ' suggested another time for your visit: "' + text.slice(0, 120) + '". Please follow up.');
+    _subApprovers(people).forEach(function(a){ if (!rg || a.email !== rg.email) _subNotify(a, 'School replied: reschedule at ' + site.name, body, '', { noSms: true }); });
+    _subFlushSms();
+    return _resPublicView(_resLoad(p.r), people);
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleCancelReschedule(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var L = _resLoad(p.id);
+    if (!L) return { ok: false, error: 'Not found.' };
+    if (me.level > 2 && String(L.r['Requested By']).toLowerCase() !== me.email) return { ok: false, error: 'You can only cancel your own.' };
+    var remove = p.remove === true || p.remove === 'true';
+    if (remove) {
+      if (me.level !== 1) return { ok: false, error: 'Only Level 1 can delete.' };
+      _subHist('Reschedule', L.r.ID, '', L.r.Site, 'Deleted', me.email, '', 'Was ' + L.r.Status);
+      L.opts.sort(function(a, b){ return b._row - a._row; }).forEach(function(o){ L.ot.sheet.deleteRow(o._row); });
+      L.rt.sheet.deleteRow(L.r._row);
+      return { ok: true, deleted: true };
+    }
+    _subSet(L.rt, L.r, { 'Status': 'Cancelled' });
+    L.opts.forEach(function(o){ if (o.Status === 'Offered') _subSet(L.ot, o, { 'Status': 'Withdrawn' }); });
+    _subHist('Reschedule', L.r.ID, '', L.r.Site, 'Cancelled', me.email, 'Cancelled', '');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
 }

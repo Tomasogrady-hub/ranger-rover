@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garden Ranger Visit - Pick a Date | Enrich LA</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--grove:#1e3a1e;--orange:#E07A3F;--fog:#f4f4f1;--ink:#2b2b2b;--line:#dcdcdc;--ok:#1e6b34;--okbg:#dff3e4}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+       max-width:520px;margin:0 auto;padding:26px 18px 60px;color:var(--ink);background:#fff;line-height:1.5}
+  .brand{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#777;margin-bottom:4px}
+  h1{font-size:22px;margin:0 0 4px;color:var(--grove)}
+  .muted{color:#666;font-size:14px}
+  .card{border:1px solid var(--line);border-radius:12px;padding:15px 16px;background:var(--fog);margin:16px 0}
+  .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#777;margin:14px 0 6px}
+  .opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 14px;margin:8px 0;border:2px solid var(--line);
+       border-radius:12px;background:#fff;font-size:17px;font-weight:600;color:var(--ink);cursor:pointer}
+  .opt.sel{border-color:var(--orange);background:#fdf0e7}
+  .opt .dot{width:20px;height:20px;border-radius:50%;border:2px solid #bbb;flex-shrink:0}
+  .opt.sel .dot{border-color:var(--orange);background:var(--orange);box-shadow:inset 0 0 0 3px #fff}
+  input[type=text],textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;background:#fff}
+  button.go{width:100%;padding:15px;border:none;border-radius:10px;background:var(--grove);color:#fff;font-size:17px;font-weight:700;margin-top:16px;cursor:pointer}
+  button.go:disabled{background:#aaa;cursor:not-allowed}
+  button.link{background:none;border:none;color:var(--grove);text-decoration:underline;font-size:15px;padding:8px 0;cursor:pointer}
+  .done{text-align:center;padding:26px 10px}
+  .done .big{font-size:44px}
+  .ok{background:var(--okbg);color:var(--ok);border-radius:12px;padding:14px 16px;font-weight:600;margin:14px 0}
+  .error{color:#a33;font-size:14px;margin-top:10px}
+</style>
+</head>
+<body>
+  <div class="brand">Enrich LA · Garden Rangers</div>
+  <div id="app">Loading…</div>
+<script>
+(function(){
+  var FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
+  var GAS_URL = FALLBACK_URL;
+  var q = new URLSearchParams(location.search);
+  var rid = q.get('r') || '', picked = q.get('o') || '';
+  var app = document.getElementById('app');
+  var view = null, showSuggest = false;
+
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function raw(url, action, extra){
+    return fetch(url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(Object.assign({action:action}, extra||{}))})
+      .then(function(r){ return r.json(); });
+  }
+  // Same trick as the SMS consent page: ask for the live deployment URL first
+  function resolve(){ return raw(GAS_URL,'getAppSettings').then(function(r){ if(r && r.gasUrl) GAS_URL = r.gasUrl; }).catch(function(){}); }
+  function post(a, x){ return raw(GAS_URL, a, x); }
+  function savedName(){ try{ return localStorage.getItem('rr_res_name') || ''; }catch(e){ return ''; } }
+
+  function render(err){
+    var v = view;
+    if (!v) { app.innerHTML = '<div class="card">' + esc(err || 'This link is not valid.') + '</div>'; return; }
+    var head = '<h1>Garden Ranger visit at ' + esc(v.school) + '</h1>' + (v.city ? '<div class="muted">' + esc(v.city) + '</div>' : '');
+    var missed = v.missed.map(function(m){ return esc(m.label); }).join('<br>');
+    if (v.chosen) {
+      app.innerHTML = head + '<div class="done"><div class="big">✅</div><div class="ok">Confirmed: ' + esc(v.chosen.label) + '</div>' +
+        '<div class="muted">' + (v.already ? 'This date was already confirmed' + (v.chosen.by ? ' by ' + esc(v.chosen.by) : '') + '. ' : '') +
+        esc(v.ranger) + ' and Enrich LA have been notified. Thank you!</div></div>';
+      return;
+    }
+    if (v.status === 'Cancelled') { app.innerHTML = head + '<div class="card">This request was cancelled by Enrich LA. No action is needed.</div>'; return; }
+    var opts = v.options.filter(function(o){ return o.status === 'Offered'; });
+    if (picked && !opts.some(function(o){ return o.id === picked; })) picked = '';
+    var html = head +
+      '<div class="card"><b>' + esc(v.ranger) + '</b> is sorry - they can’t make the Garden Ranger visit on:<br><b>' + missed + '</b>' +
+      (v.note ? '<div style="margin-top:8px">“' + esc(v.note) + '”</div>' : '') + '</div>';
+    if (opts.length && !showSuggest) {
+      html += '<div class="lbl">Pick the new date that works for your school</div>' +
+        opts.map(function(o){ return '<button type="button" class="opt' + (o.id === picked ? ' sel' : '') + '" data-id="' + esc(o.id) + '"><span class="dot"></span><span>' + esc(o.label) + '</span></button>'; }).join('') +
+        '<div class="lbl">Your name</div><input type="text" id="nm" placeholder="e.g. Ms. Lopez, Principal" value="' + esc(savedName()) + '">' +
+        '<button class="go" id="go"' + (picked ? '' : ' disabled') + '>' + (picked ? 'Confirm ' + esc((opts.filter(function(o){return o.id===picked;})[0]||{}).label||'') : 'Pick a date above') + '</button>' +
+        '<div style="text-align:center"><button class="link" id="none">None of these work - suggest another day</button></div>';
+    } else {
+      html += '<div class="lbl">What day and time would work?</div><textarea id="sg" rows="4" placeholder="e.g. Any Tuesday morning before 11am, or Wed Oct 28 at 9am"></textarea>' +
+        '<div class="lbl">Your name</div><input type="text" id="nm" placeholder="e.g. Ms. Lopez, Principal" value="' + esc(savedName()) + '">' +
+        '<button class="go" id="send">Send to ' + esc(v.ranger) + '</button>' +
+        (opts.length ? '<div style="text-align:center"><button class="link" id="back">Back to the suggested dates</button></div>' : '');
+      if (v.suggestion) html += '<div class="card"><b>Already sent:</b><br>' + esc(v.suggestion).replace(/\n/g,'<br>') + '</div>';
+    }
+    if (err) html += '<div class="error">' + esc(err) + '</div>';
+    app.innerHTML = html;
+    Array.prototype.forEach.call(document.querySelectorAll('.opt'), function(b){ b.onclick = function(){ picked = b.getAttribute('data-id'); render(); }; });
+    var go = document.getElementById('go'); if (go) go.onclick = choose;
+    var none = document.getElementById('none'); if (none) none.onclick = function(){ showSuggest = true; render(); };
+    var back = document.getElementById('back'); if (back) back.onclick = function(){ showSuggest = false; render(); };
+    var send = document.getElementById('send'); if (send) send.onclick = suggest;
+  }
+  function nameVal(){ var n = (document.getElementById('nm') || {}).value || ''; try{ localStorage.setItem('rr_res_name', n); }catch(e){} return n; }
+  function busy(id, t){ var b = document.getElementById(id); if (b){ b.disabled = true; b.textContent = t; } }
+  function choose(){
+    if (!picked) return;
+    var n = nameVal(); busy('go', 'Confirming…');
+    post('publicRescheduleChoose', {r: rid, o: picked, name: n}).then(function(r){
+      if (r && r.ok) { view = r; render(); } else render((r && r.error) || 'Something went wrong - please try again.');
+    }).catch(function(){ render('Connection problem - please try again.'); });
+  }
+  function suggest(){
+    var t = ((document.getElementById('sg') || {}).value || '').trim();
+    if (!t) { render('Please write the day and time that would work.'); return; }
+    var n = nameVal(); busy('send', 'Sending…');
+    post('publicRescheduleSuggest', {r: rid, text: t, name: n}).then(function(r){
+      if (r && r.ok) {
+        view = r;
+        app.innerHTML = '<h1>Thank you!</h1><div class="ok">Your message was sent to ' + esc(r.ranger) + ' and Enrich LA.</div><div class="muted">They will get back to you to confirm the new visit.</div>';
+      } else render((r && r.error) || 'Something went wrong - please try again.');
+    }).catch(function(){ render('Connection problem - please try again.'); });
+  }
+  if (!rid) { render('This link is missing information. Please use the link from your email or text.'); return; }
+  resolve().then(function(){ return post('publicRescheduleInfo', {r: rid}); }).then(function(r){
+    if (r && r.ok) { view = r; render(); } else { view = null; render((r && r.error) || 'This link is not valid.'); }
+  }).catch(function(){ view = null; render('Could not load - please check your connection and try again.'); });
+})();
+</script>
+</body>
+</html>
