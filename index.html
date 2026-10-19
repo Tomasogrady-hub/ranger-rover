@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.25 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.26 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1003,6 +1003,9 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <!-- CALENDAR -->
   <div class="tab-pane" id="tab-calendar">
     <div class="page-header"><span class="page-title">Calendar</span><span class="page-count" id="calCount"></span></div>
+    <div style="margin:0 16px 12px;padding:12px 14px;background:#fff3d6;border:2px solid #F5A623;border-radius:var(--r-md);font-size:16px;line-height:1.45;color:#6b4a00">
+      <b>⚠️ Testing only.</b> This is for testing purposes only and is not ready for prime time yet. When this message disappears, it is.
+    </div>
     <div id="calBody"><div class="spinner"></div></div>
   </div>
 
@@ -1927,10 +1930,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.25';
+const APP_VERSION='v11.26';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 19:10 PT - NEW Calendar tab for everyone: school visit dates built from each schools Schedule Contents (rotations and date ranges), Ranger Day Of Week and Program Classes Start/End Date, recalculated whenever the Sites sheet changes. Sub shifts and reschedules are layered on (Covered by, Subbing for, Sub requested, Make-up visit, Rescheduled). Tap a day or visit for times, rotation timetable, program details and the full schedule, plus I Cant Make This Session. Level 1-2 can view My calendar, All Rangers or any one Ranger. Top bar now shows your main role under your name. No GAS change.';
+const BUILD_STAMP='2026-10-18 18:30 PT - Calendar tab: added a yellow Testing only notice at the top (not ready for prime time yet; when the message disappears, it is). No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
