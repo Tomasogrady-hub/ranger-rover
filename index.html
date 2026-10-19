@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.23 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.24 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -113,6 +113,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
 .nav-btn[data-tab="sub"]      {background:#E07A3F;color:#fff}
 /* ── SUB TAB (v11.6) ── */
+.nav-btn.has-flash{flex-direction:column;gap:2px}
+.nav-sub-flash{display:block;font-size:9px;font-weight:800;letter-spacing:.02em;text-transform:none;background:#fff;color:#C0392B;border-radius:6px;padding:1px 5px;line-height:1.3;animation:rrSubFlash 1.1s ease-in-out infinite}
+@keyframes rrSubFlash{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.nav-sub-flash{animation:none}}
 .nav-badge{position:absolute;top:6px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fff;color:#C0392B;font-size:11px;font-weight:900;line-height:18px;text-align:center;letter-spacing:0}
 .sub-sec{padding:8px 16px 2px;font-size:16px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
 .sub-card{background:#fff;border:1px solid var(--mist);border-radius:var(--r-md);padding:14px 15px;margin:8px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
@@ -1892,10 +1896,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.23';
+const APP_VERSION='v11.24';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 13:45 PT - Sub tab: section headings larger; Open is now shown as Available (Available Opportunities). Tap any shift card to open a full-detail card (school, date/time, address and map, phone, Ranger, notes, Program Details, site details, schedule, actions) with a Reach button that opens Reach with Senior Leadership (Access Level 2) and the Ranger pre-selected, a ready-made message, and an immediate Email or Text choice. No GAS change.';
+const BUILD_STAMP='2026-10-18 18:15 PT - Sub tab: Level 1-2 can also tap I Can Take It on available shifts (not their own). Filled shifts show Covered by, Requested by and Approved by, each name opens that persons card. When you are the confirmed sub for an upcoming shift, the SUB nav button flashes You are subbing soon (today on the day). Role Additional picker now lists every role from the Roles tab plus custom values, same as Role. No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6865,7 +6869,7 @@ function renderPD(h,edit){
             <div class="dropdown-search"><input placeholder="Search…" oninput="filterDropdownItems('ra-dd',this.value)"></div>
             <div class="dropdown-list">
               <div class="dropdown-item" data-name="" onclick="selectRoleAddItem(this,'ra-select-btn','ra-dd')">— None —</div>
-              ${[...new Set(DATA.humans.map(p=>p['Role Additional']||p.RoleAdditional||'').filter(v=>v.trim()))].sort().map(v=>`<div class="dropdown-item${(h['Role Additional']||h.RoleAdditional||'')===v?' selected':''}" data-name="${ea(v)}" onclick="selectRoleAddItem(this,'ra-select-btn','ra-dd')">${v}</div>`).join('')}
+              ${_dataPeopleRoleAdditionalOptions().map(v=>`<div class="dropdown-item${(h['Role Additional']||h.RoleAdditional||'')===v?' selected':''}" data-name="${ea(v)}" onclick="selectRoleAddItem(this,'ra-select-btn','ra-dd')">${v}</div>`).join('')}
             </div>
             <div class="dropdown-add" onclick="addNewRoleAdditional()">+ Add custom…</div>
           </div>
@@ -11132,6 +11136,22 @@ function _subFmtShift(s){
   return _subFmtDate(s.Date)+t;
 }
 function _subPerson(email){const h=gh(email);return {name:h?fullName(h):email,mobile:h?(h.Mobile||h.mobile||''):''};}
+// Name that opens the person's card (closes any sub sheet first)
+function _subPersonLink(email,label){
+  const e=String(email||'').trim();if(!e)return '';
+  const hh=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===e.toLowerCase());
+  const nm=label||(hh?fullName(hh):e);
+  if(!hh)return '<b>'+escHtml(nm)+'</b>';
+  return '<button type="button" class="contact-tap" style="font-size:inherit;font-weight:700" onclick="_subCloseDetail();showPersonDetail(\''+ea(hh.Email||hh.email)+'\')">'+escHtml(nm)+'</button>';
+}
+function _subPeopleLines(s,opts){
+  opts=opts||{};const me=_subMe();const out=[];
+  const tel=e=>{const m=_subPerson(e).mobile;return m?' · <a href="tel:'+ea(m)+'">'+escHtml(m)+'</a>':'';};
+  if(s.Status==='Filled'&&s['Assigned To'])out.push('Covered by '+(String(s['Assigned To']).toLowerCase()===me?'<b>you</b>':_subPersonLink(s['Assigned To'])+tel(s['Assigned To'])));
+  if(!opts.noReq)out.push('Requested by '+(String(s['Requested By']).toLowerCase()===me?'<b>you</b>':_subPersonLink(s['Requested By'])+tel(s['Requested By'])));
+  if(s['Approved By']&&s.Status!=='Pending Approval')out.push((s.Status==='Declined'?'Declined':'Approved')+' by '+(String(s['Approved By']).toLowerCase()===me?'<b>you</b>':_subPersonLink(s['Approved By'])));
+  return out;
+}
 function _subVolsFor(id){return _SUB.volunteers.filter(v=>v['Sub ID']===id&&v.Status!=='Withdrawn');}
 function _subMapUrl(site){const a=sf(site,'Full Address','FullAddress')||sf(site,'Name','name');return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a);}
 
@@ -11175,6 +11195,16 @@ function _subBadgeCount(){
 }
 function _subBadge(){
   const b=document.getElementById('nav_sub');if(!b)return;
+  // Flashing reminder when this person is the confirmed sub for an upcoming shift
+  const me=_subMe(),today=_subToday();
+  const mineUp=_SUB.loaded?_SUB.subs.filter(s=>s.Status==='Filled'&&s.Date>=today&&String(s['Assigned To']||'').toLowerCase()===me)
+    .sort((a,c)=>(a.Date+(a.Start||'')).localeCompare(c.Date+(c.Start||''))):[];
+  let fl=b.querySelector('.nav-sub-flash');
+  if(mineUp.length){
+    const d=mineUp[0].Date,txt=d===today?'You’re subbing today':'You’re subbing soon';
+    if(!fl){fl=document.createElement('span');fl.className='nav-sub-flash';b.appendChild(fl);}
+    fl.textContent=txt;b.classList.add('has-flash');
+  }else if(fl){fl.remove();b.classList.remove('has-flash');}
   let el=b.querySelector('.nav-badge');const n=_subBadgeCount();
   if(!n){if(el)el.remove();return;}
   if(!el){el=document.createElement('span');el.className='nav-badge';b.appendChild(el);}
@@ -11234,7 +11264,7 @@ function _subOpenCard(s){
   if(admin){
     body+=vols.length?vols.map(v=>{
       const p=_subPerson(v.Volunteer),dist=_subDistTo(site,v.Volunteer).label;
-      return '<div class="sub-vol"><div><b>'+escHtml(p.name)+'</b>'+
+      return '<div class="sub-vol"><div>'+_subPersonLink(v.Volunteer)+
         (p.mobile?' · <a href="tel:'+ea(p.mobile)+'">'+escHtml(p.mobile)+'</a>':'')+
         (dist?'<div class="sub-meta" style="margin:0">'+escHtml(dist)+'</div>':'')+
         (v.Note?'<div class="sub-meta" style="margin:0">“'+escHtml(v.Note)+'”</div>':'')+
@@ -11243,6 +11273,9 @@ function _subOpenCard(s){
     body+='<div class="sub-actions"><select class="sub-in" id="subOther_'+ea(s.ID)+'" style="flex:1;min-width:160px;font-size:15px;padding:9px">'+
       '<option value="">Assign someone else…</option>'+_subEligibleOptions([s['Requested By']])+'</select>'+
       '<button class="sub-btn alt" onclick="subAssignOther(\''+ea(s.ID)+'\')">Assign</button></div>'+
+      (!mineReq?'<div class="sub-actions">'+(vols.some(v=>String(v.Volunteer).toLowerCase()===me&&v.Status==='Offered')
+        ?'<span class="sub-meta" style="align-self:center">✓ You offered to take it</span><button class="sub-btn alt" onclick="subWithdraw(\''+ea(s.ID)+'\')">Withdraw</button>'
+        :'<button class="sub-btn hot" onclick="subVolunteer(\''+ea(s.ID)+'\')">🙋 I Can Take It</button>')+'</div>':'')+
       '<div class="sub-actions"><button class="sub-btn alt" onclick="subOpenSendSheet(\''+ea(s['Request ID'])+'\',true)">📣 Send to More…</button>'+
       (s.Notified?'<span class="sub-meta" style="align-self:center">Sent to '+String(s.Notified).split(',').filter(x=>x.trim()).length+' so far</span>':'')+'</div>';
   }else if(!mineReq){
@@ -11269,7 +11302,8 @@ function _subAssignedCard(s){
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),'<span class="sub-pill filled">You\'re subbing</span>',s.SiteName)+
     (addr?'<div class="sub-meta">📍 <a target="_blank" href="'+ea(_subMapUrl(site))+'">'+escHtml(addr)+'</a></div>':'')+
     (phone?'<div class="sub-meta">📞 <a href="tel:'+ea(phone)+'">'+escHtml(phone)+'</a></div>':'')+
-    '<div class="sub-meta">Covering for <b>'+escHtml(req.name)+'</b>'+(req.mobile?' · <a href="tel:'+ea(req.mobile)+'">'+escHtml(req.mobile)+'</a>':'')+'</div>'+
+    '<div class="sub-meta">Covering for '+_subPersonLink(s['Requested By'])+(req.mobile?' · <a href="tel:'+ea(req.mobile)+'">'+escHtml(req.mobile)+'</a>':'')+
+      (s['Approved By']?'<br>Approved by '+_subPersonLink(s['Approved By']):'')+'</div>'+
     (det?'<div class="sub-notes"><b>Site details:</b> '+escHtml(det)+'</div>':'')+
     _subProgDetails(site)+
     (s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':'')+
@@ -11279,10 +11313,8 @@ function _subAssignedCard(s){
 function _subOtherCard(s){
   const me=_subMe(),admin=_subIsAdmin(),site=_subSiteByKey(s.Site);
   const mineReq=String(s['Requested By']).toLowerCase()===me;
-  let who='';
-  if(s.Status==='Filled'){const p=_subPerson(s['Assigned To']);who='Covered by <b>'+escHtml(p.name)+'</b>'+(p.mobile?' · <a href="tel:'+ea(p.mobile)+'">'+escHtml(p.mobile)+'</a>':'');}
-  else if(s.Status==='Declined')who='Not approved'+(s['Decline Note']?': '+escHtml(s['Decline Note']):'');
-  if(admin&&!mineReq)who=(who?who+'<br>':'')+'Requested by '+escHtml(_subPerson(s['Requested By']).name);
+  let who=_subPeopleLines(s).join('<br>');
+  if(s.Status==='Declined'&&s['Decline Note'])who+=(who?'<br>':'')+'Note: '+escHtml(s['Decline Note']);
   const canCancel=(admin||mineReq)&&['Pending Approval','Filled'].includes(s.Status)&&s.Date>=_subToday();
   return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
@@ -11314,7 +11346,7 @@ function subOpenDetail(id){
   const row=(lbl,val)=>val?'<div class="sub-dl">'+lbl+'</div><div class="sub-dv">'+val+'</div>':'';
   const vols=_subVolsFor(s.ID);
   let acts='';
-  if(s.Status==='Open'&&!admin&&!mineReq){
+  if(s.Status==='Open'&&!mineReq){
     const mine=vols.find(v=>String(v.Volunteer).toLowerCase()===me&&v.Status==='Offered');
     acts+=mine?'<button class="sub-btn alt" onclick="_subCloseDetail();subWithdraw(\''+ea(s.ID)+'\')">Withdraw my offer</button>'
               :'<button class="sub-btn hot" onclick="_subCloseDetail();subVolunteer(\''+ea(s.ID)+'\')">🙋 I Can Take It</button>';
@@ -11330,15 +11362,14 @@ function subOpenDetail(id){
   ov.innerHTML='<div class="sub-sheet">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     (dist?'<div class="sub-meta">'+escHtml(dist)+'</div>':'')+
-    row('Ranger needing a sub',escHtml(mineReq?'You':req.name)+(req.mobile&&!mineReq?' · <a href="tel:'+ea(req.mobile)+'">'+escHtml(req.mobile)+'</a>':''))+
-    (who?row('Covered by',escHtml(who.name)+(who.mobile?' · <a href="tel:'+ea(who.mobile)+'">'+escHtml(who.mobile)+'</a>':'')):'')+
+    row('People',_subPeopleLines(s).join('<br>'))+
     row('Address',addr?'<a target="_blank" href="'+ea(_subMapUrl(site))+'">'+escHtml(addr)+'</a>':'')+
     row('School phone',phone?'<a href="tel:'+ea(phone)+'">'+escHtml(phone)+'</a>':'')+
     row('Program details',escHtml(prog))+
     row('Notes from the Ranger',escHtml(s.Notes||''))+
     ((admin||mineReq||mineSub)?row('Site details (parking, gates, access)',escHtml(det)):'')+
     row('Schedule',sched?'<a target="_blank" href="'+ea(sched)+'">Open schedule</a>':'')+
-    (admin&&vols.length?row('Volunteers',vols.map(v=>escHtml(_subPerson(v.Volunteer).name)+(v.Note?' - “'+escHtml(v.Note)+'”':'')).join('<br>')):'')+
+    (admin&&vols.length?row('Volunteers',vols.map(v=>_subPersonLink(v.Volunteer)+(v.Note?' - “'+escHtml(v.Note)+'”':'')).join('<br>')):'')+
     '<div class="sub-actions" style="margin-top:16px">'+acts+'</div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="_subCloseDetail()">Close</button></div></div>';
   _subCloseDetail();document.body.appendChild(ov);
@@ -13994,7 +14025,12 @@ function onDataPeopleAdjustModeChange(){
 // Distinct existing values for the Role Additional select — mirrors the free-text
 // list already used in the Humans edit card's Role Additional dropdown.
 function _dataPeopleRoleAdditionalOptions(){
-  return Array.from(new Set((DATA.humans||[]).map(p=>p['Role Additional']||p.RoleAdditional||'').filter(v=>v.trim()))).sort((a,b)=>a.localeCompare(b));
+  // Every role in the Roles tab (same list as the Role picker) plus any custom
+  // values already typed into Role Additional, so the two lists match.
+  const set=new Set();
+  (DATA.roles||[]).forEach(r=>{const n=String(r&&r.name||'').trim();if(n)set.add(n);});
+  (DATA.humans||[]).forEach(p=>{const v=String(p['Role Additional']||p.RoleAdditional||'').trim();if(v)set.add(v);});
+  return Array.from(set).sort((a,b)=>a.localeCompare(b));
 }
 
 // The option list (value===label) for the current Adjust mode's select elements.
