@@ -93,10 +93,12 @@ const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
 const HUMANS_W9_FOLDER       = '1bGprCIDIYBoRd0-gXBD6EVlAwV-BbRii';
 const HUMANS_TB_FOLDER       = '1JJgJAWD3GK-IXUjSIfh5_edO1Uv9tcW0';
 const HUMANS_CONTRACT_FOLDER = '1xYFUnpOzVMM1_QpFmy2rsXOqHMUTQ8nF';
+const HUMANS_MANDATED_FOLDER = '184w8NRzJ6b7c3oUjU7Jr2NiUmRhXUDaG'; // Humans Mandated Reporter Training
 const HUMANS_DOC_TYPE_MAP = {
   'W9':             { folder: HUMANS_W9_FOLDER,       col: 'W9',              label: 'W9' },
   'TBTest':         { folder: HUMANS_TB_FOLDER,       col: 'TB Test',         label: 'TBTest' },
-  'RangerContract': { folder: HUMANS_CONTRACT_FOLDER, col: 'Ranger Contract', label: 'RangerContract' }
+  'RangerContract': { folder: HUMANS_CONTRACT_FOLDER, col: 'Ranger Contract', label: 'RangerContract' },
+  'MandatedReporter': { folder: HUMANS_MANDATED_FOLDER, col: 'Mandated Reporter Training', label: 'MandatedReporter' }
 };
 
 // Human-facing filenames for Main Image / W9 / TB Test / Ranger Contract:
@@ -1982,7 +1984,12 @@ function handleUploadHumanDoc(p) {
     var ci    = h.indexOf(docInfo.col);
     var fni   = h.indexOf('First Name'), lni = h.indexOf('Last Name');
     if (ei === -1) return { ok: false, error: 'Email column not found' };
-    if (ci === -1) return { ok: false, error: 'Column "' + docInfo.col + '" not found on Humans sheet — add it first.' };
+    if (ci === -1) {
+      // Auto-create the column at the end of the header row (e.g. the
+      // Mandated Reporter Training column the first time one is uploaded).
+      ci = h.length;
+      sheet.getRange(1, ci + 1).setValue(docInfo.col);
+    }
 
     // Look up the person first so the filename can carry their real name.
     var targetRow = -1, firstName = '', lastName = '';
@@ -2039,7 +2046,8 @@ var HUMANS_REMOVABLE_FILE_COLS = {
   'MainImage':      'Main Image',
   'W9':             'W9',
   'TBTest':         'TB Test',
-  'RangerContract': 'Ranger Contract'
+  'RangerContract': 'Ranger Contract',
+  'MandatedReporter': 'Mandated Reporter Training'
 };
 function handleRemoveHumanFile(p) {
   try {

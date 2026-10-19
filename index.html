@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.26 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.27 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -886,6 +886,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <optgroup label="W-9">
             <option value="w9:yes">W9 Yes</option>
             <option value="w9:no">W9 No</option>
+          </optgroup>
+          <optgroup label="Mandated Reporter Certificate">
+            <option value="mandated:yes">Mandated Reporter Yes</option>
+            <option value="mandated:no">Mandated Reporter No</option>
           </optgroup>
           <optgroup label="Signed Contract">
             <option value="contract:yes">Signed Contract Yes</option>
@@ -1930,10 +1934,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.26';
+const APP_VERSION='v11.27';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 18:30 PT - Calendar tab: added a yellow Testing only notice at the top (not ready for prime time yet; when the message disappears, it is). No GAS change.';
+const BUILD_STAMP='2026-10-18 21:15 PT - Ranger Documents: added Mandated Reporter Certificate upload (profile, edit, My Profile) plus a Mandated Reporter Yes/No filter on the Rangers tab. GAS change - redeploy needed.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2074,8 +2078,8 @@ const RANGER_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','
 // since these fields carry sensitive personal info (e.g. SSN on a W-9).
 const RANGER_DOC_ROLE_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past','ranger_applicant_did_not_work_out','ranger_onboarding','ranger_offered'];
 function _showsRangerDocs(h){return humanRoleCats(h).some(c=>RANGER_DOC_ROLE_CATS.includes(c));}
-const DOC_TYPE_COLS={W9:'W9',TBTest:'TB Test',RangerContract:'Ranger Contract'};
-const DOC_TYPE_LABELS={W9:'W-9',TBTest:'TB Test',RangerContract:'Ranger Contract'};
+const DOC_TYPE_COLS={W9:'W9',TBTest:'TB Test',RangerContract:'Ranger Contract',MandatedReporter:'Mandated Reporter Training'};
+const DOC_TYPE_LABELS={W9:'W-9',TBTest:'TB Test',RangerContract:'Ranger Contract',MandatedReporter:'Mandated Reporter Certificate'};
 function _docUploadRow(h,docType){
   const col=DOC_TYPE_COLS[docType],label=DOC_TYPE_LABELS[docType];
   const url=h[col]||'';
@@ -2205,6 +2209,7 @@ function _rangerDetailsSectionHtml(prefix,h){
     ${docRow('W9')}
     ${docRow('TBTest')}
     ${docRow('RangerContract')}
+    ${docRow('MandatedReporter')}
     <div class="edit-wrap"><div class="edit-label">Ranger Live Scan</div>
       <select class="edit-input" id="${prefix}-LiveScan">
         <option value=""${!liveScan?' selected':''}>— Select —</option>
@@ -4714,6 +4719,7 @@ function _rangerMatchesDocFilter(h,v){
   if(field==='tb')return !!(h['TB Test']||'').trim()===yes;
   if(field==='w9')return !!(h['W9']||'').trim()===yes;
   if(field==='contract')return !!(h['Ranger Contract']||'').trim()===yes;
+  if(field==='mandated')return !!String(h['Mandated Reporter Training']||'').trim()===yes;
   if(field==='resume')return !!(sf(h,'Resume','resume')||'').trim()===yes;
   if(field==='address'){
     const hasAddr=!!(sf(h,'Street Address','StreetAddress')||sf(h,'City','city')||sf(h,'Zip Code','ZipCode')||'').trim();
@@ -4775,6 +4781,8 @@ function _rangerDocClauseTexts(v){
   if(v==='w9:no')return{cont:'their W9 is not on file',standalone:'have no W9 on file'};
   if(v==='contract:yes')return{cont:'their Signed Contract is on file',standalone:'have a Signed Contract on file'};
   if(v==='contract:no')return{cont:'their Signed Contract is not on file',standalone:'have no Signed Contract on file'};
+  if(v==='mandated:yes')return{cont:'their Mandated Reporter Certificate is on file',standalone:'have a Mandated Reporter Certificate on file'};
+  if(v==='mandated:no')return{cont:'their Mandated Reporter Certificate is not on file',standalone:'have no Mandated Reporter Certificate on file'};
   if(v==='resume:yes')return{cont:'their Resume is on file',standalone:'have a Resume on file'};
   if(v==='resume:no')return{cont:'their Resume is not on file',standalone:'have no Resume on file'};
   if(v.indexOf('docslivescan:')===0){const st=v.slice(13);return{cont:`their Ranger Live Scan is ${st}`,standalone:`have a Ranger Live Scan status of ${st}`};}
@@ -4866,7 +4874,8 @@ function _rangerDetailBlockHtml(h){
     <div>
       ${h['W9']?`<a class="dlink" href="${ea(h['W9'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 W-9</a>`:'W-9: not uploaded'}<br>
       ${h['TB Test']?`<a class="dlink" href="${ea(h['TB Test'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
-      ${h['Ranger Contract']?`<a class="dlink" href="${ea(h['Ranger Contract'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}
+      ${h['Ranger Contract']?`<a class="dlink" href="${ea(h['Ranger Contract'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}<br>
+      ${h['Mandated Reporter Training']?`<a class="dlink" href="${ea(h['Mandated Reporter Training'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📄 Mandated Reporter Certificate</a>`:'Mandated Reporter Certificate: not uploaded'}
     </div>
   </div>`;
 }
@@ -6961,7 +6970,8 @@ function renderPD(h,edit){
       <div class="ds"><div class="dl">Ranger Documents</div><div class="dv">
         ${h['W9']?`<a class="dlink" href="${ea(h['W9'])}" target="_blank" rel="noopener">📄 W-9</a>`:'W-9: not uploaded'}<br>
         ${h['TB Test']?`<a class="dlink" href="${ea(h['TB Test'])}" target="_blank" rel="noopener">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
-        ${h['Ranger Contract']?`<a class="dlink" href="${ea(h['Ranger Contract'])}" target="_blank" rel="noopener">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}
+        ${h['Ranger Contract']?`<a class="dlink" href="${ea(h['Ranger Contract'])}" target="_blank" rel="noopener">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}<br>
+      ${h['Mandated Reporter Training']?`<a class="dlink" href="${ea(h['Mandated Reporter Training'])}" target="_blank" rel="noopener">📄 Mandated Reporter Certificate</a>`:'Mandated Reporter Certificate: not uploaded'}
       </div></div>`:''}
       ${SESSION&&SESSION.accessLevel<=2?`<div id="pd-comments-section" style="padding:0 20px 4px">
         <button id="pd-comments-btn" class="btn-cancel" style="width:100%;margin-top:8px" onclick="fetchPersonComments('${ea(email)}')">🔒 Retrieve Confidential Notes</button>
@@ -9265,7 +9275,8 @@ async function showSelfProfile(){
       <div class="ds"><div class="dl">Ranger Documents</div><div class="dv">
         ${p['W9']?`<a class="dlink" href="${ea(p['W9'])}" target="_blank" rel="noopener">📄 W-9</a>`:'W-9: not uploaded'}<br>
         ${p['TB Test']?`<a class="dlink" href="${ea(p['TB Test'])}" target="_blank" rel="noopener">📄 TB Test</a>`:'TB Test: not uploaded'}<br>
-        ${p['Ranger Contract']?`<a class="dlink" href="${ea(p['Ranger Contract'])}" target="_blank" rel="noopener">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}
+        ${p['Ranger Contract']?`<a class="dlink" href="${ea(p['Ranger Contract'])}" target="_blank" rel="noopener">📄 Ranger Contract</a>`:'Ranger Contract: not uploaded'}<br>
+      ${p['Mandated Reporter Training']?`<a class="dlink" href="${ea(p['Mandated Reporter Training'])}" target="_blank" rel="noopener">📄 Mandated Reporter Certificate</a>`:'Mandated Reporter Certificate: not uploaded'}
       </div></div>
       <button class="btn-edit" onclick="showSelfEdit()">✏ Edit</button>
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
@@ -9336,6 +9347,7 @@ async function showSelfEdit(){
       ${_docUploadRow(p,'W9')}
       ${_docUploadRow(p,'TBTest')}
       ${_docUploadRow(p,'RangerContract')}
+      ${_docUploadRow(p,'MandatedReporter')}
       <div class="edit-actions">
         <button class="btn-save" onclick="saveSelfEdit('${ea(SESSION.email)}')">Save</button>
         <button class="btn-cancel" onclick="showSelfProfile()">Cancel</button>
