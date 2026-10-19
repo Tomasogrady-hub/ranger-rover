@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.24 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.25 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -117,6 +117,30 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-sub-flash{display:block;font-size:9px;font-weight:800;letter-spacing:.02em;text-transform:none;background:#fff;color:#C0392B;border-radius:6px;padding:1px 5px;line-height:1.3;animation:rrSubFlash 1.1s ease-in-out infinite}
 @keyframes rrSubFlash{0%,100%{opacity:1}50%{opacity:.25}}
 @media (prefers-reduced-motion:reduce){.nav-sub-flash{animation:none}}
+.nav-btn[data-tab="calendar"] {background:#2E86AB;color:#fff}
+.cal-bar{display:flex;align-items:center;gap:8px;padding:0 16px 10px}
+.cal-title{font-family:var(--font-d);font-size:26px;font-style:italic;color:var(--ink);min-width:150px;text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:0 12px}
+.cal-dow{text-align:center;font-size:12px;font-weight:800;color:var(--stone);padding:4px 0}
+.cal-cell{min-height:50px;border-radius:8px;background:#fff;border:1px solid var(--mist);padding:3px 2px;cursor:pointer;display:flex;flex-direction:column;align-items:center}
+.cal-cell.empty{background:none;border:none;cursor:default}
+.cal-cell.has{background:#f4faf6}
+.cal-cell.today{border:2px solid #2E86AB}
+.cal-cell.sel{background:#e3f1f8;border-color:#2E86AB}
+.cal-num{font-size:14px;font-weight:700;color:var(--ink)}
+.cal-dots{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-top:3px}
+.cal-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#2e7d4f}
+.cal-dot.cov{background:#8DB84E}.cal-dot.sub{background:#E07A3F}.cal-dot.pend{background:#F5A623}.cal-dot.mk{background:#2E86AB}
+.cal-dot.off{background:#bbb}.cal-dot.sp{background:#9B6BB5}.cal-dot.est{background:#fff;border:2px solid #2e7d4f;width:8px;height:8px;box-sizing:border-box}
+.cal-more{font-size:10px;color:var(--stone)}
+.cal-legend{display:flex;flex-wrap:wrap;gap:10px;padding:8px 16px 2px;font-size:12px;color:var(--stone)}
+.cal-legend span{display:flex;align-items:center;gap:4px}
+.cal-tag{flex-shrink:0;font-size:11px;font-weight:800;padding:4px 8px;border-radius:99px;background:var(--fog);color:var(--stone);max-width:48%;text-align:right}
+.cal-tag.cov{background:#eaf4dc;color:#4a6b1c}.cal-tag.sub{background:#fde8dc;color:#b4501c}.cal-tag.pend{background:#fff3d6;color:#9a6a00}
+.cal-tag.mk{background:#e3f1f8;color:#1f5f7d}.cal-tag.off{background:#eee;color:#888}.cal-tag.sp{background:#f3eeff;color:#6B4E9B}
+.cal-ev{margin:6px 16px;padding:11px 13px}
+.hdr-role-text{display:block;font-family:var(--font-b);font-size:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(30,58,30,.75);text-align:center;line-height:1.2;max-width:84px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.hdr-name-cell{flex-direction:column}
 .nav-badge{position:absolute;top:6px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fff;color:#C0392B;font-size:11px;font-weight:900;line-height:18px;text-align:center;letter-spacing:0}
 .sub-sec{padding:8px 16px 2px;font-size:16px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
 .sub-card{background:#fff;border:1px solid var(--mist);border-radius:var(--r-md);padding:14px 15px;margin:8px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
@@ -649,6 +673,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <!-- 5: Name -->
   <button class="hdr-name-cell" onclick="showSelfProfile()" style="border:none;cursor:pointer;pointer-events:all">
     <span class="hdr-name-text" id="hdrNameLabel"></span>
+    <span class="hdr-role-text" id="hdrRoleLabel"></span>
   </button>
   <!-- 6: Refresh — icon only -->
   <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" style="background:#F5A623;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Refresh" aria-label="Refresh">
@@ -973,6 +998,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
       <button onclick="showAddChore()" style="padding:10px 16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">+ New Chore</button>
     </div>
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
+  </div>
+
+  <!-- CALENDAR -->
+  <div class="tab-pane" id="tab-calendar">
+    <div class="page-header"><span class="page-title">Calendar</span><span class="page-count" id="calCount"></span></div>
+    <div id="calBody"><div class="spinner"></div></div>
   </div>
 
   <!-- SUB (substitute Ranger requests) -->
@@ -1896,10 +1927,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.24';
+const APP_VERSION='v11.25';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 18:15 PT - Sub tab: Level 1-2 can also tap I Can Take It on available shifts (not their own). Filled shifts show Covered by, Requested by and Approved by, each name opens that persons card. When you are the confirmed sub for an upcoming shift, the SUB nav button flashes You are subbing soon (today on the day). Role Additional picker now lists every role from the Roles tab plus custom values, same as Role. No GAS change.';
+const BUILD_STAMP='2026-10-18 19:10 PT - NEW Calendar tab for everyone: school visit dates built from each schools Schedule Contents (rotations and date ranges), Ranger Day Of Week and Program Classes Start/End Date, recalculated whenever the Sites sheet changes. Sub shifts and reschedules are layered on (Covered by, Subbing for, Sub requested, Make-up visit, Rescheduled). Tap a day or visit for times, rotation timetable, program details and the full schedule, plus I Cant Make This Session. Level 1-2 can view My calendar, All Rangers or any one Ranger. Top bar now shows your main role under your name. No GAS change.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2244,6 +2275,12 @@ function getImgSrc(url){
 
 function _updateHdrAvatar(){
   if(!SESSION)return;
+  try{ // main role under the name in the top bar
+    const _he=(SESSION.email||'').toLowerCase().trim();
+    const _hh=DATA.humans&&DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase().trim()===_he);
+    const _rl=document.getElementById('hdrRoleLabel');
+    if(_rl)_rl.textContent=_hh?String(_hh.Role||_hh.role||'').trim():'';
+  }catch(e){}
   const wrap=document.getElementById('hdrAvatarWrap');
   if(!wrap)return;
   const email=(SESSION.email||'').toLowerCase().trim();
@@ -2735,6 +2772,7 @@ function buildNav(lvl){
     const row2l3tabs=[];
     if(_navTabAllowed('notes',lvl)) row2l3tabs.push(_navBtn('notes','Notes'));
     if(_navTabAllowed('plants',lvl)) row2l3tabs.push(_navBtn('plants','Plants'));
+    if(_navTabAllowed('calendar',lvl)) row2l3tabs.push(_navBtn('calendar','Calendar'));
     if(row2l3tabs.length){row2.innerHTML=row2l3tabs.join('');row2.style.display='flex';}
     else row2.style.display='none';
     // Level 3 never gets Row 3 (Reach) — always hide it explicitly
@@ -2774,9 +2812,11 @@ function buildNav(lvl){
       // control via the panel instead of being silently unreachable.
       const dataVisible = _navTabAllowed('data',lvl);
       const reachVisible = _navTabAllowed('reach',lvl);
+      const calVisible = _navTabAllowed('calendar',lvl);
       let r3html = dataVisible ? _navBtn('data','Data') : '';
       r3html += reachVisible ? _navBtn('reach','Reach') : '';
-      if(dataVisible || reachVisible){
+      r3html += calVisible ? _navBtn('calendar','Calendar') : '';
+      if(dataVisible || reachVisible || calVisible){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
@@ -5015,6 +5055,7 @@ function renderAll(){
   // Chip counts are cheap text updates — always keep them fresh
   if(SESSION&&SESSION.accessLevel<=2){updateMapFilterCounts();updateRangerFilterCounts();}
   if(mapInited)refreshMapChores();
+  if(_activeTab==='calendar'&&typeof renderCalendar==='function')renderCalendar();
 }
 
 function _renderDirtyTab(tab){
@@ -9013,6 +9054,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
   if(tab==='action')renderAction();
+  if(tab==='calendar'){renderCalendar();loadSubs(false);}
   if(tab==='sub'){renderSubs();loadSubs(false);if(_subIsAdmin()&&!_subHomeLL)_subLoadHomes().then(ok=>{if(ok&&_activeTab==='sub')renderSubs();});}
   if(tab==='operations')showOperationsPage(_opsCurrentPage||'home');
   if(tab==='latest'){
@@ -10641,8 +10683,8 @@ function _sanitizeNavVisibility(){
   // Anyone whose per-level array already had 'control' explicitly toggled on/off
   // needs that carried over to 'data' once, so the rename doesn't silently hide
   // the new page for levels that had it customized.
-  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1'].filter(k=>!v.__migratedKeys.includes(k));
-  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub'};
+  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1','calendar_v1'].filter(k=>!v.__migratedKeys.includes(k));
+  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub',calendar_v1:'calendar'};
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
@@ -11178,6 +11220,7 @@ async function loadSubs(force){
   }
   _SUB.loading=false;
   if(_SUB.loaded)renderSubs();
+  if(_activeTab==='calendar')renderCalendar();
   _subBadge();
 }
 
@@ -11636,7 +11679,7 @@ function subSetMode(m){
   const btn=document.getElementById('subSendBtn');
   if(btn){btn.textContent=m==='resched'?'Continue to Reach →':'Send Request';btn.onclick=m==='resched'?subStartReschedule:submitSubRequest;}
 }
-function showSubRequestForm(){
+function showSubRequestForm(pre){
   const admin=_subIsAdmin(),me=_subMe();
   if(!admin&&!_subRangerSitesOf(me).length){alert('You are not assigned as Ranger to any schools yet, so there is nothing to request a sub for. Please contact the office.');return;}
   _subMode='sub';
@@ -11668,6 +11711,12 @@ function showSubRequestForm(){
     '<button class="sub-btn hot" id="subSendBtn" onclick="submitSubRequest()">Send Request</button></div></div>';
   document.body.appendChild(ov);
   _subFillSchoolSelect();
+  if(pre&&pre.site){
+    const sel=document.getElementById('subSite');
+    if(sel&&[...sel.options].some(o=>o.value===pre.site)){sel.value=pre.site;_subSchoolChanged();}
+    const r=document.querySelector('#subShifts .sub-shift');
+    if(r&&pre.date){const ins=r.querySelectorAll('input');ins[0].value=pre.date;if(pre.start)ins[1].value=pre.start;if(pre.end)ins[2].value=pre.end;}
+  }
 }
 // ── Reschedule → hand off to Reach with the school's people + a draft ───────
 function _subSchoolContactEmails(site){
@@ -11927,6 +11976,300 @@ async function subSendFromSheet(reqId,resend){
   if(sendSms&&!payload.smsBody){alert('The text message is empty.');return;}
   const ov=document.getElementById('subSendOverlay');if(ov)ov.remove();
   await _subAct(payload,(resend?'✅ Sent to ':'✅ Approved - sent to ')+recipients.length,'Sending to '+recipients.length+' people…');
+}
+
+// ── Schedule parser (v11.25) ────────────────────────────────────────────────
+// Turns a school's Schedule Contents text + Ranger Day Of Week + Program
+// Classes Start/End Date into a list of visit dates, each tagged with its
+// rotation and (when it can be found) that rotation's class timetable.
+// Pure function, memoised per school by the text it was given, so it re-runs
+// automatically whenever Schedule Contents or the day/date columns change.
+const CAL_MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,sept:8,oct:9,nov:10,dec:11};
+const CAL_DOW={sun:0,mon:1,tue:2,tues:2,wed:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
+const _calCache=new Map();
+function _calYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _calToDate(v){
+  if(!v)return null;
+  if(v instanceof Date)return isNaN(v)?null:new Date(v.getFullYear(),v.getMonth(),v.getDate(),12);
+  const s=String(v).trim();let m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3],12);
+  m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s);
+  if(m)return new Date(+m[3]<100?2000+ +m[3]:+m[3],+m[1]-1,+m[2],12);
+  const d=new Date(s);return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate(),12);
+}
+// School year start (the "2026" in 2026-2027): from the text, else the start date, else today
+function _calSchoolYear(text,startD){
+  if(startD)return startD.getMonth()>=6?startD.getFullYear():startD.getFullYear()-1;
+  const m=/\b(20\d\d)\s*[-–\/]\s*(20)?(\d\d)\b/.exec(text);
+  if(m){const a=+m[1],b=+(m[2]?m[2]+m[3]:'20'+m[3]);if(b===a+1)return a;}
+  if(startD)return startD.getMonth()>=6?startD.getFullYear():startD.getFullYear()-1;
+  const t=new Date();return t.getMonth()>=6?t.getFullYear():t.getFullYear()-1;
+}
+const _calMonRe='(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?';
+function _calMk(mon,day,yr,sy){
+  const mi=CAL_MONTHS[mon.toLowerCase().slice(0,mon.toLowerCase().startsWith('sept')?4:3)]??CAL_MONTHS[mon.toLowerCase().slice(0,3)];
+  if(mi===undefined)return null;
+  const y=yr?+yr:(mi>=6?sy:sy+1);
+  const d=new Date(y,mi,+day,12);return isNaN(d)||d.getMonth()!==mi?null:d;
+}
+function calParseSchedule(site){
+  const text=String(sf(site,'Schedule Contents','ScheduleContents')||'');
+  const days=[sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')];
+  const sRaw=sf(site,'Program Classes Start Date','ProgramClassesStartDate'),eRaw=sf(site,'Program Classes End Date','ProgramClassesEndDate');
+  const key=text+'|'+days.join(',')+'|'+sRaw+'|'+eRaw;
+  const hit=_calCache.get(site);if(hit&&hit.key===key)return hit.val;
+  const startD=_calToDate(sRaw),endD=_calToDate(eRaw);
+  const sy=_calSchoolYear(text,startD);
+  // visit weekdays: Ranger Day Of Week columns, else weekday words in the text
+  let dows=[];
+  days.forEach(v=>{const t=String(v||'').trim().toLowerCase();if(!t)return;let d;
+    if(/^\d$/.test(t)){const n=+t;d=n===7||n===0?0:n;}else d=CAL_DOW[t.slice(0,3)];
+    if(d!==undefined&&!dows.includes(d))dows.push(d);});
+  if(!dows.length){
+    const m=/\b(Mon|Tues?|Wed(?:nes)?|Thu(?:rs)?|Fri|Sat|Sun)[a-z]*days?\b/i.exec(text);
+    if(m){const d=CAL_DOW[m[1].toLowerCase().slice(0,3)];if(d!==undefined)dows=[d];}
+  }
+  // date ranges: "Month D(, YYYY) – (Month) D(, YYYY)", with an optional label before
+  const flat=text.replace(/\s+/g,' ');
+  const rangeRe=new RegExp('((?:Rotation|Group|Session|Round)\\s*\\d+)?[^A-Za-z0-9]{0,30}?(?:\\(\\s*\\d+\\s*weeks?\\s*\\)\\s*:?\\s*)?'+_calMonRe+'\\s*(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d\\d))?\\s*(?:[-–—]|to|through|thru)\\s*(?:'+_calMonRe+'\\s*)?(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d\\d))?','gi');
+  const ranges=[];let m;
+  while((m=rangeRe.exec(flat))){
+    const a=_calMk(m[2],m[3],m[4],sy);const b=_calMk(m[5]||m[2],m[6],m[7],sy);
+    if(!a||!b)continue;
+    let bb=b;if(bb<a&&!m[7]){bb=new Date(b);bb.setFullYear(b.getFullYear()+1);}
+    if(bb<a||(bb-a)/864e5>330)continue;
+    const label=m[1]?m[1].replace(/\s+/g,' ').replace(/^group/i,'Rotation').replace(/^(\w)/,c=>c.toUpperCase()):'';
+    if(!ranges.some(r=>+r.a===+a&&+r.b===+bb))ranges.push({a,b:bb,label});
+  }
+  // numeric ranges "9/11-10/16" or "9/14/26 - 10/26/26"
+  const numMk=(mo,da,yr)=>{const mi=+mo-1;if(mi<0||mi>11||+da<1||+da>31)return null;let y=yr?(+yr<100?2000+ +yr:+yr):(mi>=6?sy:sy+1);const d=new Date(y,mi,+da,12);return d.getMonth()===mi?d:null;};
+  const nre=/(?:((?:Rotation|Group)\s*\d+)[^0-9]{0,40}?)?\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s*(?:[-–—]|to|through)\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/gi;
+  while((m=nre.exec(flat))){
+    const a=numMk(m[2],m[3],m[4]),b=numMk(m[5],m[6],m[7]);if(!a||!b||b<a||(b-a)/864e5>330)continue;
+    const label=m[1]?m[1].replace(/\s+/g,' ').replace(/^group/i,'Rotation').replace(/^(\w)/,c=>c.toUpperCase()):'';
+    if(!ranges.some(r=>+r.a===+a&&+r.b===+b))ranges.push({a,b,label});
+  }
+  // loose numeric dates (lists like "9/8, 9/15, 9/22" or "Begins: 9/10/26 Ends: 5/28/27")
+  const loose=[];const lre=/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g;
+  while((m=lre.exec(flat))){const d=numMk(m[1],m[2],m[3]);if(d)loose.push(d);}
+  // drop a range that just spans all the others (e.g. the overall "Sept 17 - Oct 29" header) when rotations exist
+  if(ranges.filter(r=>r.label).length&&ranges.filter(r=>r.label).length<ranges.length/2)ranges.forEach(r=>{r.label='';});
+  const labelled=ranges.filter(r=>r.label);
+  let use=labelled.length?labelled:ranges;
+  if(!labelled.length&&ranges.length>1){
+    const inner=ranges.filter(r=>!ranges.some(o=>o!==r&&o.a<=r.a&&o.b>=r.b&&(o.a<r.a||o.b>r.b)));
+    if(inner.length)use=inner.length===ranges.length?ranges:ranges.filter(r=>!inner.includes(r)).length?inner:ranges;
+  }
+  // number unlabeled ranges as rotations when there are several
+  if(!labelled.length&&use.length>1)use=use.slice().sort((x,y)=>x.a-y.a).map((r,i)=>({a:r.a,b:r.b,label:'Rotation '+(i+1)}));
+  // overall span
+  let spanA=startD,spanB=endD,estimated=false;
+  if(!use.length&&loose.length>=2&&(!spanA||!spanB)){
+    const mn=new Date(Math.min(...loose.map(Number))),mx=new Date(Math.max(...loose.map(Number)));
+    if((mx-mn)/864e5>=6){spanA=spanA||mn;spanB=spanB||mx;}
+  }
+  if(!use.length&&(!spanA||!spanB)&&dows.length){
+    // no dates anywhere: assume the regular school year (shown as "estimated")
+    spanA=spanA||new Date(sy,7,15,12);spanB=spanB||new Date(sy+1,5,5,12);estimated=true;
+  }
+  if(use.length){const mn=new Date(Math.min(...use.map(r=>+r.a))),mx=new Date(Math.max(...use.map(r=>+r.b)));
+    if(!spanA||mn<spanA)spanA=spanA||mn;if(!spanB)spanB=mx;}
+  // special one-off days: "September 10 is a Garden Prep Day"
+  const specials=[];const spRe=new RegExp(_calMonRe+'\\s*(\\d{1,2})(?:,?\\s*(20\\d\\d))?\\s+(?:is|will be)\\s+(?:a|an|the)?\\s*([A-Za-z][A-Za-z \\-]{2,40}?(?:day|Day|DAY))','g');
+  while((m=spRe.exec(flat))){const d=_calMk(m[1],m[2],m[3],sy);if(d)specials.push({date:_calYmd(d),label:m[4].trim()});}
+  // per-rotation timetable snippets: text after a "Rotation N" heading that is followed by times
+  const blocks={};
+  const lines=text.split(/\n/);
+  let cur=null;
+  lines.forEach(l=>{
+    const t=l.trim();const h=/^(?:Rotation|Group)\s*(\d+)\b(?!\s*\(\s*\d+\s*weeks?)/i.exec(t);
+    if(h&&!/\(\s*\d+\s*weeks?/i.test(t)){cur='Rotation '+h[1];if(!blocks[cur])blocks[cur]=[];return;}
+    if(cur&&t)blocks[cur].push(t);
+  });
+  Object.keys(blocks).forEach(k=>{const b=blocks[k];if(!b.some(x=>/\d{1,2}:\d{2}/.test(x)))delete blocks[k];else blocks[k]=b.slice(0,40);});
+  const timeOf=arr=>{const ts=[];(arr||[]).join(' ').replace(/(\d{1,2}):\s?(\d{2})\s*(a\.?m\.?|p\.?m\.?)?/gi,(x,hh,mm,ap)=>{let H=+hh;if(ap&&/p/i.test(ap)&&H<12)H+=12;else if(!ap&&H<7)H+=12;ts.push(H*60+ +mm);return x;});
+    for(let i=ts.length-1;i>=0;i--)if(ts[i]<7*60||ts[i]>16*60+30)ts.splice(i,1);
+    if(ts.length<2)return null;const a=Math.min(...ts),b=Math.max(...ts);const f=v=>String(Math.floor(v/60)).padStart(2,'0')+':'+String(v%60).padStart(2,'0');return {start:f(a),end:f(b)};};
+  const allTimes=timeOf(lines);
+  if(spanA&&spanB&&spanB<spanA){spanB=new Date(spanA);spanB.setMonth(spanB.getMonth()+9);}
+  // generate visit dates (never outside Program Classes Start/End Date when those are set)
+  const visits=[];
+  if(spanA&&spanB&&dows.length){
+    const d=new Date(spanA);let guard=0;
+    while(d<=spanB&&guard++<400){
+      if(dows.includes(d.getDay())&&(!startD||d>=startD)&&(!endD||d<=endD)){
+        const inR=use.length?use.find(r=>d>=r.a&&d<=r.b):null;
+        if(!use.length||inR||(!labelled.length&&use.length===1)){
+          const lbl=inR?inR.label:'';
+          const blk=lbl&&blocks[lbl]?blocks[lbl]:null;
+          const tt=timeOf(blk)||allTimes;
+          visits.push({date:_calYmd(d),rotation:lbl,est:estimated,start:tt?tt.start:'',end:tt?tt.end:'',block:blk?blk.join('\n'):''});
+        }
+      }
+      d.setDate(d.getDate()+1);
+    }
+  }
+  const val={visits,specials,dows,ranges:use.map(r=>({a:_calYmd(r.a),b:_calYmd(r.b),label:r.label})),span:spanA&&spanB?[_calYmd(spanA),_calYmd(spanB)]:null,estimated,hasText:!!text.trim()};
+  _calCache.set(site,{key,val});
+  return val;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CALENDAR (v11.25)
+   Visits come from each school's Schedule Contents (rotations / date
+   ranges), Ranger Day Of Week 1-3 and Program Classes Start/End Date —
+   recomputed from the live Sites data every render, so a new or edited
+   schedule shows up as soon as the sheet changes. Sub shifts and
+   reschedules from the Sub tab are layered on top: "Covered by …",
+   "Subbing for …", "Sub requested", "Rescheduled to …".
+   Level 3 sees their own Ranger schools + shifts they're subbing.
+   Level 1-2 can switch between My calendar / All Rangers / one Ranger.
+   ═══════════════════════════════════════════════════════════════════*/
+let _cal={y:null,m:null,who:null,sel:null};
+function _calRangerEmails(site){return [sf(site,'Ranger 1','Ranger1'),sf(site,'Ranger 2','Ranger2')].map(x=>String(x||'').trim().toLowerCase()).filter(Boolean);}
+function _calWhoOptions(){
+  const set=new Map();
+  (DATA.sites||[]).forEach(s=>_calRangerEmails(s).forEach(e=>{if(!set.has(e)){const h=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===e);set.set(e,h?fullName(h):e);}}));
+  return [...set.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+}
+// All calendar items for one month, for one person (email) or everyone ('all')
+function calEventsForMonth(y,m,who){
+  const first=_calYmd(new Date(y,m,1,12)),last=_calYmd(new Date(y,m+1,0,12));
+  const inMonth=d=>d>=first&&d<=last;
+  const ev=[];const all=who==='all';
+  const subs=(_SUB&&_SUB.subs)||[],res=(_SUB&&_SUB.reschedules)||[];
+  const subFor=(siteKey,date,email)=>subs.find(s=>s.Date===date&&String(s.Site).toLowerCase()===String(siteKey).toLowerCase()&&
+    (all||String(s['Requested By']).toLowerCase()===email)&&['Pending Approval','Open','Filled'].includes(s.Status));
+  const resFor=(siteKey,date)=>res.find(r=>r.Status!=='Cancelled'&&String(r.Site).toLowerCase()===String(siteKey).toLowerCase()&&String(r['Missed Dates']||'').indexOf(date)>-1);
+  (DATA.sites||[]).forEach(site=>{
+    const rangers=_calRangerEmails(site);
+    if(!rangers.length)return;
+    // only schools with a running program (Type "Active Ranger Program"); blank Type is allowed
+    const typ=String(sf(site,'Type','type')||'').trim();
+    if(typ&&!/^active/i.test(typ))return;
+    if(!all&&!rangers.includes(who))return;
+    const p=calParseSchedule(site);
+    const key=site.Key||site.key||'';
+    p.visits.forEach(v=>{
+      if(!inMonth(v.date))return;
+      const e={date:v.date,kind:'visit',site,key,start:v.start,end:v.end,rotation:v.rotation,block:v.block,est:v.est,
+        ranger:all?rangers.map(x=>_subPerson(x).name).join(' & '):''};
+      const s=subFor(key,v.date,who);
+      if(s){e.sub=s;e.start=s.Start||e.start;e.end=s.End||e.end;}
+      const r=resFor(key,v.date);if(r)e.res=r;
+      ev.push(e);
+    });
+    p.specials.forEach(x=>{if(inMonth(x.date))ev.push({date:x.date,kind:'special',site,key,label:x.label});});
+  });
+  // shifts this person is covering for someone else
+  subs.forEach(s=>{
+    if(s.Status!=='Filled'||!inMonth(s.Date))return;
+    if(!all&&String(s['Assigned To']).toLowerCase()!==who)return;
+    if(all)return; // in "All" the original visit already shows "Covered by"
+    const site=_subSiteByKey(s.Site);
+    ev.push({date:s.Date,kind:'subbing',site,key:s.Site,start:s.Start,end:s.End,sub:s});
+  });
+  // confirmed make-up dates from reschedules
+  res.forEach(r=>{
+    if(!r['Chosen Date']||!inMonth(r['Chosen Date']))return;
+    if(!all&&String(r['Requested By']).toLowerCase()!==who)return;
+    ev.push({date:r['Chosen Date'],kind:'makeup',site:_subSiteByKey(r.Site),key:r.Site,start:r['Chosen Start'],end:r['Chosen End'],res:r});
+  });
+  return ev.sort((a,b)=>(a.date+(a.start||'')).localeCompare(b.date+(b.start||'')));
+}
+function _calTag(e){
+  if(e.kind==='subbing')return {cls:'sub',txt:'Subbing for '+_subPerson(e.sub['Requested By']).name};
+  if(e.kind==='makeup')return {cls:'mk',txt:'Make-up visit'};
+  if(e.kind==='special')return {cls:'sp',txt:e.label};
+  if(e.res&&e.res['Chosen Date'])return {cls:'off',txt:'Rescheduled to '+_subFmtDate(e.res['Chosen Date'])};
+  if(e.res)return {cls:'pend',txt:'Reschedule pending'};
+  if(e.sub&&e.sub.Status==='Filled')return {cls:'cov',txt:'Covered by '+_subPerson(e.sub['Assigned To']).name};
+  if(e.sub)return {cls:'pend',txt:'Sub requested'};
+  return null;
+}
+function _calSiteName(e){return e.site?sf(e.site,'Name','name'):siteNameFromKey(e.key);}
+function _calTime(e){return (e.start||e.end)?_subFmtTime(e.start)+(e.end?'–'+_subFmtTime(e.end):''):'';}
+function renderCalendar(){
+  const body=document.getElementById('calBody');if(!body||!SESSION)return;
+  const now=new Date();
+  if(_cal.y===null){_cal.y=now.getFullYear();_cal.m=now.getMonth();}
+  const admin=SESSION.accessLevel<=2,me=_subMe();
+  if(!_cal.who){
+    const mine=(DATA.sites||[]).some(s=>_calRangerEmails(s).includes(me));
+    _cal.who=(admin&&!mine)?'all':me;
+  }
+  const who=admin?_cal.who:me;
+  const ev=calEventsForMonth(_cal.y,_cal.m,who);
+  const byDay={};ev.forEach(e=>{(byDay[e.date]=byDay[e.date]||[]).push(e);});
+  const today=_calYmd(now);
+  const monthName=new Date(_cal.y,_cal.m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  let picker='';
+  if(admin){
+    picker='<select class="sub-in" style="max-width:260px;font-size:15px;padding:8px" onchange="_cal.who=this.value;_cal.sel=null;renderCalendar()">'+
+      '<option value="'+ea(me)+'"'+(who===me?' selected':'')+'>My calendar</option>'+
+      '<option value="all"'+(who==='all'?' selected':'')+'>All Rangers</option>'+
+      _calWhoOptions().filter(([e])=>e!==me).map(([e,n])=>'<option value="'+ea(e)+'"'+(who===e?' selected':'')+'>'+escHtml(n)+'</option>').join('')+'</select>';
+  }
+  // month grid
+  const firstDow=new Date(_cal.y,_cal.m,1).getDay(),nDays=new Date(_cal.y,_cal.m+1,0).getDate();
+  let grid='<div class="cal-grid">'+['S','M','T','W','T','F','S'].map(d=>'<div class="cal-dow">'+d+'</div>').join('');
+  for(let i=0;i<firstDow;i++)grid+='<div class="cal-cell empty"></div>';
+  for(let d=1;d<=nDays;d++){
+    const ds=_calYmd(new Date(_cal.y,_cal.m,d,12)),list=byDay[ds]||[];
+    const dots=list.slice(0,3).map(e=>{const t=_calTag(e);return '<span class="cal-dot '+(t?t.cls:(e.est?'est':'v'))+'"></span>';}).join('')+(list.length>3?'<span class="cal-more">+'+(list.length-3)+'</span>':'');
+    grid+='<div class="cal-cell'+(ds===today?' today':'')+(ds===_cal.sel?' sel':'')+(list.length?' has':'')+'" onclick="_cal.sel=(_cal.sel===\''+ds+'\'?null:\''+ds+'\');renderCalendar()"><div class="cal-num">'+d+'</div><div class="cal-dots">'+dots+'</div></div>';
+  }
+  grid+='</div>';
+  // agenda
+  const days=Object.keys(byDay).sort().filter(d=>!_cal.sel||d===_cal.sel);
+  let agenda='';
+  days.forEach(d=>{
+    agenda+='<div class="sub-sec" style="font-size:14px">'+escHtml(_subFmtDate(d))+(d===today?' · Today':'')+'</div>';
+    byDay[d].forEach((e,i)=>{
+      const t=_calTag(e);
+      agenda+='<div class="sub-card tap cal-ev" onclick="calOpenEvent(\''+d+'\','+i+')">'+
+        '<div class="sub-top"><div><div class="sub-school" style="font-size:17px">'+escHtml(_calSiteName(e))+'</div>'+
+        '<div class="sub-meta" style="margin-top:2px">'+[_calTime(e),e.rotation,e.ranger].filter(Boolean).map(escHtml).join(' · ')+(e.est?' · <i>estimated</i>':'')+'</div></div>'+
+        (t?'<span class="cal-tag '+t.cls+'">'+escHtml(t.txt)+'</span>':'')+'</div></div>';
+    });
+  });
+  if(!agenda)agenda='<div class="sub-empty">'+(_cal.sel?'Nothing on this day.':(who==='all'||(DATA.sites||[]).some(s=>_calRangerEmails(s).includes(who))?'No school visits found this month.':'No Ranger schools assigned yet.'))+'</div>';
+  body.innerHTML='<div class="cal-bar">'+
+      '<button class="sub-btn alt" onclick="calShift(-1)">‹</button><div class="cal-title">'+escHtml(monthName)+'</div><button class="sub-btn alt" onclick="calShift(1)">›</button>'+
+      '<button class="sub-btn alt" style="margin-left:auto" onclick="_cal.y=null;_cal.sel=null;renderCalendar()">Today</button></div>'+
+    (picker?'<div style="padding:0 16px 8px">'+picker+'</div>':'')+grid+
+    '<div class="cal-legend"><span><i class="cal-dot v"></i>Visit</span><span><i class="cal-dot cov"></i>Covered</span><span><i class="cal-dot sub"></i>Subbing</span><span><i class="cal-dot pend"></i>Pending</span><span><i class="cal-dot mk"></i>Make-up</span><span><i class="cal-dot est"></i>Estimated</span></div>'+
+    agenda;
+  window._calLastByDay=byDay;
+}
+function calShift(n){_cal.m+=n;if(_cal.m<0){_cal.m=11;_cal.y--;}if(_cal.m>11){_cal.m=0;_cal.y++;}_cal.sel=null;renderCalendar();}
+function calOpenEvent(d,i){
+  const e=(window._calLastByDay||{})[d]&&window._calLastByDay[d][i];if(!e)return;
+  const site=e.site,name=_calSiteName(e),t=_calTag(e);
+  const addr=site?sf(site,'Full Address','FullAddress'):'';
+  const prog=site&&typeof _progDetailsVal==='function'?String(_progDetailsVal(site)||'').trim():'';
+  const sched=site?String(sf(site,'Schedule Contents','ScheduleContents')||''):'';
+  const row=(l,v)=>v?'<div class="sub-dl">'+l+'</div><div class="sub-dv">'+v+'</div>':'';
+  const me=_subMe(),mineVisit=e.kind==='visit'&&site&&_calRangerEmails(site).includes(me);
+  let people='';
+  if(e.sub)people=_subPeopleLines(e.sub).join('<br>');
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='calOverlay';ov.onclick=x=>{if(x.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet">'+
+    '<div class="sub-top"><div><div class="sub-school">'+escHtml(name)+'</div><div class="sub-when">'+escHtml(_subFmtDate(d))+(_calTime(e)?' · '+escHtml(_calTime(e)):'')+'</div></div>'+(t?'<span class="cal-tag '+t.cls+'">'+escHtml(t.txt)+'</span>':'')+'</div>'+
+    (e.est?'<div class="sub-meta">Estimated from the school’s Ranger day - no dates were found in its schedule.</div>':'')+
+    row('Rotation',escHtml(e.rotation||''))+
+    row('Ranger',site?_calRangerEmails(site).map(x=>_subPersonLink(x)).join(' & '):'')+
+    row('People',people)+
+    row('Address',addr?'<a target="_blank" href="'+ea(_subMapUrl(site))+'">'+escHtml(addr)+'</a>':'')+
+    row('Program details',escHtml(prog))+
+    row(e.rotation?e.rotation+' schedule':'Schedule',e.block?escHtml(e.block):'')+
+    (sched?'<details style="margin-top:12px"><summary class="sub-dl" style="cursor:pointer">Full schedule from the school</summary><div class="sub-dv" style="font-size:14px">'+_formatScheduleContentsHtml(sched)+'</div></details>':'')+
+    '<div class="sub-actions" style="margin-top:16px">'+
+      (mineVisit&&!e.sub&&!e.res&&d>=_subToday()?'<button class="sub-btn hot" onclick="document.getElementById(\'calOverlay\').remove();switchTab(\'sub\');showSubRequestForm({site:\''+ea(e.key)+'\',date:\''+d+'\',start:\''+ea(e.start||'')+'\',end:\''+ea(e.end||'')+'\'})">I Can’t Make This Session</button>':'')+
+      (e.sub?'<button class="sub-btn alt" onclick="document.getElementById(\'calOverlay\').remove();switchTab(\'sub\');subOpenDetail(\''+ea(e.sub.ID)+'\')">Open Sub Shift</button>':'')+
+      (site?'<button class="sub-btn alt" onclick="document.getElementById(\'calOverlay\').remove();showSchoolDetailByKey(\''+ea(e.key)+'\')">Open School</button>':'')+
+      '<button class="sub-btn alt" onclick="document.getElementById(\'calOverlay\').remove()">Close</button></div></div>';
+  document.body.appendChild(ov);
 }
 
 const _saved=localStorage.getItem(CFG.SK);
@@ -13672,6 +14015,7 @@ const NAV_ALL_TABS = [
   {key:'map',      label:'🗺 Map'},
   {key:'chores',   label:'✅ Chores'},
   {key:'sub',      label:'🙋 Sub'},
+  {key:'calendar', label:'📅 Calendar'},
   {key:'latest',   label:'🕐 Latest'},
   {key:'rangers',  label:'🌿 Rangers'},
   {key:'people',   label:'👥 People'},
