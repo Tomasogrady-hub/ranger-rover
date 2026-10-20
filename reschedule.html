@@ -72,6 +72,16 @@
     return { who: '', name: n.trim() };
   }
 
+  // keep what was typed when the page re-draws
+  var F = { start: '', end: '', forOpt: '', sgDate: '', sgStart: '', sgEnd: '', sgText: '' };
+  function capture(){
+    var g = function(id){ var el = document.getElementById(id); return el ? el.value : null; };
+    if (g('ts') !== null) { F.start = g('ts'); F.end = g('te'); }
+    if (g('sgd') !== null) { F.sgDate = g('sgd'); F.sgStart = g('sgs'); F.sgEnd = g('sge'); F.sgText = g('sg'); }
+    var s = document.getElementById('who'), n = document.getElementById('nm');
+    try { if (n) localStorage.setItem('rr_res_name', n.value); if (s) localStorage.setItem('rr_res_who_' + rid, s.value); } catch (e) {}
+  }
+  function todayYmd(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function render(err){
     var v = view;
     if (!v) { app.innerHTML = '<div class="card">' + esc(err || 'This link is not valid.') + '</div>'; return; }
@@ -96,12 +106,24 @@
       html += (changing ? '<div class="card">Currently confirmed: <b>' + esc(v.chosen.label) + '</b>' + (v.chosen.by ? ' (by ' + esc(v.chosen.by) + ')' : '') + '</div>' : '') +
         '<div class="lbl">' + (changing ? 'Pick a different date' : 'Pick the new date that works for your school') + '</div>' +
         opts.map(function(o){ return '<button type="button" class="opt' + (o.id === picked ? ' sel' : '') + '" data-id="' + esc(o.id) + '"><span class="dot"></span><span>' + esc(o.label) + '</span></button>'; }).join('') +
+        (function(){
+          var o = opts.filter(function(x){ return x.id === picked; })[0];
+          if (!o) return '';
+          if (F.forOpt !== o.id) { F.forOpt = o.id; F.start = o.start || ''; F.end = o.end || ''; }
+          return '<div class="lbl">Time on that day (change it if a different time works better)</div>' +
+            '<div style="display:flex;gap:8px;align-items:center"><input type="time" id="ts" value="' + esc(F.start) + '" style="flex:1;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:16px">' +
+            '<span>to</span><input type="time" id="te" value="' + esc(F.end) + '" style="flex:1;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:16px"></div>';
+        })() +
         whoHtml() +
         '<button class="go" id="go"' + (picked ? '' : ' disabled') + '>' + (picked ? 'Confirm ' + esc((opts.filter(function(o){return o.id===picked;})[0]||{}).label||'') : 'Pick a date above') + '</button>' +
         (changing ? '<div style="text-align:center"><button class="link" id="keep">Keep the current date</button></div>' : '') +
         (changing ? '' : '<div style="text-align:center"><button class="link" id="none">None of these work - suggest another day</button></div>');
     } else {
-      html += '<div class="lbl">What day and time would work?</div><textarea id="sg" rows="4" placeholder="e.g. Any Tuesday morning before 11am, or Wed Oct 28 at 9am"></textarea>' +
+      html += '<div class="lbl">Pick a day that would work</div>' +
+        '<input type="date" id="sgd" min="' + todayYmd() + '" value="' + esc(F.sgDate) + '" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:16px;background:#fff">' +
+        '<div class="lbl">Time</div><div style="display:flex;gap:8px;align-items:center"><input type="time" id="sgs" value="' + esc(F.sgStart) + '" style="flex:1;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:16px">' +
+        '<span>to</span><input type="time" id="sge" value="' + esc(F.sgEnd) + '" style="flex:1;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:16px"></div>' +
+        '<div class="lbl">Note (optional)</div><textarea id="sg" rows="3" placeholder="e.g. Only the morning works for us, or any Tuesday in November">' + esc(F.sgText) + '</textarea>' +
         whoHtml() +
         '<button class="go" id="send">Send to ' + esc(v.ranger) + '</button>' +
         (opts.length ? '<div style="text-align:center"><button class="link" id="back">Back to the suggested dates</button></div>' : '');
@@ -109,10 +131,10 @@
     }
     if (err) html += '<div class="error">' + esc(err) + '</div>';
     app.innerHTML = html;
-    Array.prototype.forEach.call(document.querySelectorAll('.opt'), function(b){ b.onclick = function(){ picked = b.getAttribute('data-id'); render(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.opt'), function(b){ b.onclick = function(){ capture(); picked = b.getAttribute('data-id'); render(); }; });
     var go = document.getElementById('go'); if (go) go.onclick = choose;
-    var none = document.getElementById('none'); if (none) none.onclick = function(){ showSuggest = true; render(); };
-    var back = document.getElementById('back'); if (back) back.onclick = function(){ showSuggest = false; render(); };
+    var none = document.getElementById('none'); if (none) none.onclick = function(){ capture(); showSuggest = true; render(); };
+    var back = document.getElementById('back'); if (back) back.onclick = function(){ capture(); showSuggest = false; render(); };
     var send = document.getElementById('send'); if (send) send.onclick = suggest;
     var keep = document.getElementById('keep'); if (keep) keep.onclick = function(){ changing = false; render(); };
     bindWho();
@@ -121,22 +143,26 @@
   function choose(){
     if (!picked) return;
     var w = whoVal();
+    capture();
     if (!w.who && !w.name) { render('Please choose your name (or type it) so everyone knows who picked the date.'); return; }
+    if (F.start && F.end && F.end <= F.start) { render('The end time must be after the start time.'); return; }
     busy('go', 'Confirming…');
-    post('publicRescheduleChoose', {r: rid, o: picked, who: w.who, name: w.name, change: changing}).then(function(r){
+    post('publicRescheduleChoose', {r: rid, o: picked, who: w.who, name: w.name, change: changing, start: F.start, end: F.end}).then(function(r){
       if (r && r.ok) { view = r; changing = false; render(); } else render((r && r.error) || 'Something went wrong - please try again.');
     }).catch(function(){ render('Connection problem - please try again.'); });
   }
   function suggest(){
-    var t = ((document.getElementById('sg') || {}).value || '').trim();
-    if (!t) { render('Please write the day and time that would work.'); return; }
+    capture();
+    var t = (F.sgText || '').trim();
+    if (!F.sgDate && !t) { render('Please pick a day (and time), or write a note.'); return; }
+    if (F.sgStart && F.sgEnd && F.sgEnd <= F.sgStart) { render('The end time must be after the start time.'); return; }
     var w = whoVal(), ppl = (view && view.people) || [];
     var n = w.name || (ppl.filter(function(x){ return String(x.id) === w.who; })[0] || {}).name || '';
     busy('send', 'Sending…');
-    post('publicRescheduleSuggest', {r: rid, text: t, name: n}).then(function(r){
+    post('publicRescheduleSuggest', {r: rid, text: t, name: n, who: w.who, date: F.sgDate, start: F.sgStart, end: F.sgEnd}).then(function(r){
       if (r && r.ok) {
         view = r;
-        app.innerHTML = '<h1>Thank you!</h1><div class="ok">Your message was sent to ' + esc(r.ranger) + ' and Enrich LA.</div><div class="muted">They will get back to you to confirm the new visit.</div>';
+        app.innerHTML = '<h1>Thank you!</h1><div class="ok">' + (r.suggested ? 'You suggested ' + esc(r.suggested.label) + '. ' : '') + 'Your message was sent to ' + esc(r.ranger) + ' and Enrich LA.</div><div class="muted">They will confirm the new visit with you.</div>';
       } else render((r && r.error) || 'Something went wrong - please try again.');
     }).catch(function(){ render('Connection problem - please try again.'); });
   }

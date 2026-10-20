@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.28 | 2026-10-20 | Reschedule: who picked (Chosen By Email), change date, emails name the picker';
+const GAS_BUILD = 'v11.29 | 2026-10-20 | Sub availability sign-up, school time adjust + date suggestion, accept suggestion';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -483,7 +483,7 @@ function handleGetMyLocation(p) {
 var LIVE_SCOPES = ['sites', 'humans', 'chores', 'subs'];
 var LIVE_FILES = [
   { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'] } },
-  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options'] } },
+  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability'] } },
   { key: 'humans', id: HUMANS_ID, scopes: { humans: ['Humans', 'Roles'] } },
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
@@ -497,7 +497,8 @@ var LIVE_ACTION_SCOPES = {
   uploadSiteImage: ['sites'], uploadSiteSchedule: ['sites'], removeSiteSchedule: ['sites'],
   createSite: ['sites'], deleteSite: ['sites'],
   requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs'], createReschedule: ['subs'], cancelReschedule: ['subs'],
-  publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs']
+  publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
+  acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs']
 };
 
 function _liveGetVersions() {
@@ -774,6 +775,8 @@ function _doPostRoute(e) {
       case 'deleteSubs':   return respond(handleDeleteSubs(p));
       case 'createReschedule': return respond(handleCreateReschedule(p));
       case 'cancelReschedule': return respond(handleCancelReschedule(p));
+      case 'acceptRescheduleSuggestion': return respond(handleAcceptRescheduleSuggestion(p));
+      case 'saveSubAvailability': return respond(handleSaveSubAvailability(p));
       // public (school staff, no login) - token = Reschedule ID + Option ID
       case 'publicRescheduleInfo':    return respond(handlePublicRescheduleInfo(p));
       case 'publicRescheduleChoose':  return respond(handlePublicRescheduleChoose(p));
@@ -4157,7 +4160,7 @@ function _subTz() { return Session.getScriptTimeZone() || 'America/Los_Angeles';
 // ── Sub spreadsheet (v11.22) ────────────────────────────────────────────────
 // Everything for subs and reschedules lives in its own "Sub" spreadsheet so the
 // history is easy to browse. setupSubBook() runs once automatically (tracked in
-// Script Property sub_book_v1): creates every tab with headers, copies over any
+// Script Property sub_book_v2): creates every tab with headers, copies over any
 // Subs / Sub Volunteers rows that were in the Ranger Rover file, and adds a
 // Guide tab. It is safe to run again by hand from the editor.
 var SUB_BOOK_ID = '141id0wmTozw_Gl8tJu3CUYTrVFQ8bHgDii8Sd2e0Vcs';
@@ -4165,7 +4168,12 @@ var RESCHED_TAB = 'Reschedules';
 var RESCHED_OPT_TAB = 'Reschedule Options';
 var SUB_HIST_TAB = 'History';
 var RESCHED_HEADERS = ['ID','Created','Requested By','Site','Missed Dates','Note','Status','Recipients',
-  'Chosen Option','Chosen Date','Chosen Start','Chosen End','Chosen By','Chosen At','School Suggestion','Updated','Chosen By Email'];
+  'Chosen Option','Chosen Date','Chosen Start','Chosen End','Chosen By','Chosen At','School Suggestion','Updated','Chosen By Email',
+  'Suggested Date','Suggested Start','Suggested End','Suggested By','Suggested By Email'];
+// Rangers who signed up to be subs: one row per person, Days = JSON
+// [{day:1,start:'08:00',end:'12:00'}, ...] (day 0=Sun..6=Sat)
+var SUB_AVAIL_TAB = 'Sub Availability';
+var SUB_AVAIL_HEADERS = ['Email','Active','Days','Notes','Updated'];
 var RESCHED_OPT_HEADERS = ['Option ID','Reschedule ID','Date','Start','End','Status','Chosen By','Chosen At'];
 var SUB_HIST_HEADERS = ['Timestamp','Type','Request ID','Item ID','Site','Action','Actor','Status After','Summary'];
 var RESCHED_PAGE_URL = 'https://tomasogrady-hub.github.io/ranger-rover/reschedule.html';
@@ -4174,7 +4182,7 @@ function _subBook() {
   if (_SUB_SS) return _SUB_SS;
   _SUB_SS = SpreadsheetApp.openById(SUB_BOOK_ID);
   try {
-    if (!PropertiesService.getScriptProperties().getProperty('sub_book_v1')) setupSubBook();
+    if (!PropertiesService.getScriptProperties().getProperty('sub_book_v2')) setupSubBook();
   } catch (e) { Logger.log('setupSubBook: ' + e.message); }
   return _SUB_SS;
 }
@@ -4183,7 +4191,8 @@ function setupSubBook() {
   _SUB_SS = ss;
   var tabs = [
     [SUBS_TAB, SUBS_HEADERS], [SUB_VOL_TAB, SUB_VOL_HEADERS],
-    [RESCHED_TAB, RESCHED_HEADERS], [RESCHED_OPT_TAB, RESCHED_OPT_HEADERS], [SUB_HIST_TAB, SUB_HIST_HEADERS]
+    [RESCHED_TAB, RESCHED_HEADERS], [RESCHED_OPT_TAB, RESCHED_OPT_HEADERS], [SUB_HIST_TAB, SUB_HIST_HEADERS],
+    [SUB_AVAIL_TAB, SUB_AVAIL_HEADERS]
   ];
   tabs.forEach(function(t){ _subGetSheet(t[0], t[1]); });
   // One-time copy of existing rows from the old location (Ranger Rover file)
@@ -4212,6 +4221,7 @@ function setupSubBook() {
     ['Reschedules', 'One row per reschedule request sent to a school. Status: Waiting for School > Confirmed (school picked a date) or School Suggested Other / Cancelled.'],
     ['Reschedule Options', 'The alternative dates the Ranger offered. Each has its own link in the message; the school taps one to confirm it.'],
     ['History', 'Every action, newest at the bottom: who did what, when, and the status afterwards. Use Data > Filter to search.'],
+    ['Sub Availability', 'Rangers who signed up to be a sub: which weekdays and times they are available (Days is a list of day + start + end). Edited from the app.'],
     ['', ''],
     ['IDs', 'Site = the school Key from the Ranger Rover Sites sheet. People are stored by email.'],
     ['Dates', 'Dates are yyyy-mm-dd and times are 24h (HH:mm), stored as text so Sheets never changes them.']
@@ -4226,7 +4236,7 @@ function setupSubBook() {
   if (s1 && s1.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s1);
   // History: a filter so it can be sorted/searched
   try { var hs = ss.getSheetByName(SUB_HIST_TAB); if (!hs.getFilter()) hs.getRange(1, 1, Math.max(2, hs.getMaxRows()), SUB_HIST_HEADERS.length).createFilter(); } catch (e) {}
-  PropertiesService.getScriptProperties().setProperty('sub_book_v1', String(new Date()));
+  PropertiesService.getScriptProperties().setProperty('sub_book_v2', String(new Date()));
   return 'ok';
 }
 // Append one History row (never throws)
@@ -4505,7 +4515,7 @@ function handleGetSubs(p) {
         return c;
       });
     } catch (e) { Logger.log('getSubs reschedules: ' + e.message); }
-    return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), reschedules: res, level: me.level, today: _subToday() };
+    return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), reschedules: res, availability: _subAvailList(me), level: me.level, today: _subToday() };
   } catch(e) { return { ok: false, error: e.message }; }
 }
 
@@ -5000,7 +5010,9 @@ function _resPublicView(L, people) {
     options: L.opts.map(function(o){ return { id: o['Option ID'], date: o.Date, start: o.Start, end: o.End, status: o.Status, label: _subFmtShift(o) }; }),
     chosen: L.r['Chosen Date'] ? { date: L.r['Chosen Date'], option: L.r['Chosen Option'], label: _subFmtShift({ Date: L.r['Chosen Date'], Start: L.r['Chosen Start'], End: L.r['Chosen End'] }), by: L.r['Chosen By'], at: L.r['Chosen At'] ? Utilities.formatDate(new Date(L.r['Chosen At']), _subTz(), 'EEE MMM d, h:mm a') : '' } : null,
     people: _resRecipients(L, people).map(function(x, i){ return { id: i, name: x.label }; }),
-    suggestion: L.r['School Suggestion'] || ''
+    suggestion: L.r['School Suggestion'] || '',
+    suggested: L.r['Suggested Date'] ? { date: L.r['Suggested Date'], start: L.r['Suggested Start'], end: L.r['Suggested End'],
+      label: _subFmtShift({ Date: L.r['Suggested Date'], Start: L.r['Suggested Start'], End: L.r['Suggested End'] }), by: L.r['Suggested By'] } : null
   };
 }
 // The people the message went to, as "Name (Role)" - used for "Who are you?" on the date page
@@ -5045,12 +5057,16 @@ function handlePublicRescheduleChoose(p) {
     if (L.r['Chosen Date'] && !changing) { var v0 = _resPublicView(L, people); v0.already = true; return v0; }
     var opt = L.opts.filter(function(o){ return o['Option ID'] === String(p.o || '').trim(); })[0];
     if (!opt) return { ok: false, error: 'That date was not found - please pick one of the dates listed.' };
-    if (changing && L.r['Chosen Option'] === opt['Option ID']) { var v1 = _resPublicView(L, people); v1.already = true; return v1; }
+    if (changing && L.r['Chosen Option'] === opt['Option ID'] && String(L.r['Chosen Start']) === String(p.start || L.r['Chosen Start']) && String(L.r['Chosen End']) === String(p.end || L.r['Chosen End'])) { var v1 = _resPublicView(L, people); v1.already = true; return v1; }
     // Who is choosing: one of the people the message went to, or a typed name
     var recips = _resRecipients(L, people), byEmail = '', by = '';
     var wi = parseInt(p.who, 10);
     if (!isNaN(wi) && recips[wi]) { by = recips[wi].name; byEmail = recips[wi].email; }
     if (!by) by = String(p.name || '').trim().slice(0, 120) || 'School staff';
+    var tOk = function(t){ return /^\d{1,2}:\d{2}$/.test(String(t || '')); };
+    var cStart = tOk(p.start) ? String(p.start) : opt.Start, cEnd = tOk(p.end) ? String(p.end) : opt.End;
+    if (cStart && cEnd && cEnd <= cStart) return { ok: false, error: 'The end time must be after the start time.' };
+    var timeChanged = (cStart !== opt.Start || cEnd !== opt.End);
     var prevWhen = L.r['Chosen Date'] ? _subFmtShift({ Date: L.r['Chosen Date'], Start: L.r['Chosen Start'], End: L.r['Chosen End'] }) : '';
     var prevBy = L.r['Chosen By'] || '';
     var now = new Date();
@@ -5058,10 +5074,10 @@ function handlePublicRescheduleChoose(p) {
       _subSet(L.ot, o, o === opt ? { 'Status': 'Chosen', 'Chosen By': by, 'Chosen At': now } : { 'Status': 'Not Chosen' });
     });
     _subSet(L.rt, L.r, { 'Status': 'Confirmed', 'Chosen Option': opt['Option ID'], 'Chosen Date': opt.Date,
-      'Chosen Start': opt.Start, 'Chosen End': opt.End, 'Chosen By': by, 'Chosen By Email': byEmail, 'Chosen At': now });
+      'Chosen Start': cStart, 'Chosen End': cEnd, 'Chosen By': by, 'Chosen By Email': byEmail, 'Chosen At': now });
     lock.releaseLock();
     var site = _subSite(_subSites(), L.r.Site);
-    var when = _subFmtShift(opt);
+    var when = _subFmtShift({ Date: opt.Date, Start: cStart, End: cEnd }) + (timeChanged ? ' (time adjusted by the school; offered ' + _subFmtShift(opt).split(', ').slice(1).join(', ') + ')' : '');
     _subHist('Reschedule', L.r.ID, opt['Option ID'], L.r.Site, prevWhen ? 'School changed date' : 'School chose date', byEmail || by, 'Confirmed',
       site.name + ' - ' + when + ' (picked by ' + by + (byEmail ? ', ' + byEmail : '') + ')' + (prevWhen ? '; was ' + prevWhen + ' (' + prevBy + ')' : ''));
     try { logActivity(String(L.r['Requested By']), 'rescheduleConfirmed', L.r.Site, 'site', when + ' (by ' + by + ')'); } catch (e) {}
@@ -5086,22 +5102,89 @@ function handlePublicRescheduleSuggest(p) {
     if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
     if (L.r['Chosen Date']) return { ok: false, error: 'A date has already been confirmed for this visit.' };
     var text = String(p.text || '').trim().slice(0, 1000);
-    if (!text) return { ok: false, error: 'Please write the day and time that would work.' };
-    var by = String(p.name || '').trim().slice(0, 120) || 'School staff';
+    var sd = /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) ? String(p.date) : '';
+    var tOk = function(t){ return /^\d{1,2}:\d{2}$/.test(String(t || '')); };
+    var ss = tOk(p.start) ? String(p.start) : '', se = tOk(p.end) ? String(p.end) : '';
+    if (!text && !sd) return { ok: false, error: 'Please pick a date (and time) or write a note.' };
+    if (sd && sd < _subToday()) return { ok: false, error: 'Please pick a date from today on.' };
+    if (ss && se && se <= ss) return { ok: false, error: 'The end time must be after the start time.' };
     var people = _subPeople();
+    var recips = _resRecipients(L, people), byEmail = '', by = '';
+    var wi = parseInt(p.who, 10);
+    if (!isNaN(wi) && recips[wi]) { by = recips[wi].name; byEmail = recips[wi].email; }
+    if (!by) by = String(p.name || '').trim().slice(0, 120) || 'School staff';
+    var when = sd ? _subFmtShift({ Date: sd, Start: ss, End: se }) : '';
+    var line = by + ': ' + (when ? 'suggests ' + when : '') + (when && text ? ' - ' : '') + text;
     var prev = L.r['School Suggestion'] ? L.r['School Suggestion'] + '\n' : '';
-    _subSet(L.rt, L.r, { 'Status': 'School Suggested Other', 'School Suggestion': prev + by + ': ' + text });
+    var upd = { 'Status': 'School Suggested Other', 'School Suggestion': prev + line };
+    if (sd) { upd['Suggested Date'] = sd; upd['Suggested Start'] = ss; upd['Suggested End'] = se; upd['Suggested By'] = by; upd['Suggested By Email'] = byEmail; }
+    _subSet(L.rt, L.r, upd);
     var site = _subSite(_subSites(), L.r.Site);
-    _subHist('Reschedule', L.r.ID, '', L.r.Site, 'School suggested other', by, 'School Suggested Other', text);
+    _subHist('Reschedule', L.r.ID, '', L.r.Site, 'School suggested other', byEmail || by, 'School Suggested Other', line);
     try { logActivity(String(L.r['Requested By']), 'rescheduleSuggested', L.r.Site, 'site', by); } catch (e) {}
     var rg = people[String(L.r['Requested By']).toLowerCase()];
-    var body = by + ' at ' + site.name + ' replied about the Garden Ranger reschedule:\n\n"' + text + '"\n\nPlease follow up with the school to confirm. ' + SUB_APP_URL + '#sub=';
-    if (rg) _subNotify(rg, 'School replied: reschedule at ' + site.name, 'Hi ' + rg.first + ',\n\n' + body,
-      'Enrich LA - ' + site.name + ' suggested another time for your visit: "' + text.slice(0, 120) + '". Please follow up.');
-    _subApprovers(people).forEach(function(a){ if (!rg || a.email !== rg.email) _subNotify(a, 'School replied: reschedule at ' + site.name, body, '', { noSms: true }); });
+    var body = by + (byEmail ? ' (' + byEmail + ')' : '') + ' at ' + site.name + ' replied about the Garden Ranger reschedule:\n\n' +
+      (when ? 'Suggested new visit: ' + when + '\n' : '') + (text ? 'Note: "' + text + '"\n' : '') +
+      '\n' + (when ? 'Open the Sub tab in Ranger Rover to accept this date with one tap, or follow up with the school. ' : 'Please follow up with the school to confirm. ') + SUB_APP_URL + '#sub=';
+    if (rg) _subNotify(rg, by + ' suggested a new date: reschedule at ' + site.name, 'Hi ' + rg.first + ',\n\n' + body,
+      'Enrich LA - ' + by + ' at ' + site.name + ' suggested ' + (when || 'another time') + ' for your visit. Open the Sub tab to accept or follow up.');
+    _subApprovers(people).forEach(function(a){ if (!rg || a.email !== rg.email) _subNotify(a, by + ' suggested a new date: reschedule at ' + site.name, body, '', { noSms: true }); });
     _subFlushSms();
     return _resPublicView(_resLoad(p.r), people);
   } catch (e) { return { ok: false, error: e.message }; }
+}
+// Ranger (or Level 1-2) accepts the date the school suggested
+function handleAcceptRescheduleSuggestion(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var L = _resLoad(p.id);
+    if (!L) return { ok: false, error: 'Not found.' };
+    if (me.level > 2 && String(L.r['Requested By']).toLowerCase() !== me.email) return { ok: false, error: 'Only the Ranger or the office can accept.' };
+    if (!L.r['Suggested Date']) return { ok: false, error: 'The school has not suggested a date.' };
+    var now = new Date();
+    L.opts.forEach(function(o){ if (o.Status === 'Offered' || o.Status === 'Chosen') _subSet(L.ot, o, { 'Status': 'Not Chosen' }); });
+    _subSet(L.rt, L.r, { 'Status': 'Confirmed', 'Chosen Option': 'school-suggested', 'Chosen Date': L.r['Suggested Date'],
+      'Chosen Start': L.r['Suggested Start'], 'Chosen End': L.r['Suggested End'], 'Chosen By': L.r['Suggested By'] || 'School staff',
+      'Chosen By Email': L.r['Suggested By Email'] || '', 'Chosen At': now });
+    var site = _subSite(_subSites(), L.r.Site);
+    var when = _subFmtShift({ Date: L.r['Suggested Date'], Start: L.r['Suggested Start'], End: L.r['Suggested End'] });
+    _subHist('Reschedule', L.r.ID, '', L.r.Site, 'Accepted school date', me.email, 'Confirmed', site.name + ' - ' + when + ' (suggested by ' + (L.r['Suggested By'] || 'school') + ')');
+    _resNotifyAll(L, people, site, 'Confirmed: Garden Ranger visit at ' + site.name + ' - ' + _subFmtDate(L.r['Suggested Date']),
+      me.name + ' accepted the date suggested by ' + (L.r['Suggested By'] || 'the school') + ' for the Garden Ranger visit at ' + site.name + ':\n\n' + when + '\n\nThank you!\nEnrich LA',
+      'Enrich LA - Confirmed: your visit at ' + site.name + ' is now ' + when + '.');
+    _subFlushSms();
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// ── Sub availability (Sign up to be a sub) ───────────────────────────────────
+function handleSaveSubAvailability(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var email = me.email;
+    if (p.forEmail && me.level <= 2) email = String(p.forEmail).trim().toLowerCase();
+    var days = (Array.isArray(p.days) ? p.days : []).filter(function(d){
+      return d && +d.day >= 0 && +d.day <= 6 && /^\d{1,2}:\d{2}$/.test(String(d.start || '')) && /^\d{1,2}:\d{2}$/.test(String(d.end || '')) && String(d.end) > String(d.start);
+    }).map(function(d){ return { day: +d.day, start: String(d.start), end: String(d.end) }; }).slice(0, 21);
+    var active = p.active !== false && p.active !== 'false' && days.length > 0;
+    var tbl = _subReadAll(_subGetSheet(SUB_AVAIL_TAB, SUB_AVAIL_HEADERS));
+    var row = tbl.rows.filter(function(r){ return String(r.Email).toLowerCase() === email; })[0];
+    var vals = { 'Email': email, 'Active': active ? 'TRUE' : 'FALSE', 'Days': JSON.stringify(days), 'Notes': String(p.notes || '').slice(0, 500), 'Updated': new Date() };
+    if (row) _subSet(tbl, row, vals);
+    else { var sh = tbl.sheet; var h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String); sh.appendRow(h.map(function(k){ return vals[k] !== undefined ? vals[k] : ''; })); }
+    _subHist('Availability', '', '', '', active ? 'Signed up / updated' : 'Paused', email, active ? 'Active' : 'Inactive',
+      days.map(function(d){ return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.day] + ' ' + d.start + '-' + d.end; }).join(', '));
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function _subAvailList(me) {
+  try {
+    return _subReadAll(_subGetSheet(SUB_AVAIL_TAB, SUB_AVAIL_HEADERS)).rows
+      .filter(function(r){ return me.level <= 2 || String(r.Email).toLowerCase() === me.email; })
+      .map(function(r){ var d = []; try { d = JSON.parse(r.Days || '[]'); } catch (e) {}
+        return { email: String(r.Email).toLowerCase(), active: String(r.Active).toUpperCase() === 'TRUE', days: d, notes: r.Notes || '', updated: r.Updated || '' }; });
+  } catch (e) { return []; }
 }
 function handleCancelReschedule(p) {
   try {

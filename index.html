@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.28 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
+<!-- v11.29 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -141,6 +141,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .cal-ev{margin:6px 16px;padding:11px 13px}
 .hdr-role-text{display:block;font-family:var(--font-b);font-size:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(30,58,30,.75);text-align:center;line-height:1.2;max-width:84px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .hdr-name-cell{flex-direction:column}
+.sub-avail{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#E07A3F;color:#fff;font-size:11px;font-weight:800;letter-spacing:.02em;animation:rrSubFlash 1.6s ease-in-out infinite}
+.sub-avail-box{border:2px solid #E07A3F;background:#fdf0e7;border-radius:var(--r-sm);padding:8px 10px;margin-top:10px}
 .nav-badge{position:absolute;top:6px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fff;color:#C0392B;font-size:11px;font-weight:900;line-height:18px;text-align:center;letter-spacing:0}
 .sub-sec{padding:8px 16px 2px;font-size:16px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
 .sub-card{background:#fff;border:1px solid var(--mist);border-radius:var(--r-md);padding:14px 15px;margin:8px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
@@ -1016,7 +1018,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <!-- SUB (substitute Ranger requests) -->
   <div class="tab-pane" id="tab-sub">
     <div class="page-header"><span class="page-title">Sub</span><span class="page-count" id="subCount"></span></div>
-    <div style="padding:0 16px 6px;display:flex;gap:8px;justify-content:flex-end">
+    <div style="padding:0 16px 6px;display:flex;flex-direction:column;gap:8px;align-items:stretch">
+      <button class="sub-btn" id="subSignupBtn" style="background:#2e7d4f" onclick="showSubAvailabilityForm()">🙋 Sign up to be a sub</button>
       <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Can’t Make an Upcoming School Session</button>
     </div>
     <div id="subBody"><div class="spinner"></div></div>
@@ -1930,10 +1933,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.28';
+const APP_VERSION='v11.29';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-20 09:45 PT - Sub tab: removed the Testing only note and the Refresh button. Cancelled subs and reschedules move to Cancelled and Past right away. Find a Sub form note now encourages rescheduling over a sub. School message adds the make-up day option. Reschedules show who picked the new date (hot-linked) and when. School date page: pick your name from the people the message went to, see who confirmed, and change the date if needed; confirmation emails always name who picked. Requires GAS New Deployment.';
+const BUILD_STAMP='2026-10-20 15:40 PT - Sub tab: new Sign up to be a sub (days + hours, editable, pause); signed-up subs who match a shift are highlighted loudly in Approve and Send, the volunteer list, an Available subs box with Pick buttons, and the Assign dropdown. Requests need Program Details on the school first. After the office assigns a sub, Reach opens with everyone at the school and an expect a different Ranger message. Reschedule: school can adjust the time of the date they pick; None of these work now has a date and time picker plus note, and the Ranger or office can Accept the suggested date in one tap. Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11091,7 +11094,7 @@ if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch
    renders instantly from memory and refreshes behind the scenes.
    No images anywhere in this tab.
    ═══════════════════════════════════════════════════════════════════*/
-let _SUB={subs:[],volunteers:[],reschedules:[],loaded:false,loading:false,ts:0};
+let _SUB={subs:[],volunteers:[],reschedules:[],availability:[],loaded:false,loading:false,ts:0};
 let _subHighlight='';
 const SUB_ELIGIBLE_CATS=['ranger','master_ranger','garden_keeper'];
 function _subMe(){return (SESSION&&SESSION.email||'').toLowerCase().trim();}
@@ -11205,6 +11208,60 @@ function _subPeopleLines(s,opts){
   if(s['Approved By']&&s.Status!=='Pending Approval')out.push((s.Status==='Declined'?'Declined':'Approved')+' by '+(String(s['Approved By']).toLowerCase()===me?'<b>you</b>':_subPersonLink(s['Approved By'])));
   return out;
 }
+// ── Sub availability (v11.29) ───────────────────────────────────────────────
+const _SUB_DAYN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function _subAvailOf(email){const e=String(email||'').toLowerCase();return (_SUB.availability||[]).find(a=>a.email===e)||null;}
+function _subAvailText(a){return a&&a.days&&a.days.length?a.days.map(d=>_SUB_DAYN[d.day]+' '+_subFmtTime(d.start)+'–'+_subFmtTime(d.end)).join(', '):'';}
+// Does this person's sign-up cover the shift's weekday (and overlap its hours)?
+function _subAvailMatch(email,s){
+  const a=_subAvailOf(email);if(!a||!a.active||!s||!s.Date)return null;
+  const wd=new Date(s.Date+'T12:00:00').getDay();
+  const slot=(a.days||[]).find(d=>+d.day===wd&&(!s.Start||!s.End||(d.start<s.End&&d.end>s.Start)));
+  return slot||null;
+}
+function _subAvailBadge(email,s){
+  const m=_subAvailMatch(email,s);
+  return m?'<span class="sub-avail">⭐ Available '+_SUB_DAYN[m.day]+' '+escHtml(_subFmtTime(m.start)+'–'+_subFmtTime(m.end))+'</span>':'';
+}
+function _subUpdateSignupBtn(){
+  const b=document.getElementById('subSignupBtn');if(!b)return;
+  const a=_subAvailOf(_subMe());
+  b.textContent=a&&a.active?'✏️ My sub availability: '+_subAvailText(a):(a?'🙋 Sign up to be a sub (paused)':'🙋 Sign up to be a sub');
+}
+function showSubAvailabilityForm(){
+  const a=_subAvailOf(_subMe())||{active:true,days:[],notes:''};
+  const order=[1,2,3,4,5,6,0];
+  const rows=order.map(d=>{const sl=(a.days||[]).find(x=>+x.day===d);
+    return '<div class="sub-shift" style="grid-template-columns:auto 1fr 1fr" data-day="'+d+'">'+
+      '<label style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;min-width:84px"><input type="checkbox" '+(sl?'checked':'')+' style="width:20px;height:20px"> '+_SUB_DAYN[d]+'</label>'+
+      '<input type="time" class="sub-in" value="'+ea(sl?sl.start:'08:00')+'"><input type="time" class="sub-in" value="'+ea(sl?sl.end:'12:30')+'"></div>';}).join('');
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='subAvailOverlay';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>Sign up to be a sub</h3>'+
+    '<div class="sub-meta" style="margin:-6px 0 10px">Tick the days you can cover for another Ranger and the hours you are free. You’ll be highlighted when the office picks a sub for a matching day. Change it any time.</div>'+
+    '<div class="sub-lbl">Day · From · To</div>'+rows+
+    '<div class="sub-lbl">Notes (optional)</div><textarea class="sub-in" id="subAvailNotes" rows="2" placeholder="e.g. Westside only, or not in December">'+escHtml(a.notes||'')+'</textarea>'+
+    '<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:15px"><input type="checkbox" id="subAvailActive" '+(a.active!==false?'checked':'')+' style="width:20px;height:20px"> I’m available to sub (untick to pause)</label>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'subAvailOverlay\').remove()">Cancel</button>'+
+    '<button class="sub-btn" id="subAvailSave" style="background:#2e7d4f" onclick="saveSubAvailability()">Save</button></div></div>';
+  document.body.appendChild(ov);
+}
+async function saveSubAvailability(){
+  const days=[...document.querySelectorAll('#subAvailOverlay .sub-shift')].map(r=>{const i=r.querySelectorAll('input');
+    return i[0].checked?{day:+r.dataset.day,start:i[1].value,end:i[2].value}:null;}).filter(Boolean);
+  if(days.some(d=>!d.start||!d.end||d.end<=d.start)){alert('For each ticked day, the “To” time must be after the “From” time.');return;}
+  const active=document.getElementById('subAvailActive').checked;
+  if(active&&!days.length){alert('Tick at least one day, or untick “I’m available to sub” to pause.');return;}
+  const notes=document.getElementById('subAvailNotes').value;
+  const b=document.getElementById('subAvailSave');if(b){b.disabled=true;b.textContent='Saving…';}
+  try{
+    const r=await gasPost({action:'saveSubAvailability',actor:SESSION.email,days,active,notes});
+    if(r&&r.ok){
+      const me=_subMe();_SUB.availability=(_SUB.availability||[]).filter(x=>x.email!==me).concat([{email:me,active:active&&days.length>0,days,notes}]);
+      document.getElementById('subAvailOverlay').remove();_subUpdateSignupBtn();renderSubs();
+      showSaveToast(active?'✅ Thanks! You’re on the sub list':'Sub availability paused');
+    }else{alert((r&&r.error)||'Could not save - the Apps Script may need a New Deployment.');if(b){b.disabled=false;b.textContent='Save';}}
+  }catch(e){alert('Connection error - please try again.');if(b){b.disabled=false;b.textContent='Save';}}
+}
 function _subVolsFor(id){return _SUB.volunteers.filter(v=>v['Sub ID']===id&&v.Status!=='Withdrawn');}
 function _subMapUrl(site){const a=sf(site,'Full Address','FullAddress')||sf(site,'Name','name');return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a);}
 
@@ -11212,7 +11269,7 @@ async function loadSubs(force){
   if(!SESSION||!CFG.URL)return;
   if(!_SUB.loaded){
     try{const c=JSON.parse(localStorage.getItem(_subCacheKey())||'null');
-      if(c&&c.subs){_SUB.subs=c.subs;_SUB.volunteers=c.volunteers||[];_SUB.reschedules=c.reschedules||[];_SUB.loaded=true;_SUB.ts=0;renderSubs();_subBadge();}}catch(e){}
+      if(c&&c.subs){_SUB.subs=c.subs;_SUB.volunteers=c.volunteers||[];_SUB.reschedules=c.reschedules||[];_SUB.availability=c.availability||[];_SUB.loaded=true;_SUB.ts=0;renderSubs();_subBadge();}}catch(e){}
   }
   if(_SUB.loading)return;
   if(!force&&_SUB.ts&&Date.now()-_SUB.ts<60000){renderSubs();return;}
@@ -11220,8 +11277,8 @@ async function loadSubs(force){
   try{
     const r=await gasPost({action:'getSubs',actor:SESSION.email});
     if(r&&r.ok){
-      _SUB.subs=r.subs||[];_SUB.volunteers=r.volunteers||[];_SUB.reschedules=r.reschedules||[];_SUB.loaded=true;_SUB.ts=Date.now();
-      try{localStorage.setItem(_subCacheKey(),JSON.stringify({subs:_SUB.subs,volunteers:_SUB.volunteers,reschedules:_SUB.reschedules}));}catch(e){}
+      _SUB.subs=r.subs||[];_SUB.volunteers=r.volunteers||[];_SUB.reschedules=r.reschedules||[];_SUB.availability=r.availability||[];_SUB.loaded=true;_SUB.ts=Date.now();
+      try{localStorage.setItem(_subCacheKey(),JSON.stringify({subs:_SUB.subs,volunteers:_SUB.volunteers,reschedules:_SUB.reschedules,availability:_SUB.availability}));}catch(e){}
     }else if(!_SUB.loaded){
       const b=document.getElementById('subBody');
       if(b)b.innerHTML='<div class="sub-empty">'+escHtml((r&&r.error)||'Could not load subs.')+'<br><small>If this says unknown action, the Apps Script needs a New Deployment.</small></div>';
@@ -11301,13 +11358,14 @@ function _subPendingCard(group){
       '<button class="sub-btn warn" onclick="subDecline(\''+ea(s['Request ID'])+'\')">Decline</button>'+
     '</div></div>';
 }
-function _subEligibleOptions(excludeEmails){
+function _subEligibleOptions(excludeEmails,shift){
   const ex=new Set((excludeEmails||[]).map(e=>String(e).toLowerCase()));
+  const av=h=>shift&&_subAvailMatch(h.Email||h.email,shift)?1:0;
   return (DATA.humans||[]).filter(h=>{
     const e=String(h.Email||h.email||'').toLowerCase();
     return e&&!ex.has(e)&&humanRoleCats(h).some(c=>SUB_ELIGIBLE_CATS.includes(c));
-  }).sort((a,b)=>fullName(a).localeCompare(fullName(b)))
-    .map(h=>'<option value="'+ea(h.Email||h.email)+'">'+escHtml(fullName(h))+'</option>').join('');
+  }).sort((a,b)=>av(b)-av(a)||fullName(a).localeCompare(fullName(b)))
+    .map(h=>'<option value="'+ea(h.Email||h.email)+'">'+(av(h)?'⭐ ':'')+escHtml(fullName(h))+(av(h)?' (available)':'')+'</option>').join('');
 }
 // Open shift — admin view (volunteers + pick) or ranger view (volunteer)
 function _subOpenCard(s){
@@ -11318,14 +11376,18 @@ function _subOpenCard(s){
   if(admin){
     body+=vols.length?vols.map(v=>{
       const p=_subPerson(v.Volunteer),dist=_subDistTo(site,v.Volunteer).label;
-      return '<div class="sub-vol"><div>'+_subPersonLink(v.Volunteer)+
+      return '<div class="sub-vol"><div>'+_subPersonLink(v.Volunteer)+_subAvailBadge(v.Volunteer,s)+
         (p.mobile?' · <a href="tel:'+ea(p.mobile)+'">'+escHtml(p.mobile)+'</a>':'')+
         (dist?'<div class="sub-meta" style="margin:0">'+escHtml(dist)+'</div>':'')+
         (v.Note?'<div class="sub-meta" style="margin:0">“'+escHtml(v.Note)+'”</div>':'')+
         '</div><button class="sub-btn" onclick="subAssign(\''+ea(s.ID)+'\',\''+ea(v.Volunteer)+'\')">Pick</button></div>';
     }).join(''):'<div class="sub-meta">No volunteers yet.</div>';
+    const avail=(_SUB.availability||[]).filter(a=>a.email!==String(s['Requested By']).toLowerCase()&&_subAvailMatch(a.email,s));
+    if(avail.length)body+='<div class="sub-avail-box"><b>⭐ Signed-up subs available this day</b>'+avail.map(a=>{const m=_subAvailMatch(a.email,s);
+      return '<div class="sub-vol"><div>'+_subPersonLink(a.email)+' <span class="sub-meta" style="margin:0">'+escHtml(_SUB_DAYN[m.day]+' '+_subFmtTime(m.start)+'–'+_subFmtTime(m.end))+'</span>'+
+        (a.notes?'<div class="sub-meta" style="margin:0">“'+escHtml(a.notes)+'”</div>':'')+'</div><button class="sub-btn hot" onclick="subAssign(\''+ea(s.ID)+'\',\''+ea(a.email)+'\')">Pick</button></div>';}).join('')+'</div>';
     body+='<div class="sub-actions"><select class="sub-in" id="subOther_'+ea(s.ID)+'" style="flex:1;min-width:160px;font-size:15px;padding:9px">'+
-      '<option value="">Assign someone else…</option>'+_subEligibleOptions([s['Requested By']])+'</select>'+
+      '<option value="">Assign someone else…</option>'+_subEligibleOptions([s['Requested By']],s)+'</select>'+
       '<button class="sub-btn alt" onclick="subAssignOther(\''+ea(s.ID)+'\')">Assign</button></div>'+
       (!mineReq?'<div class="sub-actions">'+(vols.some(v=>String(v.Volunteer).toLowerCase()===me&&v.Status==='Offered')
         ?'<span class="sub-meta" style="align-self:center">✓ You offered to take it</span><button class="sub-btn alt" onclick="subWithdraw(\''+ea(s.ID)+'\')">Withdraw</button>'
@@ -11337,7 +11399,8 @@ function _subOpenCard(s){
     body+='<div class="sub-actions">'+(mine
       ?'<span class="sub-meta" style="align-self:center">✓ You offered - waiting to hear back</span><button class="sub-btn alt" onclick="subWithdraw(\''+ea(s.ID)+'\')">Withdraw</button>'
       :'<button class="sub-btn hot" onclick="subVolunteer(\''+ea(s.ID)+'\')">🙋 I Can Take It</button>')+
-      (site?'<a class="sub-btn alt" style="text-decoration:none" target="_blank" href="'+ea(_subMapUrl(site))+'">Map</a>':'')+'</div>';
+      (site?'<a class="sub-btn alt" style="text-decoration:none" target="_blank" href="'+ea(_subMapUrl(site))+'">Map</a>':'')+'</div>'+
+      (_subAvailMatch(me,s)?'<div class="sub-meta"><span class="sub-avail" style="margin:0">⭐ Matches your sub availability</span></div>':'');
   }
   const dist=admin?'':_subDistLabel(site,me,true);
   const actions=(admin||mineReq)?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'';
@@ -11458,14 +11521,14 @@ function subReachFromShift(id){
   _subAskReachMode(pick.size);
 }
 // Pops up right away: email or text, together or one by one
-function _subAskReachMode(n){
+function _subAskReachMode(n,lead){
   const old=document.getElementById('subReachAsk');if(old)old.remove();
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='subReachAsk';ov.style.alignItems='center';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
   const b=(mode,label,hot)=>'<button class="sub-btn'+(hot?' hot':' alt')+'" style="width:100%;margin:5px 0;padding:14px" onclick="document.getElementById(\'subReachAsk\').remove();doReach(\''+mode+'\')">'+label+'</button>';
   ov.innerHTML='<div class="sub-sheet" style="border-radius:var(--r-lg);max-width:420px;margin:0 16px">'+
     '<h3 style="font-size:26px">Reach '+n+' '+(n===1?'person':'people')+'</h3>'+
-    '<div class="sub-meta" style="margin-bottom:8px">Senior Leadership and the Ranger are selected. How do you want to reach them?</div>'+
+    '<div class="sub-meta" style="margin-bottom:8px">'+escHtml(lead||'Senior Leadership and the Ranger are selected. How do you want to reach them?')+'</div>'+
     b('email_together','✉ Email - one thread',true)+b('text_together','💬 Text - group',false)+
     b('email_individual','✉ Email each person',false)+b('text_individual','💬 Text each person',false)+
     '<button class="sub-btn alt" style="width:100%;margin-top:10px;background:none;border:none" onclick="document.getElementById(\'subReachAsk\').remove()">Change who’s selected first</button></div>';
@@ -11487,6 +11550,11 @@ function _subResCard(r){
   if(r['Chosen Date'])body+='<div class="sub-notes" style="background:#dff3e4"><b>✅ New date:</b> '+escHtml(_subFmtShift({Date:r['Chosen Date'],Start:r['Chosen Start'],End:r['Chosen End']}))+(r['Chosen By']?'<br>Picked by '+(r['Chosen By Email']?_subPersonLink(r['Chosen By Email'],r['Chosen By']):'<b>'+escHtml(r['Chosen By'])+'</b>')+(r['Chosen At']?' · '+escHtml(new Date(r['Chosen At']).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):''):'')+'</div>';
   else if(opts.length)body+='<div class="sub-meta">Offered: '+opts.map(o=>escHtml(_subFmtShift({Date:o.date,Start:o.start,End:o.end}))).join(' · ')+'</div>';
   if(r['School Suggestion'])body+='<div class="sub-notes"><b>School says:</b> '+escHtml(r['School Suggestion'])+'</div>';
+  if(r['Suggested Date']&&!r['Chosen Date']){
+    body+='<div class="sub-avail-box"><b>📅 School suggests:</b> '+escHtml(_subFmtShift({Date:r['Suggested Date'],Start:r['Suggested Start'],End:r['Suggested End']}))+
+      (r['Suggested By']?' · by '+(r['Suggested By Email']?_subPersonLink(r['Suggested By Email'],r['Suggested By']):escHtml(r['Suggested By'])):'')+
+      ((admin||mine)&&r.Status!=='Cancelled'?'<div class="sub-actions"><button class="sub-btn hot" onclick="subAcceptResched(\''+ea(r.ID)+'\')">✓ Accept this date</button></div>':'')+'</div>';
+  }
   const acts=[];
   if((admin||mine)&&r.Status!=='Cancelled'&&!r['Chosen Date'])acts.push('<button class="sub-btn warn" onclick="subCancelResched(\''+ea(r.ID)+'\')">Cancel</button>');
   if(_subResIsPast(r))acts.push('<button class="sub-btn alt" onclick="subRemoveResched(\''+ea(r.ID)+'\')">🗑 Remove</button>');
@@ -11503,6 +11571,10 @@ function _subResSection(admin){
   const list=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)&&!_subResIsPast(r)).slice().reverse();
   if(!list.length)return '';
   return _subSec(admin?'Reschedules':'My Reschedules',list.map(_subResCard));
+}
+function subAcceptResched(id){
+  if(!confirm('Accept the date the school suggested? Everyone on the message will be told it is confirmed.'))return;
+  _subAct({action:'acceptRescheduleSuggestion',id},'✅ New date confirmed - everyone notified','Confirming…');
 }
 function subCancelResched(id){
   if(!confirm('Cancel this reschedule request? The date links in the message will stop working.'))return;
@@ -11548,6 +11620,7 @@ function subRemoveAllPast(){
 
 function renderSubs(){
   const body=document.getElementById('subBody');if(!body)return;
+  _subUpdateSignupBtn();
   if(!_SUB.loaded){body.innerHTML='<div class="spinner"></div>';return;}
   const me=_subMe(),admin=_subIsAdmin(),today=_subToday();
   const subs=_SUB.subs.slice().sort((a,b)=>((a.Date||'')+(a.Start||'')).localeCompare((b.Date||'')+(b.Start||'')));
@@ -11670,7 +11743,7 @@ function _subFillSchoolSelect(){
 function _subSchoolChanged(){
   const site=_subFormSite(),days=_subSiteDays(site);
   const hint=document.getElementById('subDayHint');
-  if(hint)hint.innerHTML=site?(days.length?'📅 Ranger day'+(days.length>1?'s':'')+' at this school: <b>'+escHtml(_subDayNames(days))+'</b>':'📅 No Ranger Day Of Week on file for this school - pick the date yourself'):'';
+  if(hint)hint.innerHTML=(site&&_subProgMissing(site)?'<div id="subProgWarn" style="color:var(--clay);font-weight:700;margin-bottom:4px'+(_subMode==='resched'?';display:none':'')+'">⚠️ This school has no Program Details yet - add them on the school card before requesting a sub.</div>':'')+(site?(days.length?'📅 Ranger day'+(days.length>1?'s':'')+' at this school: <b>'+escHtml(_subDayNames(days))+'</b>':'📅 No Ranger Day Of Week on file for this school - pick the date yourself'):'');
   let last={};try{last=JSON.parse(localStorage.getItem('rr_sub_last_times')||'{}');}catch(e){}
   const box=document.getElementById('subShifts');
   if(box){
@@ -11695,6 +11768,7 @@ function subSetMode(m){
   const show=(id,on)=>{const el=document.getElementById(id);if(el)el.style.display=on?'':'none';};
   show('subModeSub',m==='sub');show('subModeResched',m==='resched');
   if(m==='resched')_subResetAlts();
+  {const _w=document.getElementById('subProgWarn');if(_w)_w.style.display=m==='resched'?'none':'';}
   const h=document.querySelector('#subOverlay h3');if(h)h.textContent=m==='resched'?'Reschedule with School':'Find a Sub';
   const lbl=document.getElementById('subDateLbl');if(lbl)lbl.textContent=m==='resched'?'Day(s) I can’t make it':'Date · Start · End';
   const btn=document.getElementById('subSendBtn');
@@ -11809,8 +11883,16 @@ async function subStartReschedule(){
   showToast(reg?'📅 Logged - each date in the message is a tap-to-confirm link':'📅 '+contacts.length+' school contacts selected (date links unavailable - Apps Script needs redeploy)');
   if(reg)loadSubs(true);
 }
+function _subProgMissing(site){return !!site&&typeof _progDetailsVal==='function'&&!String(_progDetailsVal(site)||'').trim();}
 async function submitSubRequest(){
   const siteKey=(document.getElementById('subSite')||{}).value;
+  const _ps=_subSiteByKey(siteKey);
+  if(_subProgMissing(_ps)){
+    if(confirm('⚠️ Program Details are empty for '+sf(_ps,'Name','name')+'.\n\nYou can’t request a sub until you fill out details about the program (grades, classes, what the sub should do). Open the school card now to add them?')){
+      const ov=document.getElementById('subOverlay');if(ov)ov.remove();showSchoolDetailByKey(_ps.Key||_ps.key||'');
+    }
+    return;
+  }
   const forEl=document.getElementById('subFor');
   const notes=(document.getElementById('subNotes')||{}).value||'';
   const shifts=[...document.querySelectorAll('#subShifts .sub-shift')].map(r=>{const i=r.querySelectorAll('input');return {date:i[0].value,start:i[1].value,end:i[2].value};}).filter(x=>x.date);
@@ -11858,7 +11940,35 @@ function subVolunteer(id){
 function subWithdraw(id){if(confirm('Withdraw your offer for this shift?'))_subAct({action:'volunteerSub',subId:id,withdraw:true},'Offer withdrawn');}
 function subAssign(id,email){
   if(!confirm('Confirm '+_subPerson(email).name+' as the sub? They, the requesting Ranger and other volunteers will be notified.'))return;
-  _subAct({action:'assignSub',subId:id,assignee:email},'✅ Sub confirmed - everyone notified','Confirming sub…');
+  _subCloseDetail();
+  showPersistentToast('Confirming sub…');
+  gasPost({action:'assignSub',actor:SESSION.email,subId:id,assignee:email}).then(async r=>{
+    hidePersistentToast();
+    if(!r||!r.ok){alert((r&&r.error)||'Something went wrong.');loadSubs(true);return;}
+    const s=_SUB.subs.find(x=>x.ID===id);
+    if(s){s.Status='Filled';s['Assigned To']=email;if(!s['Approved By'])s['Approved By']=SESSION.email;}
+    showSaveToast('✅ Sub confirmed - now let the school know');
+    loadSubs(true);
+    if(s)_subReachSchoolNewRanger(s,email);
+  }).catch(()=>{hidePersistentToast();alert('Connection error - please try again.');});
+}
+// Opens Reach with everyone at the school (+ senior leadership, the sub and
+// the regular Ranger) and a ready-made "expect a different Ranger" message.
+function _subReachSchoolNewRanger(s,subEmail){
+  const site=_subSiteByKey(s.Site);if(!site)return;
+  const me=_subMe(),pick=new Set(_subSchoolContactEmails(site));
+  [subEmail,s['Requested By']].forEach(e=>{const hh=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===String(e||'').toLowerCase());if(hh&&String(hh.Email||hh.email).toLowerCase()!==me)pick.add(hh.Email||hh.email);});
+  if(!pick.size)return;
+  const name=sf(site,'Name','name'),subP=_subPerson(subEmail),reg=_subPerson(s['Requested By']);
+  const plain=_subFmtDate(s.Date)+((s.Start||s.End)?', '+_subFmtTime(s.Start)+(s.End?'-'+_subFmtTime(s.End):''):'');
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
+  _schoolReachSiteName=name;
+  _reachSelected.clear();pick.forEach(e=>_reachSelected.add(e));
+  _reachForwardPrefill={subject:'Garden Ranger visit '+_subFmtDate(s.Date)+' - a different Ranger is coming',
+    message:'Hello,\n\nOn '+plain+', '+reg.name+' is not able to make the Garden Ranger visit at '+name+'. Please expect a different Garden Ranger that day:\n\n'+
+      subP.name+(subP.mobile?' - '+subP.mobile:'')+'\n\nThey have the schedule and program details and will check in at the office when they arrive. Please let us know if anything changes.\n\nThank you,\n'+meName+'\nEnrich LA'+(hm(SESSION.email)?'\n'+hm(SESSION.email):'')};
+  switchTab('reach');showReachPage('schoolask');
+  _subAskReachMode(pick.size,'Everyone at '+name+', the sub and the regular Ranger are selected. How do you want to let the school know?');
 }
 function subAssignOther(id){
   const sel=document.getElementById('subOther_'+id);
@@ -11910,7 +12020,11 @@ function _subSendCount(){
 }
 function subSendPick(mode,n){
   const boxes=[...document.querySelectorAll('#subSendList input[type=checkbox]')];
-  boxes.forEach((c,i)=>{c.checked=mode==='all'?true:mode==='none'?false:(i<n);});
+  const lab=c=>c.closest('.sub-vol');
+  if(mode==='near'){
+    const byD=boxes.filter(c=>lab(c).dataset.d!=='').sort((a,b)=>+lab(a).dataset.d-+lab(b).dataset.d).slice(0,n);
+    boxes.forEach(c=>{c.checked=byD.includes(c);});
+  }else boxes.forEach(c=>{c.checked=mode==='all'?true:mode==='none'?false:mode==='avail'?lab(c).dataset.av==='1':false;});
   _subSendCount();
 }
 function subSendFilter(q){
@@ -11934,12 +12048,13 @@ function subOpenSendSheet(reqId,resend){
     const dd=_subDistTo(site,e),d=dd.m,from=dd.label;
     const mob=h.Mobile||h.mobile||'';
     const sms=!!mob&&String(h['SMS Consent']||'').trim().toUpperCase()==='TRUE';
-    return {e,name:fullName(h)||e,d,from,sms,mob,sent:already.has(e)};
-  }).sort((a,b)=>(a.d===null)-(b.d===null)||(a.d||0)-(b.d||0)||a.name.localeCompare(b.name));
+    const av=group.some(s=>_subAvailMatch(e,s));
+    return {e,name:fullName(h)||e,d,from,sms,mob,sent:already.has(e),av};
+  }).sort((a,b)=>(b.av-a.av)||(a.d===null)-(b.d===null)||(a.d||0)-(b.d||0)||a.name.localeCompare(b.name));
   const msg=_subDefaultMsg(group);
-  const rows=people.map(p=>'<label class="sub-vol" data-name="'+ea(p.name.toLowerCase())+'" style="cursor:pointer">'+
+  const rows=people.map(p=>'<label class="sub-vol" data-name="'+ea(p.name.toLowerCase())+'" data-d="'+(p.d===null?'':Math.round(p.d))+'" data-av="'+(p.av?1:0)+'" style="cursor:pointer'+(p.av?';background:#fdf0e7':'')+'">'+
     '<span style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-email="'+ea(p.e)+'" '+((resend?!p.sent:true)?'checked':'')+' onchange="_subSendCount()" style="width:20px;height:20px">'+
-    '<span><b>'+escHtml(p.name)+'</b>'+(p.sent?' <span class="sub-pill off">already sent</span>':'')+
+    '<span><b>'+escHtml(p.name)+'</b>'+(p.av?_subAvailBadge(p.e,group.find(s=>_subAvailMatch(p.e,s))):'')+(p.sent?' <span class="sub-pill off">already sent</span>':'')+
     '<div class="sub-meta" style="margin:0">'+escHtml(p.from||'distance unknown')+'</div></span></span>'+
     '<span style="font-size:15px;white-space:nowrap" title="'+(p.sms?'Gets email + text':'Email only (no SMS consent/mobile)')+'">✉️'+(p.sms?' 📱':'')+'</span></label>').join('');
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='subSendOverlay';
@@ -11953,7 +12068,8 @@ function subOpenSendSheet(reqId,resend){
       '<button class="sub-btn alt" onclick="subSendPick(\'all\')">All</button>'+
       '<button class="sub-btn alt" onclick="subSendPick(\'none\')">None</button>'+
       '<button class="sub-btn alt" onclick="subSendPick(\'near\',5)">Nearest 5</button>'+
-      '<button class="sub-btn alt" onclick="subSendPick(\'near\',10)">Nearest 10</button></div>'+
+      '<button class="sub-btn alt" onclick="subSendPick(\'near\',10)">Nearest 10</button>'+
+      (people.some(p=>p.av)?'<button class="sub-btn hot" onclick="subSendPick(\'avail\')">⭐ Available subs ('+people.filter(p=>p.av).length+')</button>':'')+'</div>'+
     '<input class="sub-in" placeholder="Search names…" oninput="subSendFilter(this.value)" style="margin-top:8px">'+
     '<div id="subSendList" style="max-height:260px;overflow:auto;margin-top:6px;border:1px solid var(--mist);border-radius:var(--r-sm);padding:0 10px;background:#fff">'+
       (rows||'<div class="sub-empty">No Rangers found.</div>')+'</div>'+
