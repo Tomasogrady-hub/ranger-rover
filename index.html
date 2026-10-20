@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.27 | BUILDITALL: 2026-10-18 | Ranger Rover PWA -->
+<!-- v11.28 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1016,11 +1016,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <!-- SUB (substitute Ranger requests) -->
   <div class="tab-pane" id="tab-sub">
     <div class="page-header"><span class="page-title">Sub</span><span class="page-count" id="subCount"></span></div>
-    <div style="margin:0 16px 10px;padding:12px 14px;background:#fff3d6;border:2px solid #F5A623;border-radius:var(--r-md);font-size:16px;line-height:1.45;color:#6b4a00">
-      <b>⚠️ Testing only.</b> This is for testing purposes only. This is still under development. Please do your sub requests the normal way until you have been notified that this system is ready.
-    </div>
     <div style="padding:0 16px 6px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="sub-btn alt" onclick="loadSubs(true)">↻ Refresh</button>
       <button class="sub-btn hot" onclick="showSubRequestForm()">+ I Can’t Make an Upcoming School Session</button>
     </div>
     <div id="subBody"><div class="spinner"></div></div>
@@ -1934,10 +1930,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.27';
+const APP_VERSION='v11.28';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-18 21:15 PT - Ranger Documents: added Mandated Reporter Certificate upload (profile, edit, My Profile) plus a Mandated Reporter Yes/No filter on the Rangers tab. GAS change - redeploy needed.';
+const BUILD_STAMP='2026-10-20 09:45 PT - Sub tab: removed the Testing only note and the Refresh button. Cancelled subs and reschedules move to Cancelled and Past right away. Find a Sub form note now encourages rescheduling over a sub. School message adds the make-up day option. Reschedules show who picked the new date (hot-linked) and when. School date page: pick your name from the people the message went to, see who confirmed, and change the date if needed; confirmation emails always name who picked. Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11488,23 +11484,29 @@ function _subResCard(r){
     return m?_subFmtShift({Date:m[1],Start:m[2]||'',End:m[3]||''}):x;});
   const opts=(r.options||[]);
   let body='<div class="sub-meta">Can’t make: <b>'+missed.map(escHtml).join(', ')+'</b>'+(admin&&!mine?' · '+escHtml(_subPerson(r['Requested By']).name):'')+'</div>';
-  if(r['Chosen Date'])body+='<div class="sub-notes" style="background:#dff3e4"><b>✅ New date:</b> '+escHtml(_subFmtShift({Date:r['Chosen Date'],Start:r['Chosen Start'],End:r['Chosen End']}))+(r['Chosen By']?' · picked by '+escHtml(r['Chosen By']):'')+'</div>';
+  if(r['Chosen Date'])body+='<div class="sub-notes" style="background:#dff3e4"><b>✅ New date:</b> '+escHtml(_subFmtShift({Date:r['Chosen Date'],Start:r['Chosen Start'],End:r['Chosen End']}))+(r['Chosen By']?'<br>Picked by '+(r['Chosen By Email']?_subPersonLink(r['Chosen By Email'],r['Chosen By']):'<b>'+escHtml(r['Chosen By'])+'</b>')+(r['Chosen At']?' · '+escHtml(new Date(r['Chosen At']).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):''):'')+'</div>';
   else if(opts.length)body+='<div class="sub-meta">Offered: '+opts.map(o=>escHtml(_subFmtShift({Date:o.date,Start:o.start,End:o.end}))).join(' · ')+'</div>';
   if(r['School Suggestion'])body+='<div class="sub-notes"><b>School says:</b> '+escHtml(r['School Suggestion'])+'</div>';
   const acts=[];
   if((admin||mine)&&r.Status!=='Cancelled'&&!r['Chosen Date'])acts.push('<button class="sub-btn warn" onclick="subCancelResched(\''+ea(r.ID)+'\')">Cancel</button>');
-  if(r.Status==='Cancelled'||r['Chosen Date'])acts.push('<button class="sub-btn alt" onclick="subRemoveResched(\''+ea(r.ID)+'\')">🗑 Remove</button>');
+  if(_subResIsPast(r))acts.push('<button class="sub-btn alt" onclick="subRemoveResched(\''+ea(r.ID)+'\')">🗑 Remove</button>');
   return '<div class="sub-card" id="rescard_'+ea(r.ID)+'">'+_subHead(site,r.Site,'📅 Reschedule',_subResPill(r.Status),r.SiteName)+body+
     (acts.length?'<div class="sub-actions">'+acts.join('')+'</div>':'')+'</div>';
 }
+function _subResIsPast(r){
+  if(r.Status==='Cancelled')return true;
+  const last=r['Chosen Date']||String(r['Missed Dates']||'').split(';').map(x=>x.trim().slice(0,10)).sort().pop()||'';
+  return !!last&&last<_subToday();
+}
 function _subResSection(admin){
   const hidden=_subHiddenSet();
-  const list=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)).slice().reverse();
+  const list=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)&&!_subResIsPast(r)).slice().reverse();
   if(!list.length)return '';
   return _subSec(admin?'Reschedules':'My Reschedules',list.map(_subResCard));
 }
 function subCancelResched(id){
   if(!confirm('Cancel this reschedule request? The date links in the message will stop working.'))return;
+  const r=(_SUB.reschedules||[]).find(x=>x.ID===id);if(r){r.Status='Cancelled';renderSubs();}
   _subAct({action:'cancelReschedule',id},'Reschedule cancelled');
 }
 async function subRemoveResched(id){
@@ -11535,10 +11537,13 @@ async function _subRemoveIds(ids){
 }
 function subRemove(id){_subRemoveIds([id]);}
 function subRemoveAllPast(){
-  const ids=_SUB.subs.filter(s=>['Cancelled','Declined','Expired'].includes(s.Status)&&!_subHiddenSet().has(s.ID)&&(_subIsAdmin()||String(s['Requested By']).toLowerCase()===_subMe())).map(s=>s.ID);
-  if(!ids.length)return;
-  if(!confirm('Remove all '+ids.length+' cancelled/past shift'+(ids.length>1?'s':'')+' from this list?'))return;
-  _subRemoveIds(ids);
+  const hid=_subHiddenSet();
+  const ids=_SUB.subs.filter(s=>['Cancelled','Declined','Expired'].includes(s.Status)&&!hid.has(s.ID)&&(_subIsAdmin()||String(s['Requested By']).toLowerCase()===_subMe())).map(s=>s.ID);
+  const rids=(_SUB.reschedules||[]).filter(r=>!hid.has(r.ID)&&_subResIsPast(r)).map(r=>r.ID);
+  if(!ids.length&&!rids.length)return;
+  if(!confirm('Remove all '+(ids.length+rids.length)+' cancelled/past item'+(ids.length+rids.length>1?'s':'')+' from this list?'))return;
+  if(ids.length)_subRemoveIds(ids);
+  rids.forEach(id=>subRemoveResched(id));
 }
 
 function renderSubs(){
@@ -11571,10 +11576,11 @@ function renderSubs(){
     'None. Tap “+ I Can’t Make an Upcoming School Session” to find a sub or reschedule with the school.');
   // Cancelled / declined / expired (mine, or any for Level 1-2) — tucked away, removable
   const past=subs.filter(s=>DONE.includes(s.Status)&&!hidden.has(s.ID)&&(admin||isMe(s['Requested By'])));
-  if(past.length){
-    html+='<details class="sub-past"'+(_subPastOpen?' open':'')+' ontoggle="_subPastOpen=this.open"><summary class="sub-sec" style="cursor:pointer">Cancelled &amp; Past ('+past.length+')</summary>'+
+  const pastRes=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)&&_subResIsPast(r));
+  if(past.length||pastRes.length){
+    html+='<details class="sub-past"'+(_subPastOpen?' open':'')+' ontoggle="_subPastOpen=this.open"><summary class="sub-sec" style="cursor:pointer">Cancelled &amp; Past ('+(past.length+pastRes.length)+')</summary>'+
       '<div style="padding:0 16px"><button class="sub-btn alt" style="margin:6px 0" onclick="subRemoveAllPast()">🗑 Clear all</button></div>'+
-      past.slice().reverse().map(_subOtherCard).join('')+'</details>';
+      past.slice().reverse().map(_subOtherCard).join('')+pastRes.slice().reverse().map(_subResCard).join('')+'</details>';
   }
   body.innerHTML=html||'<div class="sub-empty">Nothing here yet.</div>';
   const cnt=document.getElementById('subCount');
@@ -11702,7 +11708,7 @@ function showSubRequestForm(pre){
     '<option value="'+ea(me)+'">Me</option>'+_subEligibleOptions([me])+'</select>':'';
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='subOverlay';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
-  ov.innerHTML='<div class="sub-sheet"><h3>Find a Sub</h3><div class="sub-meta" style="margin:-6px 0 10px">I can’t make an upcoming school session</div>'+
+  ov.innerHTML='<div class="sub-sheet"><h3>Find a Sub</h3><div class="sub-meta" style="margin:-6px 0 10px">I can’t make an upcoming school session? It’s preferable, easier and much less disruptive for the school to reschedule if possible, rather than trying to find a sub.</div>'+
     '<div class="sub-mode">'+
       '<button class="sub-mode-btn on" data-mode="sub" onclick="subSetMode(\'sub\')">🙋 Find a Sub<small>Another Ranger covers for me</small></button>'+
       '<button class="sub-mode-btn" data-mode="resched" onclick="subSetMode(\'resched\')">📅 Reschedule<small>Ask the school for another day</small></button>'+
@@ -11784,7 +11790,7 @@ async function subStartReschedule(){
     if(reg&&reg.options&&reg.options.length){
       altBlock='Could we reschedule? Please tap the date that works best for your school - it confirms it right away:\n\n'+
         reg.options.map(o=>'- '+plain(o)+'\n  Tap to choose: '+o.url).join('\n\n')+
-        '\n\nIf none of these work, open any of the links and tap “None of these work” to suggest another day and time.';
+        '\n\nIf none of these work, open any of the links and tap “None of these work” to suggest another day and time. Alternatively, we can set up a make-up day the next time I am at the school.';
     }else{
       altBlock='Could we reschedule? I’m available on:\n'+alts.map(s=>'- '+plain(s)).join('\n')+'\n\nPlease let me know which works best for you, or suggest another day and time.';
     }
@@ -11859,7 +11865,11 @@ function subAssignOther(id){
   if(!sel||!sel.value){alert('Pick someone from the list first.');return;}
   subAssign(id,sel.value);
 }
-function subCancel(id){if(confirm('Cancel this sub shift? Anyone involved will be notified.'))_subAct({action:'cancelSub',subId:id},'Shift cancelled');}
+function subCancel(id){
+  if(!confirm('Cancel this sub shift? Anyone involved will be notified.'))return;
+  const s=_SUB.subs.find(x=>x.ID===id);if(s){s.Status='Cancelled';_subCloseDetail();renderSubs();_subBadge();}
+  _subAct({action:'cancelSub',subId:id},'Shift cancelled');
+}
 // ── Approve & Send sheet (v11.7) ────────────────────────────────────────────
 // Level 1-2 chooses exactly who gets the "sub needed" alert (All / None /
 // Nearest N / hand-pick, sorted by distance) and can edit the email subject,

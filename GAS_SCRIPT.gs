@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.22 | 2026-10-18 | Sub spreadsheet + reschedule date links';
+const GAS_BUILD = 'v11.28 | 2026-10-20 | Reschedule: who picked (Chosen By Email), change date, emails name the picker';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -4165,7 +4165,7 @@ var RESCHED_TAB = 'Reschedules';
 var RESCHED_OPT_TAB = 'Reschedule Options';
 var SUB_HIST_TAB = 'History';
 var RESCHED_HEADERS = ['ID','Created','Requested By','Site','Missed Dates','Note','Status','Recipients',
-  'Chosen Option','Chosen Date','Chosen Start','Chosen End','Chosen By','Chosen At','School Suggestion','Updated'];
+  'Chosen Option','Chosen Date','Chosen Start','Chosen End','Chosen By','Chosen At','School Suggestion','Updated','Chosen By Email'];
 var RESCHED_OPT_HEADERS = ['Option ID','Reschedule ID','Date','Start','End','Status','Chosen By','Chosen At'];
 var SUB_HIST_HEADERS = ['Timestamp','Type','Request ID','Item ID','Site','Action','Actor','Status After','Summary'];
 var RESCHED_PAGE_URL = 'https://tomasogrady-hub.github.io/ranger-rover/reschedule.html';
@@ -4998,9 +4998,21 @@ function _resPublicView(L, people) {
     missed: _resParseMissed(L.r['Missed Dates']).map(function(m){ return { date: m.Date, start: m.Start, end: m.End, label: _subFmtShift(m) }; }),
     note: L.r.Note || '',
     options: L.opts.map(function(o){ return { id: o['Option ID'], date: o.Date, start: o.Start, end: o.End, status: o.Status, label: _subFmtShift(o) }; }),
-    chosen: L.r['Chosen Date'] ? { date: L.r['Chosen Date'], label: _subFmtShift({ Date: L.r['Chosen Date'], Start: L.r['Chosen Start'], End: L.r['Chosen End'] }), by: L.r['Chosen By'] } : null,
+    chosen: L.r['Chosen Date'] ? { date: L.r['Chosen Date'], option: L.r['Chosen Option'], label: _subFmtShift({ Date: L.r['Chosen Date'], Start: L.r['Chosen Start'], End: L.r['Chosen End'] }), by: L.r['Chosen By'], at: L.r['Chosen At'] ? Utilities.formatDate(new Date(L.r['Chosen At']), _subTz(), 'EEE MMM d, h:mm a') : '' } : null,
+    people: _resRecipients(L, people).map(function(x, i){ return { id: i, name: x.label }; }),
     suggestion: L.r['School Suggestion'] || ''
   };
+}
+// The people the message went to, as "Name (Role)" - used for "Who are you?" on the date page
+function _resRecipients(L, people) {
+  var roles = {};
+  try {
+    var d = humansData(), ei = d.h.indexOf('Email'), ri = d.h.indexOf('Role');
+    for (var r = 1; r < d.data.length; r++) roles[String(d.data[r][ei] || '').trim().toLowerCase()] = ri > -1 ? String(d.data[r][ri] || '').trim() : '';
+  } catch (e) {}
+  return String(L.r.Recipients || '').split(',').map(function(e){ return e.trim().toLowerCase(); }).filter(String)
+    .map(function(e){ var x = people[e]; var nm = x ? x.name : e.split('@')[0];
+      return { email: e, name: nm, label: nm + (roles[e] ? ' (' + roles[e] + ')' : '') }; });
 }
 function handlePublicRescheduleInfo(p) {
   try {
@@ -5029,25 +5041,38 @@ function handlePublicRescheduleChoose(p) {
     if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
     var people = _subPeople();
     if (L.r.Status === 'Cancelled') return { ok: false, error: 'This reschedule request was cancelled by Enrich LA.' };
-    if (L.r['Chosen Date']) { var v0 = _resPublicView(L, people); v0.already = true; return v0; }
+    var changing = p.change === true || p.change === 'true';
+    if (L.r['Chosen Date'] && !changing) { var v0 = _resPublicView(L, people); v0.already = true; return v0; }
     var opt = L.opts.filter(function(o){ return o['Option ID'] === String(p.o || '').trim(); })[0];
     if (!opt) return { ok: false, error: 'That date was not found - please pick one of the dates listed.' };
-    var by = String(p.name || '').trim().slice(0, 120) || 'School staff';
+    if (changing && L.r['Chosen Option'] === opt['Option ID']) { var v1 = _resPublicView(L, people); v1.already = true; return v1; }
+    // Who is choosing: one of the people the message went to, or a typed name
+    var recips = _resRecipients(L, people), byEmail = '', by = '';
+    var wi = parseInt(p.who, 10);
+    if (!isNaN(wi) && recips[wi]) { by = recips[wi].name; byEmail = recips[wi].email; }
+    if (!by) by = String(p.name || '').trim().slice(0, 120) || 'School staff';
+    var prevWhen = L.r['Chosen Date'] ? _subFmtShift({ Date: L.r['Chosen Date'], Start: L.r['Chosen Start'], End: L.r['Chosen End'] }) : '';
+    var prevBy = L.r['Chosen By'] || '';
     var now = new Date();
     L.opts.forEach(function(o){
       _subSet(L.ot, o, o === opt ? { 'Status': 'Chosen', 'Chosen By': by, 'Chosen At': now } : { 'Status': 'Not Chosen' });
     });
     _subSet(L.rt, L.r, { 'Status': 'Confirmed', 'Chosen Option': opt['Option ID'], 'Chosen Date': opt.Date,
-      'Chosen Start': opt.Start, 'Chosen End': opt.End, 'Chosen By': by, 'Chosen At': now });
+      'Chosen Start': opt.Start, 'Chosen End': opt.End, 'Chosen By': by, 'Chosen By Email': byEmail, 'Chosen At': now });
     lock.releaseLock();
     var site = _subSite(_subSites(), L.r.Site);
     var when = _subFmtShift(opt);
-    _subHist('Reschedule', L.r.ID, opt['Option ID'], L.r.Site, 'School chose date', by, 'Confirmed', site.name + ' - ' + when);
+    _subHist('Reschedule', L.r.ID, opt['Option ID'], L.r.Site, prevWhen ? 'School changed date' : 'School chose date', byEmail || by, 'Confirmed',
+      site.name + ' - ' + when + ' (picked by ' + by + (byEmail ? ', ' + byEmail : '') + ')' + (prevWhen ? '; was ' + prevWhen + ' (' + prevBy + ')' : ''));
     try { logActivity(String(L.r['Requested By']), 'rescheduleConfirmed', L.r.Site, 'site', when + ' (by ' + by + ')'); } catch (e) {}
-    _resNotifyAll(L, people, site, 'Confirmed: Garden Ranger visit at ' + site.name + ' moved to ' + _subFmtDate(opt.Date),
-      by + ' confirmed the new Garden Ranger visit at ' + site.name + ':\n\n' + when +
-      '\n\n(Instead of: ' + _resParseMissed(L.r['Missed Dates']).map(_subFmtShift).join(', ') + ')\n\nThank you!\nEnrich LA',
-      'Enrich LA - ' + site.name + ' confirmed your new visit date: ' + when + '. Thank you!');
+    var instead = _resParseMissed(L.r['Missed Dates']).map(_subFmtShift).join(', ');
+    _resNotifyAll(L, people, site,
+      (prevWhen ? 'Changed by ' : 'Confirmed by ') + by + ': Garden Ranger visit at ' + site.name + ' - ' + _subFmtDate(opt.Date),
+      by + (byEmail ? ' (' + byEmail + ')' : '') + (prevWhen ? ' changed' : ' picked') + ' the new Garden Ranger visit date at ' + site.name + ':\n\n' + when +
+      (prevWhen ? '\n\n(Previously confirmed: ' + prevWhen + (prevBy ? ' by ' + prevBy : '') + ')' : '') +
+      '\n\n(Instead of: ' + instead + ')' +
+      '\n\nNeed a different date? Use the same link from the original message to change it.\n\nThank you!\nEnrich LA',
+      'Enrich LA - ' + by + (prevWhen ? ' changed' : ' confirmed') + ' your new visit date at ' + site.name + ': ' + when + '. Thank you!');
     _subFlushSms();
     return _resPublicView(_resLoad(p.r), people);
   } catch (e) {

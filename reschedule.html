@@ -40,7 +40,7 @@
   var q = new URLSearchParams(location.search);
   var rid = q.get('r') || '', picked = q.get('o') || '';
   var app = document.getElementById('app');
-  var view = null, showSuggest = false;
+  var view = null, showSuggest = false, changing = false;
 
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function raw(url, action, extra){
@@ -51,33 +51,58 @@
   function resolve(){ return raw(GAS_URL,'getAppSettings').then(function(r){ if(r && r.gasUrl) GAS_URL = r.gasUrl; }).catch(function(){}); }
   function post(a, x){ return raw(GAS_URL, a, x); }
   function savedName(){ try{ return localStorage.getItem('rr_res_name') || ''; }catch(e){ return ''; } }
+  function savedWho(){ try{ return localStorage.getItem('rr_res_who_' + rid) || ''; }catch(e){ return ''; } }
+  // "Who are you?" - pick from the people the message went to, or type a name
+  function whoHtml(){
+    var ppl = (view && view.people) || [], w = savedWho();
+    var opts = ppl.map(function(x){ return '<option value="' + x.id + '"' + (String(x.id) === w ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('');
+    return '<div class="lbl">Who are you?</div>' +
+      (ppl.length ? '<select id="who" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font-size:16px;background:#fff">' +
+        '<option value="">Choose your name…</option>' + opts + '<option value="other"' + (w === 'other' ? ' selected' : '') + '>Someone else</option></select>' : '') +
+      '<input type="text" id="nm" placeholder="Your name, e.g. Ms. Lopez, Principal" value="' + esc(savedName()) + '" style="margin-top:8px;' + (ppl.length && w !== 'other' ? 'display:none' : '') + '">';
+  }
+  function bindWho(){
+    var s = document.getElementById('who'), n = document.getElementById('nm');
+    if (s && n) s.onchange = function(){ n.style.display = s.value === 'other' ? '' : 'none'; };
+  }
+  function whoVal(){
+    var s = document.getElementById('who'), n = (document.getElementById('nm') || {}).value || '';
+    try{ localStorage.setItem('rr_res_name', n); if (s) localStorage.setItem('rr_res_who_' + rid, s.value); }catch(e){}
+    if (s && s.value !== '' && s.value !== 'other') return { who: s.value, name: '' };
+    return { who: '', name: n.trim() };
+  }
 
   function render(err){
     var v = view;
     if (!v) { app.innerHTML = '<div class="card">' + esc(err || 'This link is not valid.') + '</div>'; return; }
     var head = '<h1>Garden Ranger visit at ' + esc(v.school) + '</h1>' + (v.city ? '<div class="muted">' + esc(v.city) + '</div>' : '');
     var missed = v.missed.map(function(m){ return esc(m.label); }).join('<br>');
-    if (v.chosen) {
+    if (v.chosen && !changing) {
       app.innerHTML = head + '<div class="done"><div class="big">✅</div><div class="ok">Confirmed: ' + esc(v.chosen.label) + '</div>' +
-        '<div class="muted">' + (v.already ? 'This date was already confirmed' + (v.chosen.by ? ' by ' + esc(v.chosen.by) : '') + '. ' : '') +
-        esc(v.ranger) + ' and Enrich LA have been notified. Thank you!</div></div>';
+        '<div class="muted" style="font-size:15px;margin-bottom:8px">Picked by <b>' + esc(v.chosen.by || 'school staff') + '</b>' + (v.chosen.at ? ' · ' + esc(v.chosen.at) : '') + '</div>' +
+        '<div class="muted">' + esc(v.ranger) + ' and Enrich LA have been notified. Thank you!</div>' +
+        (v.options.length > 1 ? '<button class="go" id="chg" style="background:#fff;color:var(--grove);border:2px solid var(--grove)">Change the date</button>' : '') + '</div>';
+      var chg = document.getElementById('chg'); if (chg) chg.onclick = function(){ changing = true; picked = ''; render(); };
       return;
     }
     if (v.status === 'Cancelled') { app.innerHTML = head + '<div class="card">This request was cancelled by Enrich LA. No action is needed.</div>'; return; }
-    var opts = v.options.filter(function(o){ return o.status === 'Offered'; });
+    var opts = changing ? v.options.filter(function(o){ return o.status !== 'Withdrawn' && (!v.chosen || o.id !== v.chosen.option); })
+                        : v.options.filter(function(o){ return o.status === 'Offered'; });
     if (picked && !opts.some(function(o){ return o.id === picked; })) picked = '';
     var html = head +
       '<div class="card"><b>' + esc(v.ranger) + '</b> is sorry - they can’t make the Garden Ranger visit on:<br><b>' + missed + '</b>' +
       (v.note ? '<div style="margin-top:8px">“' + esc(v.note) + '”</div>' : '') + '</div>';
     if (opts.length && !showSuggest) {
-      html += '<div class="lbl">Pick the new date that works for your school</div>' +
+      html += (changing ? '<div class="card">Currently confirmed: <b>' + esc(v.chosen.label) + '</b>' + (v.chosen.by ? ' (by ' + esc(v.chosen.by) + ')' : '') + '</div>' : '') +
+        '<div class="lbl">' + (changing ? 'Pick a different date' : 'Pick the new date that works for your school') + '</div>' +
         opts.map(function(o){ return '<button type="button" class="opt' + (o.id === picked ? ' sel' : '') + '" data-id="' + esc(o.id) + '"><span class="dot"></span><span>' + esc(o.label) + '</span></button>'; }).join('') +
-        '<div class="lbl">Your name</div><input type="text" id="nm" placeholder="e.g. Ms. Lopez, Principal" value="' + esc(savedName()) + '">' +
+        whoHtml() +
         '<button class="go" id="go"' + (picked ? '' : ' disabled') + '>' + (picked ? 'Confirm ' + esc((opts.filter(function(o){return o.id===picked;})[0]||{}).label||'') : 'Pick a date above') + '</button>' +
-        '<div style="text-align:center"><button class="link" id="none">None of these work - suggest another day</button></div>';
+        (changing ? '<div style="text-align:center"><button class="link" id="keep">Keep the current date</button></div>' : '') +
+        (changing ? '' : '<div style="text-align:center"><button class="link" id="none">None of these work - suggest another day</button></div>');
     } else {
       html += '<div class="lbl">What day and time would work?</div><textarea id="sg" rows="4" placeholder="e.g. Any Tuesday morning before 11am, or Wed Oct 28 at 9am"></textarea>' +
-        '<div class="lbl">Your name</div><input type="text" id="nm" placeholder="e.g. Ms. Lopez, Principal" value="' + esc(savedName()) + '">' +
+        whoHtml() +
         '<button class="go" id="send">Send to ' + esc(v.ranger) + '</button>' +
         (opts.length ? '<div style="text-align:center"><button class="link" id="back">Back to the suggested dates</button></div>' : '');
       if (v.suggestion) html += '<div class="card"><b>Already sent:</b><br>' + esc(v.suggestion).replace(/\n/g,'<br>') + '</div>';
@@ -89,20 +114,25 @@
     var none = document.getElementById('none'); if (none) none.onclick = function(){ showSuggest = true; render(); };
     var back = document.getElementById('back'); if (back) back.onclick = function(){ showSuggest = false; render(); };
     var send = document.getElementById('send'); if (send) send.onclick = suggest;
+    var keep = document.getElementById('keep'); if (keep) keep.onclick = function(){ changing = false; render(); };
+    bindWho();
   }
-  function nameVal(){ var n = (document.getElementById('nm') || {}).value || ''; try{ localStorage.setItem('rr_res_name', n); }catch(e){} return n; }
   function busy(id, t){ var b = document.getElementById(id); if (b){ b.disabled = true; b.textContent = t; } }
   function choose(){
     if (!picked) return;
-    var n = nameVal(); busy('go', 'Confirming…');
-    post('publicRescheduleChoose', {r: rid, o: picked, name: n}).then(function(r){
-      if (r && r.ok) { view = r; render(); } else render((r && r.error) || 'Something went wrong - please try again.');
+    var w = whoVal();
+    if (!w.who && !w.name) { render('Please choose your name (or type it) so everyone knows who picked the date.'); return; }
+    busy('go', 'Confirming…');
+    post('publicRescheduleChoose', {r: rid, o: picked, who: w.who, name: w.name, change: changing}).then(function(r){
+      if (r && r.ok) { view = r; changing = false; render(); } else render((r && r.error) || 'Something went wrong - please try again.');
     }).catch(function(){ render('Connection problem - please try again.'); });
   }
   function suggest(){
     var t = ((document.getElementById('sg') || {}).value || '').trim();
     if (!t) { render('Please write the day and time that would work.'); return; }
-    var n = nameVal(); busy('send', 'Sending…');
+    var w = whoVal(), ppl = (view && view.people) || [];
+    var n = w.name || (ppl.filter(function(x){ return String(x.id) === w.who; })[0] || {}).name || '';
+    busy('send', 'Sending…');
     post('publicRescheduleSuggest', {r: rid, text: t, name: n}).then(function(r){
       if (r && r.ok) {
         view = r;
