@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.30 | 2026-10-20 | Calendar items + visit changes (Calendar tab in Sub book)';
+const GAS_BUILD = 'v11.31 | 2026-10-20 | Cancel completely (quiet test cancel or notify + Reach school)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -4426,8 +4426,11 @@ function _subSmsSafe(s) {
   return String(s || '').replace(/[\u2013\u2014]/g, '-').replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"').replace(/[^\x20-\x7E\n]/g, '').slice(0, 600);
 }
+// Set by a "cancel quietly (it was a test)" request: no emails or texts at all
+var _SUB_SILENT = false;
 function _subNotify(person, subject, emailBody, smsBody, opts) {
   opts = opts || {};
+  if (_SUB_SILENT) return;
   if (!person || !person.email) return;
   if (!opts.noEmail && emailBody) {
     try {
@@ -4804,6 +4807,7 @@ function handleAssignSub(p) {
 }
 
 function handleCancelSub(p) {
+  _SUB_SILENT = (p.silent === true || p.silent === 'true');
   try {
     var people = _subPeople();
     var me = _subActor(p, people);
@@ -4844,9 +4848,15 @@ function handleCancelSub(p) {
     });
     _subFlushSms();
     try { logActivity(me.email, 'cancelSub', site0.key, 'site', rows.length + ' shift(s)'); } catch(e) {}
-    rows.forEach(function(s){ _subHist('Sub', s['Request ID'], s.ID, s.Site, 'Cancelled', me.email, 'Cancelled', _subFmtShift(s)); });
+    rows.forEach(function(s){ _subHist('Sub', s['Request ID'], s.ID, s.Site, _SUB_SILENT ? 'Cancelled quietly (test)' : 'Cancelled', me.email, 'Cancelled', _subFmtShift(s) + (p.reason ? ' - ' + String(p.reason).slice(0, 200) : '')); });
+    // tell the Ranger who asked, when someone else cancels it
+    var rq = people[String(rows[0]['Requested By']).toLowerCase()];
+    if (rq && rq.email !== me.email) _subNotify(rq, 'Your sub request was cancelled - ' + site0.name,
+      me.name + ' cancelled your sub request at ' + site0.name + ':\n' + rows.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n') +
+      '\n\nYou are expected at the school as originally scheduled unless you hear otherwise.', '', { noSms: true });
     return { ok: true, count: rows.length };
   } catch(e) { return { ok: false, error: e.message }; }
+  finally { _SUB_SILENT = false; }
 }
 
 // ── Daily trigger: reminders, escalation, expiry ────────────────────────────
@@ -5270,7 +5280,14 @@ function handleCancelReschedule(p) {
     }
     _subSet(L.rt, L.r, { 'Status': 'Cancelled' });
     L.opts.forEach(function(o){ if (o.Status === 'Offered') _subSet(L.ot, o, { 'Status': 'Withdrawn' }); });
-    _subHist('Reschedule', L.r.ID, '', L.r.Site, 'Cancelled', me.email, 'Cancelled', '');
+    var quiet = p.silent === true || p.silent === 'true';
+    _subHist('Reschedule', L.r.ID, '', L.r.Site, quiet ? 'Cancelled quietly (test)' : 'Cancelled', me.email, 'Cancelled',
+      (L.r['Chosen Date'] ? 'Had been confirmed for ' + L.r['Chosen Date'] : '') + (p.reason ? ' - ' + String(p.reason).slice(0, 200) : ''));
+    if (!quiet) {
+      var rg = people[String(L.r['Requested By']).toLowerCase()], st = _subSite(_subSites(), L.r.Site);
+      if (rg && rg.email !== me.email) _subNotify(rg, 'Reschedule cancelled - ' + st.name,
+        me.name + ' cancelled the reschedule for ' + st.name + ' (' + L.r['Missed Dates'] + ').\n\nYou are expected at the school as originally scheduled unless you hear otherwise.', '', { noSms: true });
+    }
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }

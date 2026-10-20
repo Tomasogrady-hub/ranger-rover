@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.30 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
+<!-- v11.31 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1938,10 +1938,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.30';
+const APP_VERSION='v11.31';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-20 16:20 PT - Calendar: + Add items (title, date, time, optional school, notes; edit or delete later). Change the date/time of any scheduled school visit, remove it, or undo back to the original schedule; changes show as Moved from / Moved to / Time changed / Removed. Saved in a new Calendar tab in the Sub spreadsheet and logged in History. The bottom menu folds away on the Calendar to show more of the list; the Menu button in the bottom bar brings it back (also available on every tab). Requires GAS New Deployment.';
+const BUILD_STAMP='2026-10-20 16:45 PT - Sub tab (Level 1-2): new Cancel completely button on every sub request, sub shift and reschedule (even confirmed ones). Choose: cancel and let the school know (opens Reach with everyone at the school and a please-disregard message), cancel and tell our team only, or it was a test - cancel quietly with no emails or texts. Optional reason saved to History. Requires GAS New Deployment for the quiet option.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11369,7 +11369,7 @@ function _subPendingCard(group){
     (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+
     '<div class="sub-actions">'+
       '<button class="sub-btn" onclick="subOpenSendSheet(\''+ea(s['Request ID'])+'\',false)">✓ Approve &amp; Send…</button>'+
-      '<button class="sub-btn warn" onclick="subDecline(\''+ea(s['Request ID'])+'\')">Decline</button>'+
+      '<button class="sub-btn warn" onclick="subDecline(\''+ea(s['Request ID'])+'\')">Decline</button>'+_subKillBtn('req',s['Request ID'])+
     '</div></div>';
 }
 function _subEligibleOptions(excludeEmails,shift){
@@ -11417,7 +11417,7 @@ function _subOpenCard(s){
       (_subAvailMatch(me,s)?'<div class="sub-meta"><span class="sub-avail" style="margin:0">⭐ Matches your sub availability</span></div>':'');
   }
   const dist=admin?'':_subDistLabel(site,me,true);
-  const actions=(admin||mineReq)?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'';
+  const actions=admin?'<div class="sub-actions">'+_subKillBtn('sub',s.ID)+'</div>':(mineReq?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'');
   return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     '<div class="sub-meta">'+(mineReq?'Your request':'For <b>'+escHtml(req.name)+'</b>')+(dist?' · '+escHtml(dist):'')+'</div>'+
@@ -11450,7 +11450,7 @@ function _subOtherCard(s){
   return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     (who?'<div class="sub-meta">'+who+'</div>':'')+
-    (canCancel?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'')+
+    (admin&&['Pending Approval','Open','Filled'].includes(s.Status)?'<div class="sub-actions">'+_subKillBtn('sub',s.ID)+'</div>':(canCancel?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':''))+
     (['Cancelled','Declined','Expired'].includes(s.Status)?'<div class="sub-actions"><button class="sub-btn alt" onclick="subRemove(\''+ea(s.ID)+'\')">🗑 Remove</button></div>':'')+
     '</div>';
 }
@@ -11485,6 +11485,7 @@ function subOpenDetail(id){
   if(s.Status==='Pending Approval'&&admin)acts+='<button class="sub-btn" onclick="_subCloseDetail();subOpenSendSheet(\''+ea(s['Request ID'])+'\',false)">✓ Approve &amp; Send…</button>';
   if(s.Status==='Open'&&admin)acts+='<button class="sub-btn alt" onclick="_subCloseDetail();subOpenSendSheet(\''+ea(s['Request ID'])+'\',true)">📣 Send to More…</button>';
   acts+='<button class="sub-btn hot" onclick="subReachFromShift(\''+ea(s.ID)+'\')">📡 Reach</button>';
+  if(admin&&['Pending Approval','Open','Filled'].includes(s.Status))acts+=_subKillBtn('sub',s.ID);
   if(site)acts+='<a class="sub-btn alt" style="text-decoration:none" target="_blank" href="'+ea(_subMapUrl(site))+'">Map</a>';
   if(site)acts+='<button class="sub-btn alt" onclick="_subCloseDetail();showSchoolDetailByKey(\''+ea(site.Key||site.key||'')+'\')">Open School</button>';
   const who=s.Status==='Filled'?_subPerson(s['Assigned To']):null;
@@ -11570,7 +11571,8 @@ function _subResCard(r){
       ((admin||mine)&&r.Status!=='Cancelled'?'<div class="sub-actions"><button class="sub-btn hot" onclick="subAcceptResched(\''+ea(r.ID)+'\')">✓ Accept this date</button></div>':'')+'</div>';
   }
   const acts=[];
-  if((admin||mine)&&r.Status!=='Cancelled'&&!r['Chosen Date'])acts.push('<button class="sub-btn warn" onclick="subCancelResched(\''+ea(r.ID)+'\')">Cancel</button>');
+  if(admin&&r.Status!=='Cancelled')acts.push(_subKillBtn('res',r.ID));
+  else if(mine&&r.Status!=='Cancelled'&&!r['Chosen Date'])acts.push('<button class="sub-btn warn" onclick="subCancelResched(\''+ea(r.ID)+'\')">Cancel</button>');
   if(_subResIsPast(r))acts.push('<button class="sub-btn alt" onclick="subRemoveResched(\''+ea(r.ID)+'\')">🗑 Remove</button>');
   return '<div class="sub-card" id="rescard_'+ea(r.ID)+'">'+_subHead(site,r.Site,'📅 Reschedule',_subResPill(r.Status),r.SiteName)+body+
     (acts.length?'<div class="sub-actions">'+acts.join('')+'</div>':'')+'</div>';
@@ -11585,6 +11587,82 @@ function _subResSection(admin){
   const list=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)&&!_subResIsPast(r)).slice().reverse();
   if(!list.length)return '';
   return _subSec(admin?'Reschedules':'My Reschedules',list.map(_subResCard));
+}
+// ── Cancel completely (Level 1-2) ───────────────────────────────────────────
+// kind: 'sub' (one shift), 'req' (every shift in a pending request), 'res' (a reschedule)
+function _subKillBtn(kind,id){
+  if(!_subIsAdmin()||!id)return '';
+  return '<button class="sub-btn warn" style="border-width:2px;font-weight:800" onclick="subCancelCompletely(\''+kind+'\',\''+ea(id)+'\')">🛑 Cancel completely</button>';
+}
+function subCancelCompletely(kind,id){
+  const old=document.getElementById('subKillAsk');if(old)old.remove();
+  const isRes=kind==='res';
+  const r=isRes?(_SUB.reschedules||[]).find(x=>x.ID===id):null;
+  const shifts=isRes?[]:_SUB.subs.filter(s=>kind==='req'?s['Request ID']===id&&['Pending Approval','Open','Filled'].includes(s.Status):s.ID===id);
+  if(!r&&!shifts.length){alert('Nothing to cancel - try refreshing.');return;}
+  const key=isRes?r.Site:shifts[0].Site,site=_subSiteByKey(key),name=site?sf(site,'Name','name'):siteNameFromKey(key);
+  const what=isRes?'the reschedule for '+name:(shifts.length>1?shifts.length+' sub shifts at ':'the sub shift at ')+name+' ('+shifts.map(s=>_subFmtShift(s)).join(', ')+')';
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='subKillAsk';ov.style.alignItems='center';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const b=(mode,label,sub,cls)=>'<button class="sub-btn '+cls+'" style="width:100%;margin:5px 0;padding:13px;text-align:left;text-transform:none;letter-spacing:0;font-size:15px" onclick="_subDoKill(\''+kind+'\',\''+ea(id)+'\',\''+mode+'\')"><b>'+label+'</b><br><span style="font-weight:500;font-size:13px;opacity:.85">'+sub+'</span></button>';
+  ov.innerHTML='<div class="sub-sheet" style="border-radius:var(--r-lg);max-width:440px;margin:0 16px">'+
+    '<h3 style="font-size:26px">Cancel completely</h3><div class="sub-meta" style="margin-bottom:8px">'+escHtml('Cancel '+what+'?')+'</div>'+
+    '<div class="sub-lbl">Reason (optional, saved in History)</div><input class="sub-in" id="subKillReason" placeholder="e.g. Test, Ranger can make it after all">'+
+    '<div style="margin-top:10px">'+
+    b('school','📣 Cancel and let the school know','Cancels it, tells the Ranger(s) involved, then opens Reach with everyone at the school and a ready-made message.','hot')+
+    b('team','Cancel - tell our team only','Cancels it and notifies the Ranger(s) and volunteers involved. The school is not contacted.','alt')+
+    b('quiet','🧪 It was a test - cancel quietly','Cancels it with no emails or texts to anyone.','alt')+
+    '</div><button class="sub-btn alt" style="width:100%;margin-top:6px;background:none;border:none" onclick="document.getElementById(\'subKillAsk\').remove()">Keep it</button></div>';
+  document.body.appendChild(ov);
+}
+async function _subDoKill(kind,id,mode){
+  const reason=((document.getElementById('subKillReason')||{}).value||'').trim();
+  const ov=document.getElementById('subKillAsk');if(ov)ov.remove();
+  _subCloseDetail();
+  const isRes=kind==='res';
+  const r=isRes?(_SUB.reschedules||[]).find(x=>x.ID===id):null;
+  const shifts=isRes?[]:_SUB.subs.filter(s=>kind==='req'?s['Request ID']===id&&['Pending Approval','Open','Filled'].includes(s.Status):s.ID===id);
+  const snap=isRes?Object.assign({},r):shifts.map(s=>Object.assign({},s));
+  // move it to Cancelled & Past right away
+  if(isRes&&r)r.Status='Cancelled';else shifts.forEach(s=>{s.Status='Cancelled';});
+  renderSubs();_subBadge();
+  const silent=mode==='quiet';
+  const payload=isRes?{action:'cancelReschedule',id,silent,reason}:(kind==='req'?{action:'cancelSub',requestId:id,silent,reason}:{action:'cancelSub',subId:id,silent,reason});
+  showPersistentToast('Cancelling…');
+  try{
+    const res=await gasPost(Object.assign({actor:SESSION.email},payload));
+    hidePersistentToast();
+    if(!res||!res.ok){alert((res&&res.error)||'Could not cancel.');loadSubs(true);return;}
+    showSaveToast(silent?'🧪 Cancelled quietly':'✅ Cancelled');
+    loadSubs(true);
+    if(mode==='school')_subReachSchoolCancelled(isRes,snap);
+  }catch(e){hidePersistentToast();alert('Connection error - please try again.');loadSubs(true);}
+}
+// Reach the school: "please disregard - the visit goes ahead as originally scheduled"
+function _subReachSchoolCancelled(isRes,snap){
+  const first=isRes?snap:snap[0];if(!first)return;
+  const site=_subSiteByKey(first.Site);if(!site){alert('School not found for Reach.');return;}
+  const me=_subMe(),pick=new Set(_subSchoolContactEmails(site));
+  const addP=e=>{const hh=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===String(e||'').toLowerCase());if(hh&&String(hh.Email||hh.email).toLowerCase()!==me)pick.add(hh.Email||hh.email);};
+  addP(first['Requested By']);if(!isRes)snap.forEach(s=>{if(s['Assigned To'])addP(s['Assigned To']);});
+  const name=sf(site,'Name','name'),reg=_subPerson(first['Requested By']).name;
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
+  let msg;
+  if(isRes){
+    const missed=String(first['Missed Dates']||'').split(';').map(x=>x.trim()).filter(Boolean).map(x=>{const m=/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}:\d{2})?-(\d{1,2}:\d{2})?)?/.exec(x);return m?_subFmtShift({Date:m[1],Start:m[2]||'',End:m[3]||''}):x;});
+    msg='Hello,\n\nPlease disregard our earlier message about rescheduling the Garden Ranger visit at '+name+' on '+missed.join(', ')+'. '+
+      reg+' will be there as originally scheduled.'+
+      (first['Chosen Date']?'\n\nThe make-up visit on '+_subFmtShift({Date:first['Chosen Date'],Start:first['Chosen Start'],End:first['Chosen End']})+' is no longer needed.':'')+
+      '\n\nSorry for any confusion, and thank you!\n'+meName+'\nEnrich LA';
+  }else{
+    msg='Hello,\n\nPlease disregard our earlier note about a substitute Garden Ranger at '+name+' on '+snap.map(s=>_subFmtShift(s)).join(', ')+'. '+
+      reg+' will be there as originally scheduled.\n\nSorry for any confusion, and thank you!\n'+meName+'\nEnrich LA';
+  }
+  msg=msg.replace(/ · /g,', ').replace(/[–—]/g,'-');   // plain characters so texts are not cut short
+  _schoolReachSiteName=name;
+  _reachSelected.clear();pick.forEach(e=>_reachSelected.add(e));
+  _reachForwardPrefill={subject:'Update: Garden Ranger visit at '+name+' - no change after all',message:msg};
+  switchTab('reach');showReachPage('schoolask');
+  _subAskReachMode(pick.size,'Everyone at '+name+' and the Ranger are selected. How do you want to let the school know?');
 }
 function subAcceptResched(id){
   if(!confirm('Accept the date the school suggested? Everyone on the message will be told it is confirmed.'))return;
