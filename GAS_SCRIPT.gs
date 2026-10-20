@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.29 | 2026-10-20 | Sub availability sign-up, school time adjust + date suggestion, accept suggestion';
+const GAS_BUILD = 'v11.30 | 2026-10-20 | Calendar items + visit changes (Calendar tab in Sub book)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -483,7 +483,7 @@ function handleGetMyLocation(p) {
 var LIVE_SCOPES = ['sites', 'humans', 'chores', 'subs'];
 var LIVE_FILES = [
   { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'] } },
-  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability'] } },
+  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability', 'Calendar'] } },
   { key: 'humans', id: HUMANS_ID, scopes: { humans: ['Humans', 'Roles'] } },
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
@@ -498,7 +498,7 @@ var LIVE_ACTION_SCOPES = {
   createSite: ['sites'], deleteSite: ['sites'],
   requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs'], createReschedule: ['subs'], cancelReschedule: ['subs'],
   publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
-  acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs']
+  acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs']
 };
 
 function _liveGetVersions() {
@@ -777,6 +777,7 @@ function _doPostRoute(e) {
       case 'cancelReschedule': return respond(handleCancelReschedule(p));
       case 'acceptRescheduleSuggestion': return respond(handleAcceptRescheduleSuggestion(p));
       case 'saveSubAvailability': return respond(handleSaveSubAvailability(p));
+      case 'saveCalItem':         return respond(handleSaveCalItem(p));
       // public (school staff, no login) - token = Reschedule ID + Option ID
       case 'publicRescheduleInfo':    return respond(handlePublicRescheduleInfo(p));
       case 'publicRescheduleChoose':  return respond(handlePublicRescheduleChoose(p));
@@ -4160,7 +4161,7 @@ function _subTz() { return Session.getScriptTimeZone() || 'America/Los_Angeles';
 // ── Sub spreadsheet (v11.22) ────────────────────────────────────────────────
 // Everything for subs and reschedules lives in its own "Sub" spreadsheet so the
 // history is easy to browse. setupSubBook() runs once automatically (tracked in
-// Script Property sub_book_v2): creates every tab with headers, copies over any
+// Script Property sub_book_v3): creates every tab with headers, copies over any
 // Subs / Sub Volunteers rows that were in the Ranger Rover file, and adds a
 // Guide tab. It is safe to run again by hand from the editor.
 var SUB_BOOK_ID = '141id0wmTozw_Gl8tJu3CUYTrVFQ8bHgDii8Sd2e0Vcs';
@@ -4172,6 +4173,10 @@ var RESCHED_HEADERS = ['ID','Created','Requested By','Site','Missed Dates','Note
   'Suggested Date','Suggested Start','Suggested End','Suggested By','Suggested By Email'];
 // Rangers who signed up to be subs: one row per person, Days = JSON
 // [{day:1,start:'08:00',end:'12:00'}, ...] (day 0=Sun..6=Sat)
+// Calendar: items people add (Kind=event) and changes to scheduled school
+// visits (Kind=override: Original Date -> Date/Start/End, or Deleted=TRUE to drop it)
+var CAL_TAB = 'Calendar';
+var CAL_HEADERS = ['ID','Owner','Kind','Site','Original Date','Date','Start','End','Title','Notes','Deleted','Created By','Created','Updated'];
 var SUB_AVAIL_TAB = 'Sub Availability';
 var SUB_AVAIL_HEADERS = ['Email','Active','Days','Notes','Updated'];
 var RESCHED_OPT_HEADERS = ['Option ID','Reschedule ID','Date','Start','End','Status','Chosen By','Chosen At'];
@@ -4182,7 +4187,7 @@ function _subBook() {
   if (_SUB_SS) return _SUB_SS;
   _SUB_SS = SpreadsheetApp.openById(SUB_BOOK_ID);
   try {
-    if (!PropertiesService.getScriptProperties().getProperty('sub_book_v2')) setupSubBook();
+    if (!PropertiesService.getScriptProperties().getProperty('sub_book_v3')) setupSubBook();
   } catch (e) { Logger.log('setupSubBook: ' + e.message); }
   return _SUB_SS;
 }
@@ -4192,7 +4197,7 @@ function setupSubBook() {
   var tabs = [
     [SUBS_TAB, SUBS_HEADERS], [SUB_VOL_TAB, SUB_VOL_HEADERS],
     [RESCHED_TAB, RESCHED_HEADERS], [RESCHED_OPT_TAB, RESCHED_OPT_HEADERS], [SUB_HIST_TAB, SUB_HIST_HEADERS],
-    [SUB_AVAIL_TAB, SUB_AVAIL_HEADERS]
+    [SUB_AVAIL_TAB, SUB_AVAIL_HEADERS], [CAL_TAB, CAL_HEADERS]
   ];
   tabs.forEach(function(t){ _subGetSheet(t[0], t[1]); });
   // One-time copy of existing rows from the old location (Ranger Rover file)
@@ -4221,6 +4226,7 @@ function setupSubBook() {
     ['Reschedules', 'One row per reschedule request sent to a school. Status: Waiting for School > Confirmed (school picked a date) or School Suggested Other / Cancelled.'],
     ['Reschedule Options', 'The alternative dates the Ranger offered. Each has its own link in the message; the school taps one to confirm it.'],
     ['History', 'Every action, newest at the bottom: who did what, when, and the status afterwards. Use Data > Filter to search.'],
+    ['Calendar', 'Items people add to the app Calendar (Kind = event) and changes to scheduled school visits (Kind = override: moved from Original Date to Date/Start/End, or Deleted = TRUE when a visit is removed).'],
     ['Sub Availability', 'Rangers who signed up to be a sub: which weekdays and times they are available (Days is a list of day + start + end). Edited from the app.'],
     ['', ''],
     ['IDs', 'Site = the school Key from the Ranger Rover Sites sheet. People are stored by email.'],
@@ -4236,7 +4242,7 @@ function setupSubBook() {
   if (s1 && s1.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s1);
   // History: a filter so it can be sorted/searched
   try { var hs = ss.getSheetByName(SUB_HIST_TAB); if (!hs.getFilter()) hs.getRange(1, 1, Math.max(2, hs.getMaxRows()), SUB_HIST_HEADERS.length).createFilter(); } catch (e) {}
-  PropertiesService.getScriptProperties().setProperty('sub_book_v2', String(new Date()));
+  PropertiesService.getScriptProperties().setProperty('sub_book_v3', String(new Date()));
   return 'ok';
 }
 // Append one History row (never throws)
@@ -4255,7 +4261,7 @@ function _subGetSheet(name, headers) {
     sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
     sh.setFrozenRows(1);
     // Date / Start / End as plain text so Sheets never converts them
-    var textCols = { 'Subs': ['Date','Start','End'], 'Reschedule Options': ['Date','Start','End'],
+    var textCols = { 'Subs': ['Date','Start','End'], 'Reschedule Options': ['Date','Start','End'], 'Calendar': ['Original Date','Date','Start','End'],
                      'Reschedules': ['Chosen Date','Chosen Start','Chosen End'] }[name];
     if (textCols) {
       textCols.forEach(function(c){
@@ -4515,7 +4521,7 @@ function handleGetSubs(p) {
         return c;
       });
     } catch (e) { Logger.log('getSubs reschedules: ' + e.message); }
-    return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), reschedules: res, availability: _subAvailList(me), level: me.level, today: _subToday() };
+    return { ok: true, subs: subs.map(clean), volunteers: vols.map(clean), reschedules: res, availability: _subAvailList(me), calItems: _calItemsFor(me), level: me.level, today: _subToday() };
   } catch(e) { return { ok: false, error: e.message }; }
 }
 
@@ -5176,6 +5182,67 @@ function handleSaveSubAvailability(p) {
     _subHist('Availability', '', '', '', active ? 'Signed up / updated' : 'Paused', email, active ? 'Active' : 'Inactive',
       days.map(function(d){ return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.day] + ' ' + d.start + '-' + d.end; }).join(', '));
     return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// ── Calendar items ──────────────────────────────────────────────────────────
+function _calItemsFor(me) {
+  try {
+    var sites = null;
+    return _subReadAll(_subGetSheet(CAL_TAB, CAL_HEADERS)).rows
+      .filter(function(r){
+        if (String(r.Deleted).toUpperCase() === 'TRUE' && r.Kind !== 'override') return false;
+        if (me.level <= 2) return true;
+        if (String(r.Owner).toLowerCase() === me.email) return true;
+        if (r.Kind === 'override' && r.Site) { sites = sites || _subSites(); return _subSite(sites, r.Site).rangers.indexOf(me.email) !== -1; }
+        return false;
+      })
+      .map(function(r){ var c = {}; Object.keys(r).forEach(function(k){ if (k !== '_row') c[k] = r[k]; }); return c; });
+  } catch (e) { return []; }
+}
+function handleSaveCalItem(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    var it = p.item || {};
+    var kind = it.kind === 'override' ? 'override' : 'event';
+    var dOk = function(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')); };
+    var tOk = function(t){ return !t || /^\d{1,2}:\d{2}$/.test(String(t)); };
+    var del = it.deleted === true || it.deleted === 'true';
+    if (!del && !dOk(it.date)) return { ok: false, error: 'Pick a date.' };
+    if (!tOk(it.start) || !tOk(it.end) || (it.start && it.end && String(it.end) <= String(it.start))) return { ok: false, error: 'The end time must be after the start time.' };
+    var owner = String(it.owner || me.email).toLowerCase();
+    if (me.level > 2) owner = me.email;
+    var sites = _subSites(), site = it.site ? _subSite(sites, it.site) : null;
+    if (kind === 'override') {
+      if (!site || !site.key) return { ok: false, error: 'School not found.' };
+      if (!dOk(it.originalDate)) return { ok: false, error: 'Missing the original date.' };
+      if (me.level > 2 && site.rangers.indexOf(me.email) === -1) return { ok: false, error: 'You can only change visits at your own schools.' };
+    } else if (!del && !String(it.title || '').trim()) return { ok: false, error: 'Give it a title.' };
+    var tbl = _subReadAll(_subGetSheet(CAL_TAB, CAL_HEADERS));
+    var row = it.id ? tbl.rows.filter(function(r){ return r.ID === it.id; })[0] : null;
+    if (!row && kind === 'override') row = tbl.rows.filter(function(r){ return r.Kind === 'override' && r.Site === site.key && r['Original Date'] === it.originalDate; })[0];
+    if (row && me.level > 2 && kind !== 'override' && String(row['Created By']).toLowerCase() !== me.email && String(row.Owner).toLowerCase() !== me.email)
+      return { ok: false, error: 'You can only change your own items.' };
+    var now = new Date();
+    var vals = { 'Owner': owner, 'Kind': kind, 'Site': site ? site.key : '', 'Original Date': kind === 'override' ? it.originalDate : '',
+      'Date': it.date || (row ? row.Date : ''), 'Start': String(it.start || ''), 'End': String(it.end || ''),
+      'Title': String(it.title || (row ? row.Title : '')).slice(0, 200), 'Notes': String(it.notes || '').slice(0, 1000), 'Deleted': del ? 'TRUE' : '', 'Updated': now };
+    var id;
+    if (row) { _subSet(tbl, row, vals); id = row.ID; }
+    else {
+      id = 'C' + Utilities.getUuid().replace(/-/g, '').slice(0, 9);
+      vals.ID = id; vals['Created By'] = me.email; vals.Created = now;
+      var sh = tbl.sheet, h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+      var r0 = sh.getLastRow() + 1;
+      ['Original Date','Date','Start','End'].forEach(function(c){ var i = h.indexOf(c); if (i > -1) sh.getRange(r0, i + 1).setNumberFormat('@'); });
+      sh.getRange(r0, 1, 1, h.length).setValues([h.map(function(k){ return vals[k] !== undefined ? vals[k] : ''; })]);
+    }
+    var what = kind === 'override'
+      ? (del ? 'Removed visit ' + it.originalDate : 'Moved visit ' + it.originalDate + ' to ' + _subFmtShift({ Date: vals.Date, Start: vals.Start, End: vals.End }))
+      : (del ? 'Deleted "' + vals.Title + '"' : (row ? 'Updated' : 'Added') + ' "' + vals.Title + '" ' + _subFmtShift({ Date: vals.Date, Start: vals.Start, End: vals.End }));
+    _subHist('Calendar', id, '', site ? site.key : '', kind === 'override' ? (del ? 'Visit removed' : 'Visit changed') : (del ? 'Item deleted' : (row ? 'Item updated' : 'Item added')),
+      me.email, del ? 'Deleted' : 'Active', (site ? site.name + ' - ' : '') + what + (owner !== me.email ? ' (for ' + owner + ')' : ''));
+    return { ok: true, id: id };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 function _subAvailList(me) {

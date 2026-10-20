@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.29 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
+<!-- v11.30 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -139,6 +139,11 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .cal-tag.cov{background:#eaf4dc;color:#4a6b1c}.cal-tag.sub{background:#fde8dc;color:#b4501c}.cal-tag.pend{background:#fff3d6;color:#9a6a00}
 .cal-tag.mk{background:#e3f1f8;color:#1f5f7d}.cal-tag.off{background:#eee;color:#888}.cal-tag.sp{background:#f3eeff;color:#6B4E9B}
 .cal-ev{margin:6px 16px;padding:11px 13px}
+.cal-ev.cal-ghost{opacity:.55}
+.cal-ev.cal-ghost .sub-school{text-decoration:line-through}
+.cal-tag.own{background:#e3f1f8;color:#1f5f7d}.cal-dot.own{background:#1f5f7d}
+#nav.nav-collapsed .nav-row{display:none!important}
+.rr-util-menu{justify-self:end;background:rgba(255,255,255,.16);border:none;color:#fff;font-family:var(--font-b);font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:6px 12px;border-radius:99px;cursor:pointer}
 .hdr-role-text{display:block;font-family:var(--font-b);font-size:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(30,58,30,.75);text-align:center;line-height:1.2;max-width:84px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .hdr-name-cell{flex-direction:column}
 .sub-avail{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#E07A3F;color:#fff;font-size:11px;font-weight:800;letter-spacing:.02em;animation:rrSubFlash 1.6s ease-in-out infinite}
@@ -1927,16 +1932,16 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <div class="rr-util-bar">
     <button type="button" class="rr-util-back" id="rrBackBtn" onclick="_navBack()" aria-label="Back">‹</button>
     <button type="button" class="rr-util-home" id="rrHomeBtn" onclick="_navHome()" aria-label="Home">⌂</button>
-    <span></span>
+    <button type="button" class="rr-util-menu" id="rrMenuToggle" onclick="_navToggleCollapse()" aria-label="Show or hide the menu">⌄ Hide menu</button>
   </div>
 </div>
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.29';
+const APP_VERSION='v11.30';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-20 15:40 PT - Sub tab: new Sign up to be a sub (days + hours, editable, pause); signed-up subs who match a shift are highlighted loudly in Approve and Send, the volunteer list, an Available subs box with Pick buttons, and the Assign dropdown. Requests need Program Details on the school first. After the office assigns a sub, Reach opens with everyone at the school and an expect a different Ranger message. Reschedule: school can adjust the time of the date they pick; None of these work now has a date and time picker plus note, and the Ranger or office can Accept the suggested date in one tap. Requires GAS New Deployment.';
+const BUILD_STAMP='2026-10-20 16:20 PT - Calendar: + Add items (title, date, time, optional school, notes; edit or delete later). Change the date/time of any scheduled school visit, remove it, or undo back to the original schedule; changes show as Moved from / Moved to / Time changed / Removed. Saved in a new Calendar tab in the Sub spreadsheet and logged in History. The bottom menu folds away on the Calendar to show more of the list; the Menu button in the bottom bar brings it back (also available on every tab). Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -9000,6 +9005,14 @@ function renderOperationsHome(){
 // with nothing open), back is left alone and behaves normally.
 let _tabHistory=[];
 let _navigatingBack=false;
+// Bottom menu collapse: the Calendar tab hides the tab rows to show more of
+// the list; the button in the bottom bar brings them back (and back again).
+function _navSetCollapsed(on){
+  const n=document.getElementById('nav');if(!n)return;
+  n.classList.toggle('nav-collapsed',!!on);
+  const b=document.getElementById('rrMenuToggle');if(b)b.textContent=on?'⌃ Menu':'⌄ Hide menu';
+}
+function _navToggleCollapse(){const n=document.getElementById('nav');_navSetCollapsed(!(n&&n.classList.contains('nav-collapsed')));}
 function _updateNavUtilBar(){
   const backBtn=document.getElementById('rrBackBtn');
   if(!backBtn)return;
@@ -9066,6 +9079,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
   if(tab==='action')renderAction();
+  _navSetCollapsed(tab==='calendar');
   if(tab==='calendar'){renderCalendar();loadSubs(false);}
   if(tab==='sub'){renderSubs();loadSubs(false);if(_subIsAdmin()&&!_subHomeLL)_subLoadHomes().then(ok=>{if(ok&&_activeTab==='sub')renderSubs();});}
   if(tab==='operations')showOperationsPage(_opsCurrentPage||'home');
@@ -11094,7 +11108,7 @@ if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch
    renders instantly from memory and refreshes behind the scenes.
    No images anywhere in this tab.
    ═══════════════════════════════════════════════════════════════════*/
-let _SUB={subs:[],volunteers:[],reschedules:[],availability:[],loaded:false,loading:false,ts:0};
+let _SUB={subs:[],volunteers:[],reschedules:[],availability:[],calItems:[],loaded:false,loading:false,ts:0};
 let _subHighlight='';
 const SUB_ELIGIBLE_CATS=['ranger','master_ranger','garden_keeper'];
 function _subMe(){return (SESSION&&SESSION.email||'').toLowerCase().trim();}
@@ -11269,7 +11283,7 @@ async function loadSubs(force){
   if(!SESSION||!CFG.URL)return;
   if(!_SUB.loaded){
     try{const c=JSON.parse(localStorage.getItem(_subCacheKey())||'null');
-      if(c&&c.subs){_SUB.subs=c.subs;_SUB.volunteers=c.volunteers||[];_SUB.reschedules=c.reschedules||[];_SUB.availability=c.availability||[];_SUB.loaded=true;_SUB.ts=0;renderSubs();_subBadge();}}catch(e){}
+      if(c&&c.subs){_SUB.subs=c.subs;_SUB.volunteers=c.volunteers||[];_SUB.reschedules=c.reschedules||[];_SUB.availability=c.availability||[];_SUB.calItems=c.calItems||[];_SUB.loaded=true;_SUB.ts=0;renderSubs();_subBadge();}}catch(e){}
   }
   if(_SUB.loading)return;
   if(!force&&_SUB.ts&&Date.now()-_SUB.ts<60000){renderSubs();return;}
@@ -11277,8 +11291,8 @@ async function loadSubs(force){
   try{
     const r=await gasPost({action:'getSubs',actor:SESSION.email});
     if(r&&r.ok){
-      _SUB.subs=r.subs||[];_SUB.volunteers=r.volunteers||[];_SUB.reschedules=r.reschedules||[];_SUB.availability=r.availability||[];_SUB.loaded=true;_SUB.ts=Date.now();
-      try{localStorage.setItem(_subCacheKey(),JSON.stringify({subs:_SUB.subs,volunteers:_SUB.volunteers,reschedules:_SUB.reschedules,availability:_SUB.availability}));}catch(e){}
+      _SUB.subs=r.subs||[];_SUB.volunteers=r.volunteers||[];_SUB.reschedules=r.reschedules||[];_SUB.availability=r.availability||[];_SUB.calItems=r.calItems||[];_SUB.loaded=true;_SUB.ts=Date.now();
+      try{localStorage.setItem(_subCacheKey(),JSON.stringify({subs:_SUB.subs,volunteers:_SUB.volunteers,reschedules:_SUB.reschedules,availability:_SUB.availability,calItems:_SUB.calItems}));}catch(e){}
     }else if(!_SUB.loaded){
       const b=document.getElementById('subBody');
       if(b)b.innerHTML='<div class="sub-empty">'+escHtml((r&&r.error)||'Could not load subs.')+'<br><small>If this says unknown action, the Apps Script needs a New Deployment.</small></div>';
@@ -12278,6 +12292,14 @@ function calEventsForMonth(y,m,who){
   const first=_calYmd(new Date(y,m,1,12)),last=_calYmd(new Date(y,m+1,0,12));
   const inMonth=d=>d>=first&&d<=last;
   const ev=[];const all=who==='all';
+  const items=(_SUB&&_SUB.calItems)||[];
+  // items people added themselves
+  items.forEach(it=>{
+    if(it.Kind!=='event'||String(it.Deleted).toUpperCase()==='TRUE'||!inMonth(it.Date))return;
+    if(!all&&String(it.Owner).toLowerCase()!==who)return;
+    ev.push({date:it.Date,kind:'custom',item:it,site:it.Site?_subSiteByKey(it.Site):null,key:it.Site||'',start:it.Start,end:it.End,title:it.Title,
+      ranger:all?_subPerson(it.Owner).name:''});
+  });
   const subs=(_SUB&&_SUB.subs)||[],res=(_SUB&&_SUB.reschedules)||[];
   const subFor=(siteKey,date,email)=>subs.find(s=>s.Date===date&&String(s.Site).toLowerCase()===String(siteKey).toLowerCase()&&
     (all||String(s['Requested By']).toLowerCase()===email)&&['Pending Approval','Open','Filled'].includes(s.Status));
@@ -12291,14 +12313,27 @@ function calEventsForMonth(y,m,who){
     if(!all&&!rangers.includes(who))return;
     const p=calParseSchedule(site);
     const key=site.Key||site.key||'';
+    const ovs=items.filter(o=>o.Kind==='override'&&String(o.Site).toLowerCase()===String(key).toLowerCase());
     p.visits.forEach(v=>{
-      if(!inMonth(v.date))return;
-      const e={date:v.date,kind:'visit',site,key,start:v.start,end:v.end,rotation:v.rotation,block:v.block,est:v.est,
-        ranger:all?rangers.map(x=>_subPerson(x).name).join(' & '):''};
-      const s=subFor(key,v.date,who);
-      if(s){e.sub=s;e.start=s.Start||e.start;e.end=s.End||e.end;}
-      const r=resFor(key,v.date);if(r)e.res=r;
-      ev.push(e);
+      const ov=ovs.find(o=>o['Original Date']===v.date);
+      const mk=(date)=>{
+        const e={date,kind:'visit',site,key,start:v.start,end:v.end,rotation:v.rotation,block:v.block,est:v.est,origDate:v.date,origStart:v.start,origEnd:v.end,
+          ranger:all?rangers.map(x=>_subPerson(x).name).join(' & '):''};
+        const s=subFor(key,date,who);
+        if(s){e.sub=s;e.start=s.Start||e.start;e.end=s.End||e.end;}
+        const r=resFor(key,v.date);if(r)e.res=r;
+        return e;
+      };
+      if(ov&&String(ov.Deleted).toUpperCase()==='TRUE'){
+        if(inMonth(v.date)){const e=mk(v.date);e.removed=true;e.ov=ov;ev.push(e);}
+        return;
+      }
+      if(ov&&(ov.Date!==v.date||String(ov.Start||'')!==String(v.start||'')||String(ov.End||'')!==String(v.end||''))){
+        if(ov.Date!==v.date&&inMonth(v.date)){const g=mk(v.date);g.movedTo=ov.Date;g.ov=ov;ev.push(g);}
+        if(inMonth(ov.Date)){const e=mk(ov.Date);e.start=ov.Start||'';e.end=ov.End||'';e.ov=ov;if(ov.Date!==v.date)e.movedFrom=v.date;else e.timeChanged=true;ev.push(e);}
+        return;
+      }
+      if(inMonth(v.date))ev.push(mk(v.date));
     });
     p.specials.forEach(x=>{if(inMonth(x.date))ev.push({date:x.date,kind:'special',site,key,label:x.label});});
   });
@@ -12319,6 +12354,11 @@ function calEventsForMonth(y,m,who){
   return ev.sort((a,b)=>(a.date+(a.start||'')).localeCompare(b.date+(b.start||'')));
 }
 function _calTag(e){
+  if(e.kind==='custom')return {cls:'own',txt:'Added'};
+  if(e.removed)return {cls:'off',txt:'Removed'};
+  if(e.movedTo)return {cls:'off',txt:'Moved to '+_subFmtDate(e.movedTo)};
+  if(e.movedFrom)return {cls:'mk',txt:'Moved from '+_subFmtDate(e.movedFrom)};
+  if(e.timeChanged)return {cls:'mk',txt:'Time changed'};
   if(e.kind==='subbing')return {cls:'sub',txt:'Subbing for '+_subPerson(e.sub['Requested By']).name};
   if(e.kind==='makeup')return {cls:'mk',txt:'Make-up visit'};
   if(e.kind==='special')return {cls:'sp',txt:e.label};
@@ -12328,7 +12368,7 @@ function _calTag(e){
   if(e.sub)return {cls:'pend',txt:'Sub requested'};
   return null;
 }
-function _calSiteName(e){return e.site?sf(e.site,'Name','name'):siteNameFromKey(e.key);}
+function _calSiteName(e){if(e.kind==='custom')return e.title||'(no title)';return e.site?sf(e.site,'Name','name'):siteNameFromKey(e.key);}
 function _calTime(e){return (e.start||e.end)?_subFmtTime(e.start)+(e.end?'–'+_subFmtTime(e.end):''):'';}
 function renderCalendar(){
   const body=document.getElementById('calBody');if(!body||!SESSION)return;
@@ -12368,20 +12408,108 @@ function renderCalendar(){
     agenda+='<div class="sub-sec" style="font-size:14px">'+escHtml(_subFmtDate(d))+(d===today?' · Today':'')+'</div>';
     byDay[d].forEach((e,i)=>{
       const t=_calTag(e);
-      agenda+='<div class="sub-card tap cal-ev" onclick="calOpenEvent(\''+d+'\','+i+')">'+
+      agenda+='<div class="sub-card tap cal-ev'+(e.removed||e.movedTo?' cal-ghost':'')+'" onclick="calOpenEvent(\''+d+'\','+i+')">'+
         '<div class="sub-top"><div><div class="sub-school" style="font-size:17px">'+escHtml(_calSiteName(e))+'</div>'+
-        '<div class="sub-meta" style="margin-top:2px">'+[_calTime(e),e.rotation,e.ranger].filter(Boolean).map(escHtml).join(' · ')+(e.est?' · <i>estimated</i>':'')+'</div></div>'+
+        '<div class="sub-meta" style="margin-top:2px">'+[_calTime(e),e.kind==='custom'&&e.site?sf(e.site,'Name','name'):'',e.rotation,e.ranger].filter(Boolean).map(escHtml).join(' · ')+(e.est?' · <i>estimated</i>':'')+'</div></div>'+
         (t?'<span class="cal-tag '+t.cls+'">'+escHtml(t.txt)+'</span>':'')+'</div></div>';
     });
   });
   if(!agenda)agenda='<div class="sub-empty">'+(_cal.sel?'Nothing on this day.':(who==='all'||(DATA.sites||[]).some(s=>_calRangerEmails(s).includes(who))?'No school visits found this month.':'No Ranger schools assigned yet.'))+'</div>';
   body.innerHTML='<div class="cal-bar">'+
       '<button class="sub-btn alt" onclick="calShift(-1)">‹</button><div class="cal-title">'+escHtml(monthName)+'</div><button class="sub-btn alt" onclick="calShift(1)">›</button>'+
-      '<button class="sub-btn alt" style="margin-left:auto" onclick="_cal.y=null;_cal.sel=null;renderCalendar()">Today</button></div>'+
+      '<button class="sub-btn alt" style="margin-left:auto" onclick="_cal.y=null;_cal.sel=null;renderCalendar()">Today</button>'+
+      '<button class="sub-btn" style="background:#2E86AB" onclick="calEditItem(null)">+ Add</button></div>'+
     (picker?'<div style="padding:0 16px 8px">'+picker+'</div>':'')+grid+
-    '<div class="cal-legend"><span><i class="cal-dot v"></i>Visit</span><span><i class="cal-dot cov"></i>Covered</span><span><i class="cal-dot sub"></i>Subbing</span><span><i class="cal-dot pend"></i>Pending</span><span><i class="cal-dot mk"></i>Make-up</span><span><i class="cal-dot est"></i>Estimated</span></div>'+
+    '<div class="cal-legend"><span><i class="cal-dot v"></i>Visit</span><span><i class="cal-dot own"></i>Added</span><span><i class="cal-dot cov"></i>Covered</span><span><i class="cal-dot sub"></i>Subbing</span><span><i class="cal-dot pend"></i>Pending</span><span><i class="cal-dot mk"></i>Make-up</span><span><i class="cal-dot est"></i>Estimated</span></div>'+
     agenda;
   window._calLastByDay=byDay;
+}
+// ── Adding / changing calendar items (v11.30) ───────────────────────────────
+function _calCanEdit(e){
+  if(!SESSION)return false;
+  if(SESSION.accessLevel<=2)return true;
+  const me=_subMe();
+  if(e.kind==='custom')return String(e.item.Owner).toLowerCase()===me||String(e.item['Created By']).toLowerCase()===me;
+  return !!(e.site&&_calRangerEmails(e.site).includes(me));
+}
+function _calEvent(d,i){return (window._calLastByDay||{})[d]&&window._calLastByDay[d][i];}
+async function _calSave(item,doneMsg){
+  showPersistentToast('Saving…');
+  try{
+    const r=await gasPost({action:'saveCalItem',actor:SESSION.email,item});
+    hidePersistentToast();
+    if(!r||!r.ok){alert((r&&r.error)||'Could not save - the Apps Script may need a New Deployment.');return false;}
+    // apply locally right away, then refresh from the sheet
+    const list=_SUB.calItems||(_SUB.calItems=[]);
+    let row=list.find(x=>x.ID===r.id);
+    if(!row){row={ID:r.id,'Created By':SESSION.email};list.push(row);}
+    Object.assign(row,{Owner:item.owner||SESSION.email,Kind:item.kind,Site:item.site||'','Original Date':item.originalDate||'',Date:item.date||row.Date,
+      Start:item.start||'',End:item.end||'',Title:item.title||row.Title||'',Notes:item.notes||'',Deleted:item.deleted?'TRUE':''});
+    const o=document.getElementById('calOverlay');if(o)o.remove();
+    renderCalendar();showSaveToast(doneMsg||'✅ Saved');loadSubs(true);
+    return true;
+  }catch(e){hidePersistentToast();alert('Connection error - please try again.');return false;}
+}
+function _calForm(title,fields,onSave){
+  const o0=document.getElementById('calOverlay');if(o0)o0.remove();
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='calOverlay';ov.onclick=x=>{if(x.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>'+escHtml(title)+'</h3>'+fields+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'calOverlay\').remove()">Cancel</button>'+
+    '<button class="sub-btn" id="calSaveBtn" style="background:#2E86AB">Save</button></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('calSaveBtn').onclick=onSave;
+}
+const _calV=id=>(document.getElementById(id)||{}).value||'';
+function calEditItem(id){
+  const it=id?(_SUB.calItems||[]).find(x=>x.ID===id):null;
+  const me=_subMe(),admin=SESSION.accessLevel<=2;
+  const date=it?it.Date:(_cal.sel||_calYmd(new Date()));
+  const schools=(admin?(DATA.sites||[]):(DATA.sites||[]).filter(s=>_calRangerEmails(s).includes(me))).slice().sort((a,b)=>sf(a,'Name','name').localeCompare(sf(b,'Name','name')));
+  const owner=it?it.Owner:(admin&&_cal.who&&_cal.who!=='all'?_cal.who:me);
+  _calForm(it?'Edit calendar item':'Add to calendar',
+    '<div class="sub-lbl">What</div><input class="sub-in" id="calT" placeholder="e.g. Garden build day, Planting with Room 6" value="'+ea(it?it.Title:'')+'">'+
+    '<div class="sub-lbl">Date · From · To</div><div class="sub-shift" style="grid-template-columns:1.4fr 1fr 1fr">'+
+      '<input type="date" class="sub-in" id="calD" value="'+ea(date)+'"><input type="time" class="sub-in" id="calS" value="'+ea(it?it.Start:'')+'"><input type="time" class="sub-in" id="calE" value="'+ea(it?it.End:'')+'"></div>'+
+    '<div class="sub-lbl">School (optional)</div><select class="sub-in" id="calSite"><option value="">— None —</option>'+
+      schools.map(s=>{const k=s.Key||s.key||'';return '<option value="'+ea(k)+'"'+(it&&it.Site===k?' selected':'')+'>'+escHtml(sf(s,'Name','name'))+'</option>';}).join('')+'</select>'+
+    '<div class="sub-lbl">Notes (optional)</div><textarea class="sub-in" id="calN" rows="3">'+escHtml(it?it.Notes:'')+'</textarea>'+
+    (owner!==me?'<div class="sub-meta">This goes on '+escHtml(_subPerson(owner).name)+'’s calendar.</div>':''),
+    ()=>{
+      const item={kind:'event',id:it?it.ID:'',owner,title:_calV('calT').trim(),date:_calV('calD'),start:_calV('calS'),end:_calV('calE'),site:_calV('calSite'),notes:_calV('calN')};
+      if(!item.title){alert('Give it a title.');return;}
+      if(!item.date){alert('Pick a date.');return;}
+      if(item.start&&item.end&&item.end<=item.start){alert('The end time must be after the start time.');return;}
+      _calSave(item,it?'✅ Updated':'✅ Added to the calendar');
+    });
+}
+function calDeleteItem(id){
+  const it=(_SUB.calItems||[]).find(x=>x.ID===id);if(!it)return;
+  if(!confirm('Delete “'+(it.Title||'this item')+'” from the calendar?'))return;
+  _calSave({kind:'event',id,owner:it.Owner,title:it.Title,date:it.Date,start:it.Start,end:it.End,site:it.Site,notes:it.Notes,deleted:true},'🗑 Deleted');
+}
+function calMoveVisit(d,i){
+  const e=_calEvent(d,i);if(!e)return;
+  _calForm('Change visit',
+    '<div class="sub-school">'+escHtml(_calSiteName(e))+'</div><div class="sub-meta">Scheduled: '+escHtml(_subFmtDate(e.origDate)+(e.origStart?', '+_subFmtTime(e.origStart)+'–'+_subFmtTime(e.origEnd):''))+'</div>'+
+    '<div class="sub-lbl">New date · From · To</div><div class="sub-shift" style="grid-template-columns:1.4fr 1fr 1fr">'+
+      '<input type="date" class="sub-in" id="calD" value="'+ea(e.date)+'"><input type="time" class="sub-in" id="calS" value="'+ea(e.start||'')+'"><input type="time" class="sub-in" id="calE" value="'+ea(e.end||'')+'"></div>'+
+    '<div class="sub-lbl">Note (optional)</div><textarea class="sub-in" id="calN" rows="2">'+escHtml(e.ov?e.ov.Notes:'')+'</textarea>'+
+    '<div class="sub-meta">This changes the visit on the calendar for everyone who sees this school. To tell the school, use 📅 Reschedule in the Sub tab.</div>',
+    ()=>{
+      const item={kind:'override',site:e.key,originalDate:e.origDate,date:_calV('calD'),start:_calV('calS'),end:_calV('calE'),notes:_calV('calN'),owner:_calRangerEmails(e.site)[0]||_subMe()};
+      if(!item.date){alert('Pick a date.');return;}
+      if(item.start&&item.end&&item.end<=item.start){alert('The end time must be after the start time.');return;}
+      _calSave(item,'✅ Visit changed');
+    });
+}
+function calRemoveVisit(d,i){
+  const e=_calEvent(d,i);if(!e)return;
+  if(!confirm('Remove the '+_subFmtDate(e.origDate)+' visit at '+_calSiteName(e)+' from the calendar?'))return;
+  _calSave({kind:'override',site:e.key,originalDate:e.origDate,date:e.origDate,start:e.origStart||'',end:e.origEnd||'',deleted:true,owner:_calRangerEmails(e.site)[0]||_subMe()},'Visit removed');
+}
+function calUndoVisit(d,i){
+  const e=_calEvent(d,i);if(!e)return;
+  _calSave({kind:'override',site:e.key,originalDate:e.origDate,date:e.origDate,start:e.origStart||'',end:e.origEnd||'',owner:_calRangerEmails(e.site)[0]||_subMe()},'↩ Back to the original schedule');
 }
 function calShift(n){_cal.m+=n;if(_cal.m<0){_cal.m=11;_cal.y--;}if(_cal.m>11){_cal.m=0;_cal.y++;}_cal.sel=null;renderCalendar();}
 function calOpenEvent(d,i){
@@ -12405,8 +12533,16 @@ function calOpenEvent(d,i){
     row('Program details',escHtml(prog))+
     row(e.rotation?e.rotation+' schedule':'Schedule',e.block?escHtml(e.block):'')+
     (sched?'<details style="margin-top:12px"><summary class="sub-dl" style="cursor:pointer">Full schedule from the school</summary><div class="sub-dv" style="font-size:14px">'+_formatScheduleContentsHtml(sched)+'</div></details>':'')+
+    (e.kind==='custom'?row('Notes',escHtml(e.item.Notes||''))+row('On the calendar of',_subPersonLink(e.item.Owner)):'')+
+    (e.movedFrom?row('Originally',escHtml(_subFmtDate(e.movedFrom)+(e.origStart?', '+_subFmtTime(e.origStart)+'–'+_subFmtTime(e.origEnd):''))):'')+
+    (e.ov&&e.ov['Created By']?row('Changed by',_subPersonLink(e.ov['Created By'])):'')+
     '<div class="sub-actions" style="margin-top:16px">'+
-      (mineVisit&&!e.sub&&!e.res&&d>=_subToday()?'<button class="sub-btn hot" onclick="document.getElementById(\'calOverlay\').remove();switchTab(\'sub\');showSubRequestForm({site:\''+ea(e.key)+'\',date:\''+d+'\',start:\''+ea(e.start||'')+'\',end:\''+ea(e.end||'')+'\'})">I Can’t Make This Session</button>':'')+
+      (e.kind==='custom'&&_calCanEdit(e)?'<button class="sub-btn" style="background:#2E86AB" onclick="document.getElementById(\'calOverlay\').remove();calEditItem(\''+ea(e.item.ID)+'\')">✏️ Edit</button>'+
+        '<button class="sub-btn warn" onclick="calDeleteItem(\''+ea(e.item.ID)+'\')">Delete</button>':'')+
+      (e.kind==='visit'&&_calCanEdit(e)&&!e.removed?'<button class="sub-btn" style="background:#2E86AB" onclick="document.getElementById(\'calOverlay\').remove();calMoveVisit(\''+d+'\','+i+')">✏️ Change date / time</button>'+
+        '<button class="sub-btn warn" onclick="calRemoveVisit(\''+d+'\','+i+')">Remove visit</button>':'')+
+      (e.kind==='visit'&&_calCanEdit(e)&&e.ov?'<button class="sub-btn alt" onclick="calUndoVisit(\''+d+'\','+i+')">↩ Undo change</button>':'')+
+      (mineVisit&&!e.sub&&!e.res&&!e.removed&&!e.movedTo&&d>=_subToday()?'<button class="sub-btn hot" onclick="document.getElementById(\'calOverlay\').remove();switchTab(\'sub\');showSubRequestForm({site:\''+ea(e.key)+'\',date:\''+d+'\',start:\''+ea(e.start||'')+'\',end:\''+ea(e.end||'')+'\'})">I Can’t Make This Session</button>':'')+
       (e.sub?'<button class="sub-btn alt" onclick="document.getElementById(\'calOverlay\').remove();switchTab(\'sub\');subOpenDetail(\''+ea(e.sub.ID)+'\')">Open Sub Shift</button>':'')+
       (site?'<button class="sub-btn alt" onclick="document.getElementById(\'calOverlay\').remove();showSchoolDetailByKey(\''+ea(e.key)+'\')">Open School</button>':'')+
       '<button class="sub-btn alt" onclick="document.getElementById(\'calOverlay\').remove()">Close</button></div></div>';
