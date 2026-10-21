@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.31 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
+<!-- v11.32 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1938,10 +1938,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.31';
+const APP_VERSION='v11.32';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-20 16:45 PT - Sub tab (Level 1-2): new Cancel completely button on every sub request, sub shift and reschedule (even confirmed ones). Choose: cancel and let the school know (opens Reach with everyone at the school and a please-disregard message), cancel and tell our team only, or it was a test - cancel quietly with no emails or texts. Optional reason saved to History. Requires GAS New Deployment for the quiet option.';
+const BUILD_STAMP='2026-10-20 19:05 PT - Sub tab: once a Master sends a request out, it shows Waiting on other Rangers for the Ranger who asked and for Level 1-2 (other Rangers still see Available), right away. The Ranger who asked gets an email and text from that Master: we have sent your request for a sub to other Rangers and we will be in touch. When a sub is picked (or a request is cancelled with let the school know), a picker shows the school contacts, the Rangers involved, Senior Leadership and Master Rangers with tick boxes before Reach opens. Requires GAS New Deployment for the message.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11344,7 +11344,9 @@ function _subSec(title,cards,emptyMsg){
 function _subPill(s){
   const st=s.Status||'';
   const cls=st==='Pending Approval'?'pending':st==='Open'?'open':st==='Filled'?'filled':'off';
-  return '<span class="sub-pill '+cls+'">'+escHtml(st==='Pending Approval'?'Needs approval':st==='Open'?'Available':st)+'</span>';
+  // once sent out, the Ranger who asked and Level 1-2 see "Waiting on other Rangers"; everyone else sees "Available"
+  const waiting=st==='Open'&&(_subIsAdmin()||String(s['Requested By']||'').toLowerCase()===_subMe());
+  return '<span class="sub-pill '+cls+'">'+escHtml(st==='Pending Approval'?'Needs approval':st==='Open'?(waiting?'Waiting on other Rangers':'Available'):st)+'</span>';
 }
 function _subHead(site,siteKey,whenHtml,pill,fbName){
   return '<div class="sub-top"><div><div class="sub-school">'+escHtml(site?sf(site,'Name','name'):siteNameFromKey(siteKey,fbName))+'</div>'+
@@ -11658,11 +11660,8 @@ function _subReachSchoolCancelled(isRes,snap){
       reg+' will be there as originally scheduled.\n\nSorry for any confusion, and thank you!\n'+meName+'\nEnrich LA';
   }
   msg=msg.replace(/ · /g,', ').replace(/[–—]/g,'-');   // plain characters so texts are not cut short
-  _schoolReachSiteName=name;
-  _reachSelected.clear();pick.forEach(e=>_reachSelected.add(e));
-  _reachForwardPrefill={subject:'Update: Garden Ranger visit at '+name+' - no change after all',message:msg};
-  switchTab('reach');showReachPage('schoolask');
-  _subAskReachMode(pick.size,'Everyone at '+name+' and the Ranger are selected. How do you want to let the school know?');
+  const extra=[{email:first['Requested By'],role:'Regular Ranger'}];if(!isRes)snap.forEach(s=>{if(s['Assigned To'])extra.push({email:s['Assigned To'],role:'Sub'});});
+  _subPickRecipients('Let '+name+' know',_subSchoolPeopleGroups(site,extra),{subject:'Update: Garden Ranger visit at '+name+' - no change after all',message:msg},name);
 }
 function subAcceptResched(id){
   if(!confirm('Accept the date the school suggested? Everyone on the message will be told it is confirmed.'))return;
@@ -11727,7 +11726,7 @@ function renderSubs(){
     const open=up.filter(s=>s.Status==='Open');
     const withV=open.filter(s=>_subVolsFor(s.ID).some(v=>v.Status==='Offered'));
     html+=_subSec('Volunteers Waiting - Pick a Sub',withV.map(_subOpenCard));
-    html+=_subSec('Available - No Volunteers Yet',open.filter(s=>!withV.includes(s)).map(_subOpenCard));
+    html+=_subSec('Waiting on Other Rangers - No Volunteers Yet',open.filter(s=>!withV.includes(s)).map(_subOpenCard));
     html+=_subSec('Filled - Upcoming',up.filter(s=>s.Status==='Filled'&&!isMe(s['Assigned To'])).map(_subOtherCard));
   }else{
     html+=_subSec('Available Opportunities',up.filter(s=>s.Status==='Open'&&!isMe(s['Requested By'])).map(_subOpenCard),'No available sub shifts right now.');
@@ -12046,6 +12045,50 @@ function subAssign(id,email){
 }
 // Opens Reach with everyone at the school (+ senior leadership, the sub and
 // the regular Ranger) and a ready-made "expect a different Ranger" message.
+// ── Choose who at the school (and which Masters / leadership) gets the message ──
+// groups: [{label, people:[{email,label,checked}]}] -> then Reach with a prefilled message
+function _subSchoolPeopleGroups(site,extra){
+  const me=_subMe(),seen=new Set([me]),find=e=>(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===String(e||'').toLowerCase());
+  const school=[];
+  SCHOOL_REACH_FIELDS.forEach(([col,lbl])=>{
+    String(sf(site,col)||site[col]||'').split(/[,\n]+/).map(x=>x.trim()).filter(Boolean).forEach(tok=>{
+      let hh=tok.includes('@')?find(tok):(DATA.humans||[]).find(p=>(fullName(p)||'').toLowerCase()===tok.toLowerCase());
+      if(!hh)return;const e=String(hh.Email||hh.email).toLowerCase();if(seen.has(e))return;seen.add(e);
+      school.push({email:hh.Email||hh.email,label:fullName(hh)+' · '+lbl,checked:true});
+    });
+  });
+  const inv=[];(extra||[]).forEach(x=>{const hh=find(x.email);if(!hh)return;const e=String(hh.Email||hh.email).toLowerCase();if(seen.has(e))return;seen.add(e);inv.push({email:hh.Email||hh.email,label:fullName(hh)+' · '+x.role,checked:true});});
+  const lead=[],masters=[];
+  (DATA.humans||[]).forEach(hh=>{
+    const e=String(hh.Email||hh.email||'').toLowerCase();if(!e||seen.has(e))return;
+    if(String(hh['Access Level']||'').trim()==='2'){seen.add(e);lead.push({email:hh.Email||hh.email,label:fullName(hh)+' · Senior Leadership',checked:true});}
+    else if(humanRoleCats(hh).includes('master_ranger')){seen.add(e);masters.push({email:hh.Email||hh.email,label:fullName(hh)+' · Master Ranger',checked:false});}
+  });
+  return [{label:'At '+sf(site,'Name','name'),people:school},{label:'Rangers involved',people:inv},{label:'Senior Leadership',people:lead},{label:'Master Rangers',people:masters}].filter(g=>g.people.length);
+}
+function _subPickRecipients(title,groups,prefill,siteName){
+  const old=document.getElementById('subPickTo');if(old)old.remove();
+  window._subPickPrefill={prefill,siteName};
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='subPickTo';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>'+escHtml(title)+'</h3><div class="sub-meta" style="margin:-6px 0 6px">Choose who gets the message. You can edit the message next.</div>'+
+    groups.map((g,gi)=>'<div class="sub-lbl" style="display:flex;justify-content:space-between;align-items:center">'+escHtml(g.label)+
+      '<button class="sub-btn alt" style="padding:4px 10px;font-size:11px" onclick="document.querySelectorAll(\'#subPickTo input[data-g=&quot;'+gi+'&quot;]\').forEach(c=>c.checked=!c.checked)">Toggle</button></div>'+
+      g.people.map(p=>'<label class="sub-vol" style="cursor:pointer"><span style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-g="'+gi+'" data-email="'+ea(p.email)+'" '+(p.checked?'checked':'')+' style="width:20px;height:20px"> '+escHtml(p.label)+'</span><span>'+(hm(p.email)?'✉️ 📱':'✉️')+'</span></label>').join('')).join('')+
+    '<div class="sub-actions" style="justify-content:flex-end;margin-top:14px"><button class="sub-btn alt" onclick="document.getElementById(\'subPickTo\').remove()">Skip for now</button>'+
+    '<button class="sub-btn hot" onclick="_subPickGo()">Continue →</button></div></div>';
+  document.body.appendChild(ov);
+}
+function _subPickGo(){
+  const sel=[...document.querySelectorAll('#subPickTo input[type=checkbox]:checked')].map(c=>c.dataset.email);
+  if(!sel.length){alert('Pick at least one person.');return;}
+  const st=window._subPickPrefill||{};
+  document.getElementById('subPickTo').remove();
+  _schoolReachSiteName=st.siteName||'';
+  _reachSelected.clear();sel.forEach(e=>_reachSelected.add(e));
+  _reachForwardPrefill=st.prefill;
+  switchTab('reach');showReachPage('schoolask');
+  _subAskReachMode(sel.length,sel.length+' selected. How do you want to send it?');
+}
 function _subReachSchoolNewRanger(s,subEmail){
   const site=_subSiteByKey(s.Site);if(!site)return;
   const me=_subMe(),pick=new Set(_subSchoolContactEmails(site));
@@ -12054,13 +12097,11 @@ function _subReachSchoolNewRanger(s,subEmail){
   const name=sf(site,'Name','name'),subP=_subPerson(subEmail),reg=_subPerson(s['Requested By']);
   const plain=_subFmtDate(s.Date)+((s.Start||s.End)?', '+_subFmtTime(s.Start)+(s.End?'-'+_subFmtTime(s.End):''):'');
   const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
-  _schoolReachSiteName=name;
-  _reachSelected.clear();pick.forEach(e=>_reachSelected.add(e));
-  _reachForwardPrefill={subject:'Garden Ranger visit '+_subFmtDate(s.Date)+' - a different Ranger is coming',
+  const groups=_subSchoolPeopleGroups(site,[{email:subEmail,role:'Sub'},{email:s['Requested By'],role:'Regular Ranger'}]);
+  const pre={subject:'Garden Ranger visit '+_subFmtDate(s.Date)+' - a different Ranger is coming',
     message:'Hello,\n\nOn '+plain+', '+reg.name+' is not able to make the Garden Ranger visit at '+name+'. Please expect a different Garden Ranger that day:\n\n'+
       subP.name+(subP.mobile?' - '+subP.mobile:'')+'\n\nThey have the schedule and program details and will check in at the office when they arrive. Please let us know if anything changes.\n\nThank you,\n'+meName+'\nEnrich LA'+(hm(SESSION.email)?'\n'+hm(SESSION.email):'')};
-  switchTab('reach');showReachPage('schoolask');
-  _subAskReachMode(pick.size,'Everyone at '+name+', the sub and the regular Ranger are selected. How do you want to let the school know?');
+  _subPickRecipients('Let '+name+' know',groups,pre,name);
 }
 function subAssignOther(id){
   const sel=document.getElementById('subOther_'+id);
@@ -12208,7 +12249,8 @@ async function subSendFromSheet(reqId,resend){
   if(sendEmail&&!payload.emailBody.trim()){alert('The email message is empty.');return;}
   if(sendSms&&!payload.smsBody){alert('The text message is empty.');return;}
   const ov=document.getElementById('subSendOverlay');if(ov)ov.remove();
-  await _subAct(payload,(resend?'✅ Sent to ':'✅ Approved - sent to ')+recipients.length,'Sending to '+recipients.length+' people…');
+  if(!resend){_SUB.subs.forEach(s=>{if(s['Request ID']===reqId&&s.Status==='Pending Approval'){s.Status='Open';s['Approved By']=SESSION.email;}});renderSubs();_subBadge();}
+  await _subAct(payload,(resend?'✅ Sent to ':'✅ Sent to ')+recipients.length+' Rangers - the Ranger who asked has been told','Sending to '+recipients.length+' people…');
 }
 
 // ── Schedule parser (v11.25) ────────────────────────────────────────────────

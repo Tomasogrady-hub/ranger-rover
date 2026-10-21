@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.31 | 2026-10-20 | Cancel completely (quiet test cancel or notify + Reach school)';
+const GAS_BUILD = 'v11.32 | 2026-10-20 | Approve and Send tells the requester we sent it to other Rangers (from the approver)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -4434,7 +4434,9 @@ function _subNotify(person, subject, emailBody, smsBody, opts) {
   if (!person || !person.email) return;
   if (!opts.noEmail && emailBody) {
     try {
-      GmailApp.sendEmail(person.email, subject, emailBody, { name: 'Enrich LA Ranger Rover' });
+      var mo = { name: opts.fromName ? opts.fromName + ' (Enrich LA)' : 'Enrich LA Ranger Rover' };
+      if (opts.replyTo) mo.replyTo = opts.replyTo;
+      GmailApp.sendEmail(person.email, subject, emailBody, mo);
     } catch(e) { Logger.log('sub email fail ' + person.email + ': ' + e.message); }
   }
   if (opts.noSms || !smsBody || !person.sms) return;
@@ -4683,10 +4685,11 @@ function handleApproveSub(p) {
       var sent = _subBroadcastOpen(people, site, rows, requester, bOpts);
       sentN = sent.length;
       _subMarkNotified(tbl, rows, sent);
-      if (requester.email !== me.email) _subNotify(requester, 'Sub request approved - ' + site.name,
-        'Your sub request for ' + site.name + ' was approved and sent to the other Rangers:\n' + lines +
-        '\n\nYou will be told as soon as a sub is confirmed.',
-        'Enrich LA - Your sub request for ' + site.name + ' was approved and sent to Rangers. We will confirm your sub soon.');
+      if (requester.email !== me.email) _subNotify(requester, 'Your sub request has been sent to other Rangers - ' + site.name,
+        'Hi ' + (requester.first || '') + ',\n\nWe have sent your request for a sub to other Rangers and we will be in touch.\n\n' + site.name + ':\n' + lines +
+        '\n\n' + me.name + '\nEnrich LA',
+        'Enrich LA - Hi ' + (requester.first || '') + ', we have sent your request for a sub at ' + site.name + ' to other Rangers and we will be in touch. - ' + me.name,
+        { fromName: me.name, replyTo: me.email });
     } else {
       _subNotify(requester, 'Sub request not approved - ' + site.name,
         'Your sub request for ' + site.name + ' was not approved:\n' + lines +
