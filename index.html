@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.33 | BUILDITALL: 2026-10-26 | Ranger Rover PWA -->
+<!-- v11.34 | BUILDITALL: 2026-10-26 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -192,6 +192,26 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .rr-att-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rr-att-st{font-size:11px;color:var(--stone)}
 .rr-att-chip button{background:none;border:none;font-size:16px;cursor:pointer;color:var(--stone);padding:0 4px}
+.psf-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.psf-name{flex:1;min-width:0;font-size:14px}
+.psf-pills{display:flex;gap:4px;flex-shrink:0}
+.psf-pill{min-width:40px;padding:6px 8px;border:1px solid var(--mist);border-radius:14px;background:var(--paper);color:var(--stone);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font-b)}
+.psf-pill.on.to{background:var(--grove);border-color:var(--grove);color:#fff}
+.psf-pill.on.cc{background:#1565c0;border-color:#1565c0;color:#fff}
+.psf-pill.on.bcc{background:#6a1b9a;border-color:#6a1b9a;color:#fff}
+.rlib-sheet{max-height:94%}
+.rlib-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+.rlib-chip.on{background:var(--enrich-dark);color:#fff}
+.rlib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.rlib-tile{position:relative;padding:0;border:2px solid transparent;border-radius:8px;background:var(--fog);overflow:hidden;cursor:pointer;text-align:left}
+.rlib-tile img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--mist)}
+.rlib-cap{display:block;padding:4px 6px;font-size:11px;line-height:1.25;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rlib-cap small{color:var(--stone)}
+.rlib-tick{display:none;position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:var(--grove);color:#fff;font-weight:700;align-items:center;justify-content:center;font-size:14px}
+.rlib-tile.on{border-color:var(--grove)}.rlib-tile.on .rlib-tick{display:flex}
+.rlib-docs{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.rlib-doc{position:relative;display:flex;align-items:center;gap:10px;padding:10px 40px 10px 10px;border:2px solid var(--mist);border-radius:8px;background:var(--fog);cursor:pointer;font-size:13px}
+.rlib-doc.on{border-color:var(--grove)}.rlib-doc.on .rlib-tick{display:flex;top:50%;transform:translateY(-50%)}
 .rr-person-actions{width:100%;padding:13px 12px;border:1px solid var(--enrich-dark);border-radius:var(--r-sm);background:var(--paper);color:var(--enrich-dark);font-family:var(--font-b);font-size:15px;font-weight:600;cursor:pointer}
 .sub-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:15000;display:flex;align-items:flex-end;justify-content:center}
 .sub-sheet{background:var(--white);width:100%;max-width:560px;max-height:92%;overflow:auto;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:18px 18px calc(18px + var(--safe-bottom))}
@@ -1958,10 +1978,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.33';
+const APP_VERSION='v11.34';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-26 17:45 PT - Reach email: formatting toolbar (bold, italic, underline, colors, highlight, text size, lists, links), insert a photo right into the message, attach photos or PDFs (they upload while you write so Send is quick). People card: new Actions dropdown under Call and Text - Send this person files or pictures (pick the files, then pick people at their schools or anyone, then Reach opens with the files attached). Requires GAS New Deployment.';
+const BUILD_STAMP='2026-10-26 18:20 PT - Send this person files: Enrich LA Leadership (Level 1 and 2) added to the people list, and every person now has To, CC and BCC buttons. Reach email: photos and attachments can now come From the app as well as from the device - one searchable library of school photos and schedules, people photos and Ranger documents, chore photos and plant photos.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -7564,6 +7584,8 @@ function closeDetailChime(e){if(e&&e.target!==document.getElementById('detail-ov
 function closeDetailBtnChime(){window._isNewSiteDraft=false;window._newSiteDraftData=null;_playChime();closeDetailImmediate();}
 
 /* ═══ TOAST / SOUND HELPERS ═══ */
+// showToast was called in many places but never defined - route it to the real toast (v11.34)
+function showToast(msg){showSaveToast(msg);}
 function showSaveToast(msg){
   let t=document.getElementById('_saveToast');
   if(!t){t=document.createElement('div');t.id='_saveToast';t.style='position:fixed;bottom:calc(var(--nav-h,120px) + var(--safe-bottom) + 8px);left:50%;transform:translateX(-50%);background:var(--grove);color:white;padding:11px 20px;border-radius:99px;font-family:var(--font-b);font-size:15px;font-weight:500;z-index:20000;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .3s';document.body.appendChild(t);}
@@ -14157,6 +14179,9 @@ function openReachCompose(mode) {
     const subjEl = document.getElementById('reachSubject');
     const msgEl  = document.getElementById('reachMessage');
     if (subjEl && _reachForwardPrefill.subject) subjEl.value = _reachForwardPrefill.subject;
+    const ccEl = document.getElementById('reachCC'), bccEl = document.getElementById('reachBCC');
+    if (ccEl && _reachForwardPrefill.cc) ccEl.value = _reachForwardPrefill.cc;
+    if (bccEl && _reachForwardPrefill.bcc) bccEl.value = _reachForwardPrefill.bcc;
     if (msgEl) msgEl.value = _reachForwardPrefill.message || '';
     _reachForwardPrefill = null;
   }
@@ -15235,7 +15260,8 @@ function _reachRichMount(){
       ${btn('insertUnorderedList','• List','Bulleted list')}${btn('insertOrderedList','1. List','Numbered list')}
       ${btn('link','🔗','Add a link')}${btn('removeFormat','⌫ Clear','Remove formatting')}
       <span class="rr-rt-sep"></span>
-      <button type="button" class="rr-rt-btn rr-rt-photo" title="Insert a photo into the message" onpointerdown="event.preventDefault()" onclick="_reachRichPickPhoto()">🖼 Photo</button>
+      <button type="button" class="rr-rt-btn rr-rt-photo" title="Insert a photo from this device" onpointerdown="event.preventDefault()" onclick="_reachRichPickPhoto()">🖼 Photo</button>
+      <button type="button" class="rr-rt-btn rr-rt-photo" title="Insert a photo already in the app" onpointerdown="event.preventDefault()" onclick="_reachRichSaveRange();_reachLibOpen('inline')">🗂 App photo</button>
     </div>
     <div class="rr-rt-colors" id="rrRtColors" style="display:none">
       ${_REACH_COLORS.map(c => `<button type="button" class="rr-rt-swatch" style="background:${c}" onpointerdown="event.preventDefault()" onclick="_reachRichCmd('foreColor','${c}')" aria-label="${c}"></button>`).join('')}
@@ -15274,9 +15300,12 @@ function _reachRichMount(){
   att.innerHTML = `
     <label class="memo-label">Attachments</label>
     <div id="rrAttachList" class="rr-att-list"></div>
-    <button type="button" class="reach-token-chip" style="width:100%;text-align:center;padding:9px 12px" onclick="document.getElementById('rrAttachInput').click()">📎 Attach a photo or PDF</button>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="reach-token-chip" style="flex:1;text-align:center;padding:9px 12px" onclick="document.getElementById('rrAttachInput').click()">📎 From this device</button>
+      <button type="button" class="reach-token-chip" style="flex:1;text-align:center;padding:9px 12px" onclick="_reachLibOpen('attach')">🗂 From the app</button>
+    </div>
     <input type="file" id="rrAttachInput" multiple accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" style="display:none" onchange="_reachAttachPicked(this)">
-    <div style="font-size:11px;color:var(--silver);line-height:1.5;margin-top:4px">Files upload as soon as you pick them, so Send is quick. Up to 20 MB each.</div>`;
+    <div style="font-size:11px;color:var(--silver);line-height:1.5;margin-top:4px">From the app = any school, people, chore or plant photo, plus school schedules and Ranger documents. Device files upload as soon as you pick them, so Send is quick. Up to 20 MB each.</div>`;
   group.after(att);
 
   if (_reachPendingAttach && _reachPendingAttach.length) {
@@ -15344,10 +15373,13 @@ async function _reachUpload(prep, inline){
 }
 
 // ── Inline photo ──────────────────────────────────────────────────────────────
-function _reachRichPickPhoto(){
+function _reachRichSaveRange(){
   const ed = document.getElementById('reachMessage');
   const sel = window.getSelection();
   if (ed && sel && sel.rangeCount && ed.contains(sel.getRangeAt(0).commonAncestorContainer)) _reachRichRange = sel.getRangeAt(0).cloneRange();
+}
+function _reachRichPickPhoto(){
+  _reachRichSaveRange();
   const inp = document.getElementById('rrRtPhotoInput'); if (inp) inp.click();
 }
 async function _reachRichPhotoPicked(inp){
@@ -15426,7 +15458,12 @@ function _reachRichHtmlVersions(){
     const c = ed.cloneNode(true);
     c.querySelectorAll('img').forEach(img => {
       const id = img.getAttribute('data-fileid');
-      if (!id) { img.remove(); return; }
+      if (!id) {
+        const src = img.getAttribute('src') || '';
+        if (!/^https:\/\//i.test(src)) { img.remove(); return; }
+        img.setAttribute('style', 'max-width:100%;height:auto;border-radius:6px');
+        return;
+      }
       img.setAttribute('src', forSend ? 'cid:rr' + id : 'https://lh3.googleusercontent.com/d/' + id);
       img.setAttribute('style', 'max-width:100%;height:auto;border-radius:6px');
       img.removeAttribute('data-uploading');
@@ -15439,6 +15476,139 @@ function _reachRichHtmlVersions(){
   return { send: mk(true), template: mk(false), formatted: _reachRichHasFormatting(ed) };
 }
 function _reachRichReset(){ _reachAttach = []; _reachRichRange = null; _reachRichSendHtml = null; }
+
+/* ═══ REACH: PICK FROM THE APP (v11.34) ═══
+   One searchable library of every photo and PDF the app already knows about:
+   school photos + schedules, people photos (+ Ranger documents for Level 1-2),
+   chore photos, and plant photos (searched on the server, like the Plants tab).
+   Built from data already in memory when the picker opens - no extra loading.
+   Thumbnails are small (=w240) and lazy, and only 60 show at a time. */
+let _rlib = null; // {mode:'inline'|'attach', items:[], src:'all', q:'', sel:Map(key->item), show:60, plants:[]}
+const _RLIB_SITE_IMGS = ['Main Image','Image 2','Image 3','Helpful Image 1','Helpful Image 2','Helpful Before Image'];
+function _rlibBuild(){
+  const items = [], seen = new Set();
+  const push = (src, kind, title, sub, url) => {
+    url = String(url || '').trim(); if (!/^https?:/i.test(url)) return;
+    const fileId = _driveFileIdFromUrl(url);
+    const key = fileId || url; if (seen.has(key)) return; seen.add(key);
+    items.push({ key, src, kind, title, sub, url, fileId, hay: (title + ' ' + sub).toLowerCase() });
+  };
+  const lvl12 = SESSION && SESSION.accessLevel <= 2;
+  (DATA.sites || []).forEach(site => {
+    const n = sf(site, 'Name', 'name') || '';
+    _RLIB_SITE_IMGS.forEach(col => push('schools', 'photo', n, col, getImgSrc(sf(site, col) || '')));
+    push('docs', 'pdf', n, 'Schedule', sf(site, 'Schedule', 'schedule'));
+  });
+  (DATA.humans || []).forEach(h => {
+    const n = fullName(h) || h.Email || h.email || '';
+    push('people', 'photo', n, 'Profile picture', getImgSrc(h['Main Image'] || h.MainImage || ''));
+    if (lvl12) [['W9','W-9'],['TB Test','TB Test'],['Ranger Contract','Ranger Contract'],['Mandated Reporter Training','Mandated Reporter Certificate'],['Resume','Resume']]
+      .forEach(([col, lbl]) => push('docs', 'pdf', n, lbl, h[col]));
+  });
+  (DATA.chores || []).forEach(c => {
+    const site = typeof siteNameFromKey === 'function' ? (siteNameFromKey(c.Site) || c.Site || '') : (c.Site || '');
+    ['Helpful Image 1','Helpful Image 2','Helpful Image 3'].forEach(col => push('chores', 'photo', site + (c.Task ? ' - ' + c.Task : ''), 'Chore ' + col.replace('Helpful ', '').toLowerCase(), getImgSrc(c[col] || '')));
+  });
+  return items;
+}
+function _reachLibOpen(mode){
+  _rlib = { mode, items: _rlibBuild(), src: 'all', q: '', sel: new Map(), show: 60, plants: [], plantsQ: '' };
+  let ov = document.getElementById('rlibSheet');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'sub-ov'; ov.id = 'rlibSheet'; ov.onclick = e => { if (e.target === ov) ov.remove(); }; document.body.appendChild(ov); }
+  const srcs = [['all','All'],['schools','Schools'],['people','People'],['chores','Chores']].concat(mode === 'attach' ? [['docs','📄 PDFs']] : []).concat([['plants','🌱 Plants']]);
+  ov.innerHTML = `<div class="sub-sheet rlib-sheet">
+    <h3>${mode === 'inline' ? 'Insert a photo from the app' : 'Attach from the app'}</h3>
+    <input id="rlibSearch" class="memo-input" type="search" placeholder="Search school, person, chore${mode === 'attach' ? ', document' : ''}…" oninput="_rlibSearch(this.value)">
+    <div class="rlib-chips">${srcs.map(([k, l]) => `<button type="button" class="reach-token-chip rlib-chip${k === 'all' ? ' on' : ''}" data-src="${k}" onclick="_rlibSetSrc('${k}')">${l}</button>`).join('')}</div>
+    <div id="rlibCount" class="sub-meta" style="margin:4px 0"></div>
+    <div id="rlibList" class="rlib-list"></div>
+    <div class="sub-actions" style="justify-content:space-between;align-items:center;margin-top:12px">
+      <span id="rlibSelCount" class="sub-meta">0 chosen</span>
+      <span style="display:flex;gap:8px"><button class="sub-btn alt" onclick="document.getElementById('rlibSheet').remove()">Cancel</button>
+      <button class="sub-btn hot" onclick="_rlibDone()">${mode === 'inline' ? 'Insert' : 'Attach'}</button></span></div></div>`;
+  _rlibRender();
+}
+let _rlibTimer = null;
+function _rlibSearch(v){
+  _rlib.q = v; _rlib.show = 60;
+  clearTimeout(_rlibTimer);
+  _rlibTimer = setTimeout(() => { if (_rlib.src === 'plants') _rlibPlants(); else _rlibRender(); }, _rlib.src === 'plants' ? 380 : 120);
+}
+function _rlibSetSrc(k){
+  _rlib.src = k; _rlib.show = 60;
+  document.querySelectorAll('#rlibSheet .rlib-chip').forEach(b => b.classList.toggle('on', b.dataset.src === k));
+  if (k === 'plants') _rlibPlants(); else _rlibRender();
+}
+async function _rlibPlants(){
+  const q = String(_rlib.q || '').trim();
+  const list = document.getElementById('rlibList');
+  if (q.length < 2) { _rlib.plants = []; if (list) list.innerHTML = '<div class="sub-meta" style="padding:14px 0;text-align:center">Type a plant name to search the plant library.</div>'; const c = document.getElementById('rlibCount'); if (c) c.textContent = ''; return; }
+  if (list) list.innerHTML = '<div class="sub-meta" style="padding:14px 0;text-align:center">Searching plants…</div>';
+  try {
+    const d = await gasPost({ action: 'searchPlants', query: q });
+    if (!_rlib || _rlib.src !== 'plants' || String(_rlib.q).trim() !== q) return; // a newer search took over
+    _rlib.plants = (d.plants || []).map(pl => {
+      const url = getImgSrc(String(pl['Main Image'] || pl['Main Image URL'] || '').trim());
+      const fileId = _driveFileIdFromUrl(url);
+      return url ? { key: fileId || url, src: 'plants', kind: 'photo', title: pl['Common Name'] || 'Plant', sub: pl['Botanical Name'] || '', url, fileId, hay: '' } : null;
+    }).filter(Boolean);
+  } catch (e) { _rlib.plants = []; }
+  _rlibRender();
+}
+function _rlibFiltered(){
+  if (_rlib.src === 'plants') return _rlib.plants;
+  const q = String(_rlib.q || '').trim().toLowerCase();
+  const words = q ? q.split(/\s+/) : [];
+  return _rlib.items.filter(it =>
+    (_rlib.mode === 'attach' || it.kind === 'photo') &&
+    (_rlib.src === 'all' || it.src === _rlib.src) &&
+    words.every(w => it.hay.includes(w)));
+}
+function _rlibThumb(url){
+  const id = _driveFileIdFromUrl(url);
+  return id ? 'https://lh3.googleusercontent.com/d/' + id + '=w240' : url;
+}
+function _rlibRender(){
+  const list = document.getElementById('rlibList'); if (!list) return;
+  const all = _rlibFiltered(), shown = all.slice(0, _rlib.show);
+  const c = document.getElementById('rlibCount'); if (c) c.textContent = all.length + ' found' + (all.length > shown.length ? ' - showing ' + shown.length : '');
+  const photos = shown.filter(i => i.kind === 'photo'), docs = shown.filter(i => i.kind !== 'photo');
+  list.innerHTML =
+    (docs.length ? `<div class="rlib-docs">${docs.map(it => `<button type="button" class="rlib-doc${_rlib.sel.has(it.key) ? ' on' : ''}" data-key="${ea(it.key)}" onclick="_rlibToggle(this)">
+        <span style="font-size:20px">📄</span><span style="flex:1;min-width:0;text-align:left"><b>${escHtml(it.sub)}</b><br><span class="sub-meta">${escHtml(it.title)}</span></span><span class="rlib-tick">✓</span></button>`).join('')}</div>` : '') +
+    (photos.length ? `<div class="rlib-grid">${photos.map(it => `<button type="button" class="rlib-tile${_rlib.sel.has(it.key) ? ' on' : ''}" data-key="${ea(it.key)}" onclick="_rlibToggle(this)" title="${ea(it.title + ' - ' + it.sub)}">
+        <img src="${ea(_rlibThumb(it.url))}" loading="lazy" alt="" onerror="this.style.visibility='hidden'"><span class="rlib-cap">${escHtml(it.title)}<br><small>${escHtml(it.sub)}</small></span><span class="rlib-tick">✓</span></button>`).join('')}</div>` : '') +
+    (!all.length && _rlib.src !== 'plants' ? '<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing matches.</div>' : '') +
+    (all.length > shown.length ? `<button class="sub-btn alt" style="width:100%;margin-top:10px" onclick="_rlib.show+=60;_rlibRender()">Show more</button>` : '');
+  const sc = document.getElementById('rlibSelCount'); if (sc) sc.textContent = _rlib.sel.size + ' chosen';
+}
+function _rlibToggle(btn){
+  const key = btn.dataset.key;
+  if (_rlib.sel.has(key)) _rlib.sel.delete(key);
+  else { const it = _rlibFiltered().find(i => i.key === key); if (it) _rlib.sel.set(key, it); }
+  btn.classList.toggle('on', _rlib.sel.has(key));
+  const sc = document.getElementById('rlibSelCount'); if (sc) sc.textContent = _rlib.sel.size + ' chosen';
+}
+function _rlibDone(){
+  const picked = [..._rlib.sel.values()];
+  if (!picked.length) { alert('Tap at least one item.'); return; }
+  const safe = t => String(t || '').replace(/[^a-z0-9 _-]+/gi, '').trim().slice(0, 60) || 'file';
+  if (_rlib.mode === 'inline') {
+    const ed = _reachRichFocus();
+    if (ed) {
+      if (!_reachRichRange) { const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+      document.execCommand('insertHTML', false, picked.map(it => it.fileId
+        ? `<img src="https://lh3.googleusercontent.com/d/${ea(it.fileId)}=w1200" data-fileid="${ea(it.fileId)}" alt="photo" style="max-width:100%;height:auto;border-radius:6px"><br>`
+        : `<img src="${ea(it.url)}" alt="photo" style="max-width:100%;height:auto;border-radius:6px"><br>`).join(''));
+    }
+  } else {
+    picked.forEach(it => _reachAttach.push({ lid: ++_reachLid, name: safe(it.title) + ' ' + safe(it.sub) + (it.kind === 'photo' ? '.jpg' : '.pdf'),
+      fileId: it.fileId || '', url: it.fileId ? '' : it.url, status: 'ready', kind: it.kind }));
+    _reachAttachRender();
+  }
+  document.getElementById('rlibSheet').remove();
+  showToast('✓ ' + picked.length + (_rlib.mode === 'inline' ? ' photo' + (picked.length === 1 ? '' : 's') + ' inserted' : ' attached'));
+}
 
 /* ═══ PEOPLE CARD → ACTIONS ═══
    Dropdown under Call / Text. Built to take more items later: add an
@@ -15472,13 +15642,13 @@ function _personFileList(h){
   }
   return out;
 }
-let _psf = null; // {email, name, files, selFiles:Set, people:Map(email->label), picked:Set, showAll:boolean}
+let _psf = null; // {email, name, files, selFiles:Set, picked:Map(email->'to'|'cc'|'bcc'), showAll:boolean, q}
 function _personSendFilesSheet(email){
   const h = (DATA.humans || []).find(p => String(p.Email || p.email || '').toLowerCase() === String(email).toLowerCase());
   if (!h) { showToast('Contact not found'); return; }
   const files = _personFileList(h);
   if (!files.length) { showToast('No files or pictures on record for ' + (fullName(h) || email)); return; }
-  _psf = { email: h.Email || h.email, name: fullName(h) || email, files, selFiles: new Set(files.map((f, i) => i)), picked: new Set(), showAll: false, q: '' };
+  _psf = { email: h.Email || h.email, name: fullName(h) || email, files, selFiles: new Set(files.map((f, i) => i)), picked: new Map(), showAll: false, q: '' };
   _psfRenderFiles();
 }
 function _psfOverlay(){
@@ -15531,27 +15701,50 @@ function _psfSchoolGroups(){
     return { label: 'At ' + sf(site, 'Name', 'name'), people };
   }).filter(g => g.people.length);
 }
+// Each person row has To / CC / BCC pills - tap one to pick it, tap again to clear.
 function _psfPersonRow(p){
-  return `<label class="sub-vol" style="cursor:pointer"><span style="display:flex;gap:10px;align-items:center">
-    <input type="checkbox" data-email="${ea(p.email)}" ${_psf.picked.has(p.email) ? 'checked' : ''} onchange="_psfPick(this)" style="width:20px;height:20px"> ${escHtml(p.label)}</span></label>`;
+  const cur = _psf.picked.get(p.email) || '';
+  const pill = r => `<button type="button" class="psf-pill${cur === r ? ' on ' + r : ''}" data-email="${ea(p.email)}" data-role="${r}" onclick="_psfPick(this)">${r === 'to' ? 'To' : r.toUpperCase()}</button>`;
+  return `<div class="sub-vol psf-row"><span class="psf-name">${escHtml(p.label)}</span><span class="psf-pills">${pill('to')}${pill('cc')}${pill('bcc')}</span></div>`;
 }
-function _psfPick(cb){ cb.checked ? _psf.picked.add(cb.dataset.email) : _psf.picked.delete(cb.dataset.email); const c = document.getElementById('psfCount'); if (c) c.textContent = _psf.picked.size + ' selected'; }
+function _psfPick(btn){
+  const e = btn.dataset.email, r = btn.dataset.role;
+  if (_psf.picked.get(e) === r) _psf.picked.delete(e); else _psf.picked.set(e, r);
+  const now = _psf.picked.get(e) || '';
+  // The same person can appear in more than one group - keep every copy in step
+  document.querySelectorAll('#psfSheet .psf-pill').forEach(b => { if (b.dataset.email === e) b.className = 'psf-pill' + (b.dataset.role === now ? ' on ' + now : ''); });
+  _psfCount();
+}
+function _psfCount(){
+  const c = document.getElementById('psfCount'); if (!c) return;
+  const n = { to: 0, cc: 0, bcc: 0 }; _psf.picked.forEach(r => n[r]++);
+  c.textContent = `To ${n.to} · CC ${n.cc} · BCC ${n.bcc}`;
+}
+// Enrich LA leadership = everyone on Access Level 1 or 2
+function _psfLeadership(){
+  return (DATA.humans || []).filter(h => { const l = String(h['Access Level'] || '').trim(); return (l === '1' || l === '2') && (h.Email || h.email); })
+    .map(h => ({ email: h.Email || h.email, label: fullName(h) + ' · Level ' + String(h['Access Level']).trim() }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
 function _psfRenderPeople(){
   const s = _psf, ov = _psfOverlay();
   const groups = _psfSchoolGroups();
+  const lead = _psfLeadership();
   ov.innerHTML = `<div class="sub-sheet">
     <h3>Who gets ${escHtml(s.name)}'s files?</h3>
-    <div class="sub-meta" style="margin:-6px 0 8px">Step 2 of 2 - ${s.selFiles.size} file${s.selFiles.size === 1 ? '' : 's'} chosen. You can edit the email next.</div>
+    <div class="sub-meta" style="margin:-6px 0 8px">Step 2 of 2 - ${s.selFiles.size} file${s.selFiles.size === 1 ? '' : 's'} chosen. Tap To, CC or BCC for each person. You can edit the email next.</div>
     ${groups.length ? groups.map(g => `<div class="sub-lbl">${escHtml(g.label)}</div>${g.people.map(_psfPersonRow).join('')}`).join('')
-      : `<div class="sub-meta">No schools are linked to ${escHtml(s.name)} - use Show more people below.</div>`}
+      : `<div class="sub-meta">No schools are linked to ${escHtml(s.name)} - use Leadership or Show more people below.</div>`}
+    ${lead.length ? `<div class="sub-lbl">Enrich LA Leadership</div>${lead.map(_psfPersonRow).join('')}` : ''}
     <div class="sub-lbl">${escHtml(s.name)}</div>${_psfPersonRow({ email: s.email, label: s.name + ' (this person)' })}
     <div id="psfMore">${s.showAll ? _psfMoreHtml() : `<button class="sub-btn alt" style="width:100%;margin-top:10px" onclick="_psf.showAll=true;document.getElementById('psfMore').innerHTML=_psfMoreHtml();setTimeout(()=>{const i=document.getElementById('psfSearch');if(i)i.focus()},50)">➕ Show more people</button>`}</div>
     <div class="sub-actions" style="justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:8px">
-      <span id="psfCount" class="sub-meta">${s.picked.size} selected</span>
+      <span id="psfCount" class="sub-meta"></span>
       <span style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="sub-btn alt" onclick="_psfRenderFiles()">‹ Back</button>
         <button class="sub-btn" onclick="_psfGo('email_together')">✉ One email</button>
         <button class="sub-btn hot" onclick="_psfGo('email_individual')">✉ Email each</button></span></div></div>`;
+  _psfCount();
 }
 function _psfMoreHtml(){
   return `<div class="sub-lbl" style="margin-top:10px">Everyone</div>
@@ -15573,9 +15766,11 @@ function _psfMoreListHtml(){
 function _psfMoreList(){ const el = document.getElementById('psfMoreList'); if (el) el.innerHTML = _psfMoreListHtml(); }
 function _psfGo(mode){
   const s = _psf;
-  if (!s.picked.size) { alert('Pick at least one person.'); return; }
+  const byRole = r => [...s.picked].filter(([, v]) => v === r).map(([e]) => e);
+  const to = byRole('to');
+  if (!to.length) { alert('Pick at least one person as To.'); return; }
   const files = [...s.selFiles].map(i => s.files[i]);
-  _reachSelected.clear(); s.picked.forEach(e => _reachSelected.add(e));
+  _reachSelected.clear(); to.forEach(e => _reachSelected.add(e));
   _reachTarget = _buildTarget();
   if (!_reachTarget.length) { alert('None of those people have an email address.'); return; }
   _reachMode = mode;
@@ -15585,6 +15780,7 @@ function _psfGo(mode){
   });
   const meH = SESSION ? gh(SESSION.email) : null, meName = meH ? fullName(meH) : (SESSION ? SESSION.email : '');
   _reachForwardPrefill = {
+    cc: byRole('cc').join(', '), bcc: byRole('bcc').join(', '),
     subject: s.name + ' - ' + files.map(f => f.label).join(', '),
     message: 'Hello,\n\nAttached ' + (files.length === 1 ? 'is the ' + files[0].label : 'are the following') + ' for ' + s.name + (files.length > 1 ? ':\n' + files.map(f => '- ' + f.label).join('\n') : '.') + '\n\nThank you,\n' + meName + '\nEnrich LA'
   };
