@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.32 | 2026-10-20 | Approve and Send tells the requester we sent it to other Rangers (from the approver)';
+const GAS_BUILD = 'v11.35 | 2026-10-26 | AI school summaries (nightly, Levels 1-2)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -130,7 +130,7 @@ const IMG_PREFIX_MAP = {
 
 // ── BLOCKED COLUMNS ───────────────────────────────────────────────────────────
 const BLOCKED_H = ['Comments', 'Rating 1', 'Rating 2', 'Rating 3', 'Password'];
-const BLOCKED_S = ['Comments'];
+const BLOCKED_S = ['Comments', 'AI Summary', 'AI Status', 'AI Summary Date', 'AI Summary Hash'];
 
 // Password itself stays blocked (see BLOCKED_H) but the Data > People "All Active"
 // filter needs to know whether someone has a password recorded at all, without
@@ -725,6 +725,9 @@ function _doPostRoute(e) {
       // ── DELETE HUMAN ─────────────────────────────────────────────────────────
       case 'deleteHuman':   return respond(handleDeleteHuman(p));
       case 'getComments':   return respond(handleGetComments(p));
+      case 'getAiSummaries':  return respond(handleGetAiSummaries(p));
+      case 'runAiSummaries':  return respond(handleRunAiSummaries(p));
+      case 'aiSummaryStatus': return respond(handleAiSummaryStatus(p));
       case 'saveComments':  return respond(handleSaveComments(p));
 
       // ── PROGRAMS (Items All → Operations edit card dropdown) ────────────────
@@ -5356,4 +5359,288 @@ function handleCancelReschedule(p) {
     }
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
+}
+
+
+// ══ AI SCHOOL SUMMARIES (v11.35) ═══════════════════════════════════════════
+// Nightly job: reads each school's Comments, Site Details, status fields and
+// open chores, asks Claude (Haiku) for a one-to-two sentence status line plus a
+// good / watch / attention flag, and stores the result in four Sites columns:
+//   AI Summary | AI Status | AI Summary Date | AI Summary Hash
+// These columns are BLOCKED from the normal sites payload (Comments are private)
+// and are served only to Levels 1-2 through action getAiSummaries, which the app
+// fetches in the background after first paint — so this never slows loading.
+// A school is only re-summarised when its inputs change (hash) or the summary
+// is over 30 days old, so a typical night costs a fraction of a cent.
+//
+// Setup: Script Properties → anthropic_api_key = your key (sk-ant-...).
+// The Settings button "Refresh AI Summaries" installs the nightly trigger.
+
+var AI_MODEL = 'claude-haiku-5-5';
+var AI_COLS = ['AI Summary', 'AI Status', 'AI Summary Date', 'AI Summary Hash'];
+var AI_KEY_PROPS = ['anthropic_api_key', 'ANTHROPIC_API_KEY', 'anthropic_key', 'claude_api_key', 'CLAUDE_API_KEY'];
+
+function _aiApiKey() {
+  var props = PropertiesService.getScriptProperties();
+  for (var i = 0; i < AI_KEY_PROPS.length; i++) {
+    var v = props.getProperty(AI_KEY_PROPS[i]);
+    if (v && String(v).trim()) return String(v).trim();
+  }
+  return '';
+}
+
+function _aiEnsureColumns(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var toAdd = AI_COLS.filter(function(h) { return headers.indexOf(h) === -1; });
+  if (toAdd.length) {
+    sheet.getRange(1, lastCol + 1, 1, toAdd.length).setValues([toAdd]);
+    headers = headers.concat(toAdd);
+  }
+  return headers;
+}
+
+function _aiHash(s) {
+  var d = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, s, Utilities.Charset.UTF_8);
+  return Utilities.base64Encode(d).slice(0, 16);
+}
+
+function _aiFmtDate(v) {
+  if (!v) return '';
+  if (v instanceof Date) return Utilities.formatDate(v, 'America/Los_Angeles', 'M/d/yyyy');
+  return String(v);
+}
+
+// Open chores grouped by site Key (Chores.Site holds Keys; Names as fallback).
+function _aiOpenChoresBySite() {
+  var out = {};
+  try {
+    var data = SpreadsheetApp.openById(CHORES_ID).getSheetByName('Chores').getDataRange().getValues();
+    var h = data[0];
+    var si = h.indexOf('Site'), ti = h.indexOf('Task'), ci = h.indexOf('Additional Comments'),
+        st = h.indexOf('Status'), ts = h.indexOf('Timestamp'), ui = h.indexOf('Urgency');
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][st] || '').toLowerCase() !== 'open') continue;
+      var k = String(data[r][si] || '').trim().toLowerCase();
+      if (!k) continue;
+      (out[k] = out[k] || []).push(
+        '- ' + String(data[r][ti] || '').trim() +
+        (ci > -1 && data[r][ci] ? ' (' + String(data[r][ci]).trim().slice(0, 150) + ')' : '') +
+        (ui > -1 && data[r][ui] ? ' [urgency: ' + data[r][ui] + ']' : '') +
+        (ts > -1 && data[r][ts] ? ' [opened ' + _aiFmtDate(data[r][ts]) + ']' : ''));
+    }
+  } catch (e) { Logger.log('_aiOpenChoresBySite: ' + e.message); }
+  return out;
+}
+
+function _aiBuildInput(row, idx, chores) {
+  function g(col) { var i = idx[col]; return i === undefined ? '' : row[i]; }
+  var comments = String(g('Comments') || '').trim();
+  if (comments.length > 3500) comments = '…' + comments.slice(-3500); // keep the most recent notes
+  var details = String(g('Site Details') || '').trim().slice(0, 600);
+  var lines = [
+    'School: ' + g('Name'),
+    'Program type: ' + (g('Type') || 'unknown'),
+    'District: ' + (g('District') || ''),
+    'Ranger: ' + ([g('Ranger 1 Name'), g('Ranger 2  Name') || g('Ranger 2 Name')].filter(String).join(', ') || 'unassigned'),
+    'Program started: ' + (g('Program Started?') === '' ? 'unknown' : g('Program Started?')),
+    'Any response from school: ' + (g('Any Response?') === '' ? 'unknown' : g('Any Response?')),
+    'Ranger day: ' + (g('Ranger Day Of Week 1') || ''),
+    'Record last updated: ' + _aiFmtDate(g('Last Update')),
+    'Open chores:\n' + (chores.length ? chores.join('\n') : 'none'),
+    'Site details:\n' + (details || 'none'),
+    'Staff comments (dated log, oldest first):\n' + (comments || 'none')
+  ];
+  return lines.join('\n');
+}
+
+function _aiRequest(apiKey, input, today) {
+  var system =
+    'You write status lines for a school garden program field app (Enrich LA Garden Rangers). ' +
+    'Today is ' + today + '. Read the school record and reply with ONLY a JSON object: ' +
+    '{"summary": "...", "status": "good|watch|attention"}. ' +
+    'summary: at most 2 short sentences, under 200 characters, plain words, no names of private individuals except the Ranger. ' +
+    'Say how the garden/program is doing, the most important open issue if any, and the date of the latest logged note (as written, e.g. "last note 1/5/26"). ' +
+    'Never use relative time like "3 weeks ago". Comment dates often omit the year; infer it from order. ' +
+    'Never include gate codes, passwords or phone numbers. ' +
+    'status: good = running well, nothing pending; watch = minor open item or unclear; ' +
+    'attention = needs staff action (unresolved problem, urgent chore, school not responding, or an active program with no logged activity in over 60 days).';
+  return {
+    url: 'https://api.anthropic.com/v1/messages',
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    muteHttpExceptions: true,
+    payload: JSON.stringify({
+      model: AI_MODEL,
+      max_tokens: 200,
+      system: system,
+      messages: [{ role: 'user', content: input }]
+    })
+  };
+}
+
+function _aiParse(resp) {
+  var code = resp.getResponseCode();
+  if (code >= 300) return { err: 'HTTP ' + code + ': ' + resp.getContentText().slice(0, 200), code: code };
+  var body = JSON.parse(resp.getContentText());
+  var text = (body.content || []).map(function(c) { return c.text || ''; }).join('').trim();
+  var m = text.match(new RegExp('\\{[\\s\\S]*\\}'));
+  var obj = {};
+  try { obj = JSON.parse(m ? m[0] : text); } catch (e) { obj = { summary: text }; }
+  var status = String(obj.status || 'watch').toLowerCase();
+  if (['good', 'watch', 'attention'].indexOf(status) === -1) status = 'watch';
+  var summary = String(obj.summary || '').replace(new RegExp('\\s+', 'g'), ' ').trim().slice(0, 280);
+  if (!summary) return { err: 'empty summary' };
+  return { summary: summary, status: status };
+}
+
+// Core worker. budgetMs caps run time; returns counts so callers can continue.
+function runAiSummaries(budgetMs, force) {
+  var t0 = Date.now();
+  budgetMs = budgetMs || 270000;
+  var apiKey = _aiApiKey();
+  if (!apiKey) return { ok: false, error: 'No Anthropic API key in Script Properties (add anthropic_api_key).' };
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { ok: false, error: 'AI summaries already running - try again in a minute.' };
+  try {
+    var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+    var headers = _aiEnsureColumns(sheet);
+    var data = sheet.getDataRange().getValues();
+    var idx = {};
+    headers.forEach(function(h, i) { if (h !== '' && idx[h] === undefined) idx[h] = i; });
+    var chores = _aiOpenChoresBySite();
+    var today = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d/yyyy');
+    var monthAgo = Date.now() - 30 * 86400000;
+
+    // Work list: schools with comments or open chores whose inputs changed.
+    var work = [];
+    for (var r = 1; r < data.length; r++) {
+      var row = data[r];
+      var name = String(row[idx['Name']] || '').trim();
+      if (!name) continue;
+      var key = idx['Key'] !== undefined ? String(row[idx['Key']] || '').trim() : '';
+      var ch = chores[key.toLowerCase()] || chores[name.toLowerCase()] || [];
+      if (!String(row[idx['Comments']] || '').trim() && !ch.length) continue;
+      var input = _aiBuildInput(row, idx, ch);
+      var hash = _aiHash(input);
+      var prevDate = row[idx['AI Summary Date']];
+      var prevMs = prevDate instanceof Date ? prevDate.getTime() : (prevDate ? new Date(prevDate).getTime() : 0);
+      var fresh = row[idx['AI Summary Hash']] === hash && prevMs > monthAgo && String(row[idx['AI Summary']] || '');
+      if (fresh && !force) continue;
+      work.push({ name: name, input: input, hash: hash });
+    }
+
+    var done = 0, errors = [], i = 0, BATCH = 4;
+    var contiguous = idx['AI Status'] === idx['AI Summary'] + 1 &&
+                     idx['AI Summary Date'] === idx['AI Summary'] + 2 &&
+                     idx['AI Summary Hash'] === idx['AI Summary'] + 3;
+    while (i < work.length && Date.now() - t0 < budgetMs - 15000) {
+      var batch = work.slice(i, i + BATCH);
+      var resps = UrlFetchApp.fetchAll(batch.map(function(w) { return _aiRequest(apiKey, w.input, today); }));
+      // Re-read names right before writing, in case a row was added/deleted mid-run.
+      var names = sheet.getRange(1, idx['Name'] + 1, sheet.getLastRow(), 1).getValues();
+      var rateLimited = false;
+      resps.forEach(function(resp, j) {
+        var w = batch[j];
+        var res;
+        try { res = _aiParse(resp); } catch (e) { res = { err: e.message }; }
+        if (res.err) {
+          if (res.code === 429 || res.code === 529) rateLimited = true;
+          errors.push(w.name + ': ' + res.err);
+          return;
+        }
+        var rowNum = -1;
+        for (var n = 1; n < names.length; n++) {
+          if (String(names[n][0] || '').trim() === w.name) { rowNum = n + 1; break; }
+        }
+        if (rowNum < 0) return;
+        var vals = [res.summary, res.status, new Date(), w.hash];
+        if (contiguous) {
+          sheet.getRange(rowNum, idx['AI Summary'] + 1, 1, 4).setValues([vals]);
+        } else {
+          AI_COLS.forEach(function(c, k) { sheet.getRange(rowNum, idx[c] + 1).setValue(vals[k]); });
+        }
+        done++;
+      });
+      i += BATCH;
+      Utilities.sleep(rateLimited ? 20000 : 1500);
+      if (rateLimited) i -= BATCH; // retry the same batch once the limit eases
+      if (errors.length > 40) break;
+    }
+    var remaining = Math.max(0, work.length - i);
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty('ai_summaries_last', JSON.stringify({
+      at: new Date().toISOString(), done: done, remaining: remaining, errors: errors.slice(0, 5)
+    }));
+    if (done) { try { bumpLiveVersion(['sites']); } catch (e) {} }
+    return { ok: true, done: done, remaining: remaining, errors: errors.slice(0, 5) };
+  } finally { lock.releaseLock(); }
+}
+
+// Nightly trigger handler. If time ran out, schedule a one-off continuation.
+function aiSummariesNightly() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'aiSummariesContinue') ScriptApp.deleteTrigger(t);
+  });
+  var res = runAiSummaries(270000, false);
+  if (res.ok && res.remaining > 0) {
+    ScriptApp.newTrigger('aiSummariesContinue').timeBased().after(60000).create();
+  }
+  Logger.log('aiSummariesNightly: ' + JSON.stringify(res));
+}
+function aiSummariesContinue() { aiSummariesNightly(); }
+
+// Safe to run by hand; also called by the Settings button.
+function installAiSummaryTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'aiSummariesNightly') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('aiSummariesNightly').timeBased().everyDays(1).atHour(2)
+    .inTimezone('America/Los_Angeles').create();
+  PropertiesService.getScriptProperties().setProperty('ai_trigger_v1', String(Date.now()));
+}
+
+function _aiTriggerInstalled() {
+  return ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'aiSummariesNightly'; });
+}
+
+// action: getAiSummaries (Levels 1-2) → { ok, summaries: { <Key or name>: {s, st, d} } }
+function handleGetAiSummaries(p) {
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (accessLevel > 2) return { ok: false, error: 'Not authorized' };
+  var data = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues();
+  var h = data[0];
+  var ni = h.indexOf('Name'), ki = h.indexOf('Key'), si = h.indexOf('AI Summary'),
+      ti = h.indexOf('AI Status'), di = h.indexOf('AI Summary Date');
+  if (si === -1) return { ok: true, summaries: {} };
+  var out = {};
+  for (var r = 1; r < data.length; r++) {
+    var s = String(data[r][si] || '').trim();
+    if (!s) continue;
+    var id = (ki > -1 && String(data[r][ki] || '').trim()) || String(data[r][ni] || '').trim();
+    out[id] = { s: s, st: ti > -1 ? String(data[r][ti] || '') : '', d: di > -1 ? _aiFmtDate(data[r][di]) : '',
+                n: String(data[r][ni] || '').trim() };
+  }
+  return { ok: true, summaries: out };
+}
+
+// action: runAiSummaries (Level 1) → runs ~25s of work, installs nightly trigger.
+function handleRunAiSummaries(p) {
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (accessLevel !== 1) return { ok: false, error: 'Level 1 only' };
+  if (!_aiApiKey()) return { ok: false, error: 'No Anthropic API key in Script Properties. Add a property named anthropic_api_key.' };
+  try { if (!_aiTriggerInstalled()) installAiSummaryTrigger(); } catch (e) { Logger.log('ai trigger: ' + e.message); }
+  var res = runAiSummaries(40000, p.force === true);
+  res.trigger = _aiTriggerInstalled();
+  return res;
+}
+
+// action: aiSummaryStatus (Level 1) → last run info for the Settings row.
+function handleAiSummaryStatus(p) {
+  var accessLevel = parseInt(p.accessLevel || '3');
+  if (accessLevel !== 1) return { ok: false, error: 'Level 1 only' };
+  var last = PropertiesService.getScriptProperties().getProperty('ai_summaries_last');
+  return { ok: true, hasKey: !!_aiApiKey(), trigger: _aiTriggerInstalled(), last: last ? JSON.parse(last) : null };
 }

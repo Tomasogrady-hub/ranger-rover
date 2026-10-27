@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.34 | BUILDITALL: 2026-10-26 | Ranger Rover PWA -->
+<!-- v11.35 | BUILDITALL: 2026-10-26 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -636,6 +636,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nv-toggle input:checked+.nv-slider{background:var(--grove)}
 .nv-toggle input:checked+.nv-slider:before{transform:translateX(16px)}
 
+/* AI summaries */
+.ai-line{margin-top:6px;padding:4px 0 4px 9px;border-left:3px solid var(--mist);font-size:13.5px;line-height:1.45;color:var(--stone);display:block}
+.ai-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.ai-badge{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:none}
 </style>
 
 </head>
@@ -1577,6 +1581,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <div class="settings-note">This is the GAS_BUILD string reported by the currently DEPLOYED Apps Script, not the version in the GitHub source file. Pushing GAS_SCRIPT.gs to GitHub never updates this — only Deploy → New Deployment in the Apps Script editor does. If a recent backend fix doesn't seem to be taking effect, check this matches the latest GAS_BUILD in source before troubleshooting anything else.</div>
         </div>
         <div class="settings-row">
+          <div class="dl" style="margin-bottom:6px">✨ AI School Summaries</div>
+          <div class="settings-note">Each night at 2am, Claude reads every school's Comments, Site Details and open chores and writes a one-to-two line status with a green / amber / red flag. Shown to Levels 1-2 only. Only changed schools are re-read, so it costs pennies a month.</div>
+          <button class="settings-btn" style="margin-top:8px" onclick="_aiRunNow(this)">✨ Refresh AI Summaries</button>
+          <div id="aiSumStatus" class="settings-note" style="margin-top:8px">–</div>
+        </div>
+        <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">Cache — Last synced: <span id="lastSync">–</span></div>
           <button onclick="clearCache()" style="margin-top:4px;padding:10px 15px;background:transparent;color:var(--stone);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">Clear &amp; Re-fetch</button>
           <div class="settings-note" style="margin-top:10px">If the version number on the home screen looks out of date after a new release, use this instead — it clears the app shell itself, not just the school/chore data.</div>
@@ -1978,10 +1988,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.34';
+const APP_VERSION='v11.35';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-26 18:20 PT - Send this person files: Enrich LA Leadership (Level 1 and 2) added to the people list, and every person now has To, CC and BCC buttons. Reach email: photos and attachments can now come From the app as well as from the device - one searchable library of school photos and schedules, people photos and Ranger documents, chore photos and plant photos.';
+const BUILD_STAMP='2026-10-26 21:05 PT - AI school summaries: a one-to-two line status and a green/amber/red flag on school cards and the school detail (Levels 1-2), written overnight from Comments, Site Details and open chores. Loads in the background, never slows startup. Settings has a Refresh AI Summaries button.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2008,6 +2018,66 @@ const CFG={
   VIDEO_DELETE_DAYS:parseInt(localStorage.getItem('rr_video_delete_days')||'90')
 };
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
+/* ═══ AI SCHOOL SUMMARIES (v11.35) ═══
+   Written overnight by GAS (Claude Haiku) from private Comments + open chores.
+   Levels 1-2 only. Read from localStorage instantly, refreshed in background. */
+let _AI={};
+try{_AI=JSON.parse(localStorage.getItem('rr_ai_sum')||'{}')||{};}catch(e){_AI={};}
+const _AI_ST={good:{c:'var(--sage,#4a7c4a)',bg:'#eaf3ea',l:'On track'},watch:{c:'var(--amber,#b7791f)',bg:'var(--warn-bg,#fff7e6)',l:'Watch'},attention:{c:'var(--danger,#c0392b)',bg:'#fdecea',l:'Needs attention'}};
+function _aiFor(site){
+  if(!SESSION||SESSION.accessLevel>2||!site)return null;
+  const k=sf(site,'Key','key')||'';
+  if(k&&_AI[k])return _AI[k];
+  const n=(sf(site,'Name','name')||'').trim();
+  if(n&&_AI[n])return _AI[n];
+  return null;
+}
+function _aiCardLine(site){
+  const a=_aiFor(site);if(!a)return '';
+  const st=_AI_ST[a.st]||_AI_ST.watch;
+  return `<div class="ai-line" style="border-left-color:${st.c}"><span class="ai-dot" style="background:${st.c}"></span>${escHtml(a.s)}</div>`;
+}
+function _aiDetailBlock(site){
+  const a=_aiFor(site);if(!a)return '';
+  const st=_AI_ST[a.st]||_AI_ST.watch;
+  return `<div class="ds"><div class="dl">✨ AI Status <span class="ai-badge" style="background:${st.bg};color:${st.c}">${st.l}</span></div><div class="dv" style="font-size:16px;color:var(--stone);line-height:1.55">${escHtml(a.s)}<div style="font-size:12px;color:var(--silver);margin-top:4px">Summarised from staff comments and open chores${a.d?' · '+escHtml(a.d):''}. May be imperfect.</div></div></div>`;
+}
+async function _aiLoadSummaries(){
+  if(!SESSION||SESSION.accessLevel>2||!CFG.URL)return;
+  try{
+    const res=await gasPost({action:'getAiSummaries',accessLevel:SESSION.accessLevel});
+    if(!res||!res.ok||!res.summaries)return;
+    const next={};
+    Object.keys(res.summaries).forEach(k=>{const v=res.summaries[k];next[k]=v;if(v.n)next[v.n]=v;});
+    const changed=JSON.stringify(next)!==JSON.stringify(_AI);
+    _AI=next;
+    try{localStorage.setItem('rr_ai_sum',JSON.stringify(_AI));}catch(e){}
+    if(changed&&_activeTab==='schools'){try{renderSchools();}catch(e){}}
+  }catch(e){}
+}
+async function _aiSettingsStatus(){
+  const el=document.getElementById('aiSumStatus');if(!el||!SESSION||SESSION.accessLevel!==1)return;
+  try{
+    const r=await gasPost({action:'aiSummaryStatus',accessLevel:1});
+    if(!r||!r.ok){el.textContent=r&&r.error?r.error:'Backend not updated yet - deploy the new GAS.';return;}
+    const L=r.last;
+    el.textContent=(r.hasKey?'API key found':'No API key yet (Script Property anthropic_api_key)')+' · Nightly run '+(r.trigger?'scheduled (2am)':'not scheduled')+(L?' · Last run '+new Date(L.at).toLocaleString()+': '+L.done+' updated, '+L.remaining+' left':'');
+  }catch(e){el.textContent='Could not reach backend.';}
+}
+async function _aiRunNow(btn){
+  if(!SESSION||SESSION.accessLevel!==1)return;
+  const el=document.getElementById('aiSumStatus');
+  if(btn){btn.disabled=true;btn.textContent='Working… (up to a minute)';}
+  try{
+    const r=await gasPost({action:'runAiSummaries',accessLevel:1});
+    if(!r||!r.ok){if(el)el.textContent='⚠ '+((r&&r.error)||'Failed');}
+    else{
+      if(el)el.textContent='✓ '+r.done+' schools summarised'+(r.remaining?', '+r.remaining+' still to do - tap again or let tonight\'s run finish':' - all up to date')+(r.errors&&r.errors.length?' · Errors: '+r.errors.join(' | '):'');
+      _aiLoadSummaries();
+    }
+  }catch(e){if(el)el.textContent='⚠ '+e.message;}
+  if(btn){btn.disabled=false;btn.textContent='✨ Refresh AI Summaries';}
+}
 let _programsLoaded=false;
 let SESSION=null;
 let csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
@@ -2912,6 +2982,8 @@ function showApp(){
   loadData();
   loadAppSettings(); // load plants-on/off + broadcast message
   setTimeout(()=>loadSubs(false),4000); // Sub badge — background, never blocks startup
+  if(lvl<=2)setTimeout(_aiLoadSummaries,3000); // AI summaries — background, cached locally
+  if(lvl===1)setTimeout(_aiSettingsStatus,6000);
 }
 
 /* ═══ API ═══ */
@@ -4143,6 +4215,7 @@ function _dataSchoolSummaryCardHtml(s){
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       ${type?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}</div>`:''}
+      ${_aiCardLine(s)}
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button></div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${day?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(day)}</button>`:''}
@@ -4673,6 +4746,7 @@ function _schoolCardHtml(s,i){
       <div class="school-name-row">${opsBtn}<span class="school-name">${name}</span>${distBadge}</div>
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
       ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
+      ${_aiCardLine(s)}
       <div style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
         ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDateSafe(pcStart):'?'} – ${pcEnd?fmtDateSafe(pcEnd):'?'}</span>`:''}
         ${openChores.length>0?`<button class="chore-pill" style="cursor:pointer;border:none;background:var(--warn-bg)" onclick="event.stopPropagation();showSiteChores('${esc(siteKey)}')">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</button>`:''}
@@ -6594,6 +6668,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2',img2Meta)}${siteGalleryThumb(img3,'Image 3',img3Meta)}${siteGalleryThumb(helpImg1,'Helpful Image 1',helpImg1Meta)}${siteGalleryThumb(helpImg2,'Helpful Image 2',helpImg2Meta)}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image',helpBeforeImgMeta)}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
+      ${_aiDetailBlock(site)}
       ${schedUrl?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
       ${schedContents?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule Contents</div><div class="dv"><a class="dlink" href="javascript:void(0)" onclick="_toggleScheduleContents(this)">📄 View Schedule Contents</a><div class="sched-contents-text" style="display:none;margin-top:8px;font-size:15px;color:var(--stone);line-height:1.65;white-space:pre-wrap"></div></div></div>`:''}
       ${(progClassesStart||progClassesEnd)?`<div class="ds"><div class="dl">Program Classes</div><div class="dv">${progClassesStart?fmtDateSafe(progClassesStart):'?'} – ${progClassesEnd?fmtDateSafe(progClassesEnd):'?'}</div></div>`:''}
@@ -7797,6 +7872,7 @@ async function forceRefresh(){
     // Piggyback the same lightweight settings check here so the in-app
     // refresh icon catches it too.
     loadAppSettings();
+    _aiLoadSummaries();
     renderAll();
     _activityLoaded=false;clearTimeout(_activityTimer);showSaveToast('✓ Data refreshed');
   }catch(e){
