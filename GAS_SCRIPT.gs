@@ -748,6 +748,7 @@ function _doPostRoute(e) {
       case 'sendMemo':      return respond(handleSendMemo(p));
       case 'listMemos':     return respond(handleListMemos(p));
       case 'sendMailMerge': return respond(handleSendMailMerge(p));
+      case 'uploadReachFile': return respond(handleUploadReachFile(p));
       case 'sendTwilioSms': return respond(handleSendTwilioSms(p));
 
       // ── TEAM EMAIL SEARCH (level 1 only) ─────────────────────────────────────
@@ -2871,6 +2872,26 @@ function handleSendMailMerge(p) {
     var errors    = [];
     var sentTo    = [];
 
+    // v11.33 - files attached in the Reach composer (Drive file IDs, already
+    // uploaded by uploadReachFile) and person files picked from the People
+    // card (Drive IDs, or plain URLs as a fallback). Photos placed inside the
+    // message arrive as inlineFileIds and go out as cid: inline images.
+    // Each blob is loaded ONCE here and reused for every recipient.
+    var batchAttach = [];
+    (Array.isArray(p.attachFileIds) ? p.attachFileIds : []).forEach(function(id) {
+      try { batchAttach.push(DriveApp.getFileById(String(id)).getBlob()); } catch (e) { errors.push('attachment ' + id + ': ' + e.message); }
+    });
+    (Array.isArray(p.attachUrls) ? p.attachUrls : []).forEach(function(a) {
+      try {
+        var resp = UrlFetchApp.fetch(String(a.url), { muteHttpExceptions: true, followRedirects: true });
+        if (resp.getResponseCode() < 300) { var b = resp.getBlob(); if (a.name) b.setName(String(a.name)); batchAttach.push(b); }
+      } catch (e) { errors.push('attachment url: ' + e.message); }
+    });
+    var inlineImgs = {};
+    (Array.isArray(p.inlineFileIds) ? p.inlineFileIds : []).forEach(function(id) {
+      try { inlineImgs['rr' + id] = DriveApp.getFileById(String(id)).getBlob(); } catch (e) { errors.push('photo ' + id + ': ' + e.message); }
+    });
+
     messages.forEach(function(m) {
       var to = String((m && m.to) || '').trim();
       if (!to) return;
@@ -2895,11 +2916,17 @@ function handleSendMailMerge(p) {
         // Schools email launcher's "Attach Schedule PDF" option. Wrapped so a
         // bad/inaccessible file ID just skips the attachment rather than
         // failing the whole send.
+        var msgAttach = batchAttach.slice();
         if (m && m.attachFileId) {
           try {
-            var attachBlob = DriveApp.getFileById(String(m.attachFileId)).getBlob();
-            opts.attachments = [attachBlob];
+            msgAttach.push(DriveApp.getFileById(String(m.attachFileId)).getBlob());
           } catch (attachErr) { /* send without the attachment */ }
+        }
+        if (msgAttach.length) opts.attachments = msgAttach;
+        if (html) {
+          var usedInline = {};
+          Object.keys(inlineImgs).forEach(function(k) { if (html.indexOf('cid:' + k) > -1) usedInline[k] = inlineImgs[k]; });
+          if (Object.keys(usedInline).length) opts.inlineImages = usedInline;
         }
         // When the client sent a personalised HTML version (school names as
         // real clickable links back into the app), send that as the rendered
@@ -2930,6 +2957,42 @@ function handleSendMailMerge(p) {
 
     return { ok: true, sent: sentCount, failed: errors.length, errors: errors.length ? errors : undefined };
 
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+
+// ── REACH FILE UPLOAD (v11.33) ────────────────────────────────────────────────
+// Photos inserted into a Reach email and files attached to one are uploaded
+// here the moment they are picked, so the later send only carries Drive IDs.
+// Saved in a "Ranger Rover - Reach Attachments" Drive folder (created once,
+// ID kept in Script Property reach_attach_folder). Inline photos are shared
+// "anyone with the link can view" so reused templates can still show them;
+// attachments (PDFs etc.) stay private to the account.
+// Payload: { action:'uploadReachFile', base64, mimeType, fileName, inline, actor }
+function _reachAttachFolder() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('reach_attach_folder');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+  var folder = DriveApp.createFolder('Ranger Rover - Reach Attachments');
+  props.setProperty('reach_attach_folder', folder.getId());
+  return folder;
+}
+function handleUploadReachFile(p) {
+  try {
+    if (!p.base64) return { ok: false, error: 'No file data' };
+    var mime = String(p.mimeType || 'application/octet-stream');
+    if (/heic|heif/i.test(mime)) mime = 'image/jpeg';
+    var name = String(p.fileName || 'file').replace(new RegExp('[\\/:*?"<>|]+', 'g'), '-').slice(0, 120);
+    var stamp = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyyMMdd-HHmmss');
+    var blob = Utilities.newBlob(Utilities.base64Decode(p.base64), mime, stamp + ' ' + name);
+    var file = _reachAttachFolder().createFile(blob);
+    if (p.inline) {
+      try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* domain policy - cid still works */ }
+    }
+    logActivity(p.actor || '', p.inline ? 'Reach photo uploaded' : 'Reach attachment uploaded', name, 'Reach', '');
+    return { ok: true, fileId: file.getId(), url: file.getUrl() };
   } catch (e) {
     return { ok: false, error: e.message };
   }

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.32 | BUILDITALL: 2026-10-20 | Ranger Rover PWA -->
+<!-- v11.33 | BUILDITALL: 2026-10-26 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -173,6 +173,26 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .sub-btn:disabled{opacity:.5}
 .sub-vol{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--mist);font-size:15px}
 .sub-empty{padding:18px 16px;color:var(--silver);font-size:16px;text-align:center}
+/* v11.33 Reach formatted editor + attachments + person Actions */
+.rr-rich-wrap{display:flex;flex-direction:column;gap:6px}
+.rr-rt-bar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:6px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm)}
+.rr-rt-btn{min-width:34px;height:34px;padding:0 8px;border:1px solid var(--mist);border-radius:6px;background:var(--paper);color:var(--ink);font-size:14px;cursor:pointer;font-family:var(--font-b)}
+.rr-rt-btn:active{background:var(--mist)}
+.rr-rt-photo{background:var(--enrich-dark);color:#fff;border-color:var(--enrich-dark)}
+.rr-rt-sep{width:1px;height:22px;background:var(--mist);margin:0 2px}
+.rr-rt-colors{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px}
+.rr-rt-swatch{width:28px;height:28px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--mist);cursor:pointer}
+.rr-rt-editor{min-height:180px;max-height:55vh;overflow-y:auto;line-height:1.5;white-space:normal;word-wrap:break-word;-webkit-user-select:text;user-select:text}
+.rr-rt-editor:empty:before{content:attr(data-placeholder);color:var(--silver)}
+.rr-rt-editor img{max-width:100%;height:auto}
+.rr-rt-editor ul,.rr-rt-editor ol{padding-left:22px;margin:4px 0}
+.rr-att-list{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+.rr-att-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);font-size:13px}
+.rr-att-chip.err{border-color:var(--tomato,#c0392b)}
+.rr-att-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-att-st{font-size:11px;color:var(--stone)}
+.rr-att-chip button{background:none;border:none;font-size:16px;cursor:pointer;color:var(--stone);padding:0 4px}
+.rr-person-actions{width:100%;padding:13px 12px;border:1px solid var(--enrich-dark);border-radius:var(--r-sm);background:var(--paper);color:var(--enrich-dark);font-family:var(--font-b);font-size:15px;font-weight:600;cursor:pointer}
 .sub-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:15000;display:flex;align-items:flex-end;justify-content:center}
 .sub-sheet{background:var(--white);width:100%;max-width:560px;max-height:92%;overflow:auto;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:18px 18px calc(18px + var(--safe-bottom))}
 .sub-sheet h3{font-family:var(--font-d);font-style:italic;font-weight:400;font-size:30px;color:var(--ink);margin-bottom:10px}
@@ -1938,10 +1958,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.32';
+const APP_VERSION='v11.33';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-20 19:05 PT - Sub tab: once a Master sends a request out, it shows Waiting on other Rangers for the Ranger who asked and for Level 1-2 (other Rangers still see Available), right away. The Ranger who asked gets an email and text from that Master: we have sent your request for a sub to other Rangers and we will be in touch. When a sub is picked (or a request is cancelled with let the school know), a picker shows the school contacts, the Rangers involved, Senior Leadership and Master Rangers with tick boxes before Reach opens. Requires GAS New Deployment for the message.';
+const BUILD_STAMP='2026-10-26 17:45 PT - Reach email: formatting toolbar (bold, italic, underline, colors, highlight, text size, lists, links), insert a photo right into the message, attach photos or PDFs (they upload while you write so Send is quick). People card: new Actions dropdown under Call and Text - Send this person files or pictures (pick the files, then pick people at their schools or anyone, then Reach opens with the files attached). Requires GAS New Deployment.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6987,6 +7007,7 @@ function renderPD(h,edit){
         ${email?`<a class="dcta" href="${gmailUrl(email)}" target="_blank" rel="noopener">✉ Email</a>`:''}
         <button class="dcta" id="pd-forward-btn" onclick="forwardContactCard('${ea(email||name)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>
       </div>
+      ${_personActionsHtml(email)}
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
@@ -13455,6 +13476,9 @@ async function _sendMailMerge(together){
   if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
   const recipients = _reachTarget.filter(r=>r.email);
   if(!recipients.length){if(st)st.textContent='⚠ No email addresses in selection';return;}
+  { const _blk = _reachRichBlocking(); if(_blk){ if(st)st.textContent=_blk; return; } }
+  const _rich = _reachRichHtmlVersions();
+  _reachRichSendHtml = _rich ? _rich.send : null;
   const btn = document.getElementById('reachSendBtn');
   if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
   if(st)st.textContent='';
@@ -13486,7 +13510,7 @@ async function _sendMailMerge(together){
     const gkHtml     = _schoolListBlock('Garden Keeper Schools',  r.gkSchoolLinks,     _escHtml, true);
     const openChoresHtml  = _choreListBlock(r.openChores,  _escHtml, true);
     const choresForMeHtml = _choreListBlock(r.choresForMe, _escHtml, true);
-    return _reachStaticHtml(_escHtml(str))
+    return _reachStaticHtml(_reachRichSendHtml != null ? _reachRichSendHtml : _escHtml(str))
       .replace(/\{\{FirstName\}\}/gi, _escHtml(fname))
       .replace(/\{\{LastName\}\}/gi,  _escHtml(r.lastName||''))
       .replace(/\{\{FullName\}\}/gi,  _escHtml(r.name||''))
@@ -13503,14 +13527,16 @@ async function _sendMailMerge(together){
     ? [{ to: recipients.map(r=>r.email).join(','),
          subject: _reachStaticPlain(subj).replace(/\{\{FromName\}\}/gi, _fromName),
          body:    _reachStaticPlain(rawMsg).replace(/\{\{FromName\}\}/gi, _fromName),
-         html:    _reachStaticHtml(_escHtml(rawMsg)).replace(/\{\{FromName\}\}/gi, _escHtml(_fromName)).replace(/\n/g,'<br>') }]
+         html:    _reachStaticHtml(_reachRichSendHtml != null ? _reachRichSendHtml : _escHtml(rawMsg)).replace(/\{\{FromName\}\}/gi, _escHtml(_fromName)).replace(/\n/g,'<br>') }]
     : recipients.map(r=>({ to: r.email, subject: _tokPlain(subj,r), body: _tokPlain(rawMsg,r), html: _tokHtml(rawMsg,r) }));
+  _reachRichSendHtml = null;
   try{
-    const res = await gasPost({
+    const res = await gasPost(Object.assign({
       action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:'',
       mode: together ? 'email_together' : 'email_individual',
-      templateSubject: subj, templateMessage: rawMsg
-    });
+      templateSubject: subj, templateMessage: (_rich && _rich.formatted) ? _rich.template : rawMsg
+    }, _reachRichPayloadExtras()));
+    if(res && res.ok===false) throw new Error(res.error||'Send failed');
     closeReachCompose();
     const sent=res.sent||0, failed=res.failed||0;
     showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
@@ -13860,6 +13886,7 @@ function openReachSchoolsCompose(){
     </div>
   </div>`;
 
+  _reachRichMount(); // formatted editor + photo insert + attachments (v11.33)
   _onReachSchoolMailColsChange(); // paint the initial recipient summary
   setTimeout(()=>{ const el=document.getElementById('reachMessage'); if(el)el.focus(); },150);
 }
@@ -13880,6 +13907,9 @@ async function _sendSchoolMailMerge(){
   if(!rawMsg){if(st)st.textContent='⚠ Message is required';return;}
   const recipients = _reachSchoolTargets.filter(r=>r.toEmails&&r.toEmails.length);
   if(!recipients.length){if(st)st.textContent='⚠ No recipients — check the Send To column(s) above';return;}
+  { const _blk = _reachRichBlocking(); if(_blk){ if(st)st.textContent=_blk; return; } }
+  const _rich = _reachRichHtmlVersions();
+  _reachRichSendHtml = _rich ? _rich.send : null;
   const btn = document.getElementById('reachSendBtn');
   if(btn){btn.textContent='Sending…';btn.style.pointerEvents='none';}
   if(st)st.textContent='';
@@ -13939,7 +13969,7 @@ async function _sendSchoolMailMerge(){
     .replace(/\{\{HelpfulBeforeImage\}\}/gi, r.helpfulBeforeImage||'')
     .replace(/\{\{FromName\}\}/gi,        _fromName);
   const _tokHtml = (str,r)=>{
-    return _reachStaticHtml(_escHtml(str))
+    return _reachStaticHtml(_reachRichSendHtml != null ? _reachRichSendHtml : _escHtml(str))
       .replace(/\{\{Greeting\}\}/gi,        _escHtml(_greetingPlain(r)))
       .replace(/\{\{SchoolName\}\}/gi,      _escHtml(r.schoolName||''))
       .replace(/\{\{PrincipalName\}\}/gi,   _escHtml(r.principalName||''))
@@ -13998,11 +14028,13 @@ async function _sendSchoolMailMerge(){
     // school actually has a file uploaded.
     attachFileId: (_reachSchoolAttachSchedule && r.scheduleFileId) ? r.scheduleFileId : undefined
   }));
+  _reachRichSendHtml = null;
   try{
-    const res = await gasPost({
+    const res = await gasPost(Object.assign({
       action:'sendMailMerge', messages, cc, bcc, fromEmail:SESSION?SESSION.email:'', category:'Schools',
-      mode:'email_individual', templateSubject: subj, templateMessage: rawMsg
-    });
+      mode:'email_individual', templateSubject: subj, templateMessage: (_rich && _rich.formatted) ? _rich.template : rawMsg
+    }, _reachRichPayloadExtras()));
+    if(res && res.ok===false) throw new Error(res.error||'Send failed');
     closeReachCompose();
     const sent=res.sent||0, failed=res.failed||0;
     showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
@@ -14117,6 +14149,8 @@ function openReachCompose(mode) {
       </div>
   </div>`;
 
+  // Email: formatted editor + photo insert + attachments (v11.33)
+  if (isEmail) _reachRichMount();
   // If the user got here via the "Forward" button on a chore card, drop the
   // staged subject/message in now (one-time use, then clear it).
   if (_reachForwardPrefill) {
@@ -14132,6 +14166,7 @@ function openReachCompose(mode) {
 
 function closeReachCompose() {
   document.getElementById('memo-overlay').style.display = 'none';
+  _reachRichReset();
 }
 
 // ── Reuse a past message: pull recent sends from the Memos sheet and let the
@@ -14174,7 +14209,7 @@ function _renderReachTplPage() {
     return `
       <button type="button" onclick="_applyReachTemplate(${i})" style="text-align:left;padding:10px 12px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--fog);cursor:pointer">
         <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(m.subject || '(no subject)')}</div>
-        <div style="font-size:12px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">${escHtml((m.message || '').replace(/\n/g,' ').slice(0,90))}</div>
+        <div style="font-size:12px;color:var(--stone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">${escHtml((m.message || '').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').slice(0,90))}</div>
         <div style="font-size:11px;color:var(--silver);margin-top:3px">${escHtml(m.type || '')}${m.timestamp ? ' · ' + new Date(m.timestamp).toLocaleDateString() : ''}</div>
       </button>`;
   }).join('');
@@ -14240,7 +14275,11 @@ function _applyReachTemplate(i) {
   const subjEl = document.getElementById('reachSubject');
   const msgEl  = document.getElementById('reachMessage');
   if (subjEl && m.subject != null) subjEl.value = m.subject;
-  if (msgEl) msgEl.value = m.message || '';
+  if (msgEl) {
+    let mv = m.message || '';
+    if (!msgEl.isContentEditable && _reachLooksHtml(mv)) { const d = document.createElement('div'); d.innerHTML = _reachRichSanitize(mv); mv = _reachHtmlToText(d); }
+    msgEl.value = mv;
+  }
   closeReachTemplatePicker();
 }
 function closeReachTemplatePicker() {
@@ -14255,6 +14294,7 @@ function _insertReachToken(token) {
   const el = document.getElementById(_reachLastFocusedField || 'reachMessage')
           || document.getElementById('reachMessage');
   if (!el) return;
+  if (el.isContentEditable) { _reachRichInsertText(token); return; }
   const start  = el.selectionStart != null ? el.selectionStart : el.value.length;
   const end    = el.selectionEnd   != null ? el.selectionEnd   : el.value.length;
   el.value = el.value.slice(0, start) + token + el.value.slice(end);
@@ -15110,6 +15150,447 @@ function goToFormsForBulkSend(emails){
   switchTab('operations');
   showOperationsPage('tab3');
   _formsOpenTemplatePicker();
+}
+
+/* ═══ REACH: RICH TEXT, INLINE PHOTOS, ATTACHMENTS (v11.33) ═══
+   The email composers (People + Schools) swap the plain Message textarea for
+   a small formatted editor. The editor keeps id="reachMessage" and exposes a
+   .value getter/setter (plain text out, text or HTML in) so every existing
+   caller - templates, Forward prefill, token chips - keeps working as is.
+   Photos inserted into the message and files attached are uploaded to Drive
+   the moment they are picked (GAS uploadReachFile), so Send stays fast and
+   the send payload only carries Drive file IDs, never the file bytes.
+   Nothing here loads until a compose screen opens - zero cost at app start. */
+let _reachAttach = [];          // [{lid,name,fileId,url,status:'uploading'|'ready'|'error',kind}]
+let _reachPendingAttach = null; // staged by the person Actions flow, consumed once by the mount
+let _reachRichRange = null;     // last caret/selection inside the editor
+let _reachRichSendHtml = null;  // set only while a send is building messages
+let _reachLid = 0;
+const _REACH_MAX_FILE = 20 * 1024 * 1024;
+const _REACH_COLORS = ['#000000','#c0392b','#e07a3f','#d4a017','#2e7d32','#1565c0','#6a1b9a','#7f8c8d'];
+
+function _reachRichSanitize(html){
+  const t = document.createElement('template');
+  t.innerHTML = String(html || '');
+  t.content.querySelectorAll('script,style,iframe,object,embed,meta,link,form,input,button,textarea,select').forEach(n => n.remove());
+  t.content.querySelectorAll('*').forEach(el => {
+    [...el.attributes].forEach(a => {
+      const n = a.name.toLowerCase();
+      if (n.startsWith('on')) el.removeAttribute(a.name);
+      else if ((n === 'href' || n === 'src') && /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
+      else if (n === 'class' || n === 'id' || n === 'contenteditable') el.removeAttribute(a.name);
+    });
+  });
+  // Saved templates carry Drive file IDs on their photos - show them from Drive
+  t.content.querySelectorAll('img[data-fileid]').forEach(img => {
+    if (!/^(data:|blob:)/.test(img.getAttribute('src') || '')) img.setAttribute('src', 'https://lh3.googleusercontent.com/d/' + img.getAttribute('data-fileid'));
+  });
+  const d = document.createElement('div'); d.appendChild(t.content.cloneNode(true));
+  return d.innerHTML;
+}
+const _reachLooksHtml = s => /<(b|i|u|s|br|div|p|span|font|img|ul|ol|li|a|strong|em|h[1-6])\b[^>]*>/i.test(String(s || ''));
+const _reachEscTxt = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// HTML -> readable plain text (used for the plain-text email fallback, the
+// "Message is required" check and anything that reads .value)
+function _reachHtmlToText(root){
+  let out = '';
+  const BLOCK = /^(DIV|P|LI|UL|OL|H[1-6]|BLOCKQUOTE|TR)$/;
+  const walk = n => {
+    if (n.nodeType === 3) { out += n.nodeValue.replace(/ /g, ' '); return; }
+    if (n.nodeType !== 1) return;
+    const tag = n.tagName;
+    if (tag === 'BR') { out += '\n'; return; }
+    if (tag === 'IMG') { out += '[photo]'; return; }
+    if (BLOCK.test(tag) && out && !out.endsWith('\n')) out += '\n';
+    if (tag === 'LI') out += (n.parentElement && n.parentElement.tagName === 'OL' ? ([...n.parentElement.children].indexOf(n) + 1) + '. ' : '- ');
+    n.childNodes.forEach(walk);
+    if (tag === 'A') { const h = n.getAttribute('href') || ''; if (h && h !== n.textContent && !/^mailto:/i.test(h)) out += ' (' + h + ')'; }
+    if (BLOCK.test(tag) && !out.endsWith('\n')) out += '\n';
+  };
+  root.childNodes.forEach(walk);
+  return out.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+}
+// True when the editor holds real formatting (worth saving as HTML in Memos)
+function _reachRichHasFormatting(ed){
+  return !!ed.querySelector('b,strong,i,em,u,s,strike,font,span[style],ul,ol,img,a,h1,h2,h3,blockquote,[style*="color"],[style*="font-size"]');
+}
+
+// Swap the textarea for the editor + toolbar + attachments panel
+function _reachRichMount(){
+  const ta = document.getElementById('reachMessage');
+  if (!ta || ta.isContentEditable) return;
+  _reachAttach = [];
+  _reachRichRange = null;
+  const wrap = document.createElement('div');
+  wrap.className = 'rr-rich-wrap';
+  const btn = (cmd, label, title, extra) => `<button type="button" class="rr-rt-btn" title="${title}" onpointerdown="event.preventDefault()" onclick="_reachRichCmd('${cmd}'${extra ? ",'" + extra + "'" : ''})">${label}</button>`;
+  wrap.innerHTML = `
+    <div class="rr-rt-bar">
+      ${btn('bold','<b>B</b>','Bold')}${btn('italic','<i>I</i>','Italic')}${btn('underline','<u>U</u>','Underline')}
+      <span class="rr-rt-sep"></span>
+      <button type="button" class="rr-rt-btn" title="Text color" onpointerdown="event.preventDefault()" onclick="_reachRichToggleColors()"><span style="border-bottom:3px solid #c0392b;padding:0 2px">A</span> ▾</button>
+      ${btn('size','A−','Smaller text','2')}${btn('size','A+','Bigger text','5')}
+      <span class="rr-rt-sep"></span>
+      ${btn('insertUnorderedList','• List','Bulleted list')}${btn('insertOrderedList','1. List','Numbered list')}
+      ${btn('link','🔗','Add a link')}${btn('removeFormat','⌫ Clear','Remove formatting')}
+      <span class="rr-rt-sep"></span>
+      <button type="button" class="rr-rt-btn rr-rt-photo" title="Insert a photo into the message" onpointerdown="event.preventDefault()" onclick="_reachRichPickPhoto()">🖼 Photo</button>
+    </div>
+    <div class="rr-rt-colors" id="rrRtColors" style="display:none">
+      ${_REACH_COLORS.map(c => `<button type="button" class="rr-rt-swatch" style="background:${c}" onpointerdown="event.preventDefault()" onclick="_reachRichCmd('foreColor','${c}')" aria-label="${c}"></button>`).join('')}
+      <button type="button" class="rr-rt-btn" style="font-size:12px" onpointerdown="event.preventDefault()" onclick="_reachRichCmd('hiliteColor','#fff59d')">🖍 Highlight</button>
+    </div>
+    <div id="reachMessage" class="memo-input rr-rt-editor" contenteditable="true" data-placeholder="Write your message…"></div>
+    <input type="file" id="rrRtPhotoInput" accept="image/*" style="display:none" onchange="_reachRichPhotoPicked(this)">`;
+  ta.replaceWith(wrap);
+  const ed = document.getElementById('reachMessage');
+  Object.defineProperty(ed, 'value', {
+    configurable: true,
+    get(){ return _reachHtmlToText(ed); },
+    set(v){
+      v = String(v == null ? '' : v);
+      ed.innerHTML = _reachLooksHtml(v) ? _reachRichSanitize(v) : _reachEscTxt(v).replace(/\n/g, '<br>');
+    }
+  });
+  const save = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && ed.contains(sel.getRangeAt(0).commonAncestorContainer)) _reachRichRange = sel.getRangeAt(0).cloneRange();
+  };
+  ['keyup','mouseup','input','touchend','focus'].forEach(ev => ed.addEventListener(ev, save));
+  document.addEventListener('selectionchange', save);
+  ed.addEventListener('focus', () => { _reachLastFocusedField = 'reachMessage'; });
+  // Pasted content: keep basic formatting, drop scripts/classes/ids
+  ed.addEventListener('paste', e => {
+    const cd = e.clipboardData; if (!cd) return;
+    const html = cd.getData('text/html');
+    if (html) { e.preventDefault(); document.execCommand('insertHTML', false, _reachRichSanitize(html.replace(/<img[^>]*>/gi, ''))); }
+  });
+
+  // Attachments panel right under the Message box
+  const group = wrap.closest('.memo-field-group') || wrap.parentElement;
+  const att = document.createElement('div');
+  att.className = 'memo-field-group';
+  att.innerHTML = `
+    <label class="memo-label">Attachments</label>
+    <div id="rrAttachList" class="rr-att-list"></div>
+    <button type="button" class="reach-token-chip" style="width:100%;text-align:center;padding:9px 12px" onclick="document.getElementById('rrAttachInput').click()">📎 Attach a photo or PDF</button>
+    <input type="file" id="rrAttachInput" multiple accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" style="display:none" onchange="_reachAttachPicked(this)">
+    <div style="font-size:11px;color:var(--silver);line-height:1.5;margin-top:4px">Files upload as soon as you pick them, so Send is quick. Up to 20 MB each.</div>`;
+  group.after(att);
+
+  if (_reachPendingAttach && _reachPendingAttach.length) {
+    _reachPendingAttach.forEach(f => _reachAttach.push({ lid: ++_reachLid, name: f.name, fileId: f.fileId || '', url: f.url || '', status: 'ready', kind: f.kind || 'file' }));
+  }
+  _reachPendingAttach = null;
+  _reachAttachRender();
+}
+
+function _reachRichFocus(){
+  const ed = document.getElementById('reachMessage');
+  if (!ed || !ed.isContentEditable) return null;
+  ed.focus();
+  if (_reachRichRange) { const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(_reachRichRange); }
+  return ed;
+}
+function _reachRichToggleColors(){
+  const c = document.getElementById('rrRtColors');
+  if (c) c.style.display = c.style.display === 'none' ? 'flex' : 'none';
+}
+function _reachRichCmd(cmd, arg){
+  const ed = _reachRichFocus(); if (!ed) return;
+  try { document.execCommand('styleWithCSS', false, cmd === 'foreColor' || cmd === 'hiliteColor'); } catch (e) {}
+  if (cmd === 'size') document.execCommand('fontSize', false, arg);
+  else if (cmd === 'link') {
+    const u = prompt('Link address (https://…)', 'https://');
+    if (!u || u === 'https://') return;
+    _reachRichFocus();
+    const url = /^(https?:|mailto:|tel:)/i.test(u) ? u : 'https://' + u;
+    const sel = window.getSelection();
+    if (sel && sel.isCollapsed) document.execCommand('insertHTML', false, `<a href="${ea(url)}">${_reachEscTxt(u)}</a>&nbsp;`);
+    else document.execCommand('createLink', false, url);
+  }
+  else if (cmd === 'removeFormat') { document.execCommand('removeFormat'); document.execCommand('unlink'); }
+  else document.execCommand(cmd, false, arg || null);
+  if (cmd === 'foreColor' || cmd === 'hiliteColor') { const c = document.getElementById('rrRtColors'); if (c) c.style.display = 'none'; }
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount) _reachRichRange = sel.getRangeAt(0).cloneRange();
+}
+// Token chips into the editor at the saved caret (keeps formatting intact)
+function _reachRichInsertText(text){
+  const ed = _reachRichFocus(); if (!ed) return false;
+  const html = _reachEscTxt(text).replace(/\n/g, '<br>');
+  if (!_reachRichRange) { const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+  document.execCommand('insertHTML', false, html);
+  return true;
+}
+
+// ── Upload one file to Drive (GAS uploadReachFile) ───────────────────────────
+function _reachReadB64(file){
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(String(e.target.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(file); });
+}
+async function _reachPrepFile(file){
+  // Photos: shrink + always JPEG (handles iPhone HEIC); everything else as is
+  if (/^image\//i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
+    const dataUrl = await _reencodeToJpeg(file, 0.85);
+    if (dataUrl) return { b64: dataUrl.split(',')[1], mime: 'image/jpeg', name: file.name.replace(/\.[^.]+$/, '') + '.jpg', dataUrl };
+  }
+  return { b64: await _reachReadB64(file), mime: file.type || 'application/octet-stream', name: file.name };
+}
+async function _reachUpload(prep, inline){
+  const r = await gasPost({ action: 'uploadReachFile', base64: prep.b64, mimeType: prep.mime, fileName: prep.name, inline: !!inline, actor: SESSION ? SESSION.email : '' });
+  if (!r || !r.ok) throw new Error((r && r.error) || 'Upload failed');
+  return r;
+}
+
+// ── Inline photo ──────────────────────────────────────────────────────────────
+function _reachRichPickPhoto(){
+  const ed = document.getElementById('reachMessage');
+  const sel = window.getSelection();
+  if (ed && sel && sel.rangeCount && ed.contains(sel.getRangeAt(0).commonAncestorContainer)) _reachRichRange = sel.getRangeAt(0).cloneRange();
+  const inp = document.getElementById('rrRtPhotoInput'); if (inp) inp.click();
+}
+async function _reachRichPhotoPicked(inp){
+  const file = inp.files && inp.files[0]; inp.value = '';
+  if (!file) return;
+  const tmp = 'rrimg' + (++_reachLid);
+  let prep;
+  try { prep = await _reachPrepFile(file); } catch (e) { showToast('⚠ Could not read that photo'); return; }
+  if (!prep.dataUrl) { showToast('⚠ That file is not a photo'); return; }
+  const ed = _reachRichFocus(); if (!ed) return;
+  if (!_reachRichRange) { const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+  document.execCommand('insertHTML', false, `<img id="${tmp}" src="${prep.dataUrl}" data-uploading="1" alt="photo" style="max-width:100%;height:auto;border-radius:6px;opacity:.55"><br>`);
+  const img = document.getElementById(tmp);
+  try {
+    const r = await _reachUpload(prep, true);
+    if (img) { img.setAttribute('data-fileid', r.fileId); img.removeAttribute('data-uploading'); img.style.opacity = '1'; img.removeAttribute('id'); }
+  } catch (e) {
+    if (img) img.remove();
+    showToast('⚠ Photo upload failed - ' + String(e.message || e).slice(0, 80));
+  }
+}
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+async function _reachAttachPicked(inp){
+  const files = [...(inp.files || [])]; inp.value = '';
+  for (const file of files) {
+    if (file.size > _REACH_MAX_FILE) { showToast('⚠ ' + file.name + ' is over 20 MB'); continue; }
+    const a = { lid: ++_reachLid, name: file.name, fileId: '', url: '', status: 'uploading', kind: /pdf/i.test(file.type) ? 'pdf' : (/^image\//.test(file.type) ? 'photo' : 'file') };
+    _reachAttach.push(a); _reachAttachRender();
+    (async () => {
+      try {
+        const prep = await _reachPrepFile(file);
+        a.name = prep.name;
+        const r = await _reachUpload(prep, false);
+        a.fileId = r.fileId; a.status = 'ready';
+      } catch (e) { a.status = 'error'; a.err = String(e.message || e); }
+      _reachAttachRender();
+    })();
+  }
+}
+function _reachAttachRemove(lid){ _reachAttach = _reachAttach.filter(a => a.lid !== lid); _reachAttachRender(); }
+function _reachAttachRender(){
+  const el = document.getElementById('rrAttachList'); if (!el) return;
+  const icon = a => a.kind === 'photo' ? '🖼' : (a.kind === 'pdf' ? '📄' : '📎');
+  el.innerHTML = _reachAttach.map(a => `<div class="rr-att-chip${a.status === 'error' ? ' err' : ''}">
+      <span>${icon(a)}</span><span class="rr-att-name">${escHtml(a.name)}</span>
+      <span class="rr-att-st">${a.status === 'uploading' ? '⏳ uploading…' : a.status === 'error' ? '⚠ failed' : '✓'}</span>
+      <button type="button" onclick="_reachAttachRemove(${a.lid})" aria-label="Remove">✕</button></div>`).join('');
+}
+// Called by both email senders. Returns null when nothing is blocking, else an error string.
+function _reachRichBlocking(){
+  if (_reachAttach.some(a => a.status === 'uploading')) return '⏳ Wait for attachments to finish uploading';
+  const ed = document.getElementById('reachMessage');
+  if (ed && ed.isContentEditable && ed.querySelector('img[data-uploading]')) return '⏳ Wait for the photo to finish uploading';
+  return null;
+}
+// What the senders add to the sendMailMerge payload
+function _reachRichPayloadExtras(){
+  const ready = _reachAttach.filter(a => a.status === 'ready');
+  const extras = {
+    attachFileIds: ready.filter(a => a.fileId).map(a => a.fileId),
+    attachUrls:    ready.filter(a => !a.fileId && a.url).map(a => ({ url: a.url, name: a.name }))
+  };
+  const ed = document.getElementById('reachMessage');
+  if (ed && ed.isContentEditable) extras.inlineFileIds = [...ed.querySelectorAll('img[data-fileid]')].map(i => i.getAttribute('data-fileid'));
+  return extras;
+}
+// Builds the two HTML versions of the editor content:
+//   send     - photos point at cid: inline images (GAS attaches them)
+//   template - photos point at Drive (what gets saved to Memos for reuse)
+// Returns null when the composer is a plain textarea or nothing is formatted.
+function _reachRichHtmlVersions(){
+  const ed = document.getElementById('reachMessage');
+  if (!ed || !ed.isContentEditable) return null;
+  const mk = forSend => {
+    const c = ed.cloneNode(true);
+    c.querySelectorAll('img').forEach(img => {
+      const id = img.getAttribute('data-fileid');
+      if (!id) { img.remove(); return; }
+      img.setAttribute('src', forSend ? 'cid:rr' + id : 'https://lh3.googleusercontent.com/d/' + id);
+      img.setAttribute('style', 'max-width:100%;height:auto;border-radius:6px');
+      img.removeAttribute('data-uploading');
+      if (forSend) img.removeAttribute('data-fileid');
+    });
+    // Line breaks inside the HTML source carry no meaning - the senders turn
+    // \n into <br> afterwards for the merge-field text they drop in.
+    return c.innerHTML.replace(/\r?\n/g, ' ');
+  };
+  return { send: mk(true), template: mk(false), formatted: _reachRichHasFormatting(ed) };
+}
+function _reachRichReset(){ _reachAttach = []; _reachRichRange = null; _reachRichSendHtml = null; }
+
+/* ═══ PEOPLE CARD → ACTIONS ═══
+   Dropdown under Call / Text. Built to take more items later: add an
+   <option> in _personActionsHtml() and a case in _personAction(). */
+function _personActionsHtml(email){
+  if (!SESSION || !email) return '';
+  return `<div style="padding:10px 20px 0">
+    <select class="rr-person-actions" onchange="_personAction(this.value,'${ea(email)}');this.value=''">
+      <option value="">⚡ Actions…</option>
+      <option value="sendFiles">📎 Send this person's files or pictures</option>
+    </select></div>`;
+}
+function _personAction(action, email){
+  if (action === 'sendFiles') _personSendFilesSheet(email);
+}
+
+// Every file on record for this person that can be sent
+function _personFileList(h){
+  const out = [];
+  const add = (label, url, kind) => {
+    url = String(url || '').trim(); if (!url || !/^https?:/i.test(url)) return;
+    out.push({ label, url, fileId: _driveFileIdFromUrl(url), kind });
+  };
+  add('Profile picture', getImgSrc(h['Main Image'] || h.MainImage || ''), 'photo');
+  if (SESSION && SESSION.accessLevel <= 2) {
+    add('W-9', h['W9'], 'pdf');
+    add('TB Test', h['TB Test'], 'pdf');
+    add('Ranger Contract', h['Ranger Contract'], 'pdf');
+    add('Mandated Reporter Certificate', h['Mandated Reporter Training'], 'pdf');
+    add('Resume', h['Resume'] || h.resume, 'pdf');
+  }
+  return out;
+}
+let _psf = null; // {email, name, files, selFiles:Set, people:Map(email->label), picked:Set, showAll:boolean}
+function _personSendFilesSheet(email){
+  const h = (DATA.humans || []).find(p => String(p.Email || p.email || '').toLowerCase() === String(email).toLowerCase());
+  if (!h) { showToast('Contact not found'); return; }
+  const files = _personFileList(h);
+  if (!files.length) { showToast('No files or pictures on record for ' + (fullName(h) || email)); return; }
+  _psf = { email: h.Email || h.email, name: fullName(h) || email, files, selFiles: new Set(files.map((f, i) => i)), picked: new Set(), showAll: false, q: '' };
+  _psfRenderFiles();
+}
+function _psfOverlay(){
+  let ov = document.getElementById('psfSheet');
+  if (!ov) {
+    ov = document.createElement('div'); ov.className = 'sub-ov'; ov.id = 'psfSheet';
+    ov.onclick = e => { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+  }
+  return ov;
+}
+function _psfRenderFiles(){
+  const s = _psf, ov = _psfOverlay();
+  const icon = k => k === 'photo' ? '🖼' : '📄';
+  ov.innerHTML = `<div class="sub-sheet">
+    <h3>Send ${escHtml(s.name)}'s files</h3>
+    <div class="sub-meta" style="margin:-6px 0 8px">Step 1 of 2 - choose what to send.</div>
+    <div class="sub-lbl" style="display:flex;justify-content:space-between;align-items:center">Files and pictures
+      <button class="sub-btn alt" style="padding:4px 10px;font-size:11px" onclick="_psfAllFiles()">${s.selFiles.size === s.files.length ? 'None' : 'All'}</button></div>
+    ${s.files.map((f, i) => `<label class="sub-vol" style="cursor:pointer"><span style="display:flex;gap:10px;align-items:center">
+      <input type="checkbox" ${s.selFiles.has(i) ? 'checked' : ''} onchange="_psfToggleFile(${i},this.checked)" style="width:20px;height:20px"> ${icon(f.kind)} ${escHtml(f.label)}</span>
+      <a href="${ea(f.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:12px">view</a></label>`).join('')}
+    <div class="sub-actions" style="justify-content:flex-end;margin-top:14px">
+      <button class="sub-btn alt" onclick="document.getElementById('psfSheet').remove()">Cancel</button>
+      <button class="sub-btn hot" onclick="_psfToPeople()">Next →</button></div></div>`;
+}
+function _psfToggleFile(i, on){ on ? _psf.selFiles.add(i) : _psf.selFiles.delete(i); }
+function _psfAllFiles(){ _psf.selFiles = _psf.selFiles.size === _psf.files.length ? new Set() : new Set(_psf.files.map((f, i) => i)); _psfRenderFiles(); }
+function _psfToPeople(){
+  if (!_psf.selFiles.size) { alert('Pick at least one file.'); return; }
+  _psfRenderPeople();
+}
+// Schools this person is tied to (any contact column), then everyone at them
+function _psfSchoolGroups(){
+  const me = String(_psf.email).toLowerCase();
+  const find = tok => tok.includes('@')
+    ? (DATA.humans || []).find(x => String(x.Email || x.email || '').toLowerCase() === tok.toLowerCase())
+    : (DATA.humans || []).find(p => (fullName(p) || '').toLowerCase() === tok.toLowerCase());
+  const toks = (site, col) => String(sf(site, col) || site[col] || '').split(/[,;\n]+/).map(x => x.trim()).filter(Boolean);
+  const sites = (DATA.sites || []).filter(site => SCHOOL_REACH_FIELDS.some(([col]) => toks(site, col).some(t => { const hh = find(t); return hh && String(hh.Email || hh.email).toLowerCase() === me; })));
+  const seen = new Set();
+  return sites.map(site => {
+    const people = [];
+    SCHOOL_REACH_FIELDS.forEach(([col, lbl]) => toks(site, col).forEach(t => {
+      const hh = find(t); if (!hh) return;
+      const e = String(hh.Email || hh.email || ''); const el = e.toLowerCase();
+      if (!e || el === me || seen.has(el)) return; seen.add(el);
+      people.push({ email: e, label: fullName(hh) + ' · ' + lbl });
+    }));
+    return { label: 'At ' + sf(site, 'Name', 'name'), people };
+  }).filter(g => g.people.length);
+}
+function _psfPersonRow(p){
+  return `<label class="sub-vol" style="cursor:pointer"><span style="display:flex;gap:10px;align-items:center">
+    <input type="checkbox" data-email="${ea(p.email)}" ${_psf.picked.has(p.email) ? 'checked' : ''} onchange="_psfPick(this)" style="width:20px;height:20px"> ${escHtml(p.label)}</span></label>`;
+}
+function _psfPick(cb){ cb.checked ? _psf.picked.add(cb.dataset.email) : _psf.picked.delete(cb.dataset.email); const c = document.getElementById('psfCount'); if (c) c.textContent = _psf.picked.size + ' selected'; }
+function _psfRenderPeople(){
+  const s = _psf, ov = _psfOverlay();
+  const groups = _psfSchoolGroups();
+  ov.innerHTML = `<div class="sub-sheet">
+    <h3>Who gets ${escHtml(s.name)}'s files?</h3>
+    <div class="sub-meta" style="margin:-6px 0 8px">Step 2 of 2 - ${s.selFiles.size} file${s.selFiles.size === 1 ? '' : 's'} chosen. You can edit the email next.</div>
+    ${groups.length ? groups.map(g => `<div class="sub-lbl">${escHtml(g.label)}</div>${g.people.map(_psfPersonRow).join('')}`).join('')
+      : `<div class="sub-meta">No schools are linked to ${escHtml(s.name)} - use Show more people below.</div>`}
+    <div class="sub-lbl">${escHtml(s.name)}</div>${_psfPersonRow({ email: s.email, label: s.name + ' (this person)' })}
+    <div id="psfMore">${s.showAll ? _psfMoreHtml() : `<button class="sub-btn alt" style="width:100%;margin-top:10px" onclick="_psf.showAll=true;document.getElementById('psfMore').innerHTML=_psfMoreHtml();setTimeout(()=>{const i=document.getElementById('psfSearch');if(i)i.focus()},50)">➕ Show more people</button>`}</div>
+    <div class="sub-actions" style="justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:8px">
+      <span id="psfCount" class="sub-meta">${s.picked.size} selected</span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="sub-btn alt" onclick="_psfRenderFiles()">‹ Back</button>
+        <button class="sub-btn" onclick="_psfGo('email_together')">✉ One email</button>
+        <button class="sub-btn hot" onclick="_psfGo('email_individual')">✉ Email each</button></span></div></div>`;
+}
+function _psfMoreHtml(){
+  return `<div class="sub-lbl" style="margin-top:10px">Everyone</div>
+    <input id="psfSearch" class="memo-input" type="search" placeholder="Search by name, email or role…" value="${ea(_psf.q)}" oninput="_psf.q=this.value;_psfMoreList()">
+    <div id="psfMoreList">${_psfMoreListHtml()}</div>`;
+}
+function _psfMoreListHtml(){
+  const q = String(_psf.q || '').trim().toLowerCase();
+  const list = (DATA.humans || []).filter(h => {
+    const e = h.Email || h.email; if (!e) return false;
+    if (!q) return true;
+    return ((fullName(h) || '') + ' ' + e + ' ' + (h.Role || '')).toLowerCase().includes(q);
+  }).sort((a, b) => (fullName(a) || '').localeCompare(fullName(b) || ''));
+  const shown = list.slice(0, 60); // keep the list snappy - search narrows it
+  return shown.map(h => _psfPersonRow({ email: h.Email || h.email, label: (fullName(h) || h.Email || h.email) + (h.Role ? ' · ' + h.Role : '') })).join('')
+    + (list.length > shown.length ? `<div class="sub-meta" style="padding:6px 0">${list.length - shown.length} more - type to narrow</div>` : '')
+    + (!list.length ? '<div class="sub-meta" style="padding:6px 0">No matches</div>' : '');
+}
+function _psfMoreList(){ const el = document.getElementById('psfMoreList'); if (el) el.innerHTML = _psfMoreListHtml(); }
+function _psfGo(mode){
+  const s = _psf;
+  if (!s.picked.size) { alert('Pick at least one person.'); return; }
+  const files = [...s.selFiles].map(i => s.files[i]);
+  _reachSelected.clear(); s.picked.forEach(e => _reachSelected.add(e));
+  _reachTarget = _buildTarget();
+  if (!_reachTarget.length) { alert('None of those people have an email address.'); return; }
+  _reachMode = mode;
+  _reachPendingAttach = files.map(f => {
+    const base = (s.name || 'file').replace(/[^a-z0-9]+/gi, '');
+    return { name: base + ' ' + f.label + (f.kind === 'photo' ? '.jpg' : '.pdf'), fileId: f.fileId, url: f.fileId ? '' : f.url, kind: f.kind };
+  });
+  const meH = SESSION ? gh(SESSION.email) : null, meName = meH ? fullName(meH) : (SESSION ? SESSION.email : '');
+  _reachForwardPrefill = {
+    subject: s.name + ' - ' + files.map(f => f.label).join(', '),
+    message: 'Hello,\n\nAttached ' + (files.length === 1 ? 'is the ' + files[0].label : 'are the following') + ' for ' + s.name + (files.length > 1 ? ':\n' + files.map(f => '- ' + f.label).join('\n') : '.') + '\n\nThank you,\n' + meName + '\nEnrich LA'
+  };
+  document.getElementById('psfSheet').remove();
+  closeDetailImmediate();
+  openReachCompose(mode);
 }
 
 function openImgLightbox(src){if(!src)return;var lb=document.getElementById('img-lightbox');var img=document.getElementById('img-lightbox-img');if(!lb||!img)return;img.src=src;lb.classList.add('open');document.body.style.overflow='hidden';}
