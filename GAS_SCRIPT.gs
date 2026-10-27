@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.35 | 2026-10-26 | AI school summaries (nightly, Levels 1-2)';
+const GAS_BUILD = 'v11.36 | 2026-10-27 | AI summaries: trigger check never throws on missing scope';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -5603,7 +5603,9 @@ function installAiSummaryTrigger() {
 }
 
 function _aiTriggerInstalled() {
-  return ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'aiSummariesNightly'; });
+  try {
+    return ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'aiSummariesNightly'; });
+  } catch (e) { return false; } // missing script.scriptapp scope - never break the request over it
 }
 
 // action: getAiSummaries (Levels 1-2) → { ok, summaries: { <Key or name>: {s, st, d} } }
