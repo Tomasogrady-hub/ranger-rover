@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.40 | BUILDITALL: 2026-10-27 | Ranger Rover PWA -->
+<!-- v11.41 | BUILDITALL: 2026-10-27 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2034,10 +2034,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.40';
+const APP_VERSION='v11.41';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-27 18:20 PT - Ask Rover learns: tell it a standing rule (e.g. dont count Tomas Test Elementary) and it saves a hint it follows from then on. Exclusions are enforced on every count. Pin button in the chat lists hints and Level 1 can switch them off. Hints also live in the Ask Rover Hints tab of the Sites sheet.';
+const BUILD_STAMP='2026-10-27 18:45 PT - Nav Visibility now has two Ask Rover toggles: Ask Rover (show the sparkle button, Levels 1-2) and Ask Rover: Add Hints (permission to save or turn off standing hints, off by default for Level 2). Enforced on the server too.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2110,7 +2110,7 @@ let _arBusy=false;
 const _AR_SUGS=['How many schools have no PO? Of those, how many have no Ranger?','Which active schools have no Ranger assigned?','How many open chores are there, by school?','Which rangers have the most schools?','Which schools need attention according to the AI status?'];
 function _arSave(){try{sessionStorage.setItem('rr_ar',JSON.stringify(_arHist.slice(-30)));}catch(e){}}
 function askRoverOpen(){
-  if(!SESSION||SESSION.accessLevel>2)return;
+  if(!SESSION||!_askRoverAllowed(SESSION.accessLevel))return;
   document.getElementById('askRoverPanel').style.display='flex';
   _arRender();
   setTimeout(()=>{const i=document.getElementById('arInput');if(i&&!_arHist.length)i.focus();},150);
@@ -2130,11 +2130,11 @@ function _arRender(){
   const box=document.getElementById('arMsgs');if(!box)return;
   let h='';
   if(!_arHist.length){
-    h=`<div class="ar-msg ar-bot">Hi ${escHtml(((SESSION&&SESSION.name)||'').split(' ')[0]||'there')} - ask me anything about schools, rangers, people or chores. I count straight from the sheets, so numbers are exact.${SESSION&&SESSION.accessLevel===1?'\n\nTip: teach me as you go - e.g. \u201cfrom now on, don\u2019t count Tomas Test Elementary\u201d - and I\u2019ll remember it (📌 Hints).':''}<div class="ar-sugs">${_AR_SUGS.map((q,i)=>`<button class="ar-sug" onclick="askRoverSend(_AR_SUGS[${i}])">${escHtml(q)}</button>`).join('')}</div></div>`;
+    h=`<div class="ar-msg ar-bot">Hi ${escHtml(((SESSION&&SESSION.name)||'').split(' ')[0]||'there')} - ask me anything about schools, rangers, people or chores. I count straight from the sheets, so numbers are exact.${SESSION&&_askHintsAllowed(SESSION.accessLevel)?'\n\nTip: teach me as you go - e.g. \u201cfrom now on, don\u2019t count Tomas Test Elementary\u201d - and I\u2019ll remember it (📌 Hints).':''}<div class="ar-sugs">${_AR_SUGS.map((q,i)=>`<button class="ar-sug" onclick="askRoverSend(_AR_SUGS[${i}])">${escHtml(q)}</button>`).join('')}</div></div>`;
   }
   _arHist.forEach((m,i)=>{
     if(m.role==='user')h+=`<div class="ar-msg ar-me">${escHtml(m.text)}</div>`;
-    else if(m.hints)h+=`<div class="ar-msg ar-bot"><b>📌 Standing hints (${m.hints.length})</b>${m.hints.length?m.hints.map(x=>`<div class="ar-hint"><div class="ar-hint-t">${escHtml(x.hint)}${x.exclude?' <span style="color:#6b4fbb">(auto-excluded)</span>':''}<div class="ar-hint-m">${escHtml([x.by,x.on].filter(Boolean).join(' · '))}</div></div>${SESSION&&SESSION.accessLevel===1?`<button class="ar-off" onclick="askRoverHintOff('${ea(x.id)}',${i})">Turn off</button>`:''}</div>`).join(''):'<div class="ar-hint">None yet. Tell me a rule like \u201cdon\u2019t count Tomas Test Elementary\u201d.</div>'}<div class="ar-meta">Also editable in the Ask Rover Hints tab of the Sites sheet.</div></div>`;
+    else if(m.hints)h+=`<div class="ar-msg ar-bot"><b>📌 Standing hints (${m.hints.length})</b>${m.hints.length?m.hints.map(x=>`<div class="ar-hint"><div class="ar-hint-t">${escHtml(x.hint)}${x.exclude?' <span style="color:#6b4fbb">(auto-excluded)</span>':''}<div class="ar-hint-m">${escHtml([x.by,x.on].filter(Boolean).join(' · '))}</div></div>${SESSION&&_askHintsAllowed(SESSION.accessLevel)?`<button class="ar-off" onclick="askRoverHintOff('${ea(x.id)}',${i})">Turn off</button>`:''}</div>`).join(''):'<div class="ar-hint">None yet. Tell me a rule like \u201cdon\u2019t count Tomas Test Elementary\u201d.</div>'}<div class="ar-meta">Also editable in the Ask Rover Hints tab of the Sites sheet.</div></div>`;
     else h+=`<div class="ar-msg ar-bot${m.err?' ar-err':''}">${escHtml(m.text)}${(m.saved||[]).map(x=>`<div class="ar-saved">📌 Saved hint: ${escHtml(x)}</div>`).join('')}${_arLinksHtml(m,i)}${m.meta?`<div class="ar-meta">${escHtml(m.meta)}</div>`:''}</div>`;
   });
   if(_arBusy)h+=`<div class="ar-msg ar-bot"><span class="ar-typing"><i></i><i></i><i></i></span></div>`;
@@ -2179,8 +2179,8 @@ async function askRoverShowHints(){
   _arBusy=false;_arSave();_arRender();
 }
 async function askRoverHintOff(id,i){
-  if(!SESSION||SESSION.accessLevel!==1)return;
-  const r=await gasPost({action:'askRoverHintOff',accessLevel:1,id});
+  if(!SESSION||!_askHintsAllowed(SESSION.accessLevel))return;
+  const r=await gasPost({action:'askRoverHintOff',accessLevel:SESSION.accessLevel,id});
   if(r&&r.ok&&_arHist[i]&&_arHist[i].hints){_arHist[i].hints=_arHist[i].hints.filter(x=>x.id!==id);_arSave();_arRender();}
   else showSaveToast((r&&r.error)||'Could not turn off hint');
 }
@@ -3112,7 +3112,7 @@ function showApp(){
   loadAppSettings(); // load plants-on/off + broadcast message
   setTimeout(()=>loadSubs(false),4000); // Sub badge — background, never blocks startup
   if(lvl<=2)setTimeout(_aiLoadSummaries,3000); // AI summaries — background, cached locally
-  {const arb=document.getElementById('askRoverBtn');if(arb)arb.style.display=lvl<=2?'flex':'none';}
+  try{_askRoverApplyVis();}catch(e){}
   if(lvl===1)setTimeout(_aiSettingsStatus,6000);
 }
 
@@ -10960,8 +10960,8 @@ function _sanitizeNavVisibility(){
   // Anyone whose per-level array already had 'control' explicitly toggled on/off
   // needs that carried over to 'data' once, so the rename doesn't silently hide
   // the new page for levels that had it customized.
-  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1','calendar_v1'].filter(k=>!v.__migratedKeys.includes(k));
-  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub',calendar_v1:'calendar'};
+  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1','calendar_v1','ask_rover_v1'].filter(k=>!v.__migratedKeys.includes(k));
+  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub',calendar_v1:'calendar',ask_rover_v1:'ask_rover'};
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
@@ -11018,6 +11018,7 @@ async function loadAppSettings(){
 
 function _applyAppSettings(){
   const lvl=SESSION?SESSION.accessLevel:3;
+  try{_askRoverApplyVis();}catch(e){}
   // Rebuild nav so tabs (incl. Plants) reflect current Nav Visibility settings
   buildNav(lvl);
   // If the tab currently on screen no longer has a nav button after that
@@ -14695,13 +14696,15 @@ const NAV_ALL_TABS = [
   {key:'data',     label:'🗂 Data'},
   {key:'site_ops_btn', label:'📍 Site Card: OPERATIONS Button'},
   {key:'team_email_search_btn', label:'🔎 Contact Row: Team Email Search Button'},
+  {key:'ask_rover', label:'✨ Ask Rover chat (Levels 1-2 only)'},
+  {key:'ask_hints_add', label:'📌 Ask Rover: Add / Turn Off Hints'},
 ];
 
 // Keys that must be explicitly turned ON per-level rather than defaulting to
 // visible-for-everyone like ordinary tabs. Used for sensitive, opt-in-only
 // features (e.g. searching teammates' inboxes) where accidentally leaving a
 // checkbox pre-checked could grant access nobody intended to grant.
-const NAV_OPT_IN_ONLY = ['team_email_search_btn'];
+const NAV_OPT_IN_ONLY = ['team_email_search_btn','ask_hints_add'];
 
 // Default: all ordinary tabs visible for every level (opt-in-only keys start unchecked)
 function _nvDefaults(){
@@ -14815,6 +14818,21 @@ function _teamEmailSearchAllowed(lvl){
   if(!vis)return false;
   const entry = vis[lvl] !== undefined ? vis[lvl] : vis[String(lvl)];
   return Array.isArray(entry) && entry.includes('team_email_search_btn');
+}
+// Ask Rover: who sees the chat (opt-out, Levels 1-2 only) and who may save /
+// turn off standing hints (opt-in; Level 1 always). Server enforces both.
+function _askRoverAllowed(lvl){return Number(lvl)<=2&&_navTabAllowed('ask_rover',lvl);}
+function _askHintsAllowed(lvl){
+  if(Number(lvl)===1)return true;
+  if(Number(lvl)>2)return false;
+  const vis=_appSettings.navVisibility;if(!vis)return false;
+  const entry=vis[lvl]!==undefined?vis[lvl]:vis[String(lvl)];
+  return Array.isArray(entry)&&entry.includes('ask_hints_add');
+}
+function _askRoverApplyVis(){
+  const lvl=SESSION?SESSION.accessLevel:3;
+  const b=document.getElementById('askRoverBtn');if(b)b.style.display=_askRoverAllowed(lvl)?'flex':'none';
+  if(!_askRoverAllowed(lvl)){const pn=document.getElementById('askRoverPanel');if(pn)pn.style.display='none';}
 }
 
 

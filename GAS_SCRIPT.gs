@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.40 | 2026-10-27 | Ask Rover teachable hints (Ask Rover Hints tab, hard exclusions)';
+const GAS_BUILD = 'v11.41 | 2026-10-27 | Ask Rover permissions via Nav Visibility (ask_rover, ask_hints_add)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -5984,7 +5984,7 @@ function _askCall(apiKey, system, messages) {
 // action: askRover { accessLevel, email, question, history:[{role,text}] }
 function handleAskRover(p) {
   var lvl = parseInt(p.accessLevel || '3', 10);
-  if (lvl > 2) return { ok: false, error: 'Ask Rover is for Levels 1-2.' };
+  if (!_askRoverAuthorized(lvl)) return { ok: false, error: 'Ask Rover is not turned on for your access level.' };
   var question = String(p.question || '').trim().slice(0, 1000);
   if (!question) return { ok: false, error: 'Empty question' };
   var apiKey = _aiApiKey();
@@ -5994,7 +5994,8 @@ function handleAskRover(p) {
   var T = _askTables();
   var hints = _askLoadHints();
   var excludes = hints.filter(function(h) { return h.exclude; }).map(function(h) { return h.exclude; });
-  var system = _askSystem(T, p.email || 'a staff member', hints);
+  var system = _askSystem(T, p.email || 'a staff member', hints) +
+    (_askHintsAuthorized(lvl) ? '' : '\n\nThis person may NOT save hints: if they give a standing rule, follow it for this conversation only and say a Level 1 admin can make it permanent.');
   var savedHints = [];
   var messages = [];
   (p.history || []).slice(-8).forEach(function(h) {
@@ -6096,8 +6097,30 @@ function _askLoadHints() {
   } catch (e) { Logger.log('_askLoadHints: ' + e.message); return []; }
 }
 
+// Nav Visibility toggles (Settings): 'ask_rover' (opt-out) and 'ask_hints_add' (opt-in).
+function _askLevelList(lvl) {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty('app_settings');
+    var vis = (raw ? JSON.parse(raw) : {}).navVisibility || {};
+    var arr = vis[String(lvl)];
+    return Array.isArray(arr) ? arr : null;
+  } catch (e) { return null; }
+}
+function _askRoverAuthorized(lvl) {
+  if (lvl === 1) return true;
+  if (lvl !== 2) return false;
+  var arr = _askLevelList(2);
+  return !arr || !arr.length || arr.indexOf('ask_rover') !== -1;
+}
+function _askHintsAuthorized(lvl) {
+  if (lvl === 1) return true;
+  if (lvl !== 2) return false;
+  var arr = _askLevelList(2);
+  return !!arr && arr.indexOf('ask_hints_add') !== -1;
+}
+
 function _askSaveHint(T, inp, email, lvl) {
-  if (lvl !== 1) return { ok: false, error: 'Only Level 1 can save standing hints. Tell the person to ask Tomas.' };
+  if (!_askHintsAuthorized(lvl)) return { ok: false, error: 'This person does not have permission to save hints (Settings > Nav Visibility > Ask Rover: Add Hints). Tell them to ask Tomas.' };
   var hint = String(inp.hint || '').trim().slice(0, 500);
   if (!hint) return { ok: false, error: 'Empty hint' };
   var ex = inp.exclude && inp.exclude.table && inp.exclude.field ? inp.exclude : null;
@@ -6126,7 +6149,7 @@ function handleAskRoverHints(p) {
 
 // action: askRoverHintOff (Level 1) → set Active = FALSE for a hint ID
 function handleAskRoverHintOff(p) {
-  if (parseInt(p.accessLevel || '3', 10) !== 1) return { ok: false, error: 'Level 1 only' };
+  if (!_askHintsAuthorized(parseInt(p.accessLevel || '3', 10))) return { ok: false, error: 'No permission to change hints' };
   var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName(ASK_HINTS_TAB);
   if (!sh) return { ok: false, error: 'No hints sheet' };
   var data = sh.getDataRange().getValues(), h = data[0];
