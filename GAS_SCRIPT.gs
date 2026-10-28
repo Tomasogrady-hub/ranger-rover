@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.36 | 2026-10-27 | AI summaries: trigger check never throws on missing scope';
+const GAS_BUILD = 'v11.37 | 2026-10-27 | AI summaries: forgiving API key lookup + aiDebugKey';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -5381,12 +5381,34 @@ var AI_COLS = ['AI Summary', 'AI Status', 'AI Summary Date', 'AI Summary Hash'];
 var AI_KEY_PROPS = ['anthropic_api_key', 'ANTHROPIC_API_KEY', 'anthropic_key', 'claude_api_key', 'CLAUDE_API_KEY'];
 
 function _aiApiKey() {
-  var props = PropertiesService.getScriptProperties();
+  var all = PropertiesService.getScriptProperties().getProperties();
   for (var i = 0; i < AI_KEY_PROPS.length; i++) {
-    var v = props.getProperty(AI_KEY_PROPS[i]);
+    var v = all[AI_KEY_PROPS[i]];
     if (v && String(v).trim()) return String(v).trim();
   }
+  // Forgiving fallback: any property whose NAME mentions anthropic/claude
+  // (any case, stray spaces) or whose VALUE looks like an Anthropic key.
+  var names = Object.keys(all);
+  for (var j = 0; j < names.length; j++) {
+    var nm = names[j].toLowerCase().replace(new RegExp('\\s', 'g'), '');
+    var val = String(all[names[j]] || '').trim();
+    if (val.indexOf('sk-ant-') === 0) return val;
+    if ((nm.indexOf('anthropic') > -1 || nm.indexOf('claude') > -1) && val.length > 20) return val;
+  }
   return '';
+}
+
+// Property NAMES only (never values) - shown in the app when no key is found.
+function _aiPropNames() {
+  try { return Object.keys(PropertiesService.getScriptProperties().getProperties()).sort().join(', '); }
+  catch (e) { return '(could not read)'; }
+}
+
+// Run by hand in the editor to check what Script Properties this project sees.
+function aiDebugKey() {
+  Logger.log('Property names: ' + _aiPropNames());
+  var k = _aiApiKey();
+  Logger.log(k ? ('Key found: ' + k.slice(0, 12) + '... (' + k.length + ' chars)') : 'NO KEY FOUND');
 }
 
 function _aiEnsureColumns(sheet) {
@@ -5632,7 +5654,7 @@ function handleGetAiSummaries(p) {
 function handleRunAiSummaries(p) {
   var accessLevel = parseInt(p.accessLevel || '3');
   if (accessLevel !== 1) return { ok: false, error: 'Level 1 only' };
-  if (!_aiApiKey()) return { ok: false, error: 'No Anthropic API key in Script Properties. Add a property named anthropic_api_key.' };
+  if (!_aiApiKey()) return { ok: false, error: 'No Anthropic API key found. This deployment sees these Script Properties: ' + _aiPropNames() };
   try { if (!_aiTriggerInstalled()) installAiSummaryTrigger(); } catch (e) { Logger.log('ai trigger: ' + e.message); }
   var res = runAiSummaries(40000, p.force === true);
   res.trigger = _aiTriggerInstalled();
