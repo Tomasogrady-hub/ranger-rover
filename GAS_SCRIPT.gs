@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.38 | 2026-10-27 | AI summaries: robust reply parsing, more output room, clearer errors';
+const GAS_BUILD = 'v11.39 | 2026-10-27 | Ask Rover chat (Levels 1-2) + AI summaries';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -728,6 +728,7 @@ function _doPostRoute(e) {
       case 'getAiSummaries':  return respond(handleGetAiSummaries(p));
       case 'runAiSummaries':  return respond(handleRunAiSummaries(p));
       case 'aiSummaryStatus': return respond(handleAiSummaryStatus(p));
+      case 'askRover':        return respond(handleAskRover(p));
       case 'saveComments':  return respond(handleSaveComments(p));
 
       // ── PROGRAMS (Items All → Operations edit card dropdown) ────────────────
@@ -5702,4 +5703,300 @@ function handleAiSummaryStatus(p) {
   if (accessLevel !== 1) return { ok: false, error: 'Level 1 only' };
   var last = PropertiesService.getScriptProperties().getProperty('ai_summaries_last');
   return { ok: true, hasKey: !!_aiApiKey(), trigger: _aiTriggerInstalled(), last: last ? JSON.parse(last) : null };
+}
+
+
+// ══ ASK ROVER — chat over the sheets (v11.39, Levels 1-2) ═══════════════════
+// Claude never counts rows itself: it calls the query_data tool, which runs an
+// exact filter in this script and returns counts / rows / group totals. Claude
+// then explains the result. The app shows the answer plus tappable matches.
+// Private columns (Comments, Password, Ratings) are never exposed to the model.
+
+var ASK_MODEL = 'claude-haiku-5-5';
+var ASK_MAX_STEPS = 8;
+var ASK_HIDE = {
+  sites:  ['Comments', 'AI Summary Hash', 'Main Image', 'Image 2', 'Image 3', 'Helpful Image 1',
+           'Helpful Image 2', 'Helpful Before Image', 'Schedule Contents'],
+  humans: ['Comments', 'Rating 1', 'Rating 2', 'Rating 3', 'Password', 'Main Image', 'Home LatLng Src'],
+  chores: ['Helpful Image 1', 'Helpful Image 2', 'Helpful Image 3', 'Helpful Image File', 'Helpful Video']
+};
+
+function _askFmt(v) {
+  if (v instanceof Date) {
+    var hm = Utilities.formatDate(v, 'America/Los_Angeles', 'H:mm');
+    return Utilities.formatDate(v, 'America/Los_Angeles', 'M/d/yyyy') + (hm !== '0:00' ? ' ' + hm : '');
+  }
+  if (v === true) return 'TRUE';
+  if (v === false) return 'FALSE';
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+
+// Loads the three tables as arrays of plain objects, with helpful derived fields.
+function _askTables() {
+  function load(id, tab, hide) {
+    var data = SpreadsheetApp.openById(id).getSheetByName(tab).getDataRange().getValues();
+    var h = data[0].map(function(x) { return String(x).trim(); });
+    var rows = [];
+    for (var r = 1; r < data.length; r++) {
+      var o = {}, any = false;
+      for (var c = 0; c < h.length; c++) {
+        if (!h[c] || hide.indexOf(h[c]) > -1) continue;
+        var v = _askFmt(data[r][c]);
+        o[h[c]] = v;
+        if (v) any = true;
+      }
+      if (any) rows.push(o);
+    }
+    return rows;
+  }
+  var sites = load(SITES_ID, 'Sites', ASK_HIDE.sites).filter(function(s) { return s['Name']; });
+  var humans = load(HUMANS_ID, 'Humans', ASK_HIDE.humans);
+  var chores = load(CHORES_ID, 'Chores', ASK_HIDE.chores);
+
+  var nameByKey = {}, humanName = {};
+  sites.forEach(function(s) { if (s['Key']) nameByKey[String(s['Key']).toLowerCase()] = s['Name']; });
+  humans.forEach(function(p) {
+    if (p['Email']) humanName[p['Email'].toLowerCase()] = p['Name'] || ((p['First Name'] || '') + ' ' + (p['Last Name'] || '')).trim();
+  });
+  var openBySite = {}, choreSite = function(v) { var k = String(v || '').toLowerCase(); return nameByKey[k] || v; };
+  chores.forEach(function(c) {
+    c['Site Name'] = choreSite(c['Site']);
+    if (String(c['Status']).toLowerCase() === 'open') openBySite[c['Site Name']] = (openBySite[c['Site Name']] || 0) + 1;
+    ['Asked of', 'Assigned to', 'Asked by'].forEach(function(f) {
+      if (c[f] && humanName[c[f].toLowerCase()]) c[f + ' Name'] = humanName[c[f].toLowerCase()];
+    });
+  });
+  sites.forEach(function(s) {
+    var r1 = s['Ranger 1'] || '', r2 = s['Ranger 2'] || '';
+    s['Has Ranger'] = (r1 || r2) ? 'yes' : 'no';
+    s['Ranger Names'] = [r1 && (humanName[r1.toLowerCase()] || s['Ranger 1 Name'] || r1),
+                         r2 && (humanName[r2.toLowerCase()] || s['Ranger 2  Name'] || s['Ranger 2 Name'] || r2)]
+                        .filter(String).join(', ');
+    s['Has PO'] = String(s['PO Number'] || '').trim() ? 'yes' : 'no';
+    s['Has Garden Keeper'] = s['Garden Keeper'] ? 'yes' : 'no';
+    s['Open Chores'] = String(openBySite[s['Name']] || 0);
+  });
+  humans.forEach(function(p) {
+    var ks = String(p['School'] || '').split(new RegExp('\\s*,\\s*')).filter(String);
+    p['School Names'] = ks.map(function(k) { return nameByKey[k.toLowerCase()] || k; }).join(', ');
+    p['School Count'] = String(ks.length);
+  });
+  return { sites: sites, humans: humans, chores: chores };
+}
+
+// Column list + common values, so Claude knows what it can filter on.
+function _askSchema(T) {
+  var out = [];
+  ['sites', 'humans', 'chores'].forEach(function(t) {
+    var rows = T[t], cols = {};
+    rows.forEach(function(r) { Object.keys(r).forEach(function(k) { cols[k] = true; }); });
+    var lines = Object.keys(cols).map(function(k) {
+      var counts = {}, filled = 0;
+      rows.forEach(function(r) { var v = r[k]; if (v) { filled++; counts[v] = (counts[v] || 0) + 1; } });
+      var distinct = Object.keys(counts);
+      var note = filled + '/' + rows.length + ' filled';
+      if (distinct.length && distinct.length <= 15 && distinct.every(function(v) { return v.length < 60; })) {
+        note += '; values: ' + distinct.sort(function(a, b) { return counts[b] - counts[a]; })
+          .map(function(v) { return '"' + v + '"(' + counts[v] + ')'; }).join(', ');
+      }
+      return '  - ' + k + ' [' + note + ']';
+    });
+    out.push(t + ' (' + rows.length + ' rows):\n' + lines.join('\n'));
+  });
+  return out.join('\n\n');
+}
+
+function _askNum(v) {
+  var s = String(v || '').trim();
+  var d = s.match(new RegExp('^(\\d{1,2})/(\\d{1,2})/(\\d{2,4})'));
+  if (d) { var y = +d[3]; if (y < 100) y += 2000; return new Date(y, +d[1] - 1, +d[2]).getTime(); }
+  var iso = s.match(new RegExp('^\\d{4}-\\d{2}-\\d{2}'));
+  if (iso) return new Date(s.slice(0, 10) + 'T00:00:00').getTime();
+  var n = parseFloat(s.replace(new RegExp('[$,]', 'g'), ''));
+  return isNaN(n) ? null : n;
+}
+
+function _askMatch(row, f) {
+  var raw = row[f.field];
+  var v = String(raw === undefined ? '' : raw).trim();
+  var lv = v.toLowerCase();
+  var target = f.value === undefined || f.value === null ? '' : f.value;
+  var vals = (Array.isArray(target) ? target : [target]).map(function(x) { return String(x).trim().toLowerCase(); });
+  switch (f.op) {
+    case 'is_empty':     return v === '';
+    case 'not_empty':    return v !== '';
+    case 'equals':       return vals.indexOf(lv) > -1;
+    case 'not_equals':   return vals.indexOf(lv) === -1;
+    case 'contains':     return vals.some(function(x) { return lv.indexOf(x) > -1; });
+    case 'not_contains': return !vals.some(function(x) { return lv.indexOf(x) > -1; });
+    case 'greater_than': case 'after': {
+      var a = _askNum(v), b = _askNum(vals[0]); return a !== null && b !== null && a > b; }
+    case 'less_than': case 'before': {
+      var a2 = _askNum(v), b2 = _askNum(vals[0]); return a2 !== null && b2 !== null && a2 < b2; }
+    default: throw new Error('Unknown op ' + f.op);
+  }
+}
+
+function _askRunQuery(T, q) {
+  var rows = T[q.table];
+  if (!rows) return { error: 'table must be sites, humans or chores' };
+  var all = (q.filters || []), any = (q.any_of || []);
+  var known = {};
+  rows.forEach(function(r) { Object.keys(r).forEach(function(k) { known[k] = true; }); });
+  var bad = all.concat(any).filter(function(f) { return !known[f.field]; }).map(function(f) { return f.field; });
+  if (bad.length) return { error: 'Unknown field(s): ' + bad.join(', ') + '. Use exact names from the schema.' };
+  var hits;
+  try {
+    hits = rows.filter(function(r) {
+      return all.every(function(f) { return _askMatch(r, f); }) &&
+             (!any.length || any.some(function(f) { return _askMatch(r, f); }));
+    });
+  } catch (e) { return { error: e.message }; }
+  var res = { table: q.table, count: hits.length, of_total: rows.length };
+  if (q.group_by) {
+    var g = {};
+    hits.forEach(function(r) { var k = r[q.group_by] || '(blank)'; g[k] = (g[k] || 0) + 1; });
+    res.groups = g;
+  }
+  var idField = q.table === 'sites' ? 'Name' : q.table === 'humans' ? 'Name' : 'Task';
+  var fields = (q.return_fields && q.return_fields.length) ? q.return_fields : [idField];
+  if (fields.indexOf(idField) === -1) fields.unshift(idField);
+  var limit = Math.min(Math.max(parseInt(q.limit || 30, 10) || 30, 1), 150);
+  if (q.sort_by) {
+    var dir = q.sort_desc ? -1 : 1;
+    hits = hits.slice().sort(function(a, b) {
+      var x = _askNum(a[q.sort_by]), y = _askNum(b[q.sort_by]);
+      if (x !== null && y !== null) return (x - y) * dir;
+      return String(a[q.sort_by] || '').localeCompare(String(b[q.sort_by] || '')) * dir;
+    });
+  }
+  res.rows = hits.slice(0, limit).map(function(r) {
+    var o = {}; fields.forEach(function(f) { if (r[f] !== undefined) o[f] = String(r[f]).slice(0, 300); }); return o;
+  });
+  if (hits.length > limit) res.note = 'Showing ' + limit + ' of ' + hits.length + ' rows; count is exact.';
+  // For the app: keys/emails of every match so names can be tapped.
+  res._links = hits.slice(0, 150).map(function(r) {
+    return q.table === 'sites' ? { t: 's', k: r['Key'] || '', n: r['Name'] }
+         : q.table === 'humans' ? { t: 'h', k: r['Email'] || '', n: r['Name'] || r['Email'] }
+         : { t: 'c', k: r['ID'] || '', n: (r['Task'] || '') + (r['Site Name'] ? ' - ' + r['Site Name'] : '') };
+  });
+  return res;
+}
+
+var ASK_TOOL = {
+  name: 'query_data',
+  description: 'Run an exact filter over one Ranger Rover table and get the true count, optional group totals, and matching rows. ' +
+    'Always use this for any number or list - never estimate. Filters in "filters" are ANDed; filters in "any_of" are ORed (row must match at least one). ' +
+    'Field names must match the schema exactly (case-sensitive). Text comparisons ignore case. Dates are M/D/YYYY.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      table: { type: 'string', enum: ['sites', 'humans', 'chores'] },
+      filters: { type: 'array', items: { type: 'object', properties: {
+        field: { type: 'string' },
+        op: { type: 'string', enum: ['is_empty', 'not_empty', 'equals', 'not_equals', 'contains', 'not_contains',
+                                     'greater_than', 'less_than', 'before', 'after'] },
+        value: { description: 'string, number, or array of strings (equals/contains match any)' }
+      }, required: ['field', 'op'] } },
+      any_of: { type: 'array', items: { type: 'object' }, description: 'Same shape as filters; ORed together' },
+      group_by: { type: 'string', description: 'Field to total by, e.g. District' },
+      return_fields: { type: 'array', items: { type: 'string' }, description: 'Extra columns to include in rows' },
+      sort_by: { type: 'string' }, sort_desc: { type: 'boolean' },
+      limit: { type: 'integer', description: 'Max rows returned (default 30, max 150). Count is always exact.' }
+    },
+    required: ['table']
+  }
+};
+
+function _askSystem(T, me) {
+  var schema;
+  var cache = CacheService.getScriptCache();
+  schema = cache.get('ask_schema_v1');
+  if (!schema) { schema = _askSchema(T); try { cache.put('ask_schema_v1', schema, 600); } catch (e) {} }
+  return 'You are Ask Rover, the data assistant inside Ranger Rover, the operations app for Enrich LA\'s school garden ' +
+    'Garden Rangers program in Los Angeles. You are talking with ' + me + ' (staff). Today is ' +
+    Utilities.formatDate(new Date(), 'America/Los_Angeles', 'EEEE M/d/yyyy') + '.\n\n' +
+    'RULES\n' +
+    '- Every number or list MUST come from query_data. Never guess counts. Run several queries when a question has parts.\n' +
+    '- "Active" schools usually means sites Type = "Active Ranger Program" - check the Type values in the schema. If a ' +
+    'question is ambiguous (e.g. all sites vs only active ones), answer the most useful reading and say which you used.\n' +
+    '- Derived site fields: Has Ranger (yes/no = Ranger 1 or Ranger 2 filled), Has PO (yes/no = PO Number filled), ' +
+    'Has Garden Keeper, Ranger Names, Open Chores (count). Humans: School Names, School Count. Chores: Site Name.\n' +
+    '- Sites "Ranger 1"/"Ranger 2"/"Garden Keeper" hold emails; use Ranger Names or the "... Name" columns to match people by name (contains).\n' +
+    '- Answer briefly and directly: lead with the numbers, then a short list if under ~12 items. The app shows the full ' +
+    'tappable list of matches from your LAST query below your answer, so make your last query the list the person most likely wants to see.\n' +
+    '- Plain text only, no markdown tables or headings. Short bullet lines with "- " are fine.\n' +
+    '- If the data cannot answer the question, say so and suggest what could.\n\n' +
+    'DATA SCHEMA (column [filled/total; common values]):\n' + schema;
+}
+
+function _askCall(apiKey, system, messages) {
+  var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    payload: JSON.stringify({ model: ASK_MODEL, max_tokens: 2048, system: system, tools: [ASK_TOOL], messages: messages })
+  });
+  var code = resp.getResponseCode();
+  if (code >= 300) throw new Error('Claude API HTTP ' + code + ': ' + resp.getContentText().slice(0, 200));
+  return JSON.parse(resp.getContentText());
+}
+
+// action: askRover { accessLevel, email, question, history:[{role,text}] }
+function handleAskRover(p) {
+  var lvl = parseInt(p.accessLevel || '3', 10);
+  if (lvl > 2) return { ok: false, error: 'Ask Rover is for Levels 1-2.' };
+  var question = String(p.question || '').trim().slice(0, 1000);
+  if (!question) return { ok: false, error: 'Empty question' };
+  var apiKey = _aiApiKey();
+  if (!apiKey) return { ok: false, error: 'No Anthropic API key in Script Properties.' };
+
+  var t0 = Date.now();
+  var T = _askTables();
+  var system = _askSystem(T, p.email || 'a staff member');
+  var messages = [];
+  (p.history || []).slice(-8).forEach(function(h) {
+    var txt = String(h.text || '').slice(0, 1500);
+    if (!txt) return;
+    var role = h.role === 'assistant' ? 'assistant' : 'user';
+    if (messages.length && messages[messages.length - 1].role === role) {
+      messages[messages.length - 1].content += '\n' + txt;
+    } else messages.push({ role: role, content: txt });
+  });
+  if (messages.length && messages[0].role !== 'user') messages.shift();
+  if (messages.length && messages[messages.length - 1].role === 'user') messages.pop();
+  messages.push({ role: 'user', content: question });
+
+  var lastLinks = null, lastTable = '', lastCount = null, queries = 0, usageIn = 0, usageOut = 0;
+  for (var step = 0; step < ASK_MAX_STEPS; step++) {
+    var body = _askCall(apiKey, system, messages);
+    if (body.usage) { usageIn += body.usage.input_tokens || 0; usageOut += body.usage.output_tokens || 0; }
+    var content = body.content || [];
+    var toolUses = content.filter(function(c) { return c.type === 'tool_use'; });
+    if (!toolUses.length || body.stop_reason !== 'tool_use') {
+      var answer = content.filter(function(c) { return c.type === 'text'; }).map(function(c) { return c.text; }).join('\n').trim();
+      try {
+        logActivity(p.email || '', 'asked Rover', question.slice(0, 120), 'ai', '');
+      } catch (e) {}
+      return { ok: true, answer: answer || '(No answer - try rephrasing.)', links: lastLinks, linkTable: lastTable,
+               linkCount: lastCount, queries: queries, ms: Date.now() - t0, tokens: { in: usageIn, out: usageOut } };
+    }
+    messages.push({ role: 'assistant', content: content });
+    var results = toolUses.map(function(tu) {
+      queries++;
+      var res = _askRunQuery(T, tu.input || {});
+      if (!res.error) { lastLinks = res._links; lastTable = res.table; lastCount = res.count; }
+      var forModel = {}; Object.keys(res).forEach(function(k) { if (k !== '_links') forModel[k] = res[k]; });
+      return { type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(forModel), is_error: !!res.error };
+    });
+    messages.push({ role: 'user', content: results });
+    if (Date.now() - t0 > 50000) break;
+  }
+  return { ok: false, error: 'That question took too many steps - try asking it in smaller pieces.' };
+}
+
+// Run by hand in the editor to test without the app.
+function askRoverTest() {
+  var r = handleAskRover({ accessLevel: 1, email: 'tomasogrady@enrichla.org',
+    question: 'How many schools are without purchase orders? And of them, how many are without Rangers?' });
+  Logger.log(JSON.stringify(r, null, 1).slice(0, 4000));
 }

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.35 | BUILDITALL: 2026-10-26 | Ranger Rover PWA -->
+<!-- v11.39 | BUILDITALL: 2026-10-27 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -639,6 +639,30 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 /* AI summaries */
 .ai-line{margin-top:6px;padding:4px 0 4px 9px;border-left:3px solid var(--mist);font-size:13.5px;line-height:1.45;color:var(--stone);display:block}
 .ai-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+#askRoverPanel{position:absolute;inset:0;z-index:1000;background:var(--paper,#faf8f3);display:flex;flex-direction:column}
+.ar-head{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:#6b4fbb;color:#fff;flex-shrink:0}
+.ar-title{flex:1;font-size:19px;font-weight:600;letter-spacing:.02em}
+.ar-hbtn{background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:14px;font-weight:600;cursor:pointer}
+.ar-x{font-size:17px;padding:6px 11px}
+.ar-msgs{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}
+.ar-msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:16px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
+.ar-me{align-self:flex-end;background:#6b4fbb;color:#fff;border-bottom-right-radius:4px}
+.ar-bot{align-self:flex-start;background:#fff;color:var(--ink,#222);border:1px solid var(--mist,#e5e2da);border-bottom-left-radius:4px}
+.ar-err{border-color:var(--danger,#c0392b);color:var(--danger,#c0392b)}
+.ar-links{margin-top:9px;padding-top:8px;border-top:1px solid var(--mist,#e5e2da);display:flex;flex-wrap:wrap;gap:6px;white-space:normal}
+.ar-links-h{width:100%;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone,#777)}
+.ar-chip{border:1px solid #d6cdf0;background:#f4f0fc;color:#4a3590;border-radius:14px;padding:5px 11px;font-size:14px;cursor:pointer;text-align:left}
+.ar-more{border:none;background:none;color:#6b4fbb;font-size:14px;font-weight:600;cursor:pointer;padding:5px 4px}
+.ar-meta{font-size:11px;color:var(--silver,#aaa);margin-top:6px}
+.ar-sugs{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.ar-sug{border:1px solid #d6cdf0;background:#fff;color:#4a3590;border-radius:12px;padding:10px 13px;font-size:15px;text-align:left;cursor:pointer}
+.ar-typing{display:inline-flex;gap:4px}.ar-typing i{width:7px;height:7px;border-radius:50%;background:#b9a9e6;animation:arb 1s infinite}
+.ar-typing i:nth-child(2){animation-delay:.15s}.ar-typing i:nth-child(3){animation-delay:.3s}
+@keyframes arb{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+.ar-inputrow{display:flex;gap:8px;padding:10px 12px calc(10px + var(--safe-bottom,0px));border-top:1px solid var(--mist,#e5e2da);background:#fff;flex-shrink:0}
+#arInput{flex:1;resize:none;border:1px solid var(--mist,#ddd);border-radius:12px;padding:10px 12px;font-size:16px;font-family:inherit;line-height:1.35;max-height:120px}
+#arSend{flex:0 0 46px;border:none;border-radius:12px;background:#6b4fbb;color:#fff;font-size:19px;cursor:pointer}
+#arSend:disabled{opacity:.5}
 .ai-badge{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:none}
 </style>
 
@@ -725,6 +749,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
   <button class="hdr-name-cell" onclick="showSelfProfile()" style="border:none;cursor:pointer;pointer-events:all">
     <span class="hdr-name-text" id="hdrNameLabel"></span>
     <span class="hdr-role-text" id="hdrRoleLabel"></span>
+  </button>
+  <!-- 5b: Ask Rover (Levels 1-2) -->
+  <button id="askRoverBtn" class="hdr-btn" onclick="askRoverOpen()" style="display:none;background:#6b4fbb;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Ask Rover" aria-label="Ask Rover">
+    <span style="font-size:22px;pointer-events:none">✨</span>
   </button>
   <!-- 6: Refresh — icon only -->
   <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" style="background:#F5A623;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Refresh" aria-label="Refresh">
@@ -1961,6 +1989,18 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 
 </div><!-- /content -->
 
+<div id="askRoverPanel" style="display:none">
+  <div class="ar-head">
+    <span class="ar-title">✨ Ask Rover</span>
+    <button class="ar-hbtn" onclick="askRoverClear()" title="New conversation">New</button>
+    <button class="ar-hbtn ar-x" onclick="askRoverClose()" aria-label="Close">✕</button>
+  </div>
+  <div id="arMsgs" class="ar-msgs"></div>
+  <div class="ar-inputrow">
+    <textarea id="arInput" rows="1" placeholder="Ask about schools, rangers, chores…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askRoverSend();}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+    <button id="arSend" onclick="askRoverSend()" aria-label="Send">➤</button>
+  </div>
+</div>
 <div id="detail-overlay" onclick="closeDetail(event)">
   <div id="detail-sheet" onclick="event.stopPropagation()">
     <div class="sheet-pull"><div class="sheet-pull-bar"></div></div>
@@ -1988,10 +2028,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.35';
+const APP_VERSION='v11.39';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-26 21:05 PT - AI school summaries: a one-to-two line status and a green/amber/red flag on school cards and the school detail (Levels 1-2), written overnight from Comments, Site Details and open chores. Loads in the background, never slows startup. Settings has a Refresh AI Summaries button.';
+const BUILD_STAMP='2026-10-27 17:55 PT - Ask Rover: a chat for Levels 1-2 (sparkle button in the header). Ask plain questions like how many schools have no PO, and of those how many have no Ranger. Answers come from exact counts of the sheets, with tappable school, people and chore matches.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2054,6 +2094,72 @@ async function _aiLoadSummaries(){
     try{localStorage.setItem('rr_ai_sum',JSON.stringify(_AI));}catch(e){}
     if(changed&&_activeTab==='schools'){try{renderSchools();}catch(e){}}
   }catch(e){}
+}
+/* ═══ ASK ROVER chat (v11.39, Levels 1-2) ═══
+   Question → GAS askRover → Claude runs exact query_data filters on the sheets
+   → short answer + tappable matches. Conversation kept in memory (and in
+   sessionStorage so it survives opening a school and coming back). */
+let _arHist=[];try{_arHist=JSON.parse(sessionStorage.getItem('rr_ar')||'[]')||[];}catch(e){_arHist=[];}
+let _arBusy=false;
+const _AR_SUGS=['How many schools have no PO? Of those, how many have no Ranger?','Which active schools have no Ranger assigned?','How many open chores are there, by school?','Which rangers have the most schools?','Which schools need attention according to the AI status?'];
+function _arSave(){try{sessionStorage.setItem('rr_ar',JSON.stringify(_arHist.slice(-30)));}catch(e){}}
+function askRoverOpen(){
+  if(!SESSION||SESSION.accessLevel>2)return;
+  document.getElementById('askRoverPanel').style.display='flex';
+  _arRender();
+  setTimeout(()=>{const i=document.getElementById('arInput');if(i&&!_arHist.length)i.focus();},150);
+}
+function askRoverClose(){document.getElementById('askRoverPanel').style.display='none';}
+function askRoverClear(){if(_arBusy)return;_arHist=[];_arSave();_arRender();}
+function _arLinksHtml(m,idx){
+  if(!m.links||!m.links.length)return '';
+  const lbl={sites:'Schools',humans:'People',chores:'Chores'}[m.linkTable]||'Matches';
+  const show=m.expanded?m.links:m.links.slice(0,12);
+  const chips=show.map((l,j)=>`<button class="ar-chip" onclick="_arOpenLink(${idx},${m.expanded?j:j})">${escHtml(l.n||'?')}</button>`).join('');
+  const more=!m.expanded&&m.links.length>12?`<button class="ar-more" onclick="_arExpand(${idx})">+ ${m.links.length-12} more</button>`:'';
+  const total=m.linkCount!=null&&m.linkCount>m.links.length?` (first ${m.links.length} of ${m.linkCount})`:'';
+  return `<div class="ar-links"><div class="ar-links-h">${lbl} · ${m.links.length}${total}</div>${chips}${more}</div>`;
+}
+function _arRender(){
+  const box=document.getElementById('arMsgs');if(!box)return;
+  let h='';
+  if(!_arHist.length){
+    h=`<div class="ar-msg ar-bot">Hi ${escHtml(((SESSION&&SESSION.name)||'').split(' ')[0]||'there')} - ask me anything about schools, rangers, people or chores. I count straight from the sheets, so numbers are exact.<div class="ar-sugs">${_AR_SUGS.map((q,i)=>`<button class="ar-sug" onclick="askRoverSend(_AR_SUGS[${i}])">${escHtml(q)}</button>`).join('')}</div></div>`;
+  }
+  _arHist.forEach((m,i)=>{
+    if(m.role==='user')h+=`<div class="ar-msg ar-me">${escHtml(m.text)}</div>`;
+    else h+=`<div class="ar-msg ar-bot${m.err?' ar-err':''}">${escHtml(m.text)}${_arLinksHtml(m,i)}${m.meta?`<div class="ar-meta">${escHtml(m.meta)}</div>`:''}</div>`;
+  });
+  if(_arBusy)h+=`<div class="ar-msg ar-bot"><span class="ar-typing"><i></i><i></i><i></i></span></div>`;
+  box.innerHTML=h;
+  box.scrollTop=box.scrollHeight;
+  const sb=document.getElementById('arSend');if(sb)sb.disabled=_arBusy;
+}
+function _arExpand(i){if(_arHist[i]){_arHist[i].expanded=true;_arSave();_arRender();}}
+function _arOpenLink(i,j){
+  const m=_arHist[i];if(!m||!m.links)return;const l=m.links[j];if(!l)return;
+  if(l.t==='s'){const site=l.k?_siteByKeyLoose(l.k):null;if(site)showSchoolDetailByKey(l.k);else{const s2=(DATA.sites||[]).find(x=>sf(x,'Name','name')===l.n);if(s2)showSchoolDetailByKey(sf(s2,'Key','key')||l.n);}}
+  else if(l.t==='h')showPersonDetail(l.k);
+  else if(l.t==='c'&&l.k)showChoreDetail(l.k);
+}
+async function askRoverSend(preset){
+  if(_arBusy||!SESSION||SESSION.accessLevel>2)return;
+  const inp=document.getElementById('arInput');
+  const q=String(preset||inp.value||'').trim();if(!q)return;
+  inp.value='';inp.style.height='auto';
+  const history=_arHist.filter(m=>!m.err).slice(-8).map(m=>({role:m.role,text:m.text}));
+  _arHist.push({role:'user',text:q});_arBusy=true;_arSave();_arRender();
+  try{
+    const r=await gasPost({action:'askRover',accessLevel:SESSION.accessLevel,email:SESSION.email,question:q,history});
+    if(r&&r.ok){
+      _arHist.push({role:'assistant',text:r.answer||'',links:r.links||null,linkTable:r.linkTable||'',linkCount:r.linkCount,
+        meta:(r.queries?r.queries+' quer'+(r.queries===1?'y':'ies')+' · ':'')+(r.ms?(r.ms/1000).toFixed(1)+'s':'')});
+    }else{
+      const e=(r&&r.error)||'Something went wrong.';
+      _arHist.push({role:'assistant',err:true,text:/Unknown action|Unknown|not a function/i.test(e)?'The backend needs the new GAS deployed (v11.39).':e});
+    }
+  }catch(e){_arHist.push({role:'assistant',err:true,text:'Could not reach the server - check your connection and try again.'});}
+  _arBusy=false;_arSave();_arRender();
 }
 async function _aiSettingsStatus(){
   const el=document.getElementById('aiSumStatus');if(!el||!SESSION||SESSION.accessLevel!==1)return;
@@ -2983,6 +3089,7 @@ function showApp(){
   loadAppSettings(); // load plants-on/off + broadcast message
   setTimeout(()=>loadSubs(false),4000); // Sub badge — background, never blocks startup
   if(lvl<=2)setTimeout(_aiLoadSummaries,3000); // AI summaries — background, cached locally
+  {const arb=document.getElementById('askRoverBtn');if(arb)arb.style.display=lvl<=2?'flex':'none';}
   if(lvl===1)setTimeout(_aiSettingsStatus,6000);
 }
 
