@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.39 | 2026-10-27 | Ask Rover chat (Levels 1-2) + AI summaries';
+const GAS_BUILD = 'v11.40 | 2026-10-27 | Ask Rover teachable hints (Ask Rover Hints tab, hard exclusions)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -729,6 +729,8 @@ function _doPostRoute(e) {
       case 'runAiSummaries':  return respond(handleRunAiSummaries(p));
       case 'aiSummaryStatus': return respond(handleAiSummaryStatus(p));
       case 'askRover':        return respond(handleAskRover(p));
+      case 'askRoverHints':   return respond(handleAskRoverHints(p));
+      case 'askRoverHintOff': return respond(handleAskRoverHintOff(p));
       case 'saveComments':  return respond(handleSaveComments(p));
 
       // ── PROGRAMS (Items All → Operations edit card dropdown) ────────────────
@@ -5837,9 +5839,20 @@ function _askMatch(row, f) {
   }
 }
 
-function _askRunQuery(T, q) {
+function _askRunQuery(T, q, excludes) {
   var rows = T[q.table];
   if (!rows) return { error: 'table must be sites, humans or chores' };
+  var excludedNames = [];
+  if (!q.include_excluded && excludes && excludes.length) {
+    var ex = excludes.filter(function(x) { return x.table === q.table; });
+    if (ex.length) {
+      rows = rows.filter(function(r) {
+        var drop = ex.some(function(x) { try { return _askMatch(r, x); } catch (e) { return false; } });
+        if (drop) excludedNames.push(r['Name'] || r['Task'] || r['Email'] || '?');
+        return !drop;
+      });
+    }
+  }
   var all = (q.filters || []), any = (q.any_of || []);
   var known = {};
   rows.forEach(function(r) { Object.keys(r).forEach(function(k) { known[k] = true; }); });
@@ -5853,6 +5866,7 @@ function _askRunQuery(T, q) {
     });
   } catch (e) { return { error: e.message }; }
   var res = { table: q.table, count: hits.length, of_total: rows.length };
+  if (excludedNames.length) res.auto_excluded = excludedNames.slice(0, 20).join(', ') + ' (standing hint - not counted)';
   if (q.group_by) {
     var g = {};
     hits.forEach(function(r) { var k = r[q.group_by] || '(blank)'; g[k] = (g[k] || 0) + 1; });
@@ -5883,6 +5897,27 @@ function _askRunQuery(T, q) {
   return res;
 }
 
+var ASK_HINT_TOOL = {
+  name: 'save_hint',
+  description: 'Save a standing rule that Ask Rover follows in ALL future conversations. Use ONLY when the person explicitly ' +
+    'gives a correction or standing instruction ("don\'t count X", "from now on...", "remember that...", "X means Y"). ' +
+    'Never save hints on your own initiative. Rewrite the hint as one clear sentence. If the rule is about leaving certain ' +
+    'rows out of counts (test schools, closed sites, etc.), ALSO fill "exclude" so it is enforced automatically on every query.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      hint: { type: 'string', description: 'One clear sentence, e.g. "Tomas Test Elementary is a test school - never count it."' },
+      exclude: { type: 'object', description: 'Optional hard exclusion applied to every query on that table', properties: {
+        table: { type: 'string', enum: ['sites', 'humans', 'chores'] },
+        field: { type: 'string' },
+        op: { type: 'string', enum: ['equals', 'contains', 'is_empty', 'not_empty'] },
+        value: { type: 'string' }
+      }, required: ['table', 'field', 'op'] }
+    },
+    required: ['hint']
+  }
+};
+
 var ASK_TOOL = {
   name: 'query_data',
   description: 'Run an exact filter over one Ranger Rover table and get the true count, optional group totals, and matching rows. ' +
@@ -5902,13 +5937,14 @@ var ASK_TOOL = {
       group_by: { type: 'string', description: 'Field to total by, e.g. District' },
       return_fields: { type: 'array', items: { type: 'string' }, description: 'Extra columns to include in rows' },
       sort_by: { type: 'string' }, sort_desc: { type: 'boolean' },
-      limit: { type: 'integer', description: 'Max rows returned (default 30, max 150). Count is always exact.' }
+      limit: { type: 'integer', description: 'Max rows returned (default 30, max 150). Count is always exact.' },
+      include_excluded: { type: 'boolean', description: 'Only true if the person explicitly asks to include rows that standing hints exclude (e.g. test schools).' }
     },
     required: ['table']
   }
 };
 
-function _askSystem(T, me) {
+function _askSystem(T, me, hints) {
   var schema;
   var cache = CacheService.getScriptCache();
   schema = cache.get('ask_schema_v1');
@@ -5927,6 +5963,10 @@ function _askSystem(T, me) {
     'tappable list of matches from your LAST query below your answer, so make your last query the list the person most likely wants to see.\n' +
     '- Plain text only, no markdown tables or headings. Short bullet lines with "- " are fine.\n' +
     '- If the data cannot answer the question, say so and suggest what could.\n\n' +
+    '- When the person gives a correction or standing instruction, call save_hint (then continue answering). ' +
+    'Results include "auto_excluded" when a standing hint removed rows - mention it briefly the first time it matters.\n\n' +
+    (hints && hints.length ? 'STANDING HINTS FROM STAFF (always follow these; exclusions are already applied automatically):\n' +
+      hints.map(function(h, i) { return (i + 1) + '. ' + h.hint; }).join('\n') + '\n\n' : '') +
     'DATA SCHEMA (column [filled/total; common values]):\n' + schema;
 }
 
@@ -5934,7 +5974,7 @@ function _askCall(apiKey, system, messages) {
   var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    payload: JSON.stringify({ model: ASK_MODEL, max_tokens: 2048, system: system, tools: [ASK_TOOL], messages: messages })
+    payload: JSON.stringify({ model: ASK_MODEL, max_tokens: 2048, system: system, tools: [ASK_TOOL, ASK_HINT_TOOL], messages: messages })
   });
   var code = resp.getResponseCode();
   if (code >= 300) throw new Error('Claude API HTTP ' + code + ': ' + resp.getContentText().slice(0, 200));
@@ -5952,7 +5992,10 @@ function handleAskRover(p) {
 
   var t0 = Date.now();
   var T = _askTables();
-  var system = _askSystem(T, p.email || 'a staff member');
+  var hints = _askLoadHints();
+  var excludes = hints.filter(function(h) { return h.exclude; }).map(function(h) { return h.exclude; });
+  var system = _askSystem(T, p.email || 'a staff member', hints);
+  var savedHints = [];
   var messages = [];
   (p.history || []).slice(-8).forEach(function(h) {
     var txt = String(h.text || '').slice(0, 1500);
@@ -5978,12 +6021,21 @@ function handleAskRover(p) {
         logActivity(p.email || '', 'asked Rover', question.slice(0, 120), 'ai', '');
       } catch (e) {}
       return { ok: true, answer: answer || '(No answer - try rephrasing.)', links: lastLinks, linkTable: lastTable,
-               linkCount: lastCount, queries: queries, ms: Date.now() - t0, tokens: { in: usageIn, out: usageOut } };
+               linkCount: lastCount, queries: queries, ms: Date.now() - t0, tokens: { in: usageIn, out: usageOut },
+               savedHints: savedHints, hintCount: hints.length + savedHints.length };
     }
     messages.push({ role: 'assistant', content: content });
     var results = toolUses.map(function(tu) {
+      if (tu.name === 'save_hint') {
+        var hr = _askSaveHint(T, tu.input || {}, p.email || '', lvl);
+        if (hr.ok) {
+          savedHints.push(hr.hint);
+          if (hr.exclude) excludes.push(hr.exclude);
+        }
+        return { type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(hr), is_error: !hr.ok };
+      }
       queries++;
-      var res = _askRunQuery(T, tu.input || {});
+      var res = _askRunQuery(T, tu.input || {}, excludes);
       if (!res.error) { lastLinks = res._links; lastTable = res.table; lastCount = res.count; }
       var forModel = {}; Object.keys(res).forEach(function(k) { if (k !== '_links') forModel[k] = res[k]; });
       return { type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(forModel), is_error: !!res.error };
@@ -5999,4 +6051,88 @@ function askRoverTest() {
   var r = handleAskRover({ accessLevel: 1, email: 'tomasogrady@enrichla.org',
     question: 'How many schools are without purchase orders? And of them, how many are without Rangers?' });
   Logger.log(JSON.stringify(r, null, 1).slice(0, 4000));
+}
+
+
+// ── Ask Rover hints: tab "Ask Rover Hints" in the Sites spreadsheet ──────────
+// Edit freely in the sheet: set Active to FALSE to switch a hint off. An
+// Exclude rule (Table/Field/Op/Value) is applied as a hard filter on every query.
+var ASK_HINTS_TAB = 'Ask Rover Hints';
+var ASK_HINT_COLS = ['ID', 'Hint', 'Active', 'Exclude Table', 'Exclude Field', 'Exclude Op', 'Exclude Value', 'Added By', 'Added On'];
+
+function _askHintsSheet() {
+  var ss = SpreadsheetApp.openById(SITES_ID);
+  var sh = ss.getSheetByName(ASK_HINTS_TAB);
+  if (!sh) {
+    sh = ss.insertSheet(ASK_HINTS_TAB);
+    sh.getRange(1, 1, 1, ASK_HINT_COLS.length).setValues([ASK_HINT_COLS]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.setColumnWidth(2, 520);
+  }
+  return sh;
+}
+
+function _askLoadHints() {
+  try {
+    var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName(ASK_HINTS_TAB);
+    if (!sh || sh.getLastRow() < 2) return [];
+    var data = sh.getDataRange().getValues(), h = data[0];
+    var ix = {}; h.forEach(function(k, i) { ix[String(k).trim()] = i; });
+    var out = [];
+    for (var r = 1; r < data.length; r++) {
+      var row = data[r];
+      var hint = String(row[ix['Hint']] || '').trim();
+      var act = row[ix['Active']];
+      if (!hint || act === false || String(act).toUpperCase() === 'FALSE') continue;
+      var o = { id: String(row[ix['ID']] || ''), hint: hint, by: String(row[ix['Added By']] || ''),
+                on: _askFmt(row[ix['Added On']]) };
+      var et = String(row[ix['Exclude Table']] || '').trim().toLowerCase();
+      var ef = String(row[ix['Exclude Field']] || '').trim();
+      if (et && ef) o.exclude = { table: et, field: ef, op: String(row[ix['Exclude Op']] || 'equals').trim(),
+                                  value: String(row[ix['Exclude Value']] || '').trim() };
+      out.push(o);
+    }
+    return out;
+  } catch (e) { Logger.log('_askLoadHints: ' + e.message); return []; }
+}
+
+function _askSaveHint(T, inp, email, lvl) {
+  if (lvl !== 1) return { ok: false, error: 'Only Level 1 can save standing hints. Tell the person to ask Tomas.' };
+  var hint = String(inp.hint || '').trim().slice(0, 500);
+  if (!hint) return { ok: false, error: 'Empty hint' };
+  var ex = inp.exclude && inp.exclude.table && inp.exclude.field ? inp.exclude : null;
+  if (ex) {
+    var rows = T[ex.table];
+    if (!rows) return { ok: false, error: 'Unknown table ' + ex.table };
+    var known = rows.some(function(r) { return Object.prototype.hasOwnProperty.call(r, ex.field); });
+    if (!known) return { ok: false, error: 'Unknown field ' + ex.field + ' - use exact schema names.' };
+    ex = { table: ex.table, field: ex.field, op: ex.op || 'equals', value: String(ex.value || '') };
+    var n = 0; rows.forEach(function(r) { try { if (_askMatch(r, ex)) n++; } catch (e) {} });
+    if (!n) return { ok: false, error: 'That exclusion matches no rows - check the exact name with query_data first.' };
+    if (n > rows.length / 2) return { ok: false, error: 'That exclusion would remove ' + n + ' of ' + rows.length + ' rows - too broad; ask the person to confirm a narrower rule.' };
+  }
+  var sh = _askHintsSheet();
+  var id = Utilities.getUuid().slice(0, 8);
+  sh.appendRow([id, hint, true, ex ? ex.table : '', ex ? ex.field : '', ex ? ex.op : '', ex ? ex.value : '', email, new Date()]);
+  return { ok: true, hint: hint, exclude: ex, id: id };
+}
+
+// action: askRoverHints (Levels 1-2) → list active hints
+function handleAskRoverHints(p) {
+  var lvl = parseInt(p.accessLevel || '3', 10);
+  if (lvl > 2) return { ok: false, error: 'Not authorized' };
+  return { ok: true, hints: _askLoadHints() };
+}
+
+// action: askRoverHintOff (Level 1) → set Active = FALSE for a hint ID
+function handleAskRoverHintOff(p) {
+  if (parseInt(p.accessLevel || '3', 10) !== 1) return { ok: false, error: 'Level 1 only' };
+  var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName(ASK_HINTS_TAB);
+  if (!sh) return { ok: false, error: 'No hints sheet' };
+  var data = sh.getDataRange().getValues(), h = data[0];
+  var ii = h.indexOf('ID'), ai = h.indexOf('Active');
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][ii]) === String(p.id)) { sh.getRange(r + 1, ai + 1).setValue(false); return { ok: true }; }
+  }
+  return { ok: false, error: 'Hint not found' };
 }

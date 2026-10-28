@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.39 | BUILDITALL: 2026-10-27 | Ranger Rover PWA -->
+<!-- v11.40 | BUILDITALL: 2026-10-27 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -653,6 +653,11 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .ar-links-h{width:100%;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone,#777)}
 .ar-chip{border:1px solid #d6cdf0;background:#f4f0fc;color:#4a3590;border-radius:14px;padding:5px 11px;font-size:14px;cursor:pointer;text-align:left}
 .ar-more{border:none;background:none;color:#6b4fbb;font-size:14px;font-weight:600;cursor:pointer;padding:5px 4px}
+.ar-saved{margin-top:9px;padding:8px 10px;background:#fff8e1;border:1px solid #f0d78c;border-radius:10px;font-size:14px;color:#6d5300;white-space:normal}
+.ar-hint{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--mist,#e5e2da);white-space:normal;font-size:15px}
+.ar-hint:first-of-type{border-top:none}
+.ar-hint-t{flex:1}.ar-hint-m{font-size:11px;color:var(--silver,#aaa);margin-top:2px}
+.ar-off{border:1px solid var(--mist,#ddd);background:#fff;color:var(--danger,#c0392b);border-radius:8px;padding:4px 9px;font-size:12px;cursor:pointer;flex-shrink:0}
 .ar-meta{font-size:11px;color:var(--silver,#aaa);margin-top:6px}
 .ar-sugs{display:flex;flex-direction:column;gap:8px;margin-top:6px}
 .ar-sug{border:1px solid #d6cdf0;background:#fff;color:#4a3590;border-radius:12px;padding:10px 13px;font-size:15px;text-align:left;cursor:pointer}
@@ -1992,6 +1997,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 <div id="askRoverPanel" style="display:none">
   <div class="ar-head">
     <span class="ar-title">✨ Ask Rover</span>
+    <button class="ar-hbtn" onclick="askRoverShowHints()" title="Standing hints">📌 Hints</button>
     <button class="ar-hbtn" onclick="askRoverClear()" title="New conversation">New</button>
     <button class="ar-hbtn ar-x" onclick="askRoverClose()" aria-label="Close">✕</button>
   </div>
@@ -2028,10 +2034,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.39';
+const APP_VERSION='v11.40';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-27 17:55 PT - Ask Rover: a chat for Levels 1-2 (sparkle button in the header). Ask plain questions like how many schools have no PO, and of those how many have no Ranger. Answers come from exact counts of the sheets, with tappable school, people and chore matches.';
+const BUILD_STAMP='2026-10-27 18:20 PT - Ask Rover learns: tell it a standing rule (e.g. dont count Tomas Test Elementary) and it saves a hint it follows from then on. Exclusions are enforced on every count. Pin button in the chat lists hints and Level 1 can switch them off. Hints also live in the Ask Rover Hints tab of the Sites sheet.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2124,11 +2130,12 @@ function _arRender(){
   const box=document.getElementById('arMsgs');if(!box)return;
   let h='';
   if(!_arHist.length){
-    h=`<div class="ar-msg ar-bot">Hi ${escHtml(((SESSION&&SESSION.name)||'').split(' ')[0]||'there')} - ask me anything about schools, rangers, people or chores. I count straight from the sheets, so numbers are exact.<div class="ar-sugs">${_AR_SUGS.map((q,i)=>`<button class="ar-sug" onclick="askRoverSend(_AR_SUGS[${i}])">${escHtml(q)}</button>`).join('')}</div></div>`;
+    h=`<div class="ar-msg ar-bot">Hi ${escHtml(((SESSION&&SESSION.name)||'').split(' ')[0]||'there')} - ask me anything about schools, rangers, people or chores. I count straight from the sheets, so numbers are exact.${SESSION&&SESSION.accessLevel===1?'\n\nTip: teach me as you go - e.g. \u201cfrom now on, don\u2019t count Tomas Test Elementary\u201d - and I\u2019ll remember it (📌 Hints).':''}<div class="ar-sugs">${_AR_SUGS.map((q,i)=>`<button class="ar-sug" onclick="askRoverSend(_AR_SUGS[${i}])">${escHtml(q)}</button>`).join('')}</div></div>`;
   }
   _arHist.forEach((m,i)=>{
     if(m.role==='user')h+=`<div class="ar-msg ar-me">${escHtml(m.text)}</div>`;
-    else h+=`<div class="ar-msg ar-bot${m.err?' ar-err':''}">${escHtml(m.text)}${_arLinksHtml(m,i)}${m.meta?`<div class="ar-meta">${escHtml(m.meta)}</div>`:''}</div>`;
+    else if(m.hints)h+=`<div class="ar-msg ar-bot"><b>📌 Standing hints (${m.hints.length})</b>${m.hints.length?m.hints.map(x=>`<div class="ar-hint"><div class="ar-hint-t">${escHtml(x.hint)}${x.exclude?' <span style="color:#6b4fbb">(auto-excluded)</span>':''}<div class="ar-hint-m">${escHtml([x.by,x.on].filter(Boolean).join(' · '))}</div></div>${SESSION&&SESSION.accessLevel===1?`<button class="ar-off" onclick="askRoverHintOff('${ea(x.id)}',${i})">Turn off</button>`:''}</div>`).join(''):'<div class="ar-hint">None yet. Tell me a rule like \u201cdon\u2019t count Tomas Test Elementary\u201d.</div>'}<div class="ar-meta">Also editable in the Ask Rover Hints tab of the Sites sheet.</div></div>`;
+    else h+=`<div class="ar-msg ar-bot${m.err?' ar-err':''}">${escHtml(m.text)}${(m.saved||[]).map(x=>`<div class="ar-saved">📌 Saved hint: ${escHtml(x)}</div>`).join('')}${_arLinksHtml(m,i)}${m.meta?`<div class="ar-meta">${escHtml(m.meta)}</div>`:''}</div>`;
   });
   if(_arBusy)h+=`<div class="ar-msg ar-bot"><span class="ar-typing"><i></i><i></i><i></i></span></div>`;
   box.innerHTML=h;
@@ -2147,12 +2154,12 @@ async function askRoverSend(preset){
   const inp=document.getElementById('arInput');
   const q=String(preset||inp.value||'').trim();if(!q)return;
   inp.value='';inp.style.height='auto';
-  const history=_arHist.filter(m=>!m.err).slice(-8).map(m=>({role:m.role,text:m.text}));
+  const history=_arHist.filter(m=>!m.err&&!m.hints).slice(-8).map(m=>({role:m.role,text:m.text}));
   _arHist.push({role:'user',text:q});_arBusy=true;_arSave();_arRender();
   try{
     const r=await gasPost({action:'askRover',accessLevel:SESSION.accessLevel,email:SESSION.email,question:q,history});
     if(r&&r.ok){
-      _arHist.push({role:'assistant',text:r.answer||'',links:r.links||null,linkTable:r.linkTable||'',linkCount:r.linkCount,
+      _arHist.push({role:'assistant',text:r.answer||'',saved:r.savedHints||[],links:r.links||null,linkTable:r.linkTable||'',linkCount:r.linkCount,
         meta:(r.queries?r.queries+' quer'+(r.queries===1?'y':'ies')+' · ':'')+(r.ms?(r.ms/1000).toFixed(1)+'s':'')});
     }else{
       const e=(r&&r.error)||'Something went wrong.';
@@ -2160,6 +2167,22 @@ async function askRoverSend(preset){
     }
   }catch(e){_arHist.push({role:'assistant',err:true,text:'Could not reach the server - check your connection and try again.'});}
   _arBusy=false;_arSave();_arRender();
+}
+async function askRoverShowHints(){
+  if(_arBusy||!SESSION||SESSION.accessLevel>2)return;
+  _arBusy=true;_arRender();
+  try{
+    const r=await gasPost({action:'askRoverHints',accessLevel:SESSION.accessLevel});
+    if(r&&r.ok)_arHist.push({role:'assistant',text:'',hints:r.hints||[]});
+    else _arHist.push({role:'assistant',err:true,text:(r&&r.error)||'Could not load hints.'});
+  }catch(e){_arHist.push({role:'assistant',err:true,text:'Could not reach the server.'});}
+  _arBusy=false;_arSave();_arRender();
+}
+async function askRoverHintOff(id,i){
+  if(!SESSION||SESSION.accessLevel!==1)return;
+  const r=await gasPost({action:'askRoverHintOff',accessLevel:1,id});
+  if(r&&r.ok&&_arHist[i]&&_arHist[i].hints){_arHist[i].hints=_arHist[i].hints.filter(x=>x.id!==id);_arSave();_arRender();}
+  else showSaveToast((r&&r.error)||'Could not turn off hint');
 }
 async function _aiSettingsStatus(){
   const el=document.getElementById('aiSumStatus');if(!el||!SESSION||SESSION.accessLevel!==1)return;
