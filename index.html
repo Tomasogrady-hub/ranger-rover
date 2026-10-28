@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.41 | BUILDITALL: 2026-10-27 | Ranger Rover PWA -->
+<!-- v11.42 | BUILDITALL: 2026-10-27 | Ranger Rover PWA -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -636,6 +636,29 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nv-toggle input:checked+.nv-slider{background:var(--grove)}
 .nv-toggle input:checked+.nv-slider:before{transform:translateX(16px)}
 
+/* ═══ WIDE LAYOUT (v11.42) ═══
+   Everything here only applies at >=1000px AND when the device hasn't opted
+   out (Settings -> Wide layout, adds html.rr-narrow). Below 1000px, or with
+   rr-narrow, the app is byte-for-byte the classic 430px phone column. */
+@media (min-width:1000px){
+  html:not(.rr-narrow) #app{max-width:min(1440px,100vw)}
+  /* Lists that become columns — explicit whitelist only */
+  html:not(.rr-narrow) :is(#schoolList,#rangerList,#choresList,#peopleList,#dataSchoolsList,#actionList,#opsHomeList):not(.pictures-grid){display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));column-gap:32px;align-items:start;padding:0 28px 28px}
+  html:not(.rr-narrow) :is(#schoolList,#rangerList,#choresList,#peopleList,#dataSchoolsList,#actionList,#opsHomeList) > :is(.list-sentinel,.empty,.spinner,.l3-sec-head,.l3-sec-list,.l3-sec-grid,.page-header,h2,h3,p){grid-column:1/-1}
+  html:not(.rr-narrow) .l3-sec-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));column-gap:32px}
+  html:not(.rr-narrow) .card-list.pictures-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));padding:4px 28px 28px}
+  /* Filter bars: let the dropdowns spread across instead of stacking */
+  html:not(.rr-narrow) :is(#schoolFilters,#reachSchoolFilters,#dataSchoolFilters){max-width:1300px!important}
+  /* Reading/form pages: comfortable line length, centred */
+  html:not(.rr-narrow) :is(#tab-notes,#tab-settings,#tab-latest,#tab-sub,#tab-plants) > *{max-width:960px;margin-left:auto;margin-right:auto}
+  /* Card details: a centred panel instead of a full-width bottom sheet */
+  html:not(.rr-narrow) #detail-overlay{align-items:center;justify-content:center}
+  html:not(.rr-narrow) #detail-sheet{max-width:820px;border-radius:var(--r-xl);max-height:88dvh;padding-bottom:28px;box-shadow:0 24px 70px rgba(0,0,0,.25)}
+  /* Nav: shorter rows so the content gets more of the screen */
+  html:not(.rr-narrow) .nav-btn{height:44px;font-size:13px}
+  /* Ask Rover: keep the conversation a readable width */
+  html:not(.rr-narrow) .ar-msgs,html:not(.rr-narrow) .ar-inputrow{padding-left:max(14px,calc(50% - 440px));padding-right:max(14px,calc(50% - 440px))}
+}
 /* AI summaries */
 .ai-line{margin-top:6px;padding:4px 0 4px 9px;border-left:3px solid var(--mist);font-size:13.5px;line-height:1.45;color:var(--stone);display:block}
 .ai-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
@@ -1614,6 +1637,11 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
           <div class="settings-note">This is the GAS_BUILD string reported by the currently DEPLOYED Apps Script, not the version in the GitHub source file. Pushing GAS_SCRIPT.gs to GitHub never updates this — only Deploy → New Deployment in the Apps Script editor does. If a recent backend fix doesn't seem to be taking effect, check this matches the latest GAS_BUILD in source before troubleshooting anything else.</div>
         </div>
         <div class="settings-row">
+          <div class="dl" style="margin-bottom:6px">🖥 Wide Layout on Big Screens</div>
+          <label style="display:flex;align-items:center;gap:10px;font-size:17px;cursor:pointer"><input type="checkbox" id="wideLayoutToggle" style="width:22px;height:22px" onchange="setWideLayout(this.checked)"> Use the full width of large screens (this device only)</label>
+          <div class="settings-note" style="margin-top:6px">On screens 1000px or wider, lists spread into columns and cards open as a centred panel. Phones are never affected. Untick to go back to the classic phone-width view.</div>
+        </div>
+        <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">✨ AI School Summaries</div>
           <div class="settings-note">Each night at 2am, Claude reads every school's Comments, Site Details and open chores and writes a one-to-two line status with a green / amber / red flag. Shown to Levels 1-2 only. Only changed schools are re-read, so it costs pennies a month.</div>
           <button class="settings-btn" style="margin-top:8px" onclick="_aiRunNow(this)">✨ Refresh AI Summaries</button>
@@ -2034,10 +2062,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.41';
+const APP_VERSION='v11.42';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-27 18:45 PT - Nav Visibility now has two Ask Rover toggles: Ask Rover (show the sparkle button, Levels 1-2) and Ask Rover: Add Hints (permission to save or turn off standing hints, off by default for Level 2). Enforced on the server too.';
+const BUILD_STAMP='2026-10-27 19:10 PT - Wide layout for big screens (1000px+): app uses the full window, school/ranger/chore/people lists spread into columns, cards open as a centred panel. Phones unchanged. Settings has a per-device switch to go back to the classic view.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2064,6 +2092,13 @@ const CFG={
   VIDEO_DELETE_DAYS:parseInt(localStorage.getItem('rr_video_delete_days')||'90')
 };
 let DATA={sites:[],humans:[],roles:[],chores:[],programs:[],responseOptions:[]};
+/* Wide layout opt-out (per device). Layout itself is pure CSS — see WIDE LAYOUT. */
+try{if(localStorage.getItem('rr_wide')==='off')document.documentElement.classList.add('rr-narrow');}catch(e){}
+function setWideLayout(on){
+  try{localStorage.setItem('rr_wide',on?'on':'off');}catch(e){}
+  document.documentElement.classList.toggle('rr-narrow',!on);
+  setTimeout(()=>{try{window.dispatchEvent(new Event('resize'));}catch(e){}},60); // Leaflet maps re-measure
+}
 /* ═══ AI SCHOOL SUMMARIES (v11.35) ═══
    Written overnight by GAS (Claude Haiku) from private Comments + open chores.
    Levels 1-2 only. Read from localStorage instantly, refreshed in background. */
@@ -11019,6 +11054,7 @@ async function loadAppSettings(){
 function _applyAppSettings(){
   const lvl=SESSION?SESSION.accessLevel:3;
   try{_askRoverApplyVis();}catch(e){}
+  {const wt=document.getElementById('wideLayoutToggle');if(wt)wt.checked=!document.documentElement.classList.contains('rr-narrow');}
   // Rebuild nav so tabs (incl. Plants) reflect current Nav Visibility settings
   buildNav(lvl);
   // If the tab currently on screen no longer has a nav button after that
