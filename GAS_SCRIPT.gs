@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.37 | 2026-10-27 | AI summaries: forgiving API key lookup + aiDebugKey';
+const GAS_BUILD = 'v11.38 | 2026-10-27 | AI summaries: robust reply parsing, more output room, clearer errors';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -5404,6 +5404,16 @@ function _aiPropNames() {
   catch (e) { return '(could not read)'; }
 }
 
+// Run by hand: sends one tiny request and logs the raw reply.
+function aiDebugCall() {
+  var resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', _aiRequest(_aiApiKey(),
+    'School: Test Elementary\nProgram type: Active Ranger Program\nOpen chores:\nnone\nStaff comments:\n1/5/26 - garden looks great, school happy.',
+    Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d/yyyy')));
+  Logger.log('HTTP ' + resp.getResponseCode());
+  Logger.log(resp.getContentText().slice(0, 1500));
+  Logger.log('Parsed: ' + JSON.stringify(_aiParse(resp)));
+}
+
 // Run by hand in the editor to check what Script Properties this project sees.
 function aiDebugKey() {
   Logger.log('Property names: ' + _aiPropNames());
@@ -5495,7 +5505,7 @@ function _aiRequest(apiKey, input, today) {
     muteHttpExceptions: true,
     payload: JSON.stringify({
       model: AI_MODEL,
-      max_tokens: 200,
+      max_tokens: 1024,
       system: system,
       messages: [{ role: 'user', content: input }]
     })
@@ -5504,16 +5514,41 @@ function _aiRequest(apiKey, input, today) {
 
 function _aiParse(resp) {
   var code = resp.getResponseCode();
-  if (code >= 300) return { err: 'HTTP ' + code + ': ' + resp.getContentText().slice(0, 200), code: code };
-  var body = JSON.parse(resp.getContentText());
-  var text = (body.content || []).map(function(c) { return c.text || ''; }).join('').trim();
+  var raw = resp.getContentText();
+  if (code >= 300) return { err: 'HTTP ' + code + ': ' + raw.slice(0, 200), code: code };
+  var body = JSON.parse(raw);
+  var blocks = body.content || [];
+  var text = blocks.filter(function(c) { return c && c.type === 'text'; })
+                   .map(function(c) { return c.text || ''; }).join('').trim();
+  if (!text) {
+    return { err: 'no text (stop=' + body.stop_reason + ', blocks=' +
+      blocks.map(function(c) { return c.type; }).join('/') + ', model=' + body.model + ')' };
+  }
+  text = text.replace(new RegExp('```(json)?', 'gi'), '').trim();
   var m = text.match(new RegExp('\\{[\\s\\S]*\\}'));
-  var obj = {};
-  try { obj = JSON.parse(m ? m[0] : text); } catch (e) { obj = { summary: text }; }
-  var status = String(obj.status || 'watch').toLowerCase();
+  var obj = null;
+  try { obj = JSON.parse(m ? m[0] : text); } catch (e) { obj = null; }
+  var summary = '', status = '';
+  if (obj && typeof obj === 'object') {
+    summary = obj.summary || obj.Summary || obj.status_line || obj.text || '';
+    status = obj.status || obj.Status || obj.flag || '';
+    if (!summary) { // any string value that isn't the status word
+      Object.keys(obj).forEach(function(k) {
+        var v = obj[k];
+        if (!summary && typeof v === 'string' && v.length > 20) summary = v;
+      });
+    }
+  }
+  if (!summary) { // plain-text fallback: "STATUS: x" line + the rest
+    var sm = text.match(new RegExp('status\\W+(good|watch|attention)', 'i'));
+    if (sm) status = sm[1];
+    summary = text.replace(new RegExp('^.*status\\W+(good|watch|attention).*$', 'gim'), '')
+                  .replace(new RegExp('^\\s*summary\\W*', 'i'), '').trim();
+  }
+  status = String(status || 'watch').toLowerCase();
   if (['good', 'watch', 'attention'].indexOf(status) === -1) status = 'watch';
-  var summary = String(obj.summary || '').replace(new RegExp('\\s+', 'g'), ' ').trim().slice(0, 280);
-  if (!summary) return { err: 'empty summary' };
+  summary = String(summary).replace(new RegExp('\\s+', 'g'), ' ').trim().slice(0, 280);
+  if (!summary) return { err: 'empty summary; raw: ' + text.slice(0, 120) };
   return { summary: summary, status: status };
 }
 
