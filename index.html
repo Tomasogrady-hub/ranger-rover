@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.48 -->
+<!-- v11.49 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -184,6 +184,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .sub-notes{font-size:15px;color:var(--ink);background:var(--fog);border-radius:var(--r-sm);padding:8px 10px;margin-top:8px;white-space:pre-wrap}
 .sub-pill{flex-shrink:0;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:99px;background:var(--fog);color:var(--stone)}
 .sub-pill.pending{background:#fff3d6;color:#9a6a00}.sub-pill.open{background:#fde8dc;color:#b4501c}
+.sub-pill.vol{background:#2e7d4f;color:#fff;animation:rrSubFlash 1.6s ease-in-out infinite}
+.sub-card.has-vol{border:2px solid #2e7d4f;box-shadow:0 0 0 3px rgba(46,125,79,.15)}
 .sub-pill.filled{background:#dff3e4;color:#1e6b34}.sub-pill.off{background:#eee;color:#888}
 .sub-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
 .sub-btn{padding:10px 14px;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;background:var(--grove);color:#fff}
@@ -2112,10 +2114,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.48';
+const APP_VERSION='v11.49';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-30 20:05 PT - Levels 1-2: each volunteer on an open sub shift now reads Ranger X has volunteered for this shift.';
+const BUILD_STAMP='2026-10-30 20:15 PT - Levels 1-2: open sub shifts with a volunteer show a flashing green Volunteer - pick a sub badge and a green card outline instead of Waiting on other Rangers.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11815,6 +11817,9 @@ function _subPill(s){
   const cls=st==='Pending Approval'?'pending':st==='Open'?'open':st==='Filled'?'filled':'off';
   // once sent out, the Ranger who asked and Level 1-2 see "Waiting on other Rangers"; everyone else sees "Available"
   const waiting=st==='Open'&&(_subIsAdmin()||String(s['Requested By']||'').toLowerCase()===_subMe());
+  // Levels 1-2: someone has offered - make it stand out
+  if(st==='Open'&&_subIsAdmin()){const n=_subVolsFor(s.ID).filter(v=>v.Status==='Offered').length;
+    if(n)return '<span class="sub-pill vol">🙋 '+(n>1?n+' volunteers':'Volunteer')+' - pick a sub</span>';}
   return '<span class="sub-pill '+cls+'">'+escHtml(st==='Pending Approval'?'Needs approval':st==='Open'?(waiting?'Waiting on other Rangers':'Available'):st)+'</span>';
 }
 function _subHead(site,siteKey,whenHtml,pill,fbName){
@@ -11891,7 +11896,8 @@ function _subOpenCard(s){
   }
   const dist=admin?'':_subDistLabel(site,me,true);
   const actions=admin?'<div class="sub-actions">'+_subReschedBtn(s)+_subKillBtn('sub',s.ID)+'</div>':(mineReq?'<div class="sub-actions">'+_subReschedBtn(s)+'<button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'');
-  return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
+  const hasVol=admin&&vols.some(v=>v.Status==='Offered');
+  return '<div class="sub-card tap'+(hasVol?' has-vol':'')+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     '<div class="sub-meta">'+(mineReq?'Your request':'For <b>'+escHtml(req.name)+'</b>')+(dist?' · '+escHtml(dist):'')+'</div>'+
     _subDrop((s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site))+body+actions+
