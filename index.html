@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.46 -->
+<!-- v11.47 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -818,6 +818,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     <span class="hdr-name-text" id="hdrNameLabel"></span>
     <span class="hdr-role-text" id="hdrRoleLabel"></span>
   </button>
+  <!-- 5a: Online now (Levels 1-2) -->
+  <button id="onlineBtn" class="hdr-btn" onclick="showOnlineNow()" style="display:none;background:#2e7d4f;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Who is online now" aria-label="Who is online now">
+    <span style="font-size:11px;pointer-events:none">🟢</span><span id="onlineCount" style="font-size:16px;pointer-events:none">0</span>
+  </button>
   <!-- 5b: Ask Rover (Levels 1-2) -->
   <button id="askRoverBtn" class="hdr-btn" onclick="askRoverOpen()" style="display:none;background:#6b4fbb;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Ask Rover" aria-label="Ask Rover">
     <span style="font-size:22px;pointer-events:none">✨</span>
@@ -1011,6 +1015,12 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     </div>
     <div class="page-header"><span class="page-title" id="rangerPageTitle">Rangers</span><span class="page-count" id="rangerCount"></span></div>
     <div style="padding:0 16px 8px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:520px;margin:0 auto">
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Uses this app</label>
+        <select id="rangerAppUserSelect" class="settings-input" style="margin:0" onchange="crauf=this.value;renderRangers();_initLazyImages();">
+          <option value="all">All</option><option value="yes">Yes - has signed in</option><option value="no">No - never signed in</option>
+        </select>
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
         <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Filter by Ranger Number</label>
         <select id="rangerNumberFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByNumber(this.value)">
@@ -2102,10 +2112,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.46';
+const APP_VERSION='v11.47';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-30 19:40 PT - Sub tab boxed headings for every level (Level 3: Me, Available Opportunities, Reschedules, Filled and Upcoming; no Cancelled and Past). Sub Reach lists name the Ranger who needs the sub and include Level 1. Edits to Site Details, Program Details, Schedule Contents and confidential Ranger notes are signed with name, role and date. Level 3 sees only basic info for schools that are not theirs. Card details fold into a Details dropdown.';
+const BUILD_STAMP='2026-10-30 20:30 PT - Signed-up subs get a Reach button with a one-tap volunteer link instead of Pick. Level 3 hides empty Sub boxes. Confirmed subs can ask the requesting Ranger a question. Requesting Rangers can reschedule with the school instead. Levels 1-2 see who is online now (header). Rangers tab: Uses this app filter.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2284,7 +2294,7 @@ async function _aiRunNow(btn){
 }
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='ranger',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='ranger',crauf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
 let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
@@ -5176,6 +5186,7 @@ function renderRangers(){
     if(!cats.some(c=>RANGER_CATS.includes(c)))return false;
     if(f!=='all'&&!cats.includes(f))return false;
     if(crnf!=='all'&&(sf(h,'Ranger Number','RangerNumber')||'')!==crnf)return false;
+    if(crauf!=='all'&&(!!h['Has Password'])!==(crauf==='yes'))return false;
     if(!_rangerMatchesDocFilter(h,crdf))return false;
     if(q&&!(fullName(h)+(h.Email||h.email||'')).toLowerCase().includes(q))return false;
     return true;
@@ -8215,11 +8226,48 @@ function _liveAdopt(v,scopes){
   LIVE.ver=cur;
   try{localStorage.setItem(LIVE.VK,JSON.stringify(cur));}catch(e){}
 }
+// ── Online now (v11.47) ─────────────────────────────────────────────────────
+// Every open app beats every 20s (2 min when idle, none in a background tab).
+// Online = beat in the last 5 minutes.
+let _ONLINE={list:[],st:0,at:0};
+function _onlineAgo(t){return Math.max(0,(_ONLINE.st+(Date.now()-_ONLINE.at))-t);}
+function _onlineOthers(){
+  const me=String(SESSION&&SESSION.email||'').toLowerCase();
+  return (_ONLINE.list||[]).filter(o=>o&&o.e&&o.e!==me&&_onlineAgo(o.t)<300000).sort((a,b)=>b.t-a.t);
+}
+function _onlineApply(v){
+  _ONLINE={list:Array.isArray(v.online)?v.online:[],st:Number(v.serverTime)||Date.now(),at:Date.now()};
+  const b=document.getElementById('onlineBtn');if(!b)return;
+  if(!SESSION||SESSION.accessLevel>2){b.style.display='none';return;}
+  b.style.display='flex';
+  const c=document.getElementById('onlineCount');if(c)c.textContent=_onlineOthers().length;
+  if(document.getElementById('onlineSheet'))showOnlineNow();
+}
+function showOnlineNow(){
+  const list=_onlineOthers();
+  const old=document.getElementById('onlineSheet');if(old)old.remove();
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='onlineSheet';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const rows=list.map(o=>{
+    const h=gh(o.e),ago=_onlineAgo(o.t),m=Math.floor(ago/60000);
+    const when=ago<70000?'<span style="color:#2e7d4f;font-weight:700">● Active now</span>':m+' min ago';
+    return '<div class="sub-vol" style="cursor:pointer" onclick="document.getElementById(\'onlineSheet\').remove();showPersonDetail(\''+ea(o.e)+'\')">'+
+      '<span style="display:flex;gap:10px;align-items:center">'+(h?avatarHtml(h):'')+'<span><b>'+escHtml(h?fullName(h):o.e)+'</b>'+
+      '<div class="sub-meta" style="margin:0">'+escHtml(h?(h.Role||h.role||''):'')+'</div></span></span><span class="sub-meta" style="margin:0">'+when+'</span></div>';
+  }).join('');
+  ov.innerHTML='<div class="sub-sheet"><h3>🟢 Online now ('+list.length+')</h3>'+
+    '<div class="sub-meta" style="margin:-6px 0 8px">People with Ranger Rover open in the last 5 minutes. Updates by itself.</div>'+
+    (rows||'<div class="sub-empty">No one else is on right now.</div>')+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'onlineSheet\').remove()">Close</button></div></div>';
+  document.body.appendChild(ov);
+}
 async function _liveFetchVer(){
   if(!CFG.URL||LIVE.off)return null;
   try{
-    const r=await fetch(CFG.URL+'?type=ver&t='+Date.now());
+    // the heartbeat also says "I am here"; Levels 1-2 get back who else is online
+    const me=SESSION&&SESSION.email?'&me='+encodeURIComponent(SESSION.email)+(SESSION.accessLevel<=2?'&who=1':''):'';
+    const r=await fetch(CFG.URL+'?type=ver'+me+'&t='+Date.now());
     const v=await r.json();
+    if(v&&v.online)_onlineApply(v);
     if(v&&v.ok&&v.live===1)return v;
     if(v&&(v.sites||v.humans)){LIVE.off=true;}   // old GAS: answered with full data
   }catch(e){}
@@ -11824,7 +11872,7 @@ function _subOpenCard(s){
     const avail=(_SUB.availability||[]).filter(a=>a.email!==String(s['Requested By']).toLowerCase()&&_subAvailMatch(a.email,s));
     if(avail.length)body+='<div class="sub-avail-box"><b>⭐ Signed-up subs available this day</b>'+avail.map(a=>{const m=_subAvailMatch(a.email,s);
       return '<div class="sub-vol"><div>'+_subPersonLink(a.email)+' <span class="sub-meta" style="margin:0">'+escHtml(_SUB_DAYN[m.day]+' '+_subFmtTime(m.start)+'–'+_subFmtTime(m.end))+'</span>'+
-        (a.notes?'<div class="sub-meta" style="margin:0">“'+escHtml(a.notes)+'”</div>':'')+'</div><button class="sub-btn hot" onclick="subAssign(\''+ea(s.ID)+'\',\''+ea(a.email)+'\')">Pick</button></div>';}).join('')+'</div>';
+        (a.notes?'<div class="sub-meta" style="margin:0">“'+escHtml(a.notes)+'”</div>':'')+'</div><button class="sub-btn hot" onclick="subReachAvail(\''+ea(s.ID)+'\',\''+ea(a.email)+'\')">📡 Reach</button></div>';}).join('')+'</div>';
     body+='<div class="sub-actions"><select class="sub-in" id="subOther_'+ea(s.ID)+'" style="flex:1;min-width:160px;font-size:15px;padding:9px">'+
       '<option value="">Assign someone else…</option>'+_subEligibleOptions([s['Requested By']],s)+'</select>'+
       '<button class="sub-btn alt" onclick="subAssignOther(\''+ea(s.ID)+'\')">Assign</button></div>'+
@@ -11842,7 +11890,7 @@ function _subOpenCard(s){
       (_subAvailMatch(me,s)?'<div class="sub-meta"><span class="sub-avail" style="margin:0">⭐ Matches your sub availability</span></div>':'');
   }
   const dist=admin?'':_subDistLabel(site,me,true);
-  const actions=admin?'<div class="sub-actions">'+_subKillBtn('sub',s.ID)+'</div>':(mineReq?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'');
+  const actions=admin?'<div class="sub-actions">'+_subReschedBtn(s)+_subKillBtn('sub',s.ID)+'</div>':(mineReq?'<div class="sub-actions">'+_subReschedBtn(s)+'<button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':'');
   return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     '<div class="sub-meta">'+(mineReq?'Your request':'For <b>'+escHtml(req.name)+'</b>')+(dist?' · '+escHtml(dist):'')+'</div>'+
@@ -11863,7 +11911,8 @@ function _subAssignedCard(s){
     _subDrop((det?'<div class="sub-notes"><b>Site details:</b> '+escHtml(det)+'</div>':'')+
     _subProgDetails(site)+
     (s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':''))+
-    (site?'<div class="sub-actions"><button class="sub-btn alt" onclick="showSchoolDetailByKey(\''+ea(site.Key||site.key||'')+'\')">Open School</button></div>':'')+
+    '<div class="sub-actions"><button class="sub-btn hot" onclick="subAskRequester(\''+ea(s.ID)+'\')">💬 Ask '+escHtml(req.name.split(' ')[0]||'the Ranger')+' a question</button>'+
+    (site?'<button class="sub-btn alt" onclick="showSchoolDetailByKey(\''+ea(site.Key||site.key||'')+'\')">Open School</button>':'')+'</div>'+
     '</div>';
 }
 function _subOtherCard(s){
@@ -11875,7 +11924,7 @@ function _subOtherCard(s){
   return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     (who?'<div class="sub-meta">'+who+'</div>':'')+
-    (admin&&['Pending Approval','Open','Filled'].includes(s.Status)?'<div class="sub-actions">'+_subKillBtn('sub',s.ID)+'</div>':(canCancel?'<div class="sub-actions"><button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':''))+
+    (admin&&['Pending Approval','Open','Filled'].includes(s.Status)?'<div class="sub-actions">'+_subReschedBtn(s)+_subKillBtn('sub',s.ID)+'</div>':(canCancel?'<div class="sub-actions">'+_subReschedBtn(s)+'<button class="sub-btn warn" onclick="subCancel(\''+ea(s.ID)+'\')">Cancel Shift</button></div>':(_subReschedBtn(s)?'<div class="sub-actions">'+_subReschedBtn(s)+'</div>':'')))+
     (['Cancelled','Declined','Expired'].includes(s.Status)?'<div class="sub-actions"><button class="sub-btn alt" onclick="subRemove(\''+ea(s.ID)+'\')">🗑 Remove</button></div>':'')+
     '</div>';
 }
@@ -11930,6 +11979,55 @@ function subOpenDetail(id){
     '<div class="sub-actions" style="margin-top:16px">'+acts+'</div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="_subCloseDetail()">Close</button></div></div>';
   _subCloseDetail();document.body.appendChild(ov);
+}
+// Check with a signed-up sub before assigning - message carries a one-tap volunteer link
+function subReachAvail(id,email){
+  const s=_SUB.subs.find(x=>x.ID===id);if(!s)return;
+  const site=_subSiteByKey(s.Site),name=site?sf(site,'Name','name'):siteNameFromKey(s.Site,s.SiteName);
+  const h=gh(email),first=h?(h['First Name']||fullName(h).split(' ')[0]):'';
+  const addr=site?sf(site,'Full Address','FullAddress'):'';
+  const plain=_subFmtDate(s.Date)+((s.Start||s.End)?', '+_subFmtTime(s.Start)+(s.End?'-'+_subFmtTime(s.End):''):'');
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
+  const msg='Hi '+(first||'there')+',\n\nYou are signed up as an available sub that day. '+_subPerson(s['Requested By']).name+' needs someone to cover:\n- '+name+'\n- '+plain+(addr?'\n- '+addr:'')+
+    '\n\nWould you like to take it? If yes, tap this link and confirm in the app:\n'+REACH_APP_URL+'#subvol='+encodeURIComponent(s.ID)+
+    '\n\nOr just reply with any questions.\n\nThank you,\n'+meName+(hm(SESSION.email)?'\n'+hm(SESSION.email):'');
+  _subCloseDetail();
+  _subPickRecipients('Check with '+(h?fullName(h):email),[{label:'Signed-up sub',people:[{email:h?(h.Email||h.email):email,label:(h?fullName(h):email)+' · available that day',checked:true}]}],
+    {subject:'Can you sub? '+name+', '+_subFmtDate(s.Date),message:msg.replace(/[–—]/g,'-')},name+' - sub shift',{expand:true});
+}
+// Confirmed sub asks the Ranger they are covering (Level 1 / Senior Leadership optional)
+function subAskRequester(id){
+  const s=_SUB.subs.find(x=>x.ID===id);if(!s)return;
+  const me=_subMe(),site=_subSiteByKey(s.Site),name=site?sf(site,'Name','name'):siteNameFromKey(s.Site,s.SiteName);
+  const req=gh(s['Requested By']),first=req?(req['First Name']||fullName(req).split(' ')[0]):'';
+  const seen=new Set([me]),mk=(h,role,ch)=>{const k=String(h.Email||h.email||'').toLowerCase();if(!k||seen.has(k))return null;seen.add(k);return {email:h.Email||h.email,label:(fullName(h)||k)+' · '+role,checked:ch};};
+  const groups=[];
+  if(req){const r=mk(req,'you are covering for',true);if(r)groups.push({label:'🙋 Ranger you are covering for',people:[r]});}
+  const lead=(DATA.humans||[]).filter(h=>{const l=String(h['Access Level']||'').trim();return l==='1'||l==='2';})
+    .map(h=>mk(h,String(h['Access Level']).trim()==='1'?'Level 1':'Senior Leadership',false)).filter(Boolean);
+  if(lead.length)groups.push({label:'Level 1 and Senior Leadership (optional)',people:lead});
+  if(!groups.length){alert('No contact found for the Ranger.');return;}
+  const plain=_subFmtDate(s.Date)+((s.Start||s.End)?', '+_subFmtTime(s.Start)+(s.End?'-'+_subFmtTime(s.End):''):'');
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
+  const msg='Hi '+(first||'there')+',\n\nI am subbing for you at '+name+' on '+plain+'. A quick question:\n\n\n\nThank you,\n'+meName+(hm(SESSION.email)?'\n'+hm(SESSION.email):'')+
+    '\n\nOpen in Ranger Rover: '+REACH_APP_URL+'#sub='+encodeURIComponent(s.ID);
+  _subCloseDetail();
+  _subPickRecipients('Ask about your sub shift',groups,{subject:'Question about subbing at '+name+', '+_subFmtDate(s.Date),message:msg},name+' - sub shift',{cancelLabel:'Cancel'});
+}
+// Requesting Ranger: switch from finding a sub to rescheduling with the school
+function _subReschedBtn(s){
+  if(String(s['Requested By']||'').toLowerCase()!==_subMe())return '';
+  if(!['Pending Approval','Open'].includes(s.Status)||s.Date<_subToday())return '';
+  return '<button class="sub-btn alt" onclick="subReschedInstead(\''+ea(s.ID)+'\')">📅 Reschedule with the school instead</button>';
+}
+function subReschedInstead(id){
+  const s=_SUB.subs.find(x=>x.ID===id);if(!s)return;
+  _subCloseDetail();
+  window._subReschedFrom=id;
+  showSubRequestForm({site:s.Site,date:s.Date,start:s.Start||'',end:s.End||''});
+  subSetMode('resched');
+  const hint=document.getElementById('subDayHint');
+  if(hint)hint.insertAdjacentHTML('afterbegin','<div style="color:#b4501c;font-weight:700;margin-bottom:4px">Once the school is asked, your sub request for '+escHtml(_subFmtDate(s.Date))+' is cancelled.</div>');
 }
 function _subCloseDetail(){const o=document.getElementById('subDetailOverlay');if(o)o.remove();}
 function subReachFromShift(id){
@@ -12284,14 +12382,26 @@ function _subRenderL3(subs,up,isMe,today){
   h+=box('Me',0,'<div id="subMeBtnSlot"></div>'+_subSec('You Are Subbing',subbing.map(_subAssignedCard),'',true)+
     _subSec('My Requests',mineUp.map(s=>s.Status==='Open'?_subOpenCard(s):_subOtherCard(s)),'',true));
   const avail=up.filter(s=>s.Status==='Open'&&!isMe(s['Requested By']));
-  h+=box('Available Opportunities',avail.length,grid(avail.map(_subOpenCard),'No available sub shifts right now.'));
+  // empty sections are left out entirely to keep the page clear
+  if(avail.length)h+=box('Available Opportunities',avail.length,grid(avail.map(_subOpenCard),''));
   const res=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)&&!_subResIsPast(r)).slice().reverse();
-  h+=box('Reschedules',res.length,grid(res.map(_subResCard),'No reschedules.'));
+  if(res.length)h+=box('Reschedules',res.length,grid(res.map(_subResCard),''));
   const filled=up.filter(s=>s.Status==='Filled'&&!isMe(s['Assigned To'])&&!isMe(s['Requested By']));
-  h+=box('Filled and Upcoming',filled.length,grid(filled.map(_subOtherCard),'Nothing filled yet.'));
+  if(filled.length)h+=box('Filled and Upcoming',filled.length,grid(filled.map(_subOtherCard),''));
   return h;
 }
 function _subAfterRender(body,admin){
+  // #subvol= link: once fresh data is in, offer to volunteer for that shift
+  if(window._subAutoVol&&_SUB.ts){
+    const id=window._subAutoVol;window._subAutoVol=null;
+    const s=_SUB.subs.find(x=>x.ID===id);
+    setTimeout(()=>{
+      if(!s||s.Status!=='Open'){alert('Sorry - this sub shift is no longer open.');return;}
+      if(String(s['Requested By']||'').toLowerCase()===_subMe())return;
+      if(_subVolsFor(id).some(v=>String(v.Volunteer).toLowerCase()===_subMe()&&v.Status==='Offered')){showSaveToast('✓ You already offered to take this shift');return;}
+      subVolunteer(id);
+    },400);
+  }
   const cnt=document.getElementById('subCount');
   if(cnt){const n=_subBadgeCount();cnt.textContent=n?(n+(admin?' need action':' open')):'';}
   if(_subHighlight){
@@ -12517,6 +12627,11 @@ async function subStartReschedule(){
   _reachForwardPrefill={subject,message:msg};
   switchTab('reach');showReachPage('schoolask');
   showToast(reg?'📅 Logged - each date in the message is a tap-to-confirm link':'📅 '+contacts.length+' school contacts selected (date links unavailable - Apps Script needs redeploy)');
+  if(reg&&window._subReschedFrom){
+    const fid=window._subReschedFrom;window._subReschedFrom=null;
+    const fs=_SUB.subs.find(x=>x.ID===fid);
+    if(fs&&String(fs.Site)===String(site.Key||site.key||fs.Site)){fs.Status='Cancelled';_subAct({action:'cancelSub',subId:fid},'Sub request cancelled - rescheduling with the school instead');}
+  }
   if(reg)loadSubs(true);
 }
 function _subProgMissing(site){return !!site&&typeof _progDetailsVal==='function'&&!String(_progDetailsVal(site)||'').trim();}
@@ -13240,10 +13355,11 @@ if(_saved){try{SESSION=JSON.parse(_saved);showApp();_tryDeepLink(25);}catch(e){l
 // school's detail once Sites data has loaded, instead of just the home tab.
 function _tryDeepLink(retries){
   // Deep link: .../ranger-rover/#sub=S1234567 (from sub request emails/texts)
-  const msub=/[#&]sub=([^&]*)/.exec(location.hash);
+  const msub=/[#&]sub(vol)?=([^&]*)/.exec(location.hash);
   if(msub){
     if(!SESSION)return;
-    _subHighlight=decodeURIComponent(msub[1]||'');
+    _subHighlight=decodeURIComponent(msub[2]||'');
+    if(msub[1])window._subAutoVol=_subHighlight;
     if(DATA.sites&&DATA.sites.length){
       switchTab('sub');loadSubs(true);
       try{history.replaceState(null,'',location.pathname);}catch(e){}

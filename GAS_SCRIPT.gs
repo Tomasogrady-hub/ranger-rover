@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.41 | 2026-10-27 | Ask Rover permissions via Nav Visibility (ask_rover, ask_hints_add)';
+const GAS_BUILD = 'v11.47 | 2026-10-30 | Online now: heartbeat records who has the app open (script cache)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -501,6 +501,29 @@ var LIVE_ACTION_SCOPES = {
   acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs']
 };
 
+// Online now (v11.47): each open app's heartbeat records "seen at" in the
+// script cache (no sheet reads). Levels 1-2 ask for the list (who=1).
+function _presenceBeat(me, want) {
+  var c = CacheService.getScriptCache(), now = Date.now(), map = {};
+  var read = function() { try { return JSON.parse(c.get('rr_presence') || '{}') || {}; } catch (x) { return {}; } };
+  map = read();
+  me = String(me || '').trim().toLowerCase();
+  if (me && me.indexOf('@') > 0 && (!map[me] || now - map[me] > 30000)) {
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(1500)) {
+      try {
+        map = read();
+        map[me] = now;
+        Object.keys(map).forEach(function(k) { if (now - map[k] > 600000) delete map[k]; });
+        c.put('rr_presence', JSON.stringify(map), 21600);
+      } finally { lock.releaseLock(); }
+    }
+  }
+  if (!want) return null;
+  return Object.keys(map).filter(function(k) { return now - map[k] < 300000; })
+    .map(function(k) { return { e: k, t: map[k] }; });
+}
+
 function _liveGetVersions() {
   var props = PropertiesService.getScriptProperties();
   var out = { ok: true, live: 1, serverTime: Date.now() };
@@ -594,7 +617,12 @@ function doGet(e) {
   // Live-sync heartbeat — must stay tiny and fast (no sheet reads).
   if (type === 'ver') {
     _liveEnsureTrigger();
-    return respond(_liveGetVersions());
+    var verOut = _liveGetVersions();
+    try {
+      var who = _presenceBeat(e.parameter.me, e.parameter.who === '1');
+      if (who) verOut.online = who;
+    } catch (px) {}
+    return respond(verOut);
   }
 
   // One-time migration: convert Site Names → Keys in Chores + Humans sheets
