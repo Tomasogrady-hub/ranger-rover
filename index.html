@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.45 -->
+<!-- v11.46 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -164,6 +164,11 @@ details.sub-box .sub-h1::after{content:' ▾';font-size:18px}
 details.sub-box[open] .sub-h1::after{content:' ▴'}
 .sub-h1 .n{font-size:15px;color:var(--stone);font-weight:700;letter-spacing:.04em;margin-left:6px}
 .sub-sec.lv2{font-size:13px;margin-top:6px}
+.sub-dd{margin-top:8px}
+.sub-dd>summary{cursor:pointer;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#E07A3F;list-style:none;padding:4px 0}
+.sub-dd>summary::-webkit-details-marker{display:none}
+.sub-dd>summary::after{content:' ▾'}
+.sub-dd[open]>summary::after{content:' ▴'}
 .sub-sec{padding:8px 16px 2px;font-size:16px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
 .sub-card{background:#fff;border:1px solid var(--mist);border-radius:var(--r-md);padding:14px 15px;margin:8px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
 .sub-card.hl{outline:3px solid #E07A3F;outline-offset:1px}
@@ -2097,10 +2102,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.45';
+const APP_VERSION='v11.46';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-30 14:05 PT - Sub tab (Levels 1-2): ME, OPEN, RESCHEDULES, FILLED AND UPCOMING, CANCELLED AND PAST are matching centred headings, each in its own box. Rangers tab opens on Ranger. School Reach prefills subject and message with the school name.';
+const BUILD_STAMP='2026-10-30 19:40 PT - Sub tab boxed headings for every level (Level 3: Me, Available Opportunities, Reschedules, Filled and Upcoming; no Cancelled and Past). Sub Reach lists name the Ranger who needs the sub and include Level 1. Edits to Site Details, Program Details, Schedule Contents and confidential Ranger notes are signed with name, role and date. Level 3 sees only basic info for schools that are not theirs. Card details fold into a Details dropdown.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6621,7 +6626,10 @@ function _acfsUseExisting(email,returnBtnId){
   showSaveToast('✓ '+nm+' selected — tap Save to keep');
 }
 
+function _l3NotMine(site){if(!SESSION||SESSION.accessLevel<3||!site)return false;const r=_mySiteRoles(site);return !(r.ranger||r.gk);}
 function renderSchoolDetail(site,editMode,opsMode){
+  // Level 3 opening a school that is not theirs: photo, address, directions only
+  if(_l3NotMine(site)){renderSchoolBasic(site,false);return;}
   opsMode=!!opsMode;
   const name=sf(site,'Name','name'),addr=sf(site,'FullAddress','Full Address','address'),dist=sf(site,'District','district'),type=sf(site,'Type','type');
   const stAddr=sf(site,'Street Address','StreetAddress'),stCity=sf(site,'City','city'),stState=sf(site,'State','state'),stZip=sf(site,'Zip Code','ZipCode'),stCountry=sf(site,'Country','country');
@@ -6943,6 +6951,36 @@ function toggleDropdown(id){const el=document.getElementById(id);document.queryS
 function filterDropdownItems(panelId,q){document.querySelectorAll(`#${panelId} .dropdown-item`).forEach(i=>{i.style.display=i.textContent.toLowerCase().includes(q.toLowerCase())?'':'none';});}
 function selectDropdown(el,isNone=false){const panel=el.closest('.dropdown-panel');const cs=panel.closest('.custom-select');const btn=cs.querySelector('.custom-select-btn');const email=isNone?'':el.dataset.email;btn.textContent=isNone?'— None —':el.dataset.name;btn.dataset.value=email;panel.classList.remove('open');}
 
+// ── Edit stamps (v11.46) ────────────────────────────────────────────────────
+// Each paragraph someone adds or changes in a long-text field gets
+// "[added by Name, Role, Oct 30, 2026]" (or "edited by") at its end.
+const _STAMP_RE=/\s*\[(?:added|edited) by [^\]]*\]\s*$/;
+function _stampStrip(t){return String(t||'').replace(/\s*\[(?:added|edited) by [^\]]*\]/g,'');}
+function _stampWho(){
+  const h=SESSION?gh(SESSION.email):null,nm=h?fullName(h):(SESSION&&SESSION.email||'');
+  const role=h?String(h.Role||h.role||'').trim():'';
+  return nm+(role?', '+role:'')+', '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function _stampEdits(oldT,newT){
+  oldT=String(oldT||'');newT=String(newT==null?'':newT);
+  if(!newT.trim()||newT.trim()===oldT.trim())return newT;
+  const norm=l=>l.replace(_STAMP_RE,'').trim();
+  const oldSet=new Set(oldT.split('\n').map(norm).filter(Boolean));
+  const lines=newT.split('\n'),who=_stampWho();
+  let i=0;
+  while(i<lines.length){
+    if(!lines[i].trim()){i++;continue;}
+    let j=i;while(j+1<lines.length&&lines[j+1].trim())j++;
+    const para=lines.slice(i,j+1),changed=para.filter(l=>!oldSet.has(norm(l)));
+    if(changed.length){
+      const isNew=para.every(l=>!oldSet.has(norm(l)));
+      lines[j]=lines[j].replace(_STAMP_RE,'')+' [' +(isNew?'added':'edited')+' by '+who+']';
+      for(let k=i;k<j;k++)lines[k]=lines[k].replace(_STAMP_RE,'');
+    }
+    i=j+1;
+  }
+  return lines.join('\n');
+}
 function _collectSiteEditFormValues(){
   const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():null;};
   const gb=id=>{const el=document.getElementById(id);return el?el.dataset.value||'':null;};
@@ -6960,14 +6998,15 @@ function _collectSiteEditFormValues(){
     updates['Country']=_stCountry||'';
     updates['Full Address']=buildFullAddress(_stAddr,_stCity,_stState,_stZip,_stCountry);
   }
-  const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=sdv;
-  const pdtV=gv('ef-ProgramDetails');if(pdtV!==null)updates[_progDetailsCol()]=pdtV;
+  const _cs0=window._currentSite||{};
+  const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=_stampEdits(sf(_cs0,'SiteDetails','Site Details','siteDetails'),sdv);
+  const pdtV=gv('ef-ProgramDetails');if(pdtV!==null)updates[_progDetailsCol()]=_stampEdits(typeof _progDetailsVal==='function'?_progDetailsVal(_cs0):'',pdtV);
   if(document.getElementById('oc-chips'))updates['Other Contacts']=(window._ocList||[]).join(', ');
   // Schedule (the file) uploads and saves itself immediately on file pick
   // (see _siteScheduleUploadRow / handleSiteScheduleFile) — but Schedule
   // Contents is a plain textarea so a human can correct an OCR/extraction
   // mistake, and rides along with the normal Save & Close flow below.
-  const scv=gv('ef-ScheduleContents');if(scv!==null)updates['Schedule Contents']=scv;
+  const scv=gv('ef-ScheduleContents');if(scv!==null)updates['Schedule Contents']=_stampEdits(sf(_cs0,'Schedule Contents','ScheduleContents'),scv);
   const psdV=gv('ef-ProgramClassesStartDate');if(psdV!==null)updates['Program Classes Start Date']=psdV;
   const pedV=gv('ef-ProgramClassesEndDate');if(pedV!==null)updates['Program Classes End Date']=pedV;
   // Operations edit fields (only present when editing from the Operations tab)
@@ -7214,11 +7253,12 @@ async function savePersonComments(email){
   const ta=document.getElementById('pd-c-edit');
   const msg=document.getElementById('pd-c-msg');
   if(!ta)return;
-  const comments=ta.value;
+  const comments=_stampEdits(window._pdCommentsRaw||'',ta.value);
   if(msg){msg.className='save-msg';msg.textContent='Saving…';}
   try{
     const res=await gasPost({action:'saveComments',email,comments,accessLevel:SESSION.accessLevel,actor:SESSION.email});
     if(!res.ok){if(msg){msg.className='save-msg err';msg.textContent='⚠ '+res.error;}return;}
+    window._pdCommentsRaw=comments;
     if(msg){msg.className='save-msg ok';msg.textContent='✓ Saved';}
     setTimeout(()=>hidePersonComments(),800);
   }catch(e){if(msg){msg.className='save-msg err';msg.textContent='⚠ Save failed';}}
@@ -11616,7 +11656,7 @@ function _subAvailBadge(email,s){
 function _subUpdateSignupBtn(){
   const b=document.getElementById('subSignupBtn');if(!b)return;
   const a=_subAvailOf(_subMe());
-  if(_subIsAdmin()){
+  if(true){
     b.textContent=a&&a.active?'✏️ My sub availability':(a?'🙋 Sign up for subbing (paused)':'🙋 Sign up for subbing');
     b.title=a&&a.active?_subAvailText(a):'';
     const c=document.getElementById('subCantBtn');if(c)c.textContent='+ Can’t make an upcoming session';
@@ -11740,6 +11780,8 @@ function _subProgDetails(site){
   const v=String(_progDetailsVal(site)||'').trim();
   return v?'<div class="sub-notes"><b>Program details:</b> '+escHtml(v)+'</div>':'';
 }
+// Notes / program details / site details tucked into a dropdown so cards stay short
+function _subDrop(inner){return inner?'<details class="sub-dd"><summary>Details</summary>'+inner+'</details>':'';}
 function _subCardHl(id){return id&&_subHighlight&&(id===_subHighlight)?' hl':'';}
 
 // Pending approval — one card per request (may hold several dates)
@@ -11749,7 +11791,7 @@ function _subPendingCard(group){
   return '<div class="sub-card tap'+hl+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,group.map(x=>escHtml(_subFmtShift(x))).join('<br>'),_subPill(s),s.SiteName)+
     '<div class="sub-meta">Requested by <b>'+escHtml(req.name)+'</b></div>'+
-    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+
+    _subDrop((s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site))+
     '<div class="sub-actions">'+
       '<button class="sub-btn" onclick="subOpenSendSheet(\''+ea(s['Request ID'])+'\',false)">✓ Approve &amp; Send…</button>'+
       '<button class="sub-btn warn" onclick="subDecline(\''+ea(s['Request ID'])+'\')">Decline</button>'+_subKillBtn('req',s['Request ID'])+
@@ -11804,7 +11846,7 @@ function _subOpenCard(s){
   return '<div class="sub-card tap'+_subCardHl(s.ID)+'" id="subcard_'+ea(s.ID)+'" onclick="_subCardTap(event,\''+ea(s.ID)+'\')">'+
     _subHead(site,s.Site,escHtml(_subFmtShift(s)),_subPill(s),s.SiteName)+
     '<div class="sub-meta">'+(mineReq?'Your request':'For <b>'+escHtml(req.name)+'</b>')+(dist?' · '+escHtml(dist):'')+'</div>'+
-    (s.Notes?'<div class="sub-notes">'+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site)+body+actions+
+    _subDrop((s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':'')+_subProgDetails(site))+body+actions+
     '<div class="sub-more">Tap for all details &amp; Reach ›</div></div>';
 }
 // Shift the viewer is confirmed to cover — full site details
@@ -11818,9 +11860,9 @@ function _subAssignedCard(s){
     (phone?'<div class="sub-meta">📞 <a href="tel:'+ea(phone)+'">'+escHtml(phone)+'</a></div>':'')+
     '<div class="sub-meta">Covering for '+_subPersonLink(s['Requested By'])+(req.mobile?' · <a href="tel:'+ea(req.mobile)+'">'+escHtml(req.mobile)+'</a>':'')+
       (s['Approved By']?'<br>Approved by '+_subPersonLink(s['Approved By']):'')+'</div>'+
-    (det?'<div class="sub-notes"><b>Site details:</b> '+escHtml(det)+'</div>':'')+
+    _subDrop((det?'<div class="sub-notes"><b>Site details:</b> '+escHtml(det)+'</div>':'')+
     _subProgDetails(site)+
-    (s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':'')+
+    (s.Notes?'<div class="sub-notes"><b>Notes:</b> '+escHtml(s.Notes)+'</div>':''))+
     (site?'<div class="sub-actions"><button class="sub-btn alt" onclick="showSchoolDetailByKey(\''+ea(site.Key||site.key||'')+'\')">Open School</button></div>':'')+
     '</div>';
 }
@@ -11894,13 +11936,16 @@ function subReachFromShift(id){
   const s=_SUB.subs.find(x=>x.ID===id);if(!s)return;
   const me=_subMe(),site=_subSiteByKey(s.Site);
   const name=site?sf(site,'Name','name'):siteNameFromKey(s.Site,s.SiteName);
-  // Senior Leadership (Access Level 2) + the Ranger who needs the sub (+ the sub, if filled)
-  const pick=new Set();
-  const add=e=>{const h=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===String(e||'').toLowerCase());
-    if(h&&String(h.Email||h.email).toLowerCase()!==me)pick.add(h.Email||h.email);};
-  (DATA.humans||[]).forEach(h=>{if(String(h['Access Level']||'').trim()==='2')add(h.Email||h.email);});
-  add(s['Requested By']);if(s['Assigned To'])add(s['Assigned To']);
-  if(!pick.size){alert('No Senior Leadership or Ranger contacts found to reach.');return;}
+  // The Ranger who needs the sub (clearly labelled), the sub if filled, Level 1, Senior Leadership
+  const seen=new Set([me]),groups=[];
+  const grp=(label,list)=>{const people=[];list.forEach(([e,role])=>{const h=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').toLowerCase()===String(e||'').toLowerCase());
+    if(!h)return;const k=String(h.Email||h.email).toLowerCase();if(seen.has(k))return;seen.add(k);people.push({email:h.Email||h.email,label:(fullName(h)||k)+' · '+role,checked:true});});
+    if(people.length)groups.push({label,people});};
+  grp('🙋 Ranger who needs a sub',[[s['Requested By'],'needs this shift covered']]);
+  if(s['Assigned To'])grp('Sub covering this shift',[[s['Assigned To'],'Sub']]);
+  const lvl=n=>(DATA.humans||[]).filter(h=>String(h['Access Level']||'').trim()===n).map(h=>[h.Email||h.email,n==='1'?'Level 1':'Senior Leadership']);
+  grp('Level 1',lvl('1'));grp('Senior Leadership',lvl('2'));
+  if(!groups.length){alert('No contacts found to reach.');return;}
   const prog=site&&typeof _progDetailsVal==='function'?String(_progDetailsVal(site)||'').trim():'';
   const addr=site?sf(site,'Full Address','FullAddress'):'';
   const plain=_subFmtDate(s.Date)+((s.Start||s.End)?', '+_subFmtTime(s.Start)+(s.End?'-'+_subFmtTime(s.End):''):'');
@@ -11912,11 +11957,7 @@ function subReachFromShift(id){
     '\n\n\n\nThank you,\n'+meName+(hm(SESSION.email)?'\n'+hm(SESSION.email):'')+'\n'+SESSION.email+
     '\n\nOpen in Ranger Rover: '+REACH_APP_URL+'#sub='+encodeURIComponent(s.ID);
   _subCloseDetail();
-  _schoolReachSiteName=name+' - sub shift';
-  _reachSelected.clear();pick.forEach(e=>_reachSelected.add(e));
-  _reachForwardPrefill={subject,message:msg};
-  switchTab('reach');showReachPage('schoolask');
-  _subAskReachMode(pick.size);
+  _subPickRecipients('Reach about this shift',groups,{subject,message:msg},name+' - sub shift',{expand:_subIsAdmin()});
 }
 // Pops up right away: email or text, together or one by one
 function _subAskReachMode(n,lead){
@@ -12160,11 +12201,11 @@ function renderSubs(){
   const up=subs.filter(s=>s.Date>=today);
   const isMe=e=>String(e||'').toLowerCase()===me;
   const tb=document.getElementById('subTopBtns');
-  {const ph=document.getElementById('subPageHeader');if(ph)ph.style.display=admin?'none':'';
+  {const ph=document.getElementById('subPageHeader');if(ph)ph.style.display='none';
    // park the two buttons outside the list before it is redrawn
    if(tb&&tb.parentNode!==body.parentNode)body.parentNode.insertBefore(tb,body);
-   if(tb)tb.classList.toggle('row',admin);}
-  if(admin){body.innerHTML=_subRenderAdmin(subs,up,isMe,today);
+   if(tb)tb.classList.add('row');}
+  {body.innerHTML=admin?_subRenderAdmin(subs,up,isMe,today):_subRenderL3(subs,up,isMe,today);
     const slot=document.getElementById('subMeBtnSlot');if(slot&&tb)slot.replaceWith(tb);
     _subAfterRender(body,admin);return;}
   let html='';
@@ -12230,6 +12271,24 @@ function _subRenderAdmin(subs,up,isMe,today){
   h+='<details class="sub-box"'+(_subPastOpen?' open':'')+' ontoggle="_subPastOpen=this.open"><summary class="sub-h1" style="cursor:pointer">Cancelled and Past'+(pn?'<span class="n">('+pn+')</span>':'')+'</summary>'+
     (pn?'<div style="padding:0 16px"><button class="sub-btn alt" style="margin:6px 0" onclick="subRemoveAllPast()">🗑 Clear all</button></div>'+
       '<div class="sub-grid">'+past.slice().reverse().map(_subOtherCard).join('')+pastRes.slice().reverse().map(_subResCard).join('')+'</div>':'<div class="sub-empty">Nothing here.</div>')+'</details>';
+  return h;
+}
+// Level 3: ME / AVAILABLE OPPORTUNITIES / RESCHEDULES / FILLED AND UPCOMING
+function _subRenderL3(subs,up,isMe,today){
+  const DONE=['Cancelled','Declined','Expired'],hidden=_subHiddenSet();
+  const box=(title,n,inner)=>'<section class="sub-box">'+_subH1(title,n)+inner+'</section>';
+  const grid=(cards,empty)=>cards.length?'<div class="sub-grid">'+cards.join('')+'</div>':'<div class="sub-empty">'+escHtml(empty)+'</div>';
+  let h='';
+  const subbing=up.filter(s=>s.Status==='Filled'&&isMe(s['Assigned To']));
+  const mineUp=subs.filter(s=>isMe(s['Requested By'])&&s.Date>=today&&!DONE.includes(s.Status));
+  h+=box('Me',0,'<div id="subMeBtnSlot"></div>'+_subSec('You Are Subbing',subbing.map(_subAssignedCard),'',true)+
+    _subSec('My Requests',mineUp.map(s=>s.Status==='Open'?_subOpenCard(s):_subOtherCard(s)),'',true));
+  const avail=up.filter(s=>s.Status==='Open'&&!isMe(s['Requested By']));
+  h+=box('Available Opportunities',avail.length,grid(avail.map(_subOpenCard),'No available sub shifts right now.'));
+  const res=(_SUB.reschedules||[]).filter(r=>!hidden.has(r.ID)&&!_subResIsPast(r)).slice().reverse();
+  h+=box('Reschedules',res.length,grid(res.map(_subResCard),'No reschedules.'));
+  const filled=up.filter(s=>s.Status==='Filled'&&!isMe(s['Assigned To'])&&!isMe(s['Requested By']));
+  h+=box('Filled and Upcoming',filled.length,grid(filled.map(_subOtherCard),'Nothing filled yet.'));
   return h;
 }
 function _subAfterRender(body,admin){
@@ -12410,7 +12469,7 @@ function _subSchoolContactEmails(site){
   (DATA.humans||[]).forEach(h=>{
     const e=String(h.Email||h.email||'').trim(),k=e.toLowerCase();
     if(!e||k===me||seen.has(k))return;
-    if(String(h['Access Level']||'').trim()!=='2')return;
+    const lv=String(h['Access Level']||'').trim();if(lv!=='1'&&lv!=='2')return;
     seen.add(k);out.push(e);
   });
   return out;
@@ -12547,10 +12606,11 @@ function _subSchoolPeopleGroups(site,extra){
   const lead=[],masters=[];
   (DATA.humans||[]).forEach(hh=>{
     const e=String(hh.Email||hh.email||'').toLowerCase();if(!e||seen.has(e))return;
-    if(String(hh['Access Level']||'').trim()==='2'){seen.add(e);lead.push({email:hh.Email||hh.email,label:fullName(hh)+' · Senior Leadership',checked:true});}
+    const lv=String(hh['Access Level']||'').trim();
+    if(lv==='1'||lv==='2'){seen.add(e);lead.push({email:hh.Email||hh.email,label:fullName(hh)+' · '+(lv==='1'?'Level 1':'Senior Leadership'),checked:true});}
     else if(humanRoleCats(hh).includes('master_ranger')){seen.add(e);masters.push({email:hh.Email||hh.email,label:fullName(hh)+' · Master Ranger',checked:false});}
   });
-  return [{label:'At '+sf(site,'Name','name'),people:school},{label:'Rangers involved',people:inv},{label:'Senior Leadership',people:lead},{label:'Master Rangers',people:masters}].filter(g=>g.people.length);
+  return [{label:'At '+sf(site,'Name','name'),people:school},{label:'Rangers involved',people:inv},{label:'Level 1 and Senior Leadership',people:lead},{label:'Master Rangers',people:masters}].filter(g=>g.people.length);
 }
 function _subPickRecipients(title,groups,prefill,siteName,opts){
   const old=document.getElementById('subPickTo');if(old)old.remove();
@@ -12791,7 +12851,7 @@ function _calMk(mon,day,yr,sy){
   const d=new Date(y,mi,+day,12);return isNaN(d)||d.getMonth()!==mi?null:d;
 }
 function calParseSchedule(site){
-  const text=String(sf(site,'Schedule Contents','ScheduleContents')||'');
+  const text=_stampStrip(sf(site,'Schedule Contents','ScheduleContents')||'');
   const days=[sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')];
   const sRaw=sf(site,'Program Classes Start Date','ProgramClassesStartDate'),eRaw=sf(site,'Program Classes End Date','ProgramClassesEndDate');
   const key=text+'|'+days.join(',')+'|'+sRaw+'|'+eRaw;
