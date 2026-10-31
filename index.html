@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.47 -->
+<!-- v11.48 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2112,10 +2112,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.47';
+const APP_VERSION='v11.48';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-30 20:30 PT - Signed-up subs get a Reach button with a one-tap volunteer link instead of Pick. Level 3 hides empty Sub boxes. Confirmed subs can ask the requesting Ranger a question. Requesting Rangers can reschedule with the school instead. Levels 1-2 see who is online now (header). Rangers tab: Uses this app filter.';
+const BUILD_STAMP='2026-10-30 20:05 PT - Levels 1-2: each volunteer on an open sub shift now reads Ranger X has volunteered for this shift.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11863,7 +11863,7 @@ function _subOpenCard(s){
   if(admin){
     body+=vols.length?vols.map(v=>{
       const p=_subPerson(v.Volunteer),dist=_subDistTo(site,v.Volunteer).label;
-      return '<div class="sub-vol"><div>'+_subPersonLink(v.Volunteer)+_subAvailBadge(v.Volunteer,s)+
+      return '<div class="sub-vol"><div>🙋 '+_subPersonLink(v.Volunteer)+' <b>has volunteered for this shift</b>'+_subAvailBadge(v.Volunteer,s)+
         (p.mobile?' · <a href="tel:'+ea(p.mobile)+'">'+escHtml(p.mobile)+'</a>':'')+
         (dist?'<div class="sub-meta" style="margin:0">'+escHtml(dist)+'</div>':'')+
         (v.Note?'<div class="sub-meta" style="margin:0">“'+escHtml(v.Note)+'”</div>':'')+
@@ -11975,7 +11975,7 @@ function subOpenDetail(id){
     row('Notes from the Ranger',escHtml(s.Notes||''))+
     ((admin||mineReq||mineSub)?row('Site details (parking, gates, access)',escHtml(det)):'')+
     row('Schedule',sched?'<a target="_blank" href="'+ea(sched)+'">Open schedule</a>':'')+
-    (admin&&vols.length?row('Volunteers',vols.map(v=>_subPersonLink(v.Volunteer)+(v.Note?' - “'+escHtml(v.Note)+'”':'')).join('<br>')):'')+
+    (admin&&vols.length?row('Volunteers',vols.map(v=>'🙋 '+_subPersonLink(v.Volunteer)+' has volunteered for this shift'+(v.Note?' - “'+escHtml(v.Note)+'”':'')).join('<br>')):'')+
     '<div class="sub-actions" style="margin-top:16px">'+acts+'</div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="_subCloseDetail()">Close</button></div></div>';
   _subCloseDetail();document.body.appendChild(ov);
