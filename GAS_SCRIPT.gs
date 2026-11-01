@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.47 | 2026-10-30 | Online now: heartbeat records who has the app open (script cache)';
+const GAS_BUILD = 'v11.50 | 2026-10-31 | HR: job postings (Positions) + public Ranger application form -> Humans';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -490,7 +490,7 @@ var LIVE_FILES = [
 var LIVE_ACTION_SCOPES = {
   addHuman: ['humans'], addRole: ['humans'], deleteHuman: ['humans', 'sites'],
   uploadHumanImage: ['humans'], uploadHumanDoc: ['humans'], removeHumanFile: ['humans'],
-  saveComments: ['humans'], publicSmsOptIn: ['humans'],
+  saveComments: ['humans'], publicSmsOptIn: ['humans'], publicApply: ['humans'],
   cascadeEmail: ['humans', 'sites', 'chores'], clearRangerFromSites: ['sites'],
   reassignChore: ['chores'], closeChore: ['chores'], updateChore: ['chores'],
   addChore: ['chores'], uploadChoreImage: ['chores'], saveChore: ['chores'], deleteChore: ['chores'],
@@ -817,6 +817,11 @@ function _doPostRoute(e) {
       case 'publicRescheduleInfo':    return respond(handlePublicRescheduleInfo(p));
       case 'publicRescheduleChoose':  return respond(handlePublicRescheduleChoose(p));
       case 'publicRescheduleSuggest': return respond(handlePublicRescheduleSuggest(p));
+
+      // ── HR / HIRING (public job postings + application form, no login) ─────
+      case 'publicGetPositions': return respond(handlePublicGetPositions(p));
+      case 'publicApply':        return respond(handlePublicApply(p));
+      case 'getPositions':       return respond(handleGetPositions(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -6186,4 +6191,364 @@ function handleAskRoverHintOff(p) {
     if (String(data[r][ii]) === String(p.id)) { sh.getRange(r + 1, ai + 1).setValue(false); return { ok: true }; }
   }
   return { ok: false, error: 'Hint not found' };
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── HR / HIRING (v11.50) ─────────────────────────────────────────────────────
+// Human Resources spreadsheet (Drive folder HR) - tab "Positions" holds each
+// job posting ("campaign"). The public page apply.html?p=<ID> shows the posting
+// and an application form. A submitted application becomes a new Humans row
+// with Role = Ranger Applicant (no Access Level, so they cannot sign in), the
+// pitch goes into Comments with the usual [added by ...] stamp, and the resume
+// is saved to HR/Resumes with its link in the Resume column.
+// ══════════════════════════════════════════════════════════════════════════════
+const HR_ID            = '1XWq8SMAl0_FijkhyAZ_vrS4-vvC9LHwS0zfblg0UXY8';
+const HR_FOLDER        = '1vQ7MsqJ5PeDGoA17vW6NHJ0rxxdSYPAu';
+const HR_APPLY_URL     = 'https://tomasogrady-hub.github.io/ranger-rover/apply.html';
+const HR_APP_URL       = 'https://tomasogrady-hub.github.io/ranger-rover/';
+const HR_DEFAULT_NOTIFY = 'tomasogrady@enrichla.org';
+const HR_APPLICANT_ROLE = 'Ranger Applicant';
+const HR_POS_COLS = ['ID', 'Name of Position Internal', 'Date', 'Public Title', 'Public Description',
+                     'Status', 'Location', 'Schedule', 'Pay', 'Requirements', 'Notify Email',
+                     'Applications', 'Apply Link'];
+const HR_MAX_RESUME_BYTES = 6 * 1024 * 1024;
+
+function _hrPosSheet() {
+  var ss = SpreadsheetApp.openById(HR_ID);
+  return ss.getSheetByName('Positions') || ss.insertSheet('Positions');
+}
+
+// Adds any missing Positions columns to the right of the existing ones.
+function _hrEnsurePosCols(sheet) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var h = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(x) { return String(x).trim(); });
+  if (h.length === 1 && h[0] === '') h = [];
+  var added = false;
+  HR_POS_COLS.forEach(function(c) {
+    if (h.indexOf(c) === -1) { h.push(c); added = true; }
+  });
+  if (added) {
+    sheet.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return h;
+}
+
+function _hrIsOpen(status) {
+  var s = String(status || '').trim().toLowerCase();
+  return s === '' || s === 'open' || s === 'active' || s === 'posted';
+}
+
+function _hrReadPositions() {
+  var sheet = _hrPosSheet();
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 1) return { sheet: sheet, h: [], rows: [] };
+  var h = data[0].map(function(x) { return String(x).trim(); });
+  var rows = [];
+  for (var r = 1; r < data.length; r++) {
+    var o = { _row: r + 1 };
+    h.forEach(function(k, i) { if (k) o[k] = data[r][i]; });
+    if (!String(o['ID'] || '').trim()) continue;
+    rows.push(o);
+  }
+  return { sheet: sheet, h: h, rows: rows };
+}
+
+function _hrPublicPos(o) {
+  var d = o['Date'];
+  return {
+    id:          String(o['ID'] || '').trim(),
+    title:       String(o['Public Title'] || o['Name of Position Internal'] || '').trim(),
+    description: String(o['Public Description'] || ''),
+    location:    String(o['Location'] || ''),
+    schedule:    String(o['Schedule'] || ''),
+    pay:         String(o['Pay'] || ''),
+    requirements:String(o['Requirements'] || ''),
+    date:        d instanceof Date ? Utilities.formatDate(d, 'America/Los_Angeles', 'MMM d, yyyy') : String(d || ''),
+    open:        _hrIsOpen(o['Status'])
+  };
+}
+
+// Public: open postings (or one posting by id). Cached 5 min for speed.
+function handlePublicGetPositions(p) {
+  var id = String(p.id || '').trim();
+  var cache = CacheService.getScriptCache();
+  var ck = 'hr_pos_v1_' + (id || '_all');
+  var hit = cache.get(ck);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var all = _hrReadPositions().rows.map(_hrPublicPos);
+  var out;
+  if (id) {
+    var one = all.filter(function(x) { return x.id.toLowerCase() === id.toLowerCase(); })[0];
+    out = one ? { ok: true, hr: true, position: one } : { ok: false, hr: true, error: 'Posting not found' };
+  } else {
+    out = { ok: true, hr: true, positions: all.filter(function(x) { return x.open; }) };
+  }
+  try { cache.put(ck, JSON.stringify(out), 300); } catch (e) {}
+  return out;
+}
+
+// Admin (Level 1-2): all postings with applicant counts.
+function handleGetPositions(p) {
+  if (parseInt(p.accessLevel || '3') > 2) return { ok: false, error: 'Not authorized' };
+  var rows = _hrReadPositions().rows.map(function(o) {
+    var x = _hrPublicPos(o);
+    x.internalName = String(o['Name of Position Internal'] || '');
+    x.status = String(o['Status'] || '') || 'Open';
+    x.applications = Number(o['Applications'] || 0);
+    x.link = HR_APPLY_URL + '?p=' + encodeURIComponent(x.id);
+    return x;
+  });
+  return { ok: true, positions: rows };
+}
+
+function _hrResumeFolder() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('hr_resume_folder');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+  var parent = DriveApp.getFolderById(HR_FOLDER);
+  var it = parent.getFoldersByName('Resumes');
+  var f = it.hasNext() ? it.next() : parent.createFolder('Resumes');
+  props.setProperty('hr_resume_folder', f.getId());
+  return f;
+}
+
+// Finds the Roles tab entry for Ranger Applicant (exact sheet spelling), adding it if missing.
+function _hrApplicantRole() {
+  try {
+    var roles = getRoles();
+    for (var i = 0; i < roles.length; i++) {
+      if (roles[i].name.toLowerCase() === HR_APPLICANT_ROLE.toLowerCase()) return roles[i].name;
+    }
+    var sh = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Roles');
+    if (sh) sh.appendRow([HR_APPLICANT_ROLE, 'Applied to be a Garden Ranger through the online application form']);
+  } catch (e) {}
+  return HR_APPLICANT_ROLE;
+}
+
+function _hrClean(v, max) {
+  return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max || 500);
+}
+
+// Public: submit an application.
+function handlePublicApply(p) {
+  // Honeypot - bots fill hidden "website" field; pretend success.
+  if (String(p.website || '').trim()) return { ok: true, hr: true };
+
+  var first = _hrClean(p.firstName, 60), last = _hrClean(p.lastName, 60);
+  var email = _hrClean(p.email, 120).toLowerCase();
+  var mobile = _hrClean(p.mobile, 30);
+  var pitch = _hrClean(p.pitch, 4000).replace(new RegExp('\\r', 'g'), '').replace(new RegExp('\\n\\s*\\n+', 'g'), '\n');
+  var posId = _hrClean(p.positionId, 40);
+  if (!first || !last) return { ok: false, hr: true, error: 'Please enter your first and last name.' };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, hr: true, error: 'Please enter a valid email address.' };
+  if (mobile.replace(/\D/g, '').length < 10) return { ok: false, hr: true, error: 'Please enter a mobile number we can reach you at.' };
+  if (pitch.length < 20) return { ok: false, hr: true, error: 'Please tell us a little more about yourself (a few sentences).' };
+
+  // Throttle repeat submits from the same email (double-taps, retries).
+  var cache = CacheService.getScriptCache();
+  if (cache.get('hr_apply_' + email)) return { ok: true, hr: true, duplicate: true };
+
+  // Position
+  var pos = null, posData = _hrReadPositions();
+  if (posId) {
+    pos = posData.rows.filter(function(o) { return String(o['ID']).trim().toLowerCase() === posId.toLowerCase(); })[0] || null;
+  }
+  if (pos && !_hrIsOpen(pos['Status'])) return { ok: false, hr: true, error: 'Sorry - this posting is no longer accepting applications.' };
+  var posTitle = pos ? String(pos['Public Title'] || pos['Name of Position Internal'] || posId) : 'General application';
+  var posKey = pos ? String(pos['ID']).trim() : '';
+  var notifyTo = pos && String(pos['Notify Email'] || '').trim() ? String(pos['Notify Email']).trim() : HR_DEFAULT_NOTIFY;
+
+  // Resume (optional) - saved before taking the lock (Drive is the slow part).
+  var resumeUrl = '';
+  if (p.resume && p.resume.base64) {
+    try {
+      var bytes = Utilities.base64Decode(String(p.resume.base64));
+      if (bytes.length > HR_MAX_RESUME_BYTES) return { ok: false, hr: true, error: 'Resume file is too large (6 MB max).' };
+      var mime = String(p.resume.mimeType || 'application/pdf');
+      var orig = String(p.resume.fileName || '');
+      var extM = orig.match(/\.([A-Za-z0-9]{2,5})$/);
+      var ext = extM ? '.' + extM[1].toLowerCase() : (/pdf/i.test(mime) ? '.pdf' : /word|officedocument/i.test(mime) ? '.docx' : '.jpg');
+      if (['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.rtf', '.txt', '.odt', '.pages'].indexOf(ext) === -1) {
+        return { ok: false, hr: true, error: 'Please upload your resume as a PDF, Word file, or photo.' };
+      }
+      var fname = _humanFileNamePrefix(first, last) + 'Resume' + _humanFileDateStamp() + ext;
+      var file = _hrResumeFolder().createFile(Utilities.newBlob(bytes, mime, fname));
+      file.setDescription('Application: ' + posTitle + (posKey ? ' (' + posKey + ')' : '') + ' - ' + email);
+      resumeUrl = file.getUrl();
+    } catch (fe) {
+      Logger.log('handlePublicApply resume save failed: ' + fe.message);
+    }
+  }
+
+  var role = _hrApplicantRole();
+  var today = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'MMM d, yyyy');
+  var fullName = (first + ' ' + last).trim();
+  var stamp = ' [added by ' + fullName + ', ' + role + ', ' + today + ' - via application form]';
+
+  // Application details paragraph
+  var det = [];
+  det.push('Applied for: ' + posTitle + (posKey ? ' (' + posKey + ')' : ''));
+  var avail = Array.isArray(p.availability) ? p.availability.map(function(x) { return _hrClean(x, 20); }).filter(String) : [];
+  if (avail.length) det.push('Available days: ' + avail.join(', '));
+  var timeOfDay = _hrClean(p.timeOfDay, 60); if (timeOfDay) det.push('Times: ' + timeOfDay);
+  var areas = _hrClean(p.areas, 300); if (areas) det.push('Areas they can cover: ' + areas);
+  var exp = _hrClean(p.experience, 1500).replace(new RegExp('\\s*\\n+\\s*', 'g'), ' / '); if (exp) det.push('Experience: ' + exp);
+  var langs = _hrClean(p.languages, 200); if (langs) det.push('Languages: ' + langs);
+  if (p.hasCar === true || p.hasCar === 'yes') det.push('Has reliable transportation: Yes');
+  else if (p.hasCar === false || p.hasCar === 'no') det.push('Has reliable transportation: No');
+  var heard = _hrClean(p.howHeard, 200); if (heard) det.push('Heard about us: ' + heard);
+  if (resumeUrl) det.push('Resume: ' + resumeUrl);
+  var block = 'APPLICATION - ' + posTitle + '\n' + pitch + stamp + '\n\n' + det.join('\n') + stamp;
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  var existing = false, existingRole = '';
+  try {
+    var sheet = getHumansSheet();
+    var lastCol = sheet.getLastColumn();
+    var h = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(x) { return String(x).trim(); });
+    // Make sure the columns we write exist (added at the far right if missing).
+    ['Resume', 'Position Applied', 'Applied Date'].forEach(function(c) {
+      if (h.indexOf(c) === -1) { h.push(c); sheet.getRange(1, h.length).setValue(c); }
+    });
+    var col = function(n) { return h.indexOf(n); };
+    var ei = col('Email');
+    var lastRow = sheet.getLastRow();
+    var emails = lastRow > 1 ? sheet.getRange(2, ei + 1, lastRow - 1, 1).getValues() : [];
+    var rowIdx = -1;
+    for (var r = 0; r < emails.length; r++) {
+      if (String(emails[r][0]).toLowerCase().trim() === email) { rowIdx = r + 2; break; }
+    }
+
+    if (rowIdx === -1) {
+      var rowVals = h.map(function() { return ''; });
+      var set = function(n, v) { var i = col(n); if (i > -1) rowVals[i] = v; };
+      set('Name', fullName); set('First Name', first); set('Last Name', last);
+      set('Email', email); set('Mobile', mobile); set('Role', role);
+      set('Street Address', _hrClean(p.street, 150)); set('City', _hrClean(p.city, 80));
+      set('State', _hrClean(p.state, 30) || 'CA'); set('Zip Code', _hrClean(p.zip, 15));
+      set('Comments', block); set('Resume', resumeUrl);
+      set('Position Applied', posKey); set('Applied Date', new Date());
+      sheet.appendRow(rowVals);
+    } else {
+      // Already in Humans (re-applying, or an existing contact). Never downgrade a
+      // current role or touch their access - just add the application and fill blanks.
+      existing = true;
+      var cur = sheet.getRange(rowIdx, 1, 1, h.length).getValues()[0];
+      existingRole = String(cur[col('Role')] || '').trim();
+      var upd = function(n, v, onlyIfBlank) {
+        var i = col(n); if (i === -1 || v === '' || v == null) return;
+        if (onlyIfBlank && String(cur[i] || '').trim()) return;
+        sheet.getRange(rowIdx, i + 1).setValue(v);
+      };
+      upd('Role', role, true);
+      upd('First Name', first, true); upd('Last Name', last, true); upd('Name', fullName, true);
+      upd('Mobile', mobile, true);
+      upd('Street Address', _hrClean(p.street, 150), true); upd('City', _hrClean(p.city, 80), true);
+      upd('State', _hrClean(p.state, 30), true); upd('Zip Code', _hrClean(p.zip, 15), true);
+      var ci = col('Comments');
+      var prev = String(cur[ci] || '').trim();
+      sheet.getRange(rowIdx, ci + 1).setValue(prev ? prev + '\n\n' + block : block);
+      upd('Resume', resumeUrl, false);
+      upd('Position Applied', posKey, false);
+      upd('Applied Date', new Date(), false);
+    }
+
+    // Campaign count
+    if (pos) {
+      var ph = posData.h, ai = ph.indexOf('Applications');
+      if (ai > -1) posData.sheet.getRange(pos._row, ai + 1).setValue(Number(pos['Applications'] || 0) + 1);
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  cache.put('hr_apply_' + email, '1', 120);
+  try { CacheService.getScriptCache().removeAll(['hr_pos_v1_' + (posKey || '_all'), 'hr_pos_v1__all']); } catch (e) {}
+
+  logActivity('application form', 'applied', fullName, 'person',
+    email + ' — ' + role + ' — ' + posTitle);
+
+  // Notify admin
+  try {
+    var esc = function(t) { return String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#222">' +
+      '<h2 style="color:#1e3a1e;margin:0 0 6px">New application: ' + esc(fullName) + '</h2>' +
+      '<div style="color:#666;margin-bottom:12px">' + esc(posTitle) + (posKey ? ' (' + esc(posKey) + ')' : '') + '</div>' +
+      (existing ? '<p style="background:#fff4e5;padding:8px 10px;border-radius:6px">Already in Humans' + (existingRole ? ' as <b>' + esc(existingRole) + '</b>' : '') + ' - role and access left unchanged.</p>' : '') +
+      '<p><b>Email:</b> ' + esc(email) + '<br><b>Mobile:</b> ' + esc(mobile) +
+      '<br><b>City:</b> ' + esc(_hrClean(p.city, 80)) + ' ' + esc(_hrClean(p.zip, 15)) + '</p>' +
+      '<p style="white-space:pre-wrap;border-left:3px solid #E07A3F;padding-left:10px">' + esc(pitch) + '</p>' +
+      '<p style="white-space:pre-wrap;color:#444">' + esc(det.join('\n')) + '</p>' +
+      (resumeUrl ? '<p><a href="' + resumeUrl + '">Open resume</a></p>' : '<p style="color:#999">No resume uploaded.</p>') +
+      '<p><a href="' + HR_APP_URL + '">Open Ranger Rover</a></p></div>';
+    MailApp.sendEmail({ to: notifyTo, subject: 'Ranger application: ' + fullName + ' - ' + posTitle,
+      htmlBody: html, replyTo: email, name: 'Ranger Rover' });
+  } catch (me) { Logger.log('HR notify failed: ' + me.message); }
+
+  // Confirmation to the applicant
+  try {
+    MailApp.sendEmail({ to: email, replyTo: notifyTo, name: 'Enrich LA',
+      subject: 'Thanks for applying to Enrich LA, ' + first + '!',
+      htmlBody: '<div style="font-family:Arial,sans-serif;font-size:15px;color:#222;line-height:1.5">' +
+        '<p>Hi ' + first.replace(/</g, '') + ',</p>' +
+        '<p>Thank you for applying for <b>' + posTitle.replace(/</g, '') + '</b> with Enrich LA. We received your application and will be in touch soon about next steps.</p>' +
+        '<p>If you have questions in the meantime, just reply to this email.</p>' +
+        '<p>Thank you,<br>The Enrich LA Team</p></div>' });
+  } catch (ce) { Logger.log('HR confirm failed: ' + ce.message); }
+
+  return { ok: true, hr: true, existing: existing };
+}
+
+// ── RUN ONCE from the Apps Script editor ─────────────────────────────────────
+// Adds the extra Positions columns and creates the first Garden Ranger posting
+// (only if the Positions tab has no postings yet). Safe to re-run.
+function setupHrPositions() {
+  var sheet = _hrPosSheet();
+  var h = _hrEnsurePosCols(sheet);
+  var hasRows = _hrReadPositions().rows.length > 0;
+  if (!hasRows) {
+    var id = 'GR-2611';
+    var vals = {
+      'ID': id,
+      'Name of Position Internal': 'Garden Ranger recruiting - Fall 2026',
+      'Date': new Date(),
+      'Public Title': 'Garden Ranger - School Garden Educator',
+      'Public Description':
+        'Enrich LA builds and cares for school gardens across Los Angeles, and our Garden Rangers are the people who bring them to life. ' +
+        'As a Garden Ranger you visit your schools on a regular weekly schedule to teach hands-on garden lessons, work alongside students and teachers, and keep each garden healthy and growing.\n\n' +
+        'What you will do\n' +
+        '- Lead fun, hands-on garden lessons for students (TK through high school)\n' +
+        '- Plant, water, weed, mulch and care for school gardens\n' +
+        '- Build good relationships with principals, teachers and plant managers\n' +
+        '- Share photos and updates with our team through the Ranger Rover app\n\n' +
+        'Who we are looking for\n' +
+        '- You love gardening and enjoy working with young people\n' +
+        '- Reliable, on time, and a clear communicator\n' +
+        '- Teaching, gardening, farming or outdoor education experience is a plus - we train\n' +
+        '- Spanish speakers are encouraged to apply',
+      'Status': 'Open',
+      'Location': 'Public schools across Los Angeles County',
+      'Schedule': 'Part-time, weekday school hours. Choose the days that work for you.',
+      'Pay': 'Paid per school visit (independent contractor). Details shared at interview.',
+      'Requirements': 'Reliable transportation to school sites. Before starting: TB test clearance, Live Scan background check, and Mandated Reporter training.',
+      'Notify Email': HR_DEFAULT_NOTIFY,
+      'Applications': 0,
+      'Apply Link': HR_APPLY_URL + '?p=' + id
+    };
+    sheet.appendRow(h.map(function(c) { return vals.hasOwnProperty(c) ? vals[c] : ''; }));
+  }
+  // Fill any blank Apply Link cells
+  var d = _hrReadPositions();
+  var li = d.h.indexOf('Apply Link');
+  d.rows.forEach(function(o) {
+    if (li > -1 && !String(o['Apply Link'] || '').trim()) {
+      d.sheet.getRange(o._row, li + 1).setValue(HR_APPLY_URL + '?p=' + encodeURIComponent(String(o['ID']).trim()));
+    }
+  });
+  _hrResumeFolder();
+  _hrApplicantRole();
+  try { CacheService.getScriptCache().remove('hr_pos_v1__all'); } catch (e) {}
+  Logger.log('HR Positions ready. First posting: ' + HR_APPLY_URL + '?p=GR-2611');
 }

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.49 -->
+<!-- v11.50 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1689,6 +1689,15 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <div class="settings-note">This is the GAS_BUILD string reported by the currently DEPLOYED Apps Script, not the version in the GitHub source file. Pushing GAS_SCRIPT.gs to GitHub never updates this — only Deploy → New Deployment in the Apps Script editor does. If a recent backend fix doesn't seem to be taking effect, check this matches the latest GAS_BUILD in source before troubleshooting anything else.</div>
         </div>
         <div class="settings-row">
+          <div class="dl" style="margin-bottom:6px">🌱 Job Postings &amp; Applications</div>
+          <div class="settings-note">Postings live in the HR &gt; Human Resources sheet, tab Positions (set Status to Closed to stop applications). Each posting has a public apply link; applicants land in Humans as Ranger Applicant.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="settings-btn" style="margin-top:0" onclick="_hrLoadPostings(this)">Show postings</button>
+            <a class="settings-btn" style="margin-top:0;text-decoration:none;display:inline-block" target="_blank" href="https://docs.google.com/spreadsheets/d/1XWq8SMAl0_FijkhyAZ_vrS4-vvC9LHwS0zfblg0UXY8/edit">Open Positions sheet</a>
+          </div>
+          <div id="hrPostings" style="margin-top:8px"></div>
+        </div>
+        <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">🖥 Wide Layout on Big Screens</div>
           <label style="display:flex;align-items:center;gap:10px;font-size:17px;cursor:pointer"><input type="checkbox" id="wideLayoutToggle" style="width:22px;height:22px" onchange="setWideLayout(this.checked)"> Use the full width of large screens (this device only)</label>
           <div class="settings-note" style="margin-top:6px">On screens 1000px or wider, lists spread into columns and cards open as a centred panel. Phones are never affected. Untick to go back to the classic phone-width view.</div>
@@ -2114,10 +2123,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.49';
+const APP_VERSION='v11.50';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-30 20:15 PT - Levels 1-2: open sub shifts with a volunteer show a flashing green Volunteer - pick a sub badge and a green card outline instead of Waiting on other Rangers.';
+const BUILD_STAMP='2026-10-31 18:55 PT - HR onboarding: public job posting + Ranger application form (apply.html) feeding Humans as Ranger Applicant; Settings shows postings with copy-link and applicant counts.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11186,6 +11195,27 @@ function _sanitizeNavVisibility(){
   }
 }
 
+// ── HR job postings (v11.50) — Settings, Level 1. Loaded only on tap. ───────
+async function _hrLoadPostings(btn){
+  const box=document.getElementById('hrPostings');if(!box)return;
+  if(btn){btn.disabled=true;btn.textContent='Loading…';}
+  try{
+    const r=await gasPost({action:'getPositions',accessLevel:SESSION?SESSION.accessLevel:3});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'Redeploy GAS (v11.50) to enable postings');
+    const list=r.positions||[];
+    box.innerHTML=list.length?list.map(p=>{
+      const open=/^(open|active|posted|)$/i.test(String(p.status||'').trim());
+      return '<div style="border:1px solid var(--mist);border-radius:10px;padding:10px 12px;margin:8px 0">'+
+        '<div style="font-weight:700">'+escHtml(p.title||p.internalName||p.id)+'</div>'+
+        '<div class="settings-note">'+escHtml(p.id)+' · '+(open?'<span style="color:#2f6b35;font-weight:600">Open</span>':'<span style="color:var(--danger)">'+escHtml(p.status)+'</span>')+' · <b>'+(p.applications||0)+'</b> applicant'+(p.applications==1?'':'s')+'</div>'+
+        '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
+          '<button class="settings-btn" style="margin-top:0" data-link="'+ea(p.link)+'" onclick="navigator.clipboard.writeText(this.dataset.link).then(()=>showToast(\'Apply link copied\'))">Copy apply link</button>'+
+          '<a class="settings-btn" style="margin-top:0;text-decoration:none;display:inline-block" target="_blank" href="'+ea(p.link)+'">Open</a>'+
+        '</div></div>';
+    }).join(''):'<div class="settings-note">No postings yet - run setupHrPositions once in Apps Script.</div>';
+  }catch(e){box.innerHTML='<div class="settings-note" style="color:var(--danger)">'+escHtml(e.message)+'</div>';}
+  if(btn){btn.disabled=false;btn.textContent='Refresh postings';}
+}
 async function loadAppSettings(){
   // Apply cached settings immediately for instant render
   const cached=localStorage.getItem('rr_app_settings');
