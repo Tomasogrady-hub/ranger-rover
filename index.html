@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.50 -->
+<!-- v11.51 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -655,6 +655,24 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .ops-subnav{position:sticky;bottom:0;left:0;right:0;display:flex;overflow-x:auto;gap:6px;padding:8px 10px;background:var(--paper);border-top:1px solid var(--mist);z-index:5;-webkit-overflow-scrolling:touch}
 .ops-subnav-btn{flex:0 0 auto;padding:9px 16px;background:var(--fog);border:1px solid var(--mist);border-radius:99px;font-family:var(--font-b);font-size:13px;font-weight:600;color:var(--stone);letter-spacing:.03em;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
 .ops-subnav-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ops-seg{display:flex;margin:10px 16px 0;background:var(--fog);border:1px solid var(--mist);border-radius:12px;padding:4px;gap:4px}
+.ops-seg button{flex:1;padding:10px 8px;border:none;border-radius:9px;background:transparent;font-family:var(--font-b);font-size:15px;font-weight:600;color:var(--stone);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ops-seg button.active{background:var(--ink);color:#fff}
+.hr-card{border:1px solid var(--mist);border-radius:12px;padding:14px;margin:10px 0;background:var(--paper)}
+.hr-card .hr-t{font-weight:700;font-size:17px;color:var(--ink)}
+.hr-card .hr-m{font-size:13px;color:var(--stone);margin-top:2px}
+.hr-st{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;background:#e3f1e4;color:#2f6b35}
+.hr-st.off{background:#f3e3e1;color:var(--danger)}
+.hr-st.pause{background:#fff1d9;color:#9a6a12}
+.hr-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.hr-btns button,.hr-btns a{padding:8px 12px;border:1px solid var(--mist);border-radius:8px;background:var(--fog);font-family:var(--font-b);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;text-decoration:none}
+.hr-app{display:flex;align-items:center;gap:10px;padding:8px 4px;border-top:1px solid var(--mist);cursor:pointer}
+.hr-app img,.hr-app .hr-av{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--fog);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--stone)}
+.hr-f label{display:block;font-size:13px;font-weight:700;color:var(--stone);margin:14px 0 5px;letter-spacing:.02em}
+.hr-f input,.hr-f select,.hr-f textarea{width:100%;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);box-sizing:border-box}
+.hr-f textarea{min-height:110px;resize:vertical;line-height:1.45}
+.hr-f .hr-hint{font-size:12px;color:var(--stone);margin-top:4px}
+.hr-f .hr-ro{font-size:14px;color:var(--stone);padding:4px 0;word-break:break-all}
 .ops-empty-page{padding:60px 24px;text-align:center;color:var(--silver);font-family:var(--font-d);font-size:20px;font-style:italic}
 
 
@@ -1243,6 +1261,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <span class="page-title">Operations</span>
           <span class="page-count" id="opsCount"></span>
         </div>
+        <div class="ops-seg" id="opsSegHome"><button class="active" onclick="showOperationsPage('home')">🏫 Sites</button><button onclick="showOperationsPage('hr')">👥 Humans</button></div>
         <div style="padding:10px 16px 0;display:flex;gap:8px">
           <button class="settings-btn" style="flex:1" onclick="showAddNewSiteModal()">➕ Add New Site</button>
           <button class="settings-btn" style="flex:1;background:var(--danger)" onclick="showDeleteSiteModal()">🗑 Delete Site</button>
@@ -1278,6 +1297,13 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           </select>
         </div>
         <div class="card-list" id="opsHomeList" style="padding:0 16px 28px"></div>
+      </div>
+
+      <!-- Sub-page: Humans / Human Resources (v11.51, Levels 1-2) -->
+      <div id="ops-hr" style="display:none">
+        <div class="page-header"><span class="page-title">Operations</span><span class="page-count" id="hrCount"></span></div>
+        <div class="ops-seg"><button onclick="showOperationsPage('home')">🏫 Sites</button><button class="active" onclick="showOperationsPage('hr')">👥 Humans</button></div>
+        <div id="hrBody" style="padding:10px 16px 28px"></div>
       </div>
 
       <!-- Sub-pages: reserved for future Operations modules -->
@@ -1687,15 +1713,6 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">Live Backend Build: <span id="gasBuildStamp">–</span></div>
           <div class="settings-note">This is the GAS_BUILD string reported by the currently DEPLOYED Apps Script, not the version in the GitHub source file. Pushing GAS_SCRIPT.gs to GitHub never updates this — only Deploy → New Deployment in the Apps Script editor does. If a recent backend fix doesn't seem to be taking effect, check this matches the latest GAS_BUILD in source before troubleshooting anything else.</div>
-        </div>
-        <div class="settings-row">
-          <div class="dl" style="margin-bottom:6px">🌱 Job Postings &amp; Applications</div>
-          <div class="settings-note">Postings live in the HR &gt; Human Resources sheet, tab Positions (set Status to Closed to stop applications). Each posting has a public apply link; applicants land in Humans as Ranger Applicant.</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            <button class="settings-btn" style="margin-top:0" onclick="_hrLoadPostings(this)">Show postings</button>
-            <a class="settings-btn" style="margin-top:0;text-decoration:none;display:inline-block" target="_blank" href="https://docs.google.com/spreadsheets/d/1XWq8SMAl0_FijkhyAZ_vrS4-vvC9LHwS0zfblg0UXY8/edit">Open Positions sheet</a>
-          </div>
-          <div id="hrPostings" style="margin-top:8px"></div>
         </div>
         <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">🖥 Wide Layout on Big Screens</div>
@@ -2123,10 +2140,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.50';
+const APP_VERSION='v11.51';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-10-31 18:55 PT - HR onboarding: public job posting + Ranger application form (apply.html) feeding Humans as Ranger Applicant; Settings shows postings with copy-link and applicant counts.';
+const BUILD_STAMP='2026-11-01 19:40 PT - Operations now opens with Sites / Humans switch. Humans = job postings: create, edit, duplicate, open/close, applicants per posting. New job.html posting page; apply.html is one form for every posting with photo upload.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -8760,15 +8777,167 @@ let _opsFilterType='type_active'; // default: All Active Sites
 let _opsFilterStatus=''; // default: no status sub-filter
 let _opsFilterRanger=''; // default: no ranger-assignment sub-filter
 let _opsFilterSchedule=''; // default: no schedule sub-filter
+// ── Operations > Humans: Human Resources job postings (v11.51, Levels 1-2) ──
+// Postings = rows in the HR "Human Resources" sheet, tab Positions. Loaded only
+// when this page opens (never at startup). Every sheet column shows up in the
+// edit form automatically, so new columns added to the sheet need no code change.
+const HR_SHEET_URL='https://docs.google.com/spreadsheets/d/1XWq8SMAl0_FijkhyAZ_vrS4-vvC9LHwS0zfblg0UXY8/edit';
+const _hr={loaded:false,loading:false,headers:[],system:[],positions:[],filter:'open',openApps:{},editId:null};
+const _HR_LONG=['Public Description','Position Description','Requirements','FAQ'];
+const _HR_HINTS={
+  'Name of Position Internal':'Only staff see this.',
+  'Public Title':'The job title applicants see.',
+  'Public Description':'Start a line with "- " for a bullet point. A short line right before bullets becomes a heading.',
+  'Position Description':'Day-to-day duties. Shown under "About the position".',
+  'FAQ':'Put each question on its own line ending in "?" and the answer on the line below.',
+  'When':'e.g. Starts January 2027, or Ongoing.',
+  'Notify Email':'Who gets emailed when someone applies (blank = Tomas).',
+  'Form Location':'Leave blank to use the standard application form. Paste a different form link here later (e.g. on the new website).'
+};
+function _hrStatusCls(st){st=String(st||'').trim().toLowerCase();if(!st||/^(open|active|posted)$/.test(st))return '';if(/pause|hold|draft/.test(st))return ' pause';return ' off';}
+function _hrApplicants(id){
+  const want=String(id||'').toLowerCase();
+  return (DATA.humans||[]).filter(h=>String(sf(h,'Position Applied','PositionApplied')||'').trim().toLowerCase()===want)
+    .sort((a,b)=>new Date(sf(b,'Applied Date','AppliedDate')||0)-new Date(sf(a,'Applied Date','AppliedDate')||0));
+}
+async function _hrOpen(force){
+  const body=document.getElementById('hrBody');if(!body)return;
+  if(_hr.editId!==null)return;
+  if(_hr.loaded&&!force){_hrRender();return;}
+  if(_hr.loading)return;
+  _hr.loading=true;
+  if(!_hr.loaded)body.innerHTML='<div class="settings-note" style="padding:20px 0">Loading job postings…</div>';
+  try{
+    const r=await gasPost({action:'getPositions',accessLevel:SESSION?SESSION.accessLevel:3});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'Backend not updated yet - deploy GAS v11.51');
+    _hr.headers=r.headers||[];_hr.system=r.system||[];_hr.positions=r.positions||[];_hr.loaded=true;
+  }catch(e){body.innerHTML='<div class="settings-note" style="color:var(--danger);padding:20px 0">'+escHtml(e.message)+'</div>';_hr.loading=false;return;}
+  _hr.loading=false;
+  _hrRender();
+}
+function _hrSetFilter(f){_hr.filter=f;_hrRender();}
+function _hrRender(){
+  const body=document.getElementById('hrBody');if(!body)return;
+  const all=_hr.positions,f=_hr.filter;
+  const list=all.filter(p=>f==='all'?true:f==='open'?p.open:!p.open).slice().reverse();
+  const cnt=document.getElementById('hrCount');if(cnt)cnt.textContent=all.filter(p=>p.open).length+' open';
+  const chip=(k,l,n)=>'<button class="reach-token-chip'+(f===k?' on':'')+'" style="'+(f===k?'background:var(--ink);color:#fff;':'')+'padding:7px 13px;border-radius:99px;border:1px solid var(--mist);font-size:13px;font-weight:600;cursor:pointer" onclick="_hrSetFilter(\''+k+'\')">'+l+' ('+n+')</button>';
+  let h='<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    '<button class="settings-btn" style="flex:1;width:auto;margin-top:0" onclick="_hrEdit(\'\')">➕ New Job Posting</button>'+
+    '<a class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;text-decoration:none;text-align:center;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a>'+
+    '<button class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" onclick="_hrOpen(true)">↻</button></div>'+
+    '<div style="display:flex;gap:6px;margin:12px 0 2px;flex-wrap:wrap">'+chip('open','Open',all.filter(p=>p.open).length)+chip('closed','Closed / paused',all.filter(p=>!p.open).length)+chip('all','All',all.length)+'</div>';
+  if(!list.length)h+='<div class="settings-note" style="padding:16px 0">'+(all.length?'Nothing here.':'No job postings yet - tap ➕ New Job Posting.')+'</div>';
+  const humansReady=(DATA.humans||[]).length>0;
+  list.forEach(p=>{
+    const v=p.values||{},apps=humansReady?_hrApplicants(p.id):null;
+    const n=apps?apps.length:Number(v['Applications']||0);
+    const st=v['Status']||'Open',open=!!_hr.openApps[p.id];
+    h+='<div class="hr-card">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div class="hr-t">'+escHtml(v['Public Title']||v['Name of Position Internal']||p.id)+'</div><span class="hr-st'+_hrStatusCls(st)+'">'+escHtml(st)+'</span></div>'+
+      '<div class="hr-m">'+escHtml([p.id,v['Name of Position Internal'],v['Date']].filter(Boolean).join(' · '))+'</div>'+
+      '<div class="hr-btns">'+
+        '<button onclick="_hrEdit(\''+ea(p.id)+'\')">✏️ Edit</button>'+
+        '<button onclick="_hrToggleApps(\''+ea(p.id)+'\')">👥 Applicants ('+n+')'+(open?' ▲':'')+'</button>'+
+        '<button data-link="'+ea(p.postingUrl)+'" onclick="_hrCopy(this.dataset.link,\'Posting link copied\')">🔗 Copy link</button>'+
+        '<a target="_blank" href="'+ea(p.postingUrl)+'">👁 Posting</a>'+
+        '<a target="_blank" href="'+ea(p.formUrl)+'">📝 Form</a>'+
+        '<button onclick="_hrEdit(\'\',\''+ea(p.id)+'\')">⧉ Duplicate</button>'+
+      '</div>'+
+      (open?_hrAppsHtml(apps):'')+
+    '</div>';
+  });
+  // General applications (no posting picked)
+  if(humansReady&&f!=='closed'){
+    const gen=(DATA.humans||[]).filter(x=>sf(x,'Applied Date','AppliedDate')&&!String(sf(x,'Position Applied','PositionApplied')||'').trim());
+    if(gen.length)h+='<div class="hr-card"><div class="hr-t">General applications</div><div class="hr-m">Applied without picking a posting</div>'+
+      '<div class="hr-btns"><button onclick="_hrToggleApps(\'_general\')">👥 Applicants ('+gen.length+')'+(_hr.openApps._general?' ▲':'')+'</button></div>'+
+      (_hr.openApps._general?_hrAppsHtml(gen):'')+'</div>';
+  }
+  body.innerHTML=h;
+  _initLazyImages();
+}
+function _hrAppsHtml(apps){
+  if(apps===null)return '<div class="settings-note" style="margin-top:10px">People are still loading - try again in a moment.</div>';
+  if(!apps.length)return '<div class="settings-note" style="margin-top:10px">No applicants yet.</div>';
+  return '<div style="margin-top:10px">'+apps.map(a=>{
+    const em=a.Email||a.email||'',nm=fullName(a)||em,img=sf(a,'Main Image','MainImage')||'';
+    const ad=sf(a,'Applied Date','AppliedDate');let ds='';if(ad){const d=new Date(ad);ds=isNaN(d)?String(ad):d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+    const ini=(nm.match(/\b\w/g)||['?']).slice(0,2).join('').toUpperCase();
+    return '<div class="hr-app" onclick="showPersonDetail(\''+ea(em)+'\')">'+
+      (img&&/^https?:/.test(img)?'<img data-lazy="'+ea(img)+'" alt="" style="opacity:0;transition:opacity .2s">':'<span class="hr-av">'+escHtml(ini)+'</span>')+
+      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(nm)+'</div><div class="hr-m" style="font-size:12px;color:var(--stone)">'+escHtml([a.Role||a.role,ds,a.Mobile||a.mobile].filter(Boolean).join(' · '))+'</div></div><span style="color:var(--stone)">›</span></div>';
+  }).join('')+'</div>';
+}
+function _hrToggleApps(id){_hr.openApps[id]=!_hr.openApps[id];_hrRender();}
+function _hrCopy(t,msg){try{navigator.clipboard.writeText(t).then(()=>showToast(msg||'Copied'),()=>prompt('Copy this link:',t));}catch(e){prompt('Copy this link:',t);}}
+// id = posting to edit ('' = new). copyFrom = posting to duplicate into a new one.
+function _hrEdit(id,copyFrom){
+  const body=document.getElementById('hrBody');if(!body)return;
+  _hr.editId=id||'';
+  const src=_hr.positions.find(p=>p.id===(id||copyFrom));
+  const v=src?Object.assign({},src.values):{};
+  if(!id&&copyFrom){v['Public Title']=(v['Public Title']||'')+' (copy)';v['Status']='Paused';}
+  if(!id){delete v['ID'];delete v['Date'];delete v['Applications'];delete v['Apply Link'];delete v['Form Location'];}
+  const isNew=!id;
+  let h='<div class="hr-f">'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><button class="btn-cancel" style="padding:8px 12px" onclick="_hrCancel()">‹ Back</button>'+
+    '<div style="font-weight:700;font-size:18px">'+(isNew?(copyFrom?'Duplicate posting':'New job posting'):'Edit '+escHtml(id))+'</div></div>';
+  const heads=_hr.headers.length?_hr.headers:['ID','Name of Position Internal','Date','Public Title','Public Description','Status','Location','Schedule','When','Pay','Requirements','Position Description','FAQ','Notify Email','Form Location','Applications','Apply Link'];
+  heads.forEach(c=>{
+    const val=v[c]==null?'':String(v[c]);
+    const fid='hrf-'+c.replace(/[^A-Za-z0-9]/g,'_');
+    if(c==='ID'){
+      h+='<label>ID</label>'+(isNew?'<input id="'+fid+'" data-col="ID" placeholder="Leave blank to create one (e.g. GK-2611)">':'<div class="hr-ro">'+escHtml(val)+'</div>');return;
+    }
+    if(c==='Date'||c==='Applications'||c==='Apply Link'){
+      if(!isNew)h+='<label>'+escHtml(c==='Apply Link'?'Posting link (share this)':c)+'</label><div class="hr-ro">'+escHtml(val||'-')+'</div>';return;
+    }
+    h+='<label for="'+fid+'">'+escHtml(c)+(c==='Public Title'?' *':'')+'</label>';
+    if(c==='Status'){
+      const opts=['Open','Paused','Closed'];if(val&&!opts.some(o=>o.toLowerCase()===val.toLowerCase()))opts.push(val);
+      h+='<select id="'+fid+'" data-col="Status">'+opts.map(o=>'<option'+((val||'Open').toLowerCase()===o.toLowerCase()?' selected':'')+'>'+escHtml(o)+'</option>').join('')+'</select>'+
+        '<div class="hr-hint">Only Open postings take applications.</div>';return;
+    }
+    if(_HR_LONG.includes(c)||/description|faq|notes/i.test(c))h+='<textarea id="'+fid+'" data-col="'+ea(c)+'" rows="'+(c==='Public Description'?9:5)+'">'+escHtml(val)+'</textarea>';
+    else h+='<input id="'+fid+'" data-col="'+ea(c)+'" type="'+(c==='Notify Email'?'email':'text')+'" value="'+ea(escHtml(val))+'">';
+    if(_HR_HINTS[c])h+='<div class="hr-hint">'+escHtml(_HR_HINTS[c])+'</div>';
+  });
+  h+='<button class="btn-save" id="hrSaveBtn" style="width:100%;margin-top:20px" onclick="_hrSave()">'+(isNew?'Create posting':'Save changes')+'</button>'+
+     '<button class="btn-cancel" style="width:100%;margin-top:8px;text-align:center" onclick="_hrCancel()">Cancel</button></div>';
+  body.innerHTML=h;
+  body.scrollIntoView({block:'start'});
+}
+function _hrCancel(){_hr.editId=null;_hrRender();}
+async function _hrSave(){
+  const btn=document.getElementById('hrSaveBtn');
+  const values={};
+  document.querySelectorAll('#hrBody [data-col]').forEach(el=>{values[el.dataset.col]=el.value.trim();});
+  if(!values['Public Title']){showToast('Please add a Public Title');return;}
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const r=await gasPost({action:'savePosition',accessLevel:SESSION?SESSION.accessLevel:3,actor:SESSION?SESSION.email:'',id:_hr.editId||'',values});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'Save failed');
+    showToast(r.created?'Posting '+r.id+' created':'Posting saved');
+    _hr.editId=null;
+    await _hrOpen(true);
+  }catch(e){
+    showToast(e.message);
+    if(btn){btn.disabled=false;btn.textContent=_hr.editId?'Save changes':'Create posting';}
+  }
+}
 function showOperationsPage(sub){
+  if(sub==='hr'&&!(SESSION&&Number(SESSION.accessLevel)<=2))sub='home';
   _opsCurrentPage=sub;
   if(sub!=='tab4'){_exitSmartMapFullscreen();_smartMapClosePanel();if(_smartMapFocused)_smartMapExitRangerFocus();}
-  ['home','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
+  ['home','hr','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
     const el=document.getElementById('ops-'+k);
     if(el)el.style.display=(k===sub)?'block':'none';
   });
-  document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===sub));
+  document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===(sub==='hr'?'home':sub)));
+  const _seg=document.getElementById('opsSegHome');if(_seg)_seg.style.display=(SESSION&&Number(SESSION.accessLevel)<=2)?'':'none';
   if(sub==='home'){renderOperationsHome();_ensureOpsResponseFilterOptions();}
+  if(sub==='hr')_hrOpen();
   if(sub==='tab2'){
     const ta=document.getElementById('opsSharedNotes');
     if(ta)ta.value=_appSettings.opsNotes||'';
@@ -11195,27 +11364,6 @@ function _sanitizeNavVisibility(){
   }
 }
 
-// ── HR job postings (v11.50) — Settings, Level 1. Loaded only on tap. ───────
-async function _hrLoadPostings(btn){
-  const box=document.getElementById('hrPostings');if(!box)return;
-  if(btn){btn.disabled=true;btn.textContent='Loading…';}
-  try{
-    const r=await gasPost({action:'getPositions',accessLevel:SESSION?SESSION.accessLevel:3});
-    if(!r||!r.ok)throw new Error((r&&r.error)||'Redeploy GAS (v11.50) to enable postings');
-    const list=r.positions||[];
-    box.innerHTML=list.length?list.map(p=>{
-      const open=/^(open|active|posted|)$/i.test(String(p.status||'').trim());
-      return '<div style="border:1px solid var(--mist);border-radius:10px;padding:10px 12px;margin:8px 0">'+
-        '<div style="font-weight:700">'+escHtml(p.title||p.internalName||p.id)+'</div>'+
-        '<div class="settings-note">'+escHtml(p.id)+' · '+(open?'<span style="color:#2f6b35;font-weight:600">Open</span>':'<span style="color:var(--danger)">'+escHtml(p.status)+'</span>')+' · <b>'+(p.applications||0)+'</b> applicant'+(p.applications==1?'':'s')+'</div>'+
-        '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
-          '<button class="settings-btn" style="margin-top:0" data-link="'+ea(p.link)+'" onclick="navigator.clipboard.writeText(this.dataset.link).then(()=>showToast(\'Apply link copied\'))">Copy apply link</button>'+
-          '<a class="settings-btn" style="margin-top:0;text-decoration:none;display:inline-block" target="_blank" href="'+ea(p.link)+'">Open</a>'+
-        '</div></div>';
-    }).join(''):'<div class="settings-note">No postings yet - run setupHrPositions once in Apps Script.</div>';
-  }catch(e){box.innerHTML='<div class="settings-note" style="color:var(--danger)">'+escHtml(e.message)+'</div>';}
-  if(btn){btn.disabled=false;btn.textContent='Refresh postings';}
-}
 async function loadAppSettings(){
   // Apply cached settings immediately for instant render
   const cached=localStorage.getItem('rr_app_settings');

@@ -3,12 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Join Enrich LA - Garden Ranger Jobs</title>
-<meta name="description" content="Apply to become an Enrich LA Garden Ranger - teach and grow school gardens across Los Angeles.">
-<meta property="og:title" content="Become a Garden Ranger with Enrich LA">
-<meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
+<title>Apply - Enrich LA</title>
+<meta name="description" content="Apply to join Enrich LA - teach and grow school gardens across Los Angeles.">
+<meta property="og:title" content="Apply to Enrich LA">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- apply.html v1.0 - 2026-10-31 - public job postings + Ranger application form (writes to Humans via GAS publicApply) -->
+<!-- apply.html v2.0 - 2026-11-01 - ONE application form for every posting; ?p=ID pre-selects the position. Writes to Humans via GAS publicApply. -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b}
   *{box-sizing:border-box}
@@ -17,24 +16,17 @@
   .wrap{max-width:640px;margin:0 auto;padding:0 16px 64px}
   header{background:var(--grove);color:#fff;padding:22px 16px 26px}
   header .in{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:14px}
-  header img{width:52px;height:52px;border-radius:50%;flex-shrink:0;background:var(--sun)}
+  header img{width:52px;height:52px;border-radius:50%;flex-shrink:0;background:#fff}
   header .kick{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
   header h1{margin:2px 0 0;font-size:24px;line-height:1.2}
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 18px;margin-top:-12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
-  .card + .card{margin-top:16px}
-  .facts{display:grid;grid-template-columns:1fr;gap:10px;margin:14px 0 4px}
-  .fact{display:flex;gap:10px;font-size:15px}
-  .fact b{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
-  .fact .ic{font-size:18px;width:24px;text-align:center;flex-shrink:0}
-  .desc h3{font-size:16px;margin:18px 0 6px;color:var(--grove)}
-  .desc p{margin:0 0 10px}
-  .desc ul{margin:0 0 10px;padding-left:20px}
-  .desc li{margin:3px 0}
-  .posted{font-size:13px;color:var(--muted)}
-  .skel{height:14px;background:linear-gradient(90deg,#eee,#f6f6f6,#eee);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:6px;margin:10px 0}
-  @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .pos{background:var(--fog);border-radius:10px;padding:12px 14px;margin:4px 0 2px}
+  .pos .t{font-weight:700;color:var(--grove);font-size:17px}
+  .pos .m{font-size:13px;color:var(--muted)}
+  .pos a{color:var(--leaf);font-size:14px}
   h2{font-size:20px;margin:0 0 4px;color:var(--grove)}
   .sub{color:var(--muted);font-size:14px;margin:0 0 6px}
+  .grp{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:28px 0 -4px;padding-top:14px;border-top:1px solid var(--line)}
   label{display:block;font-size:14px;font-weight:600;margin:16px 0 6px}
   label .opt{font-weight:400;color:var(--muted)}
   label .req{color:var(--orange)}
@@ -44,23 +36,19 @@
   textarea{min-height:120px;resize:vertical}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .row3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
-  .row2 label,.row3 label{margin-top:16px}
   .chips{display:flex;flex-wrap:wrap;gap:8px}
   .chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:9px 15px;font-size:15px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
   .chip.on{background:var(--grove);border-color:var(--grove);color:#fff}
-  .file{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#fcfcf9;font-size:15px}
-  .file.has{border-style:solid;border-color:var(--leaf);background:#eef6ee;text-align:left}
+  .file{display:flex;align-items:center;gap:12px;border:1.5px dashed var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;background:#fcfcf9;font-size:15px;font-weight:400;margin-top:0}
+  .file.has{border-style:solid;border-color:var(--leaf);background:#eef6ee}
   .file input{display:none}
+  .file .pv{width:56px;height:56px;border-radius:50%;background:#e9e7df center/cover no-repeat;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px}
   .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-  button.go{width:100%;margin-top:22px;padding:16px;border:none;border-radius:11px;background:var(--orange);color:#fff;font-size:17px;font-weight:700;cursor:pointer}
+  button.go{width:100%;margin-top:24px;padding:16px;border:none;border-radius:11px;background:var(--orange);color:#fff;font-size:17px;font-weight:700;cursor:pointer}
   button.go:disabled{background:#b9b6aa;cursor:wait}
   .err{color:var(--err);font-size:14px;margin-top:12px;min-height:1em}
   .done{text-align:center;padding:30px 8px}
   .done .big{font-size:52px;line-height:1}
-  .list a{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0;background:#fff}
-  .list a:hover{border-color:var(--orange)}
-  .list .t{font-weight:700;color:var(--grove);font-size:17px}
-  .closed{background:#fff4e5;border-radius:10px;padding:12px 14px;font-weight:600}
   footer{text-align:center;margin-top:28px;font-size:13px;color:var(--muted)}
   footer img{height:30px;display:block;margin:0 auto 6px}
   @media(max-width:420px){.row3{grid-template-columns:1fr 1fr}.row3 .full{grid-column:1/-1}.row2{grid-template-columns:1fr}}
@@ -69,18 +57,17 @@
 <body>
 <header><div class="in">
   <img src="la-logo.png" alt="Enrich LA" width="52" height="52">
-  <div><div class="kick">Enrich LA · Join our team</div><h1 id="hTitle">Become a Garden Ranger</h1></div>
+  <div><div class="kick">Enrich LA · Application</div><h1 id="hTitle">Apply to join our team</h1></div>
 </div></header>
 
 <div class="wrap">
-  <div class="card" id="posting">
-    <div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:85%"></div><div class="skel" style="width:70%"></div>
-  </div>
-
   <div class="card" id="formCard">
-    <h2>Apply</h2>
-    <p class="sub">Takes about 5 minutes. Fields marked <span style="color:var(--orange)">*</span> are required.</p>
     <form id="f" novalidate autocomplete="on">
+      <label for="position" style="margin-top:0">Position you are applying for <span class="req">*</span></label>
+      <select id="position"><option value="">Loading positions…</option></select>
+      <div class="pos" id="posInfo" style="display:none"></div>
+
+      <div class="grp">About you</div>
       <div class="row2">
         <div><label for="firstName">First name <span class="req">*</span></label><input type="text" id="firstName" autocomplete="given-name" required></div>
         <div><label for="lastName">Last name <span class="req">*</span></label><input type="text" id="lastName" autocomplete="family-name" required></div>
@@ -96,37 +83,45 @@
         <div><label for="state">State</label><input type="text" id="state" value="CA" autocomplete="address-level1"></div>
         <div><label for="zip">Zip</label><input type="text" id="zip" autocomplete="postal-code" inputmode="numeric"></div>
       </div>
+      <label>Your photo <span class="opt">(optional - a clear, friendly headshot)</span></label>
+      <label class="file" id="photoBox">
+        <input type="file" id="photo" accept="image/*">
+        <span class="pv" id="photoPv">🙂</span><span id="photoTxt">Tap to add a photo</span>
+      </label>
 
+      <div class="grp">Why you</div>
       <label for="pitch">Tell us about yourself <span class="req">*</span></label>
-      <div class="hint">Why do you want to be a Garden Ranger? What would you bring to our students?</div>
+      <div class="hint">Why do you want this job? What would you bring to our students and gardens?</div>
       <textarea id="pitch" required></textarea>
-
       <label for="experience">Gardening, teaching or kids experience <span class="opt">(optional)</span></label>
       <textarea id="experience" style="min-height:80px"></textarea>
+      <label>Resume <span class="opt">(optional - PDF, Word or photo, up to 6 MB)</span></label>
+      <label class="file" id="fileBox">
+        <input type="file" id="resume" accept=".pdf,.doc,.docx,.rtf,.txt,.odt,.pages,image/*,application/pdf">
+        <span class="pv">📎</span><span id="fileTxt">Tap to attach your resume</span>
+      </label>
 
+      <div class="grp">Availability</div>
       <label>Which weekdays could you work?</label>
       <div class="chips" id="days">
-        <span class="chip" data-v="Mon">Mon</span><span class="chip" data-v="Tue">Tue</span><span class="chip" data-v="Wed">Wed</span><span class="chip" data-v="Thu">Thu</span><span class="chip" data-v="Fri">Fri</span>
+        <span class="chip" data-v="Mon">Mon</span><span class="chip" data-v="Tue">Tue</span><span class="chip" data-v="Wed">Wed</span><span class="chip" data-v="Thu">Thu</span><span class="chip" data-v="Fri">Fri</span><span class="chip" data-v="Sat">Sat</span>
       </div>
       <div class="row2">
         <div><label for="timeOfDay">Time of day</label>
           <select id="timeOfDay"><option value="">Choose…</option><option>Mornings</option><option>Afternoons</option><option>Mornings or afternoons</option><option>Full days</option></select></div>
+        <div><label for="startDate">When could you start?</label>
+          <select id="startDate"><option value="">Choose…</option><option>Right away</option><option>Within 2 weeks</option><option>Within a month</option><option>Next semester</option></select></div>
+      </div>
+      <div class="row2">
         <div><label for="hasCar">Reliable transportation?</label>
           <select id="hasCar"><option value="">Choose…</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+        <div><label for="areas">Parts of LA you can travel to</label><input type="text" id="areas" placeholder="e.g. East LA, Valley"></div>
       </div>
-      <label for="areas">Parts of LA you can travel to <span class="opt">(optional)</span></label>
-      <input type="text" id="areas" placeholder="e.g. East LA, Valley, South Bay">
       <div class="row2">
         <div><label for="languages">Languages you speak</label><input type="text" id="languages" placeholder="English, Spanish…"></div>
         <div><label for="howHeard">How did you hear about us?</label>
           <select id="howHeard"><option value="">Choose…</option><option>Enrich LA website</option><option>Friend or current Ranger</option><option>Job board</option><option>Social media</option><option>School or teacher</option><option>Other</option></select></div>
       </div>
-
-      <label>Resume <span class="opt">(optional - PDF, Word or photo, up to 6 MB)</span></label>
-      <label class="file" id="fileBox" style="font-weight:400;margin-top:0">
-        <input type="file" id="resume" accept=".pdf,.doc,.docx,.rtf,.txt,.odt,.pages,image/*,application/pdf">
-        <span id="fileTxt">📎 Tap to attach your resume</span>
-      </label>
 
       <div class="hp" aria-hidden="true"><label for="website">Website</label><input type="text" id="website" tabindex="-1" autocomplete="off"></div>
 
@@ -134,7 +129,6 @@
       <div class="err" id="err" role="alert"></div>
     </form>
   </div>
-
   <footer><img src="enrich-logo.png" alt="Enrich LA" loading="lazy">Growing school gardens across Los Angeles</footer>
 </div>
 
@@ -143,9 +137,8 @@
   var FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
   var GAS_URL = FALLBACK_URL;
   try { GAS_URL = localStorage.getItem('rr_gas_url') || FALLBACK_URL; } catch(e){}
-  var q = new URLSearchParams(location.search);
-  var posId = (q.get('p') || '').trim();
-  var position = null;
+  var posId = (new URLSearchParams(location.search).get('p') || '').trim();
+  var positions = [];
   var $ = function(id){ return document.getElementById(id); };
 
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -155,74 +148,68 @@
   }
   // Resolve the live backend URL (old deployments keep running old code).
   var resolved = raw(GAS_URL, 'getAppSettings').then(function(r){
-    if (r && r.gasUrl && r.gasUrl !== GAS_URL) {
-      GAS_URL = r.gasUrl;
-      try { localStorage.setItem('rr_gas_url', GAS_URL); } catch(e){}
-      return true;
-    }
-    return false;
-  }).catch(function(){ return false; });
+    if (r && r.gasUrl && r.gasUrl !== GAS_URL) { GAS_URL = r.gasUrl; try { localStorage.setItem('rr_gas_url', GAS_URL); } catch(e){} }
+  }).catch(function(){});
 
-  // Light formatting: "- " lines -> bullets, short lines before bullets -> headings.
-  function fmt(t){
-    var lines = String(t || '').replace(/\r/g,'').split('\n'), out = '', list = false;
-    for (var i = 0; i < lines.length; i++) {
-      var l = lines[i].trim();
-      var isB = /^[-•*]\s+/.test(l);
-      if (isB) { if (!list) { out += '<ul>'; list = true; } out += '<li>' + esc(l.replace(/^[-•*]\s+/, '')) + '</li>'; continue; }
-      if (list) { out += '</ul>'; list = false; }
-      if (!l) continue;
-      var next = (lines[i+1] || '').trim();
-      if (l.length < 60 && !/[.!?]$/.test(l) && /^[-•*]\s+/.test(next)) out += '<h3>' + esc(l) + '</h3>';
-      else out += '<p>' + esc(l) + '</p>';
-    }
-    if (list) out += '</ul>';
-    return out;
+  // ── Position picker ────────────────────────────────────────────────────
+  function fillPositions(list, current){
+    positions = list.slice();
+    if (current && !positions.some(function(p){ return p.id === current.id; })) positions.unshift(current);
+    var sel = $('position');
+    sel.innerHTML = '<option value="">Choose a position…</option>' + positions.map(function(p){
+      return '<option value="' + esc(p.id) + '"' + (p.open === false ? ' disabled' : '') + '>' + esc(p.title) + (p.open === false ? ' (closed)' : '') + '</option>';
+    }).join('') + '<option value="_general">General application / not sure</option>';
+    if (current) sel.value = current.id;
+    else if (positions.length === 1) sel.value = positions[0].id;
+    showPos();
   }
-  function fact(ic, label, val){ return val ? '<div class="fact"><span class="ic">' + ic + '</span><div><b>' + label + '</b>' + esc(val) + '</div></div>' : ''; }
-
-  function showPosition(p){
-    position = p;
-    $('hTitle').textContent = p.title || 'Become a Garden Ranger';
-    document.title = (p.title || 'Garden Ranger') + ' | Enrich LA';
-    var html = '<h2>' + esc(p.title) + '</h2>' + (p.date ? '<div class="posted">Posted ' + esc(p.date) + '</div>' : '') +
-      '<div class="facts">' + fact('📍','Where',p.location) + fact('🗓️','Schedule',p.schedule) + fact('💵','Pay',p.pay) + '</div>' +
-      '<div class="desc">' + fmt(p.description) + (p.requirements ? '<h3>Requirements</h3><p>' + esc(p.requirements) + '</p>' : '') + '</div>';
-    if (!p.open) {
-      html += '<div class="closed">This posting is no longer accepting applications.</div>';
-      $('formCard').style.display = 'none';
-    }
-    $('posting').innerHTML = html;
+  function showPos(){
+    var id = $('position').value, p = positions.filter(function(x){ return x.id === id; })[0], box = $('posInfo');
+    if (!p) { box.style.display = 'none'; $('hTitle').textContent = 'Apply to join our team'; return; }
+    $('hTitle').textContent = p.title;
+    document.title = 'Apply: ' + p.title + ' | Enrich LA';
+    box.innerHTML = '<div class="t">' + esc(p.title) + '</div><div class="m">' + esc([p.location, p.schedule, p.when].filter(Boolean).join(' · ')) + '</div>' +
+      '<a href="job.html?p=' + encodeURIComponent(p.id) + '">View full job posting</a>';
+    box.style.display = 'block';
+    if (p.open === false) $('err').textContent = 'This posting is no longer accepting applications.';
   }
-  function showList(list){
-    if (list.length === 1) { history.replaceState(null, '', '?p=' + encodeURIComponent(list[0].id)); return showPosition(list[0]); }
-    if (!list.length) {
-      $('posting').innerHTML = '<h2>Join our team</h2><p>We have no open postings right now, but we are always glad to hear from people who love gardens and kids. Send us a general application below.</p>';
-      return;
-    }
-    $('posting').innerHTML = '<h2>Open positions</h2><div class="list">' + list.map(function(p){
-      return '<a href="?p=' + encodeURIComponent(p.id) + '"><div class="t">' + esc(p.title) + '</div><div class="posted">' + esc([p.location, p.schedule].filter(Boolean).join(' · ')) + '</div></a>';
-    }).join('') + '</div>';
-    $('formCard').style.display = 'none';
-  }
-  function loadPostings(retried){
+  $('position').addEventListener('change', function(){ $('err').textContent = ''; showPos(); });
+  function load(retried){
     return raw(GAS_URL, 'publicGetPositions', posId ? {id: posId} : {}).then(function(r){
-      if (!r || !r.hr) throw new Error('stale');
-      if (posId) {
-        if (r.ok && r.position) showPosition(r.position);
-        else { posId = ''; return loadPostings(true); }
-      } else showList(r.positions || []);
+      if (!r || r.hr !== 2) throw new Error('stale');
+      fillPositions(r.positions || [], r.position || null);
     }).catch(function(){
-      if (retried) { $('posting').innerHTML = '<h2>Become a Garden Ranger</h2><p>Teach hands-on garden lessons and help care for school gardens across Los Angeles.</p>'; return; }
-      return resolved.then(function(){ return loadPostings(true); });
+      if (retried) { fillPositions([], null); return; }
+      return resolved.then(function(){ return load(true); });
     });
   }
-  loadPostings(false);
+  load(false);
 
-  // Day chips
+  // ── Day chips ──────────────────────────────────────────────────────────
   $('days').addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (c) c.classList.toggle('on'); });
 
-  // Resume
+  // ── Photo: shrink to 800px JPEG in the browser (fast upload; canvas
+  //    toDataURL, not toBlob, for iPhone Safari) ──────────────────────────
+  var photoB64 = null;
+  $('photo').addEventListener('change', function(){
+    var f = this.files && this.files[0]; photoB64 = null;
+    if (!f) return;
+    $('photoTxt').textContent = 'Preparing photo…';
+    var url = URL.createObjectURL(f), img = new Image();
+    img.onload = function(){
+      var m = 800, w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, m / Math.max(w, h));
+      var c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      var d = c.toDataURL('image/jpeg', 0.85); URL.revokeObjectURL(url);
+      photoB64 = d.slice(d.indexOf(',') + 1);
+      $('photoPv').style.backgroundImage = 'url(' + d + ')'; $('photoPv').textContent = '';
+      $('photoBox').classList.add('has'); $('photoTxt').textContent = 'Photo added - tap to change';
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); $('photoTxt').textContent = 'Could not read that photo - try a JPG or PNG'; };
+    img.src = url;
+  });
+
+  // ── Resume ─────────────────────────────────────────────────────────────
   var resumeFile = null;
   $('resume').addEventListener('change', function(){
     var f = this.files && this.files[0];
@@ -230,7 +217,7 @@
     if (f && f.size > 6 * 1024 * 1024) { $('err').textContent = 'That file is over 6 MB - please choose a smaller one.'; this.value = ''; f = null; }
     resumeFile = f || null;
     $('fileBox').classList.toggle('has', !!resumeFile);
-    $('fileTxt').textContent = resumeFile ? '✅ ' + resumeFile.name + ' (' + Math.max(1, Math.round(resumeFile.size / 1024)) + ' KB) - tap to change' : '📎 Tap to attach your resume';
+    $('fileTxt').textContent = resumeFile ? resumeFile.name + ' (' + Math.max(1, Math.round(resumeFile.size / 1024)) + ' KB) - tap to change' : 'Tap to attach your resume';
   });
   function readFile(f){
     return new Promise(function(res, rej){
@@ -241,10 +228,12 @@
     });
   }
 
+  // ── Submit ─────────────────────────────────────────────────────────────
   function val(id){ return ($(id).value || '').trim(); }
   $('f').addEventListener('submit', function(e){
     e.preventDefault();
     var err = $('err'); err.textContent = '';
+    if (!val('position')) { err.textContent = 'Please choose the position you are applying for.'; $('position').focus(); return; }
     var need = [['firstName','your first name'],['lastName','your last name'],['email','your email'],['mobile','your mobile number'],['pitch','a few sentences about yourself']];
     for (var i = 0; i < need.length; i++) {
       if (!val(need[i][0])) { err.textContent = 'Please add ' + need[i][1] + '.'; $(need[i][0]).focus(); return; }
@@ -253,27 +242,29 @@
     if (val('mobile').replace(/\D/g,'').length < 10) { err.textContent = 'Please enter a 10-digit mobile number.'; $('mobile').focus(); return; }
     if (val('pitch').length < 20) { err.textContent = 'Please tell us a little more about yourself.'; $('pitch').focus(); return; }
 
-    var btn = $('go'); btn.disabled = true; btn.textContent = resumeFile ? 'Uploading…' : 'Sending…';
+    var btn = $('go'); btn.disabled = true; btn.textContent = (resumeFile || photoB64) ? 'Uploading…' : 'Sending…';
+    var pid = val('position') === '_general' ? '' : val('position');
     var payload = {
-      positionId: position ? position.id : posId,
+      positionId: pid,
       firstName: val('firstName'), lastName: val('lastName'), email: val('email'), mobile: val('mobile'),
       street: val('street'), city: val('city'), state: val('state'), zip: val('zip'),
       pitch: val('pitch'), experience: val('experience'),
       availability: [].map.call(document.querySelectorAll('#days .chip.on'), function(c){ return c.dataset.v; }),
-      timeOfDay: val('timeOfDay'), hasCar: val('hasCar'), areas: val('areas'),
+      timeOfDay: val('timeOfDay'), startDate: val('startDate'), hasCar: val('hasCar'), areas: val('areas'),
       languages: val('languages'), howHeard: val('howHeard'), website: val('website')
     };
+    if (photoB64) payload.photo = { base64: photoB64, mimeType: 'image/jpeg' };
     (resumeFile ? readFile(resumeFile) : Promise.resolve(null)).then(function(b64){
       if (b64) payload.resume = { base64: b64, mimeType: resumeFile.type || '', fileName: resumeFile.name };
       return resolved;
     }).then(function(){
       return raw(GAS_URL, 'publicApply', payload);
     }).then(function(r){
-      if (!r || !r.hr) throw new Error('Our application system is being updated - please try again in a few minutes.');
+      if (!r || r.hr !== 2) throw new Error('Our application system is being updated - please try again in a few minutes.');
       if (!r.ok) throw new Error(r.error || 'Something went wrong.');
       $('formCard').innerHTML = '<div class="done"><div class="big">🌱</div><h2 style="margin-top:12px">Thank you, ' + esc(payload.firstName) + '!</h2>' +
         '<p>Your application is in. We sent a confirmation to <b>' + esc(payload.email) + '</b> and will be in touch soon about next steps.</p></div>';
-      $('formCard').scrollIntoView({behavior:'smooth', block:'start'});
+      window.scrollTo({top:0, behavior:'smooth'});
     }).catch(function(x){
       btn.disabled = false; btn.textContent = 'Submit application';
       err.textContent = (x && x.message && x.message !== 'Failed to fetch') ? x.message : 'Could not send - please check your connection and try again.';

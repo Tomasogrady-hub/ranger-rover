@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jobs at Enrich LA</title>
+<meta name="description" content="Join Enrich LA - teach and grow school gardens across Los Angeles.">
+<meta property="og:title" content="Join the Enrich LA team">
+<meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
+<meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
+<!-- job.html v1.0 - 2026-11-01 - public job posting page (one per Positions row). Apply button -> apply.html?p=ID -->
+<style>
+  :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--fog);line-height:1.6}
+  .wrap{max-width:680px;margin:0 auto;padding:0 16px 120px}
+  header{background:var(--grove);color:#fff;padding:22px 16px 30px}
+  header .in{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:14px}
+  header img{width:52px;height:52px;border-radius:50%;flex-shrink:0;background:#fff}
+  header .kick{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+  header h1{margin:2px 0 0;font-size:25px;line-height:1.2}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 20px;margin-top:-14px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
+  .card + .card{margin-top:16px}
+  .posted{font-size:13px;color:var(--muted)}
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0 6px}
+  .fact{display:flex;gap:10px;font-size:15px;background:var(--fog);border-radius:10px;padding:10px 12px}
+  .fact b{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .fact .ic{font-size:18px;width:22px;text-align:center;flex-shrink:0}
+  h2{font-size:21px;margin:0 0 4px;color:var(--grove)}
+  .sec h3{font-size:17px;margin:22px 0 6px;color:var(--grove)}
+  .sec h4{font-size:15px;margin:14px 0 4px}
+  .sec p{margin:0 0 10px}
+  .sec ul{margin:0 0 10px;padding-left:20px}
+  .sec li{margin:3px 0}
+  .faq dt{font-weight:700;margin-top:12px}
+  .faq dd{margin:2px 0 0}
+  .skel{height:14px;background:linear-gradient(90deg,#eee,#f6f6f6,#eee);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:6px;margin:10px 0}
+  @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  a.apply{display:block;text-align:center;text-decoration:none;margin-top:22px;padding:16px;border-radius:11px;background:var(--orange);color:#fff;font-size:17px;font-weight:700}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:none}
+  .bar a.apply{max-width:680px;margin:0 auto}
+  .closed{background:#fff4e5;border-radius:10px;padding:12px 14px;font-weight:600;margin-top:16px}
+  .list a{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0;background:#fff}
+  .list a:hover{border-color:var(--orange)}
+  .list .t{font-weight:700;color:var(--grove);font-size:17px}
+  footer{text-align:center;margin-top:28px;font-size:13px;color:var(--muted)}
+  footer img{height:30px;display:block;margin:0 auto 6px}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <img src="la-logo.png" alt="Enrich LA" width="52" height="52">
+  <div><div class="kick">Enrich LA · Join our team</div><h1 id="hTitle">Jobs at Enrich LA</h1></div>
+</div></header>
+
+<div class="wrap">
+  <div class="card" id="main">
+    <div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:85%"></div><div class="skel" style="width:70%"></div>
+  </div>
+  <footer><img src="enrich-logo.png" alt="Enrich LA" loading="lazy">Growing school gardens across Los Angeles</footer>
+</div>
+<div class="bar" id="bar"><a class="apply" id="barBtn" href="apply.html">Apply now</a></div>
+
+<script>
+(function(){
+  var FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
+  var GAS_URL = FALLBACK_URL;
+  try { GAS_URL = localStorage.getItem('rr_gas_url') || FALLBACK_URL; } catch(e){}
+  var posId = (new URLSearchParams(location.search).get('p') || '').trim();
+  var $ = function(id){ return document.getElementById(id); };
+
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function raw(url, action, extra){
+    return fetch(url, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(Object.assign({action:action}, extra||{}))})
+      .then(function(r){ return r.json(); });
+  }
+  var resolved = raw(GAS_URL, 'getAppSettings').then(function(r){
+    if (r && r.gasUrl && r.gasUrl !== GAS_URL) { GAS_URL = r.gasUrl; try { localStorage.setItem('rr_gas_url', GAS_URL); } catch(e){} }
+  }).catch(function(){});
+
+  // Plain text from the sheet -> light HTML: "- " lines = bullets, short lines before bullets = headings.
+  function fmt(t){
+    var lines = String(t || '').replace(/\r/g,'').split('\n'), out = '', list = false;
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i].trim();
+      if (/^[-•*]\s+/.test(l)) { if (!list) { out += '<ul>'; list = true; } out += '<li>' + esc(l.replace(/^[-•*]\s+/, '')) + '</li>'; continue; }
+      if (list) { out += '</ul>'; list = false; }
+      if (!l) continue;
+      var next = (lines[i+1] || '').trim();
+      if (l.length < 60 && !/[.!?:]$/.test(l) && /^[-•*]\s+/.test(next)) out += '<h4>' + esc(l) + '</h4>';
+      else out += '<p>' + esc(l) + '</p>';
+    }
+    if (list) out += '</ul>';
+    return out;
+  }
+  // FAQ: a line ending in "?" (or starting Q:) is a question; following lines are its answer.
+  function fmtFaq(t){
+    var lines = String(t || '').replace(/\r/g,'').split('\n'), out = '', open = false;
+    lines.forEach(function(l){
+      l = l.trim(); if (!l) return;
+      if (/\?$/.test(l) || /^q[:.]\s*/i.test(l)) { out += '<dt>' + esc(l.replace(/^q[:.]\s*/i,'')) + '</dt>'; open = true; }
+      else out += '<dd>' + esc(l.replace(/^a[:.]\s*/i,'')) + '</dd>';
+    });
+    return open ? '<dl class="faq">' + out + '</dl>' : fmt(t);
+  }
+  function fact(ic, label, val){ return val ? '<div class="fact"><span class="ic">' + ic + '</span><div><b>' + label + '</b>' + esc(val) + '</div></div>' : ''; }
+  function sec(title, body){ return body ? '<h3>' + title + '</h3>' + body : ''; }
+
+  function showPosting(p){
+    $('hTitle').textContent = p.title;
+    document.title = p.title + ' | Enrich LA';
+    var applyUrl = p.formUrl || ('apply.html?p=' + encodeURIComponent(p.id));
+    var html = '<h2>' + esc(p.title) + '</h2>' + (p.date ? '<div class="posted">Posted ' + esc(p.date) + '</div>' : '') +
+      '<div class="facts">' + fact('📍','Where',p.location) + fact('🗓️','Schedule',p.schedule) + fact('⏰','When',p.when) + fact('💵','Pay',p.pay) + '</div>' +
+      '<div class="sec">' + fmt(p.description) +
+        sec('About the position', fmt(p.positionDescription)) +
+        sec('Requirements', fmt(p.requirements)) +
+        sec('Questions & answers', p.faq ? fmtFaq(p.faq) : '') +
+      '</div>';
+    if (p.open) {
+      html += '<a class="apply" href="' + esc(applyUrl) + '">Apply for this position</a>';
+      $('barBtn').href = applyUrl;
+      // Sticky Apply bar once the main button scrolls away
+      window.addEventListener('scroll', function(){
+        var b = document.querySelector('#main a.apply');
+        $('bar').style.display = (b && b.getBoundingClientRect().top < 0) ? 'block' : 'none';
+      }, {passive:true});
+    } else {
+      html += '<div class="closed">This posting is no longer accepting applications.</div>';
+    }
+    $('main').innerHTML = html;
+  }
+  function showList(list, note){
+    $('hTitle').textContent = 'Jobs at Enrich LA';
+    $('main').innerHTML = (note ? '<div class="closed" style="margin:0 0 14px">' + esc(note) + '</div>' : '') +
+      (list.length ? '<h2>Open positions</h2><div class="list">' + list.map(function(p){
+        return '<a href="?p=' + encodeURIComponent(p.id) + '"><div class="t">' + esc(p.title) + '</div><div class="posted">' + esc([p.location, p.schedule].filter(Boolean).join(' · ')) + '</div></a>';
+      }).join('') + '</div>'
+      : '<h2>Join our team</h2><p>We have no open postings right now, but we are always glad to hear from people who love gardens and kids.</p><a class="apply" href="apply.html">Send a general application</a>');
+  }
+  function load(retried){
+    return raw(GAS_URL, 'publicGetPositions', posId ? {id: posId} : {}).then(function(r){
+      if (!r || r.hr !== 2) throw new Error('stale');
+      if (r.position) return showPosting(r.position);
+      showList(r.positions || [], posId ? 'That posting could not be found - here is what is open now.' : '');
+    }).catch(function(){
+      if (retried) { $('main').innerHTML = '<h2>Join our team</h2><p>Teach hands-on garden lessons and help care for school gardens across Los Angeles.</p><a class="apply" href="apply.html' + (posId ? '?p=' + encodeURIComponent(posId) : '') + '">Apply</a>'; return; }
+      return resolved.then(function(){ return load(true); });
+    });
+  }
+  load(false);
+})();
+</script>
+</body>
+</html>
