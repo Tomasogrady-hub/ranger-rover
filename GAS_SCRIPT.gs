@@ -1563,6 +1563,7 @@ function handleUpdateChore(p) {
     var site_uc = String(data[r][h.indexOf('Site')]||'');
     Object.keys(p.updates).forEach(function(col) {
       var ci = h.indexOf(col);
+      if (ci < 0) ci = _choreColLoose(h, col);
       if (ci > -1) sheet.getRange(r + 1, ci + 1).setValue(p.updates[col]);
     });
     if ((p.updates['Status'] || '').toLowerCase() === 'closed') {
@@ -1576,6 +1577,13 @@ function handleUpdateChore(p) {
     return { ok: true };
   }
   return { ok: false, error: 'Chore not found' };
+}
+
+// Case/space-tolerant header lookup for Chores (e.g. 'Importance' vs 'importance ')
+function _choreColLoose(h, col) {
+  var want = String(col).trim().toLowerCase();
+  for (var i = 0; i < h.length; i++) if (String(h[i]).trim().toLowerCase() === want) return i;
+  return -1;
 }
 
 function handleAddChore(p) {
@@ -1612,7 +1620,10 @@ function handleAddChore(p) {
     if (h === 'Timestamp') return new Date();
     if (h === 'ID')        return newId;
     if (h === 'Status')    return p.data['Status'] || 'Open';
-    return p.data[h] !== undefined ? p.data[h] : '';
+    if (p.data[h] !== undefined) return p.data[h];
+    var hk = String(h).trim().toLowerCase();
+    var mk = Object.keys(p.data).filter(function(k){ return String(k).trim().toLowerCase() === hk; })[0];
+    return mk !== undefined ? p.data[mk] : '';
   });
   sheet.appendRow(row);
   logActivity(p.actor||p.data['Asked by']||'', 'added chore',
@@ -1664,6 +1675,7 @@ function handleSaveChore(p) {
     if (String(data[r][ii]) !== String(p.choreId)) continue;
     Object.keys(p.updates).forEach(function(col) {
       var ci = h.indexOf(col);
+      if (ci < 0) ci = _choreColLoose(h, col);
       if (ci > -1) sheet.getRange(r + 1, ci + 1).setValue(p.updates[col]);
     });
     return { ok: true };
@@ -3052,7 +3064,10 @@ function getOpenChores(imgMap) {
     return data.slice(1)
       .map(function(row) {
         var obj = {};
-        h.forEach(function(k, i) { if (keep.indexOf(k) > -1) obj[k] = row[i]; });
+        h.forEach(function(k, i) {
+          if (keep.indexOf(k) > -1) obj[k] = row[i];
+          else if (String(k).trim().toLowerCase() === 'importance') obj['Importance'] = row[i];
+        });
         imgCols.forEach(function(col) {
           if (obj[col]) obj[col] = resolveImage(String(obj[col]), imgMap || {});
         });

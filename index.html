@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.51 -->
+<!-- v11.52 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -378,6 +378,17 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 /* ── CHORE CARDS ── */
 .chore-card{background:var(--fog);border-radius:var(--r-sm);padding:14px 16px;margin-top:9px;transition:background .12s;border:1px solid var(--mist)}
 .chore-card.urgent{border-top:2px solid var(--enrich-red)}
+.chore-row{display:flex;align-items:center;gap:8px;padding:7px 10px;margin-top:5px;cursor:pointer}
+.chore-line{flex:1;min-width:0;font-size:15px;line-height:1.35}
+.chore-school{color:var(--stone);font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.chore-sep{color:var(--silver);margin:0 5px}
+.chore-task{color:var(--enrich-teal);font-weight:500}
+.imp-sel{flex:0 0 auto;width:54px;height:32px;padding:0 2px;font-size:15px;font-weight:700;border-radius:8px;border:1px solid var(--mist);background:var(--paper);color:var(--stone);text-align:center;text-align-last:center;font-family:var(--font-b);cursor:pointer}
+.imp-hi{background:#fde8e8;color:#b42318;border-color:#f3b6b6}
+.imp-mid{background:#fff4d6;color:#8a6200;border-color:#efd58a}
+.imp-lo{background:var(--fog);color:var(--stone)}
+.imp-0{color:var(--silver)}
+.imp-pill{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:700;border:1px solid var(--mist)}
 .chore-title{font-size:17px;font-weight:500;color:var(--enrich-teal);text-decoration:underline;text-underline-offset:3px;margin-bottom:4px;line-height:1.4;cursor:pointer}
 .chore-site-link{cursor:pointer}
 .chore-site-link:active,.chore-title:active{opacity:.7}
@@ -1175,7 +1186,13 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <button class="chip"        data-filter="admin"     onclick="filterChores('admin')">Admin</button>
     </div>
     <div class="page-header"><span class="page-title">Chores</span><span class="page-count" id="choresCount"></span></div>
-    <div style="padding:4px 16px 8px;display:flex;justify-content:flex-end">
+    <div style="padding:4px 16px 8px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone)">Sort
+        <select id="choreSort" onchange="setChoreSort(this.value)" style="padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;background:var(--paper)">
+          <option value="newest">Newest first</option>
+          <option value="importance">Importance (10 → 1)</option>
+          <option value="school">School A–Z</option>
+        </select></label>
       <button onclick="showAddChore()" style="padding:10px 16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">+ New Chore</button>
     </div>
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
@@ -2140,10 +2157,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.51';
+const APP_VERSION='v11.52';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-01 19:40 PT - Operations now opens with Sites / Humans switch. Humans = job postings: create, edit, duplicate, open/close, applicants per posting. New job.html posting page; apply.html is one form for every posting with photo upload.';
+const BUILD_STAMP='2026-11-04 09:30 PT - Chores list decluttered to one line (School - Chore). New Importance 1-10 on chore list (quick-edit dropdown), chore card, edit card and new chore form. Chores sort: Newest / Importance / School. Fixed chore save crash when Asked By was blank.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3039,18 +3056,40 @@ function siteNameFromKey(key,fallbackName){
 
 /* ═══ CHORE CARD HTML (list — no images for speed; photo loads in detail only) ═══ */
 function choreCardHtml(c,showSite=false){
-  const task=c.Task||c.task||'(no description)';
-  const urgency=c.Urgency||c.urgency||'';
+  const task=escHtml(c.Task||c.task||'(no description)');
+  const urgency=String(c.Urgency||c.urgency||'');
   const id=c.ID||c.id||'';
   const siteKey=c.Site||c.site||'';
-  const siteName=siteNameFromKey(siteKey);
+  const siteName=showSite?siteNameFromKey(siteKey):'';
   const isUrgent=urgency.toLowerCase().includes('asap')||urgency.toLowerCase()==='urgent';
-  // Two-line card: school name (top, muted, own link to school card) + chore name (teal, underlined, link to chore card)
-  const siteLine=siteName?`<div class="chore-site-link" style="font-size:14px;color:var(--stone);margin-bottom:3px;font-weight:500;text-decoration:underline;text-underline-offset:2px;display:inline-block" onclick="event.stopPropagation();showSchoolDetailByKey('${ea(siteKey)}')">${siteName}</div>`:'';
-  return `<div class="chore-card ${isUrgent?'urgent':''}">
-    ${siteLine}
-    <div class="chore-title" onclick="showChoreDetail('${ea(id)}')">${task}</div>
+  const imp=_choreImp(c);
+  // One line: School · Chore  + Importance quick-edit (v11.52)
+  const school=siteName?`<span class="chore-school" onclick="event.stopPropagation();showSchoolDetailByKey('${ea(siteKey)}')">${escHtml(siteName)}</span><span class="chore-sep">·</span>`:'';
+  return `<div class="chore-card chore-row ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')">
+    <div class="chore-line">${school}<span class="chore-task">${task}</span></div>
+    <select class="imp-sel ${_impCls(imp)}" title="Importance (1-10)" onclick="event.stopPropagation()" onchange="quickSetImportance('${ea(id)}',this.value,this)">${_impOpts(imp)}</select>
   </div>`;
+}
+
+// ── Chore Importance 1-10 (v11.52) — 10 = most important, blank = not rated ──
+function _choreImp(c){const v=parseInt(c&&(c.Importance!=null?c.Importance:c.importance),10);return v>=1&&v<=10?v:0;}
+function _impOpts(v){let o=`<option value=""${!v?' selected':''}>–</option>`;for(let i=1;i<=10;i++)o+=`<option value="${i}"${v===i?' selected':''}>${i}</option>`;return o;}
+function _impCls(v){return !v?'imp-0':v>=8?'imp-hi':v>=5?'imp-mid':'imp-lo';}
+function _choreSortMode(){try{return localStorage.getItem('rr_chore_sort')||'newest';}catch(e){return 'newest';}}
+function setChoreSort(m){try{localStorage.setItem('rr_chore_sort',m);}catch(e){}renderChores();}
+let _impRerenderTimer=null;
+async function quickSetImportance(id,val,el){
+  const c=DATA.chores.find(x=>String(x.ID||x.id)===String(id));if(!c)return;
+  const prev=c.Importance;const v=val===''?'':Number(val);
+  c.Importance=v;
+  try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(e){}
+  if(el)el.className='imp-sel '+_impCls(_choreImp(c));
+  if(_activeTab==='chores'&&_choreSortMode()==='importance'){clearTimeout(_impRerenderTimer);_impRerenderTimer=setTimeout(renderChores,900);}
+  try{await updateChoreApi(id,{'Importance':v});showSaveToast('✓ Importance '+(v||'cleared'));}
+  catch(e){
+    c.Importance=prev;try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(_){}
+    showSaveToast('⚠ Could not save importance — '+e.message);renderAll();
+  }
 }
 
 /* ═══ AUTH ═══ */
@@ -3451,6 +3490,7 @@ function renderChoreDetail(c,editMode){
   const urgCls=urgency.toLowerCase().includes('asap')?'urgency-asap':urgency.toLowerCase()==='urgent'?'urgency-urgent':'urgency-low';
   const isUrgentFlash=urgency.toLowerCase()==='urgent';
   const dateStr=fmtDate(c.Timestamp);
+  const imp=_choreImp(c);
 
   if(editMode){
     const urgOpts=['Urgent','ASAP','Not Urgent but still important'].map(u=>`<option value="${u}"${urgency===u?' selected':''}>${u}</option>`).join('');
@@ -3502,8 +3542,12 @@ function renderChoreDetail(c,editMode){
           </div>
         </div>
       </div>
-      <div class="edit-wrap"><div class="edit-label">Status</div>
-        <select class="edit-input" id="ce-Status">${statOpts}</select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+        <div class="edit-wrap"><div class="edit-label">Status</div>
+          <select class="edit-input" id="ce-Status">${statOpts}</select></div>
+        <div class="edit-wrap"><div class="edit-label">Importance (1-10)</div>
+          <select class="edit-input" id="ce-Importance">${_impOpts(imp)}</select></div>
+      </div>
       <hr class="section-divider">
       <div class="edit-wrap">
         <div class="edit-label">Photos (up to 3)</div>
@@ -3541,6 +3585,7 @@ function renderChoreDetail(c,editMode){
           <div class="sheet-title" style="font-size:22px;line-height:1.3;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:inline-block" onclick="showSchoolDetailByKey('${ea(siteKey)}')">${site}</div>
           <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span class="chore-badge-pill ${urgCls} ${isUrgentFlash?'flash-urgent':''}">${urgency||'Normal'}</span>
+            <span class="imp-pill ${_impCls(imp)}">Importance ${imp?imp+'/10':'–'}</span>
             ${type?`<span style="font-size:14px;color:var(--silver)">${type}</span>`:''}
             <span style="font-size:14px;color:${isOpen?'var(--sage)':'var(--silver)'};font-weight:500">${status}</span>
             ${dateStr?`<span style="font-size:14px;color:var(--silver)">${dateStr}</span>`:''}
@@ -3919,8 +3964,9 @@ async function saveChoreEdit(choreId){
     'Urgency':(document.getElementById('ce-Urgency')||{value:''}).value,
     'Type':(document.getElementById('ce-Type')||{value:''}).value,
     'Status':(document.getElementById('ce-Status')||{value:''}).value,
+    'Importance':(function(v){return v===''?'':Number(v);})((document.getElementById('ce-Importance')||{value:''}).value),
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
-    'Asked by':(document.getElementById('dsb-caskedby')||{dataset:{value:''}}).dataset.value||askedBy||(SESSION?SESSION.email:''),
+    'Asked by':(document.getElementById('dsb-caskedby')||{dataset:{value:''}}).dataset.value||((window._currentChore||{})['Asked by'])||(SESSION?SESSION.email:''),
   };
   const _pPhotos={...window._pendingChorePhotos||{}};
   const _pVidPromise=window._pendingVideoPromise;
@@ -4061,6 +4107,8 @@ function showAddChore(preSiteName,preKey){
         <select class="edit-input" id="nc-Urgency">${urgOpts}</select></div>
       <div class="edit-wrap"><div class="edit-label">Type</div>
         <select class="edit-input" id="nc-Type">${typeOpts}</select></div>
+      <div class="edit-wrap"><div class="edit-label">Importance (1-10)</div>
+        <select class="edit-input" id="nc-Importance">${_impOpts(0)}</select></div>
     </div>
     <div class="edit-wrap" style="position:relative;z-index:50">
       <div class="edit-label">Assign To</div>
@@ -4155,6 +4203,7 @@ async function saveNewChore(){
     'Additional Comments':(document.getElementById('nc-Comments')||{value:''}).value.trim(),
     'Urgency':(document.getElementById('nc-Urgency')||{value:'Not Urgent but still important'}).value,
     'Type':(document.getElementById('nc-Type')||{value:'Fieldwork'}).value,
+    'Importance':(function(v){return v===''?'':Number(v);})((document.getElementById('nc-Importance')||{value:''}).value),
     'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
     'Asked by':SESSION?SESSION.email:'',
     'Status':'Open',
@@ -5419,8 +5468,13 @@ function renderChores(){
     return true;
   });
 
-  /* ── NEWEST FIRST ── */
-  chores.sort((a,b)=>new Date(b.Timestamp||0)-new Date(a.Timestamp||0));
+  /* ── SORT (v11.52): newest | importance | school ── */
+  const _cs=_choreSortMode();
+  const _sel=document.getElementById('choreSort');if(_sel&&_sel.value!==_cs)_sel.value=_cs;
+  const _newest=(a,b)=>new Date(b.Timestamp||0)-new Date(a.Timestamp||0);
+  if(_cs==='importance')chores.sort((a,b)=>(_choreImp(b)-_choreImp(a))||_newest(a,b));
+  else if(_cs==='school')chores.sort((a,b)=>siteNameFromKey(a.Site||'').localeCompare(siteNameFromKey(b.Site||''))||(_choreImp(b)-_choreImp(a))||_newest(a,b));
+  else chores.sort(_newest);
 
   document.getElementById('choresCount').textContent=chores.length+' open';
   if(!chores.length){document.getElementById('choresList').innerHTML=empty('✓','All clear','No open chores match this filter.');return;}
@@ -11010,6 +11064,7 @@ function showUploadPrompt(mediaType){
         'Additional Comments':(document.getElementById('nc-Comments')||{value:''}).value.trim(),
         'Urgency':(document.getElementById('nc-Urgency')||{value:'Not Urgent but still important'}).value,
         'Type':(document.getElementById('nc-Type')||{value:'Fieldwork'}).value,
+        'Importance':(function(v){return v===''?'':Number(v);})((document.getElementById('nc-Importance')||{value:''}).value),
         'Assigned to':assignBtn?(assignBtn.dataset.value||''):'',
         'Asked by':SESSION?SESSION.email:'',
         'Status':'Open',
