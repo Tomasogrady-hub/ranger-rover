@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.52 -->
+<!-- v11.53 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -378,17 +378,18 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 /* ── CHORE CARDS ── */
 .chore-card{background:var(--fog);border-radius:var(--r-sm);padding:14px 16px;margin-top:9px;transition:background .12s;border:1px solid var(--mist)}
 .chore-card.urgent{border-top:2px solid var(--enrich-red)}
-.chore-row{display:flex;align-items:center;gap:8px;padding:7px 10px;margin-top:5px;cursor:pointer}
-.chore-line{flex:1;min-width:0;font-size:15px;line-height:1.35}
-.chore-school{color:var(--stone);font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
-.chore-sep{color:var(--silver);margin:0 5px}
-.chore-task{color:var(--enrich-teal);font-weight:500}
-.imp-sel{flex:0 0 auto;width:54px;height:32px;padding:0 2px;font-size:15px;font-weight:700;border-radius:8px;border:1px solid var(--mist);background:var(--paper);color:var(--stone);text-align:center;text-align-last:center;font-family:var(--font-b);cursor:pointer}
-.imp-hi{background:#fde8e8;color:#b42318;border-color:#f3b6b6}
-.imp-mid{background:#fff4d6;color:#8a6200;border-color:#efd58a}
-.imp-lo{background:var(--fog);color:var(--stone)}
-.imp-0{color:var(--silver)}
-.imp-pill{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:700;border:1px solid var(--mist)}
+.chore-card.chore-row{display:flex;align-items:center;gap:8px;background:none;border:0;border-bottom:1px solid var(--mist);border-radius:0;margin:0;padding:2px 0;cursor:pointer}
+.chore-card.chore-row.urgent{border-top:0}
+.chore-line{flex:1;min-width:0;display:flex;align-items:baseline;gap:5px;font-size:13px;line-height:1.25;white-space:nowrap}
+.chore-school{flex:1 1 54%;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--stone);font-weight:600;cursor:pointer}
+.chore-task{flex:1 1 46%;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--enrich-teal);font-weight:500}
+.chore-row.urgent .chore-task{color:var(--danger);font-weight:700}
+.imp-sel{flex:0 0 auto;width:42px;height:24px;padding:0;font-size:13px;font-weight:600;border:0;border-radius:0;background:transparent;color:var(--stone);text-align:center;text-align-last:center;font-family:var(--font-b);cursor:pointer;-webkit-appearance:none;appearance:none}
+.imp-hi{color:var(--danger);font-weight:800}
+.imp-mid{color:var(--stone)}
+.imp-lo{color:var(--silver)}
+.imp-0{color:var(--silver);font-weight:400}
+.imp-pill{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:700;border:1px solid var(--mist);background:none}
 .chore-title{font-size:17px;font-weight:500;color:var(--enrich-teal);text-decoration:underline;text-underline-offset:3px;margin-bottom:4px;line-height:1.4;cursor:pointer}
 .chore-site-link{cursor:pointer}
 .chore-site-link:active,.chore-title:active{opacity:.7}
@@ -2157,10 +2158,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.52';
+const APP_VERSION='v11.53';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-04 09:30 PT - Chores list decluttered to one line (School - Chore). New Importance 1-10 on chore list (quick-edit dropdown), chore card, edit card and new chore form. Chores sort: Newest / Importance / School. Fixed chore save crash when Asked By was blank.';
+const BUILD_STAMP='2026-11-04 18:00 PT - Chores list now plain: no boxes or shading, tight single lines (School | Chore), chore titles limited to 28 characters.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3056,7 +3057,8 @@ function siteNameFromKey(key,fallbackName){
 
 /* ═══ CHORE CARD HTML (list — no images for speed; photo loads in detail only) ═══ */
 function choreCardHtml(c,showSite=false){
-  const task=escHtml(c.Task||c.task||'(no description)');
+  const _t=String(c.Task||c.task||'(no description)');
+  const task=escHtml(_t.length>28?_t.slice(0,27).trimEnd()+'…':_t);
   const urgency=String(c.Urgency||c.urgency||'');
   const id=c.ID||c.id||'';
   const siteKey=c.Site||c.site||'';
@@ -3064,7 +3066,7 @@ function choreCardHtml(c,showSite=false){
   const isUrgent=urgency.toLowerCase().includes('asap')||urgency.toLowerCase()==='urgent';
   const imp=_choreImp(c);
   // One line: School · Chore  + Importance quick-edit (v11.52)
-  const school=siteName?`<span class="chore-school" onclick="event.stopPropagation();showSchoolDetailByKey('${ea(siteKey)}')">${escHtml(siteName)}</span><span class="chore-sep">·</span>`:'';
+  const school=siteName?`<span class="chore-school" onclick="event.stopPropagation();showSchoolDetailByKey('${ea(siteKey)}')">${escHtml(siteName)}</span>`:'';
   return `<div class="chore-card chore-row ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')">
     <div class="chore-line">${school}<span class="chore-task">${task}</span></div>
     <select class="imp-sel ${_impCls(imp)}" title="Importance (1-10)" onclick="event.stopPropagation()" onchange="quickSetImportance('${ea(id)}',this.value,this)">${_impOpts(imp)}</select>
@@ -3507,7 +3509,7 @@ function renderChoreDetail(c,editMode){
         <button class="sheet-x" onclick="closeDetailBtnChime()">✕</button>
       </div>
       <div class="edit-wrap"><div class="edit-label">Task</div>
-        <textarea class="edit-textarea" id="ce-Task">${ea(task)}</textarea></div>
+        <textarea class="edit-textarea" id="ce-Task" maxlength="28" placeholder="3-4 words">${ea(task)}</textarea></div>
       <div class="edit-wrap"><div class="edit-label">Additional Comments</div>
         <textarea class="edit-textarea" id="ce-Comments" style="min-height:70px">${ea(comments)}</textarea></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
@@ -4097,9 +4099,9 @@ function showAddChore(preSiteName,preKey){
         </div>
       </div>
     </div>
-    <div class="edit-wrap"><div class="edit-label">Task * <span id="nc-Task-count" style="font-size:12px;color:var(--silver);font-weight:400">0/30</span></div>
-      <textarea class="edit-textarea" id="nc-Task" maxlength="30" placeholder="Keep it short (30 chars max)…" oninput="(function(t){var l=t.value.length;var el=document.getElementById('nc-Task-count');if(el){el.textContent=l+'/30';el.style.color=l>=28?'var(--danger)':'var(--silver)';}if(l>=30){var h=document.getElementById('nc-task-hint');if(h)h.style.display='block';}})(this)"></textarea>
-      <div id="nc-task-hint" style="display:none;font-size:13px;color:var(--danger);margin-top:4px">✂ 30 characters max — abbreviate or cut to what's essential. Details go in Comments below.</div></div>
+    <div class="edit-wrap"><div class="edit-label">Task * <span id="nc-Task-count" style="font-size:12px;color:var(--silver);font-weight:400">0/28</span></div>
+      <textarea class="edit-textarea" id="nc-Task" maxlength="28" placeholder="Keep it short (28 chars max)…" oninput="(function(t){var l=t.value.length;var el=document.getElementById('nc-Task-count');if(el){el.textContent=l+'/28';el.style.color=l>=26?'var(--danger)':'var(--silver)';}if(l>=28){var h=document.getElementById('nc-task-hint');if(h)h.style.display='block';}})(this)"></textarea>
+      <div id="nc-task-hint" style="display:none;font-size:13px;color:var(--danger);margin-top:4px">✂ 28 characters max (3-4 words) — abbreviate or cut to what's essential. Details go in Comments below.</div></div>
     <div class="edit-wrap"><div class="edit-label">Additional Comments</div>
       <textarea class="edit-textarea" id="nc-Comments" style="min-height:70px" placeholder="Any extra notes…"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
@@ -4107,9 +4109,9 @@ function showAddChore(preSiteName,preKey){
         <select class="edit-input" id="nc-Urgency">${urgOpts}</select></div>
       <div class="edit-wrap"><div class="edit-label">Type</div>
         <select class="edit-input" id="nc-Type">${typeOpts}</select></div>
-      <div class="edit-wrap"><div class="edit-label">Importance (1-10)</div>
-        <select class="edit-input" id="nc-Importance">${_impOpts(0)}</select></div>
     </div>
+    <div class="edit-wrap"><div class="edit-label">Importance (1-10)</div>
+      <select class="edit-input" id="nc-Importance">${_impOpts(0)}</select></div>
     <div class="edit-wrap" style="position:relative;z-index:50">
       <div class="edit-label">Assign To</div>
       <div class="custom-select">
