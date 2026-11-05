@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.55 -->
+<!-- v11.56 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -410,7 +410,6 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .dd-opt{padding:9px 10px;border:1px solid transparent;border-radius:6px;background:none;font-family:var(--font-b);font-size:14px;color:var(--stone);text-align:left;cursor:pointer}
 .dd-opt.active{background:var(--grove);color:#fff;font-weight:600}
 .dd-sec{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:6px}
-.dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .dd-grid{display:grid;grid-template-columns:1fr;gap:8px}
 .dd-lab{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)}
 .dd-lab select{padding:8px 6px;border:1px solid var(--mist);border-radius:6px;font-family:var(--font-b);font-size:14px;letter-spacing:0;text-transform:none;background:var(--paper);color:var(--ink,#222);min-width:0;width:100%}
@@ -1098,19 +1097,9 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         </div>
       </div>
       <div class="dd-panel" data-dd="filter">
-        <div class="dd-sec">Role</div>
-        <div class="dd-chips" id="rangerFilters">
-      <button class="chip"        data-filter="all"                              data-label="Rangers"           onclick=\"filterRangers('all');closeDD('rgDD')\">All</button>
-      <button class="chip active" data-filter="ranger"                           data-label="Rangers"           onclick=\"filterRangers('ranger');closeDD('rgDD')\">Ranger</button>
-      <button class="chip"        data-filter="master_ranger"                    data-label="Master Rangers"    onclick=\"filterRangers('master_ranger');closeDD('rgDD')\">Master Ranger</button>
-      <button class="chip"        data-filter="garden_keeper"                    data-label="Garden Keepers"    onclick=\"filterRangers('garden_keeper');closeDD('rgDD')\">Garden Keeper</button>
-      <button class="chip"        data-filter="ranger_applicant"                 data-label="Ranger Applicants" onclick=\"filterRangers('ranger_applicant');closeDD('rgDD')\">Ranger Applicant</button>
-      <button class="chip"        data-filter="ranger_past"                      data-label="Ranger Past"       onclick=\"filterRangers('ranger_past');closeDD('rgDD')\">Ranger Past</button>
-      <button class="chip"        data-filter="ranger_applicant_did_not_work_out" data-label="Did Not Work Out" onclick=\"filterRangers('ranger_applicant_did_not_work_out');closeDD('rgDD')\">Did Not Work Out</button>
-      <button class="chip"        data-filter="ranger_onboarding"                data-label="Ranger Onboarding" onclick=\"filterRangers('ranger_onboarding');closeDD('rgDD')\">Ranger Onboarding</button>
-      <button class="chip"        data-filter="ranger_offered"                   data-label="Ranger Offered"    onclick=\"filterRangers('ranger_offered');closeDD('rgDD')\">Ranger Offered</button>
-    </div>
         <div class="dd-grid">
+          <label class="dd-lab">Role
+            <select id="rangerFilters" onchange="filterRangers(this.value);closeDD('rgDD')"><option value="all" data-label="Rangers">All</option><option value="ranger" data-label="Rangers" selected>Ranger</option><option value="master_ranger" data-label="Master Rangers">Master Ranger</option><option value="garden_keeper" data-label="Garden Keepers">Garden Keeper</option><option value="ranger_applicant" data-label="Ranger Applicants">Ranger Applicant</option><option value="ranger_past" data-label="Ranger Past">Ranger Past</option><option value="ranger_applicant_did_not_work_out" data-label="Did Not Work Out">Did Not Work Out</option><option value="ranger_onboarding" data-label="Ranger Onboarding">Ranger Onboarding</option><option value="ranger_offered" data-label="Ranger Offered">Ranger Offered</option></select></label>
           <label class="dd-lab">Uses this app
             <select id="rangerAppUserSelect" onchange="crauf=this.value;renderRangers();_initLazyImages();closeDD('rgDD')">
               <option value="all">All</option><option value="yes">Yes - has signed in</option><option value="no">No - never signed in</option>
@@ -2211,10 +2200,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.55';
+const APP_VERSION='v11.56';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-04 18:55 PT - Rangers tab decluttered: top now has just three dropdowns - Sort, Filter (roles, uses app, Ranger Number, documents, schools) and Detail (Simple, Summary, Detailed, Pictures). Each folds back up after you pick.';
+const BUILD_STAMP='2026-11-04 18:50 PT - Rangers Filter: every filter is now the same style of dropdown - Role, Uses this app, Ranger Number, Documents / Schools.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5688,9 +5677,9 @@ function updateRangerFilterCounts(){
     }
   });
   const labels={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Ranger Applicant',ranger_past:'Ranger Past',ranger_applicant_did_not_work_out:'Did Not Work Out',ranger_onboarding:'Ranger Onboarding',ranger_offered:'Ranger Offered'};
-  document.querySelectorAll('#rangerFilters .chip').forEach(c=>{
-    const f=c.dataset.filter,n=counts[f]!==undefined?counts[f]:0;
-    c.textContent=`${labels[f]||f} (${n})`;
+  document.querySelectorAll('#rangerFilters option').forEach(o=>{
+    const f=o.value,n=counts[f]!==undefined?counts[f]:0;
+    o.textContent=`${labels[f]||f} (${n})`;
   });
 }
 
@@ -9970,12 +9959,9 @@ function setSchoolClassEndFilter(v){csClassEndF=v;renderSchools();}
 function setSchoolProgStartedFilter(v){csProgStartedF=v;renderSchools();}
 function filterRangers(f){
   crf=f;
+  const sel=document.getElementById('rangerFilters');
   let matchedLabel='Rangers';
-  document.querySelectorAll('#rangerFilters .chip').forEach(c=>{
-    const active=c.dataset.filter===f;
-    c.classList.toggle('active',active);
-    if(active)matchedLabel=c.dataset.label||'Rangers';
-  });
+  if(sel){sel.value=f;const o=sel.options[sel.selectedIndex];if(o)matchedLabel=o.dataset.label||'Rangers';}
   const titleEl=document.getElementById('rangerPageTitle');
   if(titleEl)titleEl.textContent=matchedLabel;
   renderRangers();_initLazyImages();
