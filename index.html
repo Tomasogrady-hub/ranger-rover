@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.56 -->
+<!-- v11.57 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -414,13 +414,6 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .dd-lab{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)}
 .dd-lab select{padding:8px 6px;border:1px solid var(--mist);border-radius:6px;font-family:var(--font-b);font-size:14px;letter-spacing:0;text-transform:none;background:var(--paper);color:var(--ink,#222);min-width:0;width:100%}
 .dd-clear{margin-top:10px;width:100%;padding:8px;border:1px solid var(--mist);border-radius:6px;background:var(--fog);font-family:var(--font-b);font-size:13px;color:var(--stone);cursor:pointer}
-#choreFilterPanel{display:none;margin:0 16px 8px;padding:10px;border:1px solid var(--mist);border-radius:var(--r-sm)}
-#choreFilterPanel.open{display:block}
-.cf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.cf-grid label{display:flex;flex-direction:column;font-size:12px;color:var(--silver);gap:2px}
-.cf-grid select{padding:7px 6px;border:1px solid var(--mist);border-radius:6px;font-family:var(--font-b);font-size:14px;background:var(--paper);color:var(--ink,#222);min-width:0}
-.cf-btn{padding:8px 12px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--paper);font-family:var(--font-b);font-size:14px;color:var(--stone);cursor:pointer}
-.cf-btn.on{background:var(--enrich-teal);border-color:var(--enrich-teal);color:#fff;font-weight:600}
 .chore-card.chore-row{display:flex;align-items:center;gap:8px;background:none;border:0;border-bottom:1px solid var(--mist);border-radius:0;margin:0;padding:2px 0;cursor:pointer}
 .chore-card.chore-row.urgent{border-top:0}
 .chore-line{flex:1;min-width:0;display:flex;align-items:baseline;gap:5px;font-size:13px;line-height:1.25;white-space:nowrap}
@@ -1216,28 +1209,31 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 
   <!-- CHORES -->
   <div class="tab-pane" id="tab-chores">
-    <div class="filter-row" id="choresFilters">
-      <button class="chip active" data-filter="all"       onclick="filterChores('all')">All</button>
-      <button class="chip"        data-filter="asap"      onclick="filterChores('asap')">ASAP</button>
-      <button class="chip"        data-filter="urgent"    onclick="filterChores('urgent')">Urgent</button>
-      <button class="chip"        data-filter="mine"      onclick="filterChores('mine')">Mine</button>
-      <button class="chip"        data-filter="asked"     onclick="filterChores('asked')">Asked by Me</button>
-      <button class="chip"        data-filter="fieldwork" onclick="filterChores('fieldwork')">Fieldwork</button>
-      <button class="chip"        data-filter="admin"     onclick="filterChores('admin')">Admin</button>
-    </div>
     <div class="page-header"><span class="page-title">Chores</span><span class="page-count" id="choresCount"></span></div>
-    <div style="padding:4px 16px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone)">Sort
-        <select id="choreSort" onchange="setChoreSort(this.value)" style="padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;background:var(--paper)">
-          <option value="newest">Newest first</option>
-          <option value="importance">Importance (10 → 1)</option>
-          <option value="school">School A–Z</option>
-        </select></label>
-      <button type="button" id="choreFilterBtn" class="cf-btn" onclick="toggleChoreFilter()">Filter</button>
-      <span style="flex:1"></span>
+    <div class="ddwrap" id="chDD">
+      <div class="ddbar">
+        <button type="button" class="dd-btn" data-dd="sort" onclick="toggleDD('chDD','sort')"><span class="dd-k">Sort</span><span class="dd-v" id="chDDsortV">Newest first</span></button>
+        <button type="button" class="dd-btn" data-dd="filter" onclick="toggleDD('chDD','filter')"><span class="dd-k">Filter</span><span class="dd-v" id="chDDfilterV">All</span></button>
+      </div>
+      <div class="dd-panel" data-dd="sort"><div class="dd-opts" id="choreSortOpts"></div></div>
+      <div class="dd-panel" data-dd="filter">
+        <div class="dd-sec">Quick</div>
+        <div class="filter-row" id="choresFilters" style="padding:0 0 8px">
+          <button class="chip active" data-filter="all"       onclick="filterChores('all')">All</button>
+          <button class="chip"        data-filter="asap"      onclick="filterChores('asap')">ASAP</button>
+          <button class="chip"        data-filter="urgent"    onclick="filterChores('urgent')">Urgent</button>
+          <button class="chip"        data-filter="mine"      onclick="filterChores('mine')">Mine</button>
+          <button class="chip"        data-filter="asked"     onclick="filterChores('asked')">Asked by Me</button>
+          <button class="chip"        data-filter="fieldwork" onclick="filterChores('fieldwork')">Fieldwork</button>
+          <button class="chip"        data-filter="admin"     onclick="filterChores('admin')">Admin</button>
+        </div>
+        <div id="choreFilterSel"></div>
+        <button type="button" class="dd-clear" onclick="clearChoreFilters()">Clear filters</button>
+      </div>
+    </div>
+    <div style="padding:0 16px 8px;display:flex;justify-content:flex-end">
       <button onclick="showAddChore()" style="padding:10px 16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">+ New Chore</button>
     </div>
-    <div id="choreFilterPanel"></div>
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
   </div>
 
@@ -2200,10 +2196,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.56';
+const APP_VERSION='v11.57';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-04 18:50 PT - Rangers Filter: every filter is now the same style of dropdown - Role, Uses this app, Ranger Number, Documents / Schools.';
+const BUILD_STAMP='2026-11-05 10:00 PT - Chores: Sort and Filter are now the same two dropdown buttons as the Rangers tab (quick chips folded into Filter). Importance is now 1 = most important: sort puts 1 first, filter says Up to 1, 2, 3...';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3119,16 +3115,8 @@ function _chorePool(){
   const my=getMySchools();const keys=my?my.map(x=>sf(x,'Key','key')):null;
   return DATA.chores.filter(c=>keys===null||keys.includes(c.Site||''));
 }
-function _updateChoreFilterBtn(){
-  const b=document.getElementById('choreFilterBtn');if(!b)return;
-  const n=_choreFltCount();b.textContent=n?`Filter (${n})`:'Filter';b.classList.toggle('on',n>0);
-}
-function toggleChoreFilter(){
-  const p=document.getElementById('choreFilterPanel');if(!p)return;
-  if(!p.classList.contains('open')){_renderChoreFilterPanel();p.classList.add('open');}else p.classList.remove('open');
-}
 function _renderChoreFilterPanel(){
-  const p=document.getElementById('choreFilterPanel');if(!p)return;
+  const p=document.getElementById('choreFilterSel');if(!p)return;
   const pool=_chorePool(),F=_choreFlt;
   const uniq=a=>[...new Set(a.filter(Boolean))];
   const opt=(v,l,cur)=>`<option value="${ea(v)}"${String(cur)===String(v)?' selected':''}>${escHtml(l)}</option>`;
@@ -3137,25 +3125,24 @@ function _renderChoreFilterPanel(){
   const asg=uniq(pool.map(c=>lc(c['Assigned to']))).map(e=>[e,hn(e)||e]).sort((a,b)=>a[1].localeCompare(b[1]));
   const ask=uniq(pool.map(c=>lc(c['Asked by']))).map(e=>[e,hn(e)||e]).sort((a,b)=>a[1].localeCompare(b[1]));
   const urgs=uniq(pool.map(c=>String(c.Urgency||'')));
-  const sel=(id,label,opts)=>`<label>${label}<select id="${id}" onchange="_cfChange()">${opts}</select></label>`;
-  p.innerHTML=`<div class="cf-grid">
+  const sel=(id,label,opts)=>`<label class="dd-lab">${label}<select id="${id}" onchange="_cfChange()">${opts}</select></label>`;
+  p.innerHTML=`<div class="dd-grid">
     ${sel('cf-school','School',opt('','All schools',F.school)+schools.map(x=>opt(x[0],x[1],F.school)).join(''))}
     ${sel('cf-assigned','Assigned to',opt('','Anyone',F.assigned)+opt('__none','Unassigned',F.assigned)+asg.map(x=>opt(x[0],x[1],F.assigned)).join(''))}
     ${sel('cf-asked','Asked by',opt('','Anyone',F.asked)+ask.map(x=>opt(x[0],x[1],F.asked)).join(''))}
     ${sel('cf-type','Type',opt('','All types',F.type)+opt('field','Fieldwork',F.type)+opt('admin','Administrative',F.type))}
     ${sel('cf-urg','Urgency',opt('','Any',F.urg)+urgs.map(u=>opt(u,u,F.urg)).join(''))}
-    ${sel('cf-imp','Importance',opt('','Any',F.imp)+[10,9,8,7,6,5,4,3,2,1].map(n=>opt(String(n),n+' or higher',F.imp)).join('')+opt('u','Not rated yet',F.imp))}
-  </div>
-  <div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="cf-btn" onclick="clearChoreFilters()">Clear filters</button></div>`;
+    ${sel('cf-imp','Importance',opt('','Any',F.imp)+[1,2,3,4,5,6,7,8,9].map(n=>opt(String(n),n===1?'1 only (most important)':'Up to '+n,F.imp)).join('')+opt('u','Not rated yet',F.imp))}
+  </div>`;
 }
 function _cfChange(){
   const g=id=>(document.getElementById(id)||{value:''}).value;
   _choreFlt={school:g('cf-school'),assigned:g('cf-assigned'),asked:g('cf-asked'),type:g('cf-type'),urg:g('cf-urg'),imp:g('cf-imp')};
-  _updateChoreFilterBtn();renderChores();
+  renderChores();
 }
 function clearChoreFilters(){
   _choreFlt={school:'',assigned:'',asked:'',type:'',urg:'',imp:''};
-  _renderChoreFilterPanel();_updateChoreFilterBtn();renderChores();
+  filterChores('all');
 }
 
 /* ═══ CHORE CARD HTML (list — no images for speed; photo loads in detail only) ═══ */
@@ -3172,16 +3159,28 @@ function choreCardHtml(c,showSite=false){
   const school=siteName?`<span class="chore-school" onclick="event.stopPropagation();showSchoolDetailByKey('${ea(siteKey)}')">${escHtml(siteName)}</span>`:'';
   return `<div class="chore-card chore-row ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')">
     <div class="chore-line">${school}<span class="chore-task">${task}</span></div>
-    <select class="imp-sel ${_impCls(imp)}" title="Importance (1-10)" onclick="event.stopPropagation()" onchange="quickSetImportance('${ea(id)}',this.value,this)">${_impOpts(imp)}</select>
+    <select class="imp-sel ${_impCls(imp)}" title="Importance (1 = most important)" onclick="event.stopPropagation()" onchange="quickSetImportance('${ea(id)}',this.value,this)">${_impOpts(imp)}</select>
   </div>`;
 }
 
 // ── Chore Importance 1-10 (v11.52) — 10 = most important, blank = not rated ──
 function _choreImp(c){const v=parseInt(c&&(c.Importance!=null?c.Importance:c.importance),10);return v>=1&&v<=10?v:0;}
 function _impOpts(v){let o=`<option value=""${!v?' selected':''}>–</option>`;for(let i=1;i<=10;i++)o+=`<option value="${i}"${v===i?' selected':''}>${i}</option>`;return o;}
-function _impCls(v){return !v?'imp-0':v>=8?'imp-hi':v>=5?'imp-mid':'imp-lo';}
+function _impCls(v){return !v?'imp-0':v<=3?'imp-hi':v<=6?'imp-mid':'imp-lo';}
 function _choreSortMode(){try{return localStorage.getItem('rr_chore_sort')||'newest';}catch(e){return 'newest';}}
+const _SORT_LBL={newest:'Newest first',importance:'Importance (1 first)',school:'School A–Z'};
 function setChoreSort(m){try{localStorage.setItem('rr_chore_sort',m);}catch(e){}renderChores();}
+function _updateChoreBar(){
+  const m=_choreSortMode();
+  const sv=document.getElementById('chDDsortV');if(sv)sv.textContent=_SORT_LBL[m]||_SORT_LBL.newest;
+  const so=document.getElementById('choreSortOpts');
+  if(so)so.innerHTML=Object.keys(_SORT_LBL).map(k=>`<button type="button" class="dd-opt${k===m?' active':''}" onclick="setChoreSort('${k}');closeDD('chDD')">${_SORT_LBL[k]}</button>`).join('');
+  const n=_choreFltCount()+(ccf!=='all'?1:0);
+  const fv=document.getElementById('chDDfilterV');if(fv)fv.textContent=n?n+' active':'All';
+  const fb=document.querySelector('#chDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',n>0);
+  const sb=document.querySelector('#chDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',m!=='newest');
+  _renderChoreFilterPanel();
+}
 let _impRerenderTimer=null;
 async function quickSetImportance(id,val,el){
   const c=DATA.chores.find(x=>String(x.ID||x.id)===String(id));if(!c)return;
@@ -3650,7 +3649,7 @@ function renderChoreDetail(c,editMode){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
         <div class="edit-wrap"><div class="edit-label">Status</div>
           <select class="edit-input" id="ce-Status">${statOpts}</select></div>
-        <div class="edit-wrap"><div class="edit-label">Importance (1-10)</div>
+        <div class="edit-wrap"><div class="edit-label">Importance (1 = most important)</div>
           <select class="edit-input" id="ce-Importance">${_impOpts(imp)}</select></div>
       </div>
       <hr class="section-divider">
@@ -4213,7 +4212,7 @@ function showAddChore(preSiteName,preKey){
       <div class="edit-wrap"><div class="edit-label">Type</div>
         <select class="edit-input" id="nc-Type">${typeOpts}</select></div>
     </div>
-    <div class="edit-wrap"><div class="edit-label">Importance (1-10)</div>
+    <div class="edit-wrap"><div class="edit-label">Importance (1 = most important)</div>
       <select class="edit-input" id="nc-Importance">${_impOpts(0)}</select></div>
     <div class="edit-wrap" style="position:relative;z-index:50">
       <div class="edit-label">Assign To</div>
@@ -5621,19 +5620,19 @@ function renderChores(){
     if(F.asked&&String(c['Asked by']||'').toLowerCase()!==F.asked)return false;
     if(F.type&&!type.includes(F.type))return false;
     if(F.urg&&String(c.Urgency||'')!==F.urg)return false;
-    if(F.imp==='u'){if(_choreImp(c))return false;}else if(F.imp&&_choreImp(c)<Number(F.imp))return false;
+    if(F.imp==='u'){if(_choreImp(c))return false;}else if(F.imp&&(!_choreImp(c)||_choreImp(c)>Number(F.imp)))return false;
     return true;
   });
-  _updateChoreFilterBtn();
 
   /* ── SORT (v11.52): newest | importance | school ── */
   const _cs=_choreSortMode();
-  const _sel=document.getElementById('choreSort');if(_sel&&_sel.value!==_cs)_sel.value=_cs;
   const _newest=(a,b)=>new Date(b.Timestamp||0)-new Date(a.Timestamp||0);
-  if(_cs==='importance')chores.sort((a,b)=>(_choreImp(b)-_choreImp(a))||_newest(a,b));
-  else if(_cs==='school')chores.sort((a,b)=>siteNameFromKey(a.Site||'').localeCompare(siteNameFromKey(b.Site||''))||(_choreImp(b)-_choreImp(a))||_newest(a,b));
+  const _rk=c=>_choreImp(c)||99; // 1 = most important; unrated last
+  if(_cs==='importance')chores.sort((a,b)=>(_rk(a)-_rk(b))||_newest(a,b));
+  else if(_cs==='school')chores.sort((a,b)=>siteNameFromKey(a.Site||'').localeCompare(siteNameFromKey(b.Site||''))||(_rk(a)-_rk(b))||_newest(a,b));
   else chores.sort(_newest);
 
+  _updateChoreBar();
   document.getElementById('choresCount').textContent=chores.length+' open'+(_choreFltCount()?' (filtered)':'');
   if(!chores.length){document.getElementById('choresList').innerHTML=empty('✓','All clear','No open chores match this filter.');return;}
   document.getElementById('choresList').innerHTML=chores.map(c=>choreCardHtml(c,true)).join('');
