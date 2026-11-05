@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.54 -->
+<!-- v11.55 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -393,6 +393,28 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .rr-notice-t{font-size:18px;font-weight:700;color:var(--ink,#222);margin-bottom:8px}
 .rr-notice-m{font-size:15px;line-height:1.5;color:var(--stone,#444)}
 .rr-notice-b{margin-top:14px;width:100%;padding:11px;border:0;border-radius:var(--r-sm,8px);background:var(--grove,#2f6b3a);color:#fff;font-family:var(--font-b);font-size:15px;font-weight:600;cursor:pointer}
+.ddwrap{position:relative;padding:0 16px 8px}
+.ddbar{display:flex;gap:8px}
+.dd-btn{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--paper);cursor:pointer;text-align:left}
+.dd-btn .dd-k{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--silver)}
+.dd-btn .dd-v{font-family:var(--font-b);font-size:14px;color:var(--ink,#222);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.dd-btn .dd-v::after{content:" ▾";color:var(--silver)}
+.dd-btn.open{border-color:var(--grove)}
+.dd-btn.open .dd-v::after{content:" ▴"}
+.dd-btn.on{border-color:var(--enrich-teal);background:rgba(0,150,150,.07)}
+.dd-panel{display:none;margin-top:8px;padding:10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--paper);box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.dd-panel.open{display:block}
+.dd-opts{display:flex;flex-direction:column;gap:4px}
+.dd-opts-row{flex-direction:row;flex-wrap:wrap}
+.dd-opts-row .dd-opt{flex:1;text-align:center}
+.dd-opt{padding:9px 10px;border:1px solid transparent;border-radius:6px;background:none;font-family:var(--font-b);font-size:14px;color:var(--stone);text-align:left;cursor:pointer}
+.dd-opt.active{background:var(--grove);color:#fff;font-weight:600}
+.dd-sec{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:6px}
+.dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.dd-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.dd-lab{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)}
+.dd-lab select{padding:8px 6px;border:1px solid var(--mist);border-radius:6px;font-family:var(--font-b);font-size:14px;letter-spacing:0;text-transform:none;background:var(--paper);color:var(--ink,#222);min-width:0;width:100%}
+.dd-clear{margin-top:10px;width:100%;padding:8px;border:1px solid var(--mist);border-radius:6px;background:var(--fog);font-family:var(--font-b);font-size:13px;color:var(--stone);cursor:pointer}
 #choreFilterPanel{display:none;margin:0 16px 8px;padding:10px;border:1px solid var(--mist);border-radius:var(--r-sm)}
 #choreFilterPanel.open{display:block}
 .cf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -1056,34 +1078,49 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 
   <!-- RANGERS -->
   <div class="tab-pane" id="tab-rangers">
-    <div class="filter-row" id="rangerFilters">
-      <button class="chip"        data-filter="all"                              data-label="Rangers"           onclick="filterRangers('all')">All</button>
-      <button class="chip active" data-filter="ranger"                           data-label="Rangers"           onclick="filterRangers('ranger')">Ranger</button>
-      <button class="chip"        data-filter="master_ranger"                    data-label="Master Rangers"    onclick="filterRangers('master_ranger')">Master Ranger</button>
-      <button class="chip"        data-filter="garden_keeper"                    data-label="Garden Keepers"    onclick="filterRangers('garden_keeper')">Garden Keeper</button>
-      <button class="chip"        data-filter="ranger_applicant"                 data-label="Ranger Applicants" onclick="filterRangers('ranger_applicant')">Ranger Applicant</button>
-      <button class="chip"        data-filter="ranger_past"                      data-label="Ranger Past"       onclick="filterRangers('ranger_past')">Ranger Past</button>
-      <button class="chip"        data-filter="ranger_applicant_did_not_work_out" data-label="Did Not Work Out" onclick="filterRangers('ranger_applicant_did_not_work_out')">Did Not Work Out</button>
-      <button class="chip"        data-filter="ranger_onboarding"                data-label="Ranger Onboarding" onclick="filterRangers('ranger_onboarding')">Ranger Onboarding</button>
-      <button class="chip"        data-filter="ranger_offered"                   data-label="Ranger Offered"    onclick="filterRangers('ranger_offered')">Ranger Offered</button>
-    </div>
     <div class="page-header"><span class="page-title" id="rangerPageTitle">Rangers</span><span class="page-count" id="rangerCount"></span></div>
-    <div style="padding:0 16px 8px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:520px;margin:0 auto">
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Uses this app</label>
-        <select id="rangerAppUserSelect" class="settings-input" style="margin:0" onchange="crauf=this.value;renderRangers();_initLazyImages();">
-          <option value="all">All</option><option value="yes">Yes - has signed in</option><option value="no">No - never signed in</option>
-        </select>
+    <div class="ddwrap" id="rgDD">
+      <div class="ddbar">
+        <button type="button" class="dd-btn" data-dd="sort" onclick="toggleDD('rgDD','sort')"><span class="dd-k">Sort</span><span class="dd-v" id="rgDDsortV">Name A-Z</span></button>
+        <button type="button" class="dd-btn" data-dd="filter" onclick="toggleDD('rgDD','filter')"><span class="dd-k">Filter</span><span class="dd-v" id="rgDDfilterV">Ranger</span></button>
+        <button type="button" class="dd-btn" data-dd="detail" onclick="toggleDD('rgDD','detail')"><span class="dd-k">Detail</span><span class="dd-v" id="rgDDdetailV">Summary</span></button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Filter by Ranger Number</label>
-        <select id="rangerNumberFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByNumber(this.value)">
-          <option value="all">All Ranger Numbers</option>
-        </select>
+      <div class="dd-panel" data-dd="sort">
+        <div class="dd-opts" id="rangerSortOpts">
+          <button type="button" class="dd-opt" data-v="name-asc" onclick="setRangerSort('name-asc');closeDD('rgDD')">Name (A → Z)</button>
+          <button type="button" class="dd-opt" data-v="name-desc" onclick="setRangerSort('name-desc');closeDD('rgDD')">Name (Z → A)</button>
+          <button type="button" class="dd-opt" data-v="rangernum-asc" onclick="setRangerSort('rangernum-asc');closeDD('rgDD')">Ranger # (Low → High)</button>
+          <button type="button" class="dd-opt" data-v="rangernum-desc" onclick="setRangerSort('rangernum-desc');closeDD('rgDD')">Ranger # (High → Low)</button>
+          <button type="button" class="dd-opt" data-v="schools-desc" onclick="setRangerSort('schools-desc');closeDD('rgDD')">Most Schools First</button>
+          <button type="button" class="dd-opt" data-v="schools-asc" onclick="setRangerSort('schools-asc');closeDD('rgDD')">Fewest Schools First</button>
+          <button type="button" class="dd-opt" data-v="docs-complete-first" onclick="setRangerSort('docs-complete-first');closeDD('rgDD')">Docs Status (Complete First)</button>
+          <button type="button" class="dd-opt" data-v="docs-incomplete-first" onclick="setRangerSort('docs-incomplete-first');closeDD('rgDD')">Docs Status (Incomplete First)</button>
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Then Filter By</label>
-        <select id="rangerDocFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByDocStatus(this.value)">
+      <div class="dd-panel" data-dd="filter">
+        <div class="dd-sec">Role</div>
+        <div class="dd-chips" id="rangerFilters">
+      <button class="chip"        data-filter="all"                              data-label="Rangers"           onclick=\"filterRangers('all');closeDD('rgDD')\">All</button>
+      <button class="chip active" data-filter="ranger"                           data-label="Rangers"           onclick=\"filterRangers('ranger');closeDD('rgDD')\">Ranger</button>
+      <button class="chip"        data-filter="master_ranger"                    data-label="Master Rangers"    onclick=\"filterRangers('master_ranger');closeDD('rgDD')\">Master Ranger</button>
+      <button class="chip"        data-filter="garden_keeper"                    data-label="Garden Keepers"    onclick=\"filterRangers('garden_keeper');closeDD('rgDD')\">Garden Keeper</button>
+      <button class="chip"        data-filter="ranger_applicant"                 data-label="Ranger Applicants" onclick=\"filterRangers('ranger_applicant');closeDD('rgDD')\">Ranger Applicant</button>
+      <button class="chip"        data-filter="ranger_past"                      data-label="Ranger Past"       onclick=\"filterRangers('ranger_past');closeDD('rgDD')\">Ranger Past</button>
+      <button class="chip"        data-filter="ranger_applicant_did_not_work_out" data-label="Did Not Work Out" onclick=\"filterRangers('ranger_applicant_did_not_work_out');closeDD('rgDD')\">Did Not Work Out</button>
+      <button class="chip"        data-filter="ranger_onboarding"                data-label="Ranger Onboarding" onclick=\"filterRangers('ranger_onboarding');closeDD('rgDD')\">Ranger Onboarding</button>
+      <button class="chip"        data-filter="ranger_offered"                   data-label="Ranger Offered"    onclick=\"filterRangers('ranger_offered');closeDD('rgDD')\">Ranger Offered</button>
+    </div>
+        <div class="dd-grid">
+          <label class="dd-lab">Uses this app
+            <select id="rangerAppUserSelect" onchange="crauf=this.value;renderRangers();_initLazyImages();closeDD('rgDD')">
+              <option value="all">All</option><option value="yes">Yes - has signed in</option><option value="no">No - never signed in</option>
+            </select></label>
+          <label class="dd-lab">Ranger Number
+            <select id="rangerNumberFilterSelect" onchange="filterRangersByNumber(this.value);closeDD('rgDD')">
+              <option value="all">All Ranger Numbers</option>
+            </select></label>
+          <label class="dd-lab">Documents / Schools
+            <select id="rangerDocFilterSelect" class="settings-input" style="margin:0" onchange="filterRangersByDocStatus(this.value);closeDD('rgDD')">
           <option value="all">All</option>
           <optgroup label="TB + W9 + Live Scan + Contract">
             <option value="docs:complete">Complete (all + Live Scan Approved)</option>
@@ -1132,29 +1169,20 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
             <option value="schools:9">Schools 9</option>
             <option value="schools:10">Schools 10</option>
           </optgroup>
-        </select>
+        </select></label>
+        </div>
+        <button type="button" class="dd-clear" onclick="clearRangerFilters()">Clear filters</button>
+      </div>
+      <div class="dd-panel" data-dd="detail">
+        <div class="dd-opts dd-opts-row">
+          <button type="button" class="dd-opt" id="rangerViewSimpleBtn" onclick="setRangerViewMode('simple');closeDD('rgDD')">Simple</button>
+          <button type="button" class="dd-opt active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary');closeDD('rgDD')">Summary</button>
+          <button type="button" class="dd-opt" id="rangerViewDetailedBtn" onclick="setRangerViewMode('detailed');closeDD('rgDD')">Detailed</button>
+          <button type="button" class="dd-opt" id="rangerViewPicturesBtn" onclick="setRangerViewMode('pictures');closeDD('rgDD')">Pictures</button>
+        </div>
       </div>
     </div>
     <div id="rangerSummarySentence" style="padding:0 16px 8px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
-    <div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:4px;max-width:260px;margin:0 auto">
-      <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Sort By</label>
-      <select id="rangerSortSelect" class="settings-input" style="margin:0" onchange="setRangerSort(this.value)">
-        <option value="name-asc">Name (A → Z)</option>
-        <option value="name-desc">Name (Z → A)</option>
-        <option value="rangernum-asc">Ranger # (Low → High)</option>
-        <option value="rangernum-desc">Ranger # (High → Low)</option>
-        <option value="schools-desc">Most Schools First</option>
-        <option value="schools-asc">Fewest Schools First</option>
-        <option value="docs-complete-first">Docs Status (Complete First)</option>
-        <option value="docs-incomplete-first">Docs Status (Incomplete First)</option>
-      </select>
-    </div>
-    <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px">
-      <button class="chip" id="rangerViewSimpleBtn" onclick="setRangerViewMode('simple')">Simple</button>
-      <button class="chip active" id="rangerViewSummaryBtn" onclick="setRangerViewMode('summary')">Summary</button>
-      <button class="chip" id="rangerViewDetailedBtn" onclick="setRangerViewMode('detailed')">Detailed</button>
-      <button class="chip" id="rangerViewPicturesBtn" onclick="setRangerViewMode('pictures')">Pictures</button>
-    </div>
     <div class="card-list" id="rangerList"><div class="spinner"></div></div>
   </div>
 
@@ -2183,10 +2211,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.54';
+const APP_VERSION='v11.55';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-04 19:00 PT - AI is now Ladybug (animated ladybug icon, Ask Ladybug, Ladybug says). Chores: new Filter button (school, assigned, asked by, type, urgency, importance). Fix: chores for schools with no ID in the sheet now save; clear popups explain any chore problem.';
+const BUILD_STAMP='2026-11-04 18:55 PT - Rangers tab decluttered: top now has just three dropdowns - Sort, Filter (roles, uses app, Ranger Number, documents, schools) and Detail (Simple, Summary, Detailed, Pictures). Each folds back up after you pick.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5192,6 +5220,42 @@ function _renderSchoolBatch(sites,from,batchSize,cardFn){
   }
 }
 
+
+/* ═══ DROPDOWN BAR (Sort / Filter / Detail) — reusable across tabs ═══ */
+function toggleDD(wrapId,key){
+  const w=document.getElementById(wrapId);if(!w)return;
+  const willOpen=!w.querySelector(`.dd-panel[data-dd="${key}"]`).classList.contains('open');
+  w.querySelectorAll('.dd-panel').forEach(p=>p.classList.toggle('open',willOpen&&p.dataset.dd===key));
+  w.querySelectorAll('.dd-btn').forEach(b=>b.classList.toggle('open',willOpen&&b.dataset.dd===key));
+}
+function closeDD(wrapId){
+  const w=document.getElementById(wrapId);if(!w)return;
+  w.querySelectorAll('.dd-panel.open,.dd-btn.open').forEach(e=>e.classList.remove('open'));
+}
+// Tap anywhere outside an open dropdown bar folds it back up
+document.addEventListener('click',e=>{
+  document.querySelectorAll('.ddwrap').forEach(w=>{
+    if(w.querySelector('.dd-panel.open')&&!w.contains(e.target))closeDD(w.id);
+  });
+});
+const RANGER_SORT_SHORT={'name-asc':'Name A-Z','name-desc':'Name Z-A','rangernum-asc':'Ranger # Low-High','rangernum-desc':'Ranger # High-Low','schools-desc':'Most Schools','schools-asc':'Fewest Schools','docs-complete-first':'Docs Complete First','docs-incomplete-first':'Docs Incomplete First'};
+function _updateRangerDDLabels(){
+  const sv=document.getElementById('rgDDsortV'),fv=document.getElementById('rgDDfilterV'),dv=document.getElementById('rgDDdetailV');
+  if(sv)sv.textContent=RANGER_SORT_SHORT[crso]||'Name A-Z';
+  document.querySelectorAll('#rangerSortOpts .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===crso));
+  const extra=(crauf!=='all')+(crnf!=='all')+(crdf!=='all');
+  const roleLbl={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Applicant',ranger_past:'Past',ranger_applicant_did_not_work_out:'Did Not Work Out',ranger_onboarding:'Onboarding',ranger_offered:'Offered'}[crf]||'Ranger';
+  if(fv)fv.textContent=roleLbl+(extra?` +${extra}`:'');
+  const fb=document.querySelector('#rgDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',extra>0);
+  const sb=document.querySelector('#rgDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',crso!=='name-asc');
+  if(dv)dv.textContent=_rangerViewMode.charAt(0).toUpperCase()+_rangerViewMode.slice(1);
+}
+function clearRangerFilters(){
+  crauf='all';crnf='all';crdf='all';
+  ['rangerAppUserSelect','rangerNumberFilterSelect','rangerDocFilterSelect'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='all';});
+  closeDD('rgDD');
+  filterRangers('ranger');
+}
 /* ═══ RENDER RANGERS ═══ */
 let _rangerViewMode='summary'; // 'simple' | 'summary' | 'detailed' | 'pictures' — toggled via the buttons above the list
 function setRangerViewMode(mode){
@@ -5326,9 +5390,10 @@ function _updateRangerSummarySentence(count){
   } else if(docClauses){
     sentence=`${count} ${roleLabel} ${docClauses.standalone}.`;
   } else {
-    sentence=`${count} ${roleLabel} shown.`;
+    sentence='';
   }
   el.textContent=sentence;
+  el.style.display=sentence?'':'none';
 }
 // Fills the "Filter by Ranger Number" dropdown from Items All (Type 2 =
 // "Ranger Rate") — same cached list used by the Add/Edit Person Ranger
@@ -5365,6 +5430,7 @@ function renderRangers(){
   });
   rangers.sort((a,b)=>_rangerSortCompare(a,b,crso));
   _updateRangerSummarySentence(rangers.length);
+  _updateRangerDDLabels();
   document.getElementById('rangerCount').textContent=rangers.length+' rangers';
   const listEl=document.getElementById('rangerList');
   listEl.classList.toggle('pictures-grid',_rangerViewMode==='pictures');
