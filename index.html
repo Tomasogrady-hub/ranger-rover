@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.53 -->
+<!-- v11.54 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -378,6 +378,28 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 /* ── CHORE CARDS ── */
 .chore-card{background:var(--fog);border-radius:var(--r-sm);padding:14px 16px;margin-top:9px;transition:background .12s;border:1px solid var(--mist)}
 .chore-card.urgent{border-top:2px solid var(--enrich-red)}
+.lb{display:inline-block;vertical-align:middle;overflow:visible}
+.lb-anim .lb-body{transform-box:fill-box;transform-origin:50% 60%;animation:lbCrawl 2.6s ease-in-out infinite}
+@keyframes lbCrawl{0%,100%{transform:translateY(0) rotate(0)}20%{transform:translateY(-1px) rotate(-7deg)}50%{transform:translateY(0) rotate(0)}70%{transform:translateY(-1px) rotate(7deg)}}
+.lb-anim .lb-a1{transform-box:fill-box;transform-origin:100% 100%;animation:lbAnt 1.3s ease-in-out infinite}
+.lb-anim .lb-a2{transform-box:fill-box;transform-origin:0 100%;animation:lbAnt 1.3s ease-in-out infinite reverse}
+@keyframes lbAnt{0%,100%{transform:rotate(0)}50%{transform:rotate(-14deg)}}
+.lb-anim .lb-l1{animation:lbLeg .45s steps(2) infinite}
+.lb-anim .lb-l2{animation:lbLeg .45s steps(2) infinite reverse}
+@keyframes lbLeg{0%{transform:translateY(-.8px)}100%{transform:translateY(.8px)}}
+@media (prefers-reduced-motion:reduce){.lb-anim .lb-body,.lb-anim .lb-a1,.lb-anim .lb-a2,.lb-anim .lb-l1,.lb-anim .lb-l2{animation:none}}
+.rr-notice-ov{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px}
+.rr-notice{background:var(--paper,#fff);border-radius:14px;padding:18px 18px 14px;max-width:340px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.rr-notice-t{font-size:18px;font-weight:700;color:var(--ink,#222);margin-bottom:8px}
+.rr-notice-m{font-size:15px;line-height:1.5;color:var(--stone,#444)}
+.rr-notice-b{margin-top:14px;width:100%;padding:11px;border:0;border-radius:var(--r-sm,8px);background:var(--grove,#2f6b3a);color:#fff;font-family:var(--font-b);font-size:15px;font-weight:600;cursor:pointer}
+#choreFilterPanel{display:none;margin:0 16px 8px;padding:10px;border:1px solid var(--mist);border-radius:var(--r-sm)}
+#choreFilterPanel.open{display:block}
+.cf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cf-grid label{display:flex;flex-direction:column;font-size:12px;color:var(--silver);gap:2px}
+.cf-grid select{padding:7px 6px;border:1px solid var(--mist);border-radius:6px;font-family:var(--font-b);font-size:14px;background:var(--paper);color:var(--ink,#222);min-width:0}
+.cf-btn{padding:8px 12px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--paper);font-family:var(--font-b);font-size:14px;color:var(--stone);cursor:pointer}
+.cf-btn.on{background:var(--enrich-teal);border-color:var(--enrich-teal);color:#fff;font-weight:600}
 .chore-card.chore-row{display:flex;align-items:center;gap:8px;background:none;border:0;border-bottom:1px solid var(--mist);border-radius:0;margin:0;padding:2px 0;cursor:pointer}
 .chore-card.chore-row.urgent{border-top:0}
 .chore-line{flex:1;min-width:0;display:flex;align-items:baseline;gap:5px;font-size:13px;line-height:1.25;white-space:nowrap}
@@ -855,8 +877,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     <span style="font-size:11px;pointer-events:none">🟢</span><span id="onlineCount" style="font-size:16px;pointer-events:none">0</span>
   </button>
   <!-- 5b: Ask Rover (Levels 1-2) -->
-  <button id="askRoverBtn" class="hdr-btn" onclick="askRoverOpen()" style="display:none;background:#6b4fbb;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Ask Rover" aria-label="Ask Rover">
-    <span style="font-size:22px;pointer-events:none">✨</span>
+  <button id="askRoverBtn" class="hdr-btn" onclick="askRoverOpen()" style="display:none;background:#2f6b3a;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Ask Ladybug" aria-label="Ask Ladybug">
+    <span class="lb-ico" data-px="28" style="pointer-events:none;display:flex"></span>
   </button>
   <!-- 6: Refresh — icon only -->
   <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" style="background:#F5A623;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Refresh" aria-label="Refresh">
@@ -1187,15 +1209,18 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <button class="chip"        data-filter="admin"     onclick="filterChores('admin')">Admin</button>
     </div>
     <div class="page-header"><span class="page-title">Chores</span><span class="page-count" id="choresCount"></span></div>
-    <div style="padding:4px 16px 8px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <div style="padding:4px 16px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone)">Sort
         <select id="choreSort" onchange="setChoreSort(this.value)" style="padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;background:var(--paper)">
           <option value="newest">Newest first</option>
           <option value="importance">Importance (10 → 1)</option>
           <option value="school">School A–Z</option>
         </select></label>
+      <button type="button" id="choreFilterBtn" class="cf-btn" onclick="toggleChoreFilter()">Filter</button>
+      <span style="flex:1"></span>
       <button onclick="showAddChore()" style="padding:10px 16px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">+ New Chore</button>
     </div>
+    <div id="choreFilterPanel"></div>
     <div class="card-list" id="choresList"><div class="spinner"></div></div>
   </div>
 
@@ -1740,7 +1765,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">✨ AI School Summaries</div>
           <div class="settings-note">Each night at 2am, Claude reads every school's Comments, Site Details and open chores and writes a one-to-two line status with a green / amber / red flag. Shown to Levels 1-2 only. Only changed schools are re-read, so it costs pennies a month.</div>
-          <button class="settings-btn" style="margin-top:8px" onclick="_aiRunNow(this)">✨ Refresh AI Summaries</button>
+          <button class="settings-btn" style="margin-top:8px" onclick="_aiRunNow(this)">🐞 Refresh Ladybug Summaries</button>
           <div id="aiSumStatus" class="settings-note" style="margin-top:8px">–</div>
         </div>
         <div class="settings-row">
@@ -2120,14 +2145,14 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 
 <div id="askRoverPanel" style="display:none">
   <div class="ar-head">
-    <span class="ar-title">✨ Ask Rover</span>
+    <span class="ar-title"><span class="lb-ico" data-px="24"></span> Ask Ladybug</span>
     <button class="ar-hbtn" onclick="askRoverShowHints()" title="Standing hints">📌 Hints</button>
     <button class="ar-hbtn" onclick="askRoverClear()" title="New conversation">New</button>
     <button class="ar-hbtn ar-x" onclick="askRoverClose()" aria-label="Close">✕</button>
   </div>
   <div id="arMsgs" class="ar-msgs"></div>
   <div class="ar-inputrow">
-    <textarea id="arInput" rows="1" placeholder="Ask about schools, rangers, chores…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askRoverSend();}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+    <textarea id="arInput" rows="1" placeholder="Ask Ladybug about schools, rangers, chores…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askRoverSend();}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
     <button id="arSend" onclick="askRoverSend()" aria-label="Send">➤</button>
   </div>
 </div>
@@ -2158,10 +2183,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.53';
+const APP_VERSION='v11.54';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-04 18:00 PT - Chores list now plain: no boxes or shading, tight single lines (School | Chore), chore titles limited to 28 characters.';
+const BUILD_STAMP='2026-11-04 19:00 PT - AI is now Ladybug (animated ladybug icon, Ask Ladybug, Ladybug says). Chores: new Filter button (school, assigned, asked by, type, urgency, importance). Fix: chores for schools with no ID in the sheet now save; clear popups explain any chore problem.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2212,12 +2237,12 @@ function _aiFor(site){
 function _aiCardLine(site){
   const a=_aiFor(site);if(!a)return '';
   const st=_AI_ST[a.st]||_AI_ST.watch;
-  return `<div class="ai-line" style="border-left-color:${st.c}"><span class="ai-dot" style="background:${st.c}"></span>${escHtml(a.s)}</div>`;
+  return `<div class="ai-line" style="border-left-color:${st.c}">${lbSvg(13,false)} ${escHtml(a.s)}</div>`;
 }
 function _aiDetailBlock(site){
   const a=_aiFor(site);if(!a)return '';
   const st=_AI_ST[a.st]||_AI_ST.watch;
-  return `<div class="ds"><div class="dl">✨ AI Status <span class="ai-badge" style="background:${st.bg};color:${st.c}">${st.l}</span></div><div class="dv" style="font-size:16px;color:var(--stone);line-height:1.55">${escHtml(a.s)}<div style="font-size:12px;color:var(--silver);margin-top:4px">Summarised from staff comments and open chores${a.d?' · '+escHtml(a.d):''}. May be imperfect.</div></div></div>`;
+  return `<div class="ds"><div class="dl">${lbSvg(18)} Ladybug says <span class="ai-badge" style="background:${st.bg};color:${st.c}">${st.l}</span></div><div class="dv" style="font-size:16px;color:var(--stone);line-height:1.55">${escHtml(a.s)}<div style="font-size:12px;color:var(--silver);margin-top:4px">Ladybug's summary of staff comments and open chores${a.d?' · '+escHtml(a.d):''}. May be imperfect.</div></div></div>`;
 }
 async function _aiLoadSummaries(){
   if(!SESSION||SESSION.accessLevel>2||!CFG.URL)return;
@@ -2261,7 +2286,7 @@ function _arRender(){
   const box=document.getElementById('arMsgs');if(!box)return;
   let h='';
   if(!_arHist.length){
-    h=`<div class="ar-msg ar-bot">Hi ${escHtml(((SESSION&&SESSION.name)||'').split(' ')[0]||'there')} - ask me anything about schools, rangers, people or chores. I count straight from the sheets, so numbers are exact.${SESSION&&_askHintsAllowed(SESSION.accessLevel)?'\n\nTip: teach me as you go - e.g. \u201cfrom now on, don\u2019t count Tomas Test Elementary\u201d - and I\u2019ll remember it (📌 Hints).':''}<div class="ar-sugs">${_AR_SUGS.map((q,i)=>`<button class="ar-sug" onclick="askRoverSend(_AR_SUGS[${i}])">${escHtml(q)}</button>`).join('')}</div></div>`;
+    h=`<div class="ar-msg ar-bot">Hi ${escHtml(((SESSION&&SESSION.name)||'').split(' ')[0]||'there')} - I'm Ladybug. Ask me anything about schools, rangers, people or chores. I count straight from the sheets, so numbers are exact.${SESSION&&_askHintsAllowed(SESSION.accessLevel)?'\n\nTip: teach me as you go - e.g. \u201cfrom now on, don\u2019t count Tomas Test Elementary\u201d - and I\u2019ll remember it (📌 Hints).':''}<div class="ar-sugs">${_AR_SUGS.map((q,i)=>`<button class="ar-sug" onclick="askRoverSend(_AR_SUGS[${i}])">${escHtml(q)}</button>`).join('')}</div></div>`;
   }
   _arHist.forEach((m,i)=>{
     if(m.role==='user')h+=`<div class="ar-msg ar-me">${escHtml(m.text)}</div>`;
@@ -2336,7 +2361,7 @@ async function _aiRunNow(btn){
       _aiLoadSummaries();
     }
   }catch(e){if(el)el.textContent='⚠ '+e.message;}
-  if(btn){btn.disabled=false;btn.textContent='✨ Refresh AI Summaries';}
+  if(btn){btn.disabled=false;btn.textContent='🐞 Refresh Ladybug Summaries';}
 }
 let _programsLoaded=false;
 let SESSION=null;
@@ -3053,6 +3078,67 @@ function siteNameFromKey(key,fallbackName){
   // Never show a bare internal ID as if it were a school name
   if(!_siteLooksLikeKey(key))return String(key);
   return _siteMissDone.has(String(key).trim().toLowerCase())?'Unknown school (removed?)':'School (updating…)';
+}
+
+/* ═══ LADYBUG icon (v11.54) — animated only where it appears once (header, chat, school detail) ═══ */
+function lbSvg(px,anim){
+  return `<svg class="lb${anim===false?'':' lb-anim'}" width="${px}" height="${px}" viewBox="0 0 32 32" aria-hidden="true"><g class="lb-body"><g stroke="#1d1d1d" stroke-width="1.6" stroke-linecap="round" fill="none"><path class="lb-l1" d="M8 14L3 12M8 19L2.5 19M9 25L4 28"/><path class="lb-l2" d="M24 14L29 12M24 19L29.5 19M23 25L28 28"/></g><g stroke="#1d1d1d" stroke-width="1.4" stroke-linecap="round" fill="none"><path class="lb-a1" d="M14 5.5Q12.5 2.5 10 2"/><path class="lb-a2" d="M18 5.5Q19.5 2.5 22 2"/></g><ellipse cx="16" cy="19" rx="10" ry="11.5" fill="#e0301e"/><circle cx="16" cy="8" r="4.3" fill="#1d1d1d"/><path d="M16 8.5V30" stroke="#1d1d1d" stroke-width="1.3"/><circle cx="11" cy="15" r="2.2" fill="#1d1d1d"/><circle cx="21" cy="15" r="2.2" fill="#1d1d1d"/><circle cx="10.5" cy="22" r="2" fill="#1d1d1d"/><circle cx="21.5" cy="22" r="2" fill="#1d1d1d"/><circle cx="12.5" cy="27" r="1.3" fill="#1d1d1d"/><circle cx="19.5" cy="27" r="1.3" fill="#1d1d1d"/><ellipse cx="11.5" cy="11.5" rx="2.2" ry="1.2" fill="#fff" opacity=".35" transform="rotate(-30 11.5 11.5)"/></g></svg>`;
+}
+try{document.querySelectorAll('.lb-ico').forEach(e=>{e.innerHTML=lbSvg(parseInt(e.dataset.px,10)||24);});}catch(e){}
+
+// Friendly pop-up that explains WHY something could not be done (v11.54). msg is trusted HTML - escape dynamic parts.
+function showNotice(title,msg,btn){
+  const old=document.getElementById('rrNotice');if(old)old.remove();
+  const d=document.createElement('div');d.id='rrNotice';d.className='rr-notice-ov';
+  d.innerHTML=`<div class="rr-notice"><div class="rr-notice-t">${escHtml(title)}</div><div class="rr-notice-m">${msg}</div><button type="button" class="rr-notice-b">${escHtml(btn||'OK')}</button></div>`;
+  d.addEventListener('click',e=>{if(e.target===d||e.target.classList.contains('rr-notice-b'))d.remove();});
+  document.body.appendChild(d);
+}
+
+/* ═══ CHORES FILTER (v11.54) ═══ */
+let _choreFlt={school:'',assigned:'',asked:'',type:'',urg:'',imp:''};
+function _choreFltCount(){return Object.values(_choreFlt).filter(Boolean).length;}
+function _chorePool(){
+  const my=getMySchools();const keys=my?my.map(x=>sf(x,'Key','key')):null;
+  return DATA.chores.filter(c=>keys===null||keys.includes(c.Site||''));
+}
+function _updateChoreFilterBtn(){
+  const b=document.getElementById('choreFilterBtn');if(!b)return;
+  const n=_choreFltCount();b.textContent=n?`Filter (${n})`:'Filter';b.classList.toggle('on',n>0);
+}
+function toggleChoreFilter(){
+  const p=document.getElementById('choreFilterPanel');if(!p)return;
+  if(!p.classList.contains('open')){_renderChoreFilterPanel();p.classList.add('open');}else p.classList.remove('open');
+}
+function _renderChoreFilterPanel(){
+  const p=document.getElementById('choreFilterPanel');if(!p)return;
+  const pool=_chorePool(),F=_choreFlt;
+  const uniq=a=>[...new Set(a.filter(Boolean))];
+  const opt=(v,l,cur)=>`<option value="${ea(v)}"${String(cur)===String(v)?' selected':''}>${escHtml(l)}</option>`;
+  const schools=uniq(pool.map(c=>c.Site||'')).map(k=>[k,siteNameFromKey(k)]).sort((a,b)=>a[1].localeCompare(b[1]));
+  const lc=x=>String(x||'').toLowerCase();
+  const asg=uniq(pool.map(c=>lc(c['Assigned to']))).map(e=>[e,hn(e)||e]).sort((a,b)=>a[1].localeCompare(b[1]));
+  const ask=uniq(pool.map(c=>lc(c['Asked by']))).map(e=>[e,hn(e)||e]).sort((a,b)=>a[1].localeCompare(b[1]));
+  const urgs=uniq(pool.map(c=>String(c.Urgency||'')));
+  const sel=(id,label,opts)=>`<label>${label}<select id="${id}" onchange="_cfChange()">${opts}</select></label>`;
+  p.innerHTML=`<div class="cf-grid">
+    ${sel('cf-school','School',opt('','All schools',F.school)+schools.map(x=>opt(x[0],x[1],F.school)).join(''))}
+    ${sel('cf-assigned','Assigned to',opt('','Anyone',F.assigned)+opt('__none','Unassigned',F.assigned)+asg.map(x=>opt(x[0],x[1],F.assigned)).join(''))}
+    ${sel('cf-asked','Asked by',opt('','Anyone',F.asked)+ask.map(x=>opt(x[0],x[1],F.asked)).join(''))}
+    ${sel('cf-type','Type',opt('','All types',F.type)+opt('field','Fieldwork',F.type)+opt('admin','Administrative',F.type))}
+    ${sel('cf-urg','Urgency',opt('','Any',F.urg)+urgs.map(u=>opt(u,u,F.urg)).join(''))}
+    ${sel('cf-imp','Importance',opt('','Any',F.imp)+[10,9,8,7,6,5,4,3,2,1].map(n=>opt(String(n),n+' or higher',F.imp)).join('')+opt('u','Not rated yet',F.imp))}
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="cf-btn" onclick="clearChoreFilters()">Clear filters</button></div>`;
+}
+function _cfChange(){
+  const g=id=>(document.getElementById(id)||{value:''}).value;
+  _choreFlt={school:g('cf-school'),assigned:g('cf-assigned'),asked:g('cf-asked'),type:g('cf-type'),urg:g('cf-urg'),imp:g('cf-imp')};
+  _updateChoreFilterBtn();renderChores();
+}
+function clearChoreFilters(){
+  _choreFlt={school:'',assigned:'',asked:'',type:'',urg:'',imp:''};
+  _renderChoreFilterPanel();_updateChoreFilterBtn();renderChores();
 }
 
 /* ═══ CHORE CARD HTML (list — no images for speed; photo loads in detail only) ═══ */
@@ -4067,7 +4153,7 @@ function showAddChore(preSiteName,preKey){
   const myName=myEmail?(hn(myEmail)||myEmail):'';
   // Level 3: only show their assigned schools; level 1-2: all sites
   const sitesPool=(SESSION&&SESSION.accessLevel>=3)?getMySchools()||DATA.sites:DATA.sites;
-  const siteItems=sitesPool.map(s=>{const k=sf(s,'Key','key');const n=sf(s,'Name','name');return `<div class="dropdown-item" data-email="${ea(k)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}</div>`;}).join('');
+  const siteItems=sitesPool.map(s=>{const k=sf(s,'Key','key');const n=sf(s,'Name','name');return `<div class="dropdown-item" data-email="${ea(k||n)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}</div>`;}).join('');
   /* Only rangers, garden keepers, master rangers in the Assign To list */
   const assignableHumans=DATA.humans.filter(_isAssignable);
   const personOpt=h=>{const n=fullName(h)||h.Email,e=h.Email||h.email||'';return `<div class="dropdown-item" data-email="${ea(e)}" data-name="${ea(n)}" onclick="selectDropdown(this)">${n}<span style="font-size:14px;color:var(--silver);margin-left:6px">${e}</span></div>`;};
@@ -4081,7 +4167,7 @@ function showAddChore(preSiteName,preKey){
                  preSiteName?DATA.sites.find(s=>sf(s,'Name','name')===preSiteName):null;
   const preSiteLabel=preSiteName||'— Select site —';
   // Always resolve to Key. If no Key found, leave blank so user must pick manually — never store a Name.
-  const preSiteVal=(_preSite&&sf(_preSite,'Key','key'))||_preKeyClean||'';
+  const preSiteVal=(_preSite&&sf(_preSite,'Key','key'))||_preKeyClean||(_preSite?sf(_preSite,'Name','name'):'')||'';
 
   document.getElementById('detail-content').innerHTML=`
     <div class="sheet-head"><div class="sheet-title">New Chore</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
@@ -4185,16 +4271,19 @@ async function saveNewChore(){
   // Validate BEFORE closing — show error in-form so user sees it
   if(!site){
     if(m){m.className='save-msg err';m.textContent='⚠ Please select a site first.';}
+    showNotice('Pick a school first','A chore has to belong to a school. Tap the <b>Site</b> box and choose one from the list.');
     siteBtn&&siteBtn.scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
   if(!task){
     if(m){m.className='save-msg err';m.textContent='⚠ Task description is required.';}
+    showNotice('Add a chore title','Type a short title (3-4 words). Put any details in <b>Additional Comments</b>.');
     document.getElementById('nc-Task')&&document.getElementById('nc-Task').focus();
     return;
   }
-  if(task.length>30){
-    if(m){m.className='save-msg err';m.textContent=`⚠ Task name is ${task.length} chars — please shorten to 30 or fewer. Use Comments for extra detail.`;}
+  if(task.length>28){
+    if(m){m.className='save-msg err';m.textContent=`⚠ Task name is ${task.length} chars — please shorten to 28 or fewer. Use Comments for extra detail.`;}
+    showNotice('Title is too long',`The chore title is ${task.length} characters; the limit is 28 (about 3-4 words). Move the details into <b>Additional Comments</b>.`);
     document.getElementById('nc-Task')&&document.getElementById('nc-Task').focus();
     return;
   }
@@ -4227,7 +4316,9 @@ async function _execSaveNewChore(choreData,photos,vidPromise,vidInputVal){
     window._pendingVideoUrl=null;
     const res=await gasPost({action:'addChore',data:choreData,actor:SESSION?SESSION.email:''});
     if(!res||!res.ok)throw new Error((res&&res.error)||'GAS returned error — check it is redeployed');
+    const _lbl=siteNameFromKey(choreData['Site']);
     const newChore={...choreData,ID:res.id};
+    if(res.siteKey)newChore.Site=res.siteKey; // server may have created a missing school ID
     const imgCols=['Helpful Image 1','Helpful Image 2','Helpful Image 3'];
     if(res.id){
       for(let i=0;i<3;i++){
@@ -4238,9 +4329,11 @@ async function _execSaveNewChore(choreData,photos,vidPromise,vidInputVal){
     DATA.chores.unshift(newChore);
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
     renderAll();
-    showSaveToast('✓ Chore added for '+siteNameFromKey(choreData['Site']));
+    showSaveToast('✓ Chore added for '+_lbl);
   }catch(e){
     showSaveToast('⚠ Chore NOT saved — '+String(e.message||e).slice(0,120));
+    const _why=/fetch|network|load failed|offline/i.test(String(e.message||e))?'The app could not reach the server - check your connection and try again.':'The server refused it: <i>'+escHtml(String(e.message||e).slice(0,140))+'</i>';
+    showNotice('Chore was NOT saved',`Nothing was added for <b>${escHtml(siteNameFromKey(choreData['Site'])||'that school')}</b>.<br><br>${_why}<br><br>Please try adding it again.`);
     console.error('saveNewChore failed:',e);
   }
 }
@@ -5467,8 +5560,16 @@ function renderChores(){
     if(f==='fieldwork'&&!type.includes('field'))return false;
     if(f==='admin'&&!type.includes('admin'))return false;
     if(q&&!(c.Task||'').toLowerCase().includes(q)&&!siteNameFromKey(c.Site||'').toLowerCase().includes(q))return false;
+    const F=_choreFlt;
+    if(F.school&&(c.Site||'')!==F.school)return false;
+    if(F.assigned){const a=String(c['Assigned to']||'').toLowerCase();if(F.assigned==='__none'?a!=='':a!==F.assigned)return false;}
+    if(F.asked&&String(c['Asked by']||'').toLowerCase()!==F.asked)return false;
+    if(F.type&&!type.includes(F.type))return false;
+    if(F.urg&&String(c.Urgency||'')!==F.urg)return false;
+    if(F.imp==='u'){if(_choreImp(c))return false;}else if(F.imp&&_choreImp(c)<Number(F.imp))return false;
     return true;
   });
+  _updateChoreFilterBtn();
 
   /* ── SORT (v11.52): newest | importance | school ── */
   const _cs=_choreSortMode();
@@ -5478,7 +5579,7 @@ function renderChores(){
   else if(_cs==='school')chores.sort((a,b)=>siteNameFromKey(a.Site||'').localeCompare(siteNameFromKey(b.Site||''))||(_choreImp(b)-_choreImp(a))||_newest(a,b));
   else chores.sort(_newest);
 
-  document.getElementById('choresCount').textContent=chores.length+' open';
+  document.getElementById('choresCount').textContent=chores.length+' open'+(_choreFltCount()?' (filtered)':'');
   if(!chores.length){document.getElementById('choresList').innerHTML=empty('✓','All clear','No open chores match this filter.');return;}
   document.getElementById('choresList').innerHTML=chores.map(c=>choreCardHtml(c,true)).join('');
 }
@@ -15366,8 +15467,8 @@ const NAV_ALL_TABS = [
   {key:'data',     label:'🗂 Data'},
   {key:'site_ops_btn', label:'📍 Site Card: OPERATIONS Button'},
   {key:'team_email_search_btn', label:'🔎 Contact Row: Team Email Search Button'},
-  {key:'ask_rover', label:'✨ Ask Rover chat (Levels 1-2 only)'},
-  {key:'ask_hints_add', label:'📌 Ask Rover: Add / Turn Off Hints'},
+  {key:'ask_rover', label:'🐞 Ask Ladybug chat (Levels 1-2 only)'},
+  {key:'ask_hints_add', label:'📌 Ask Ladybug: Add / Turn Off Hints'},
 ];
 
 // Keys that must be explicitly turned ON per-level rather than defaulting to

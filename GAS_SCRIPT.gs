@@ -1611,7 +1611,21 @@ function handleAddChore(p) {
     if (!allKeys[siteVal]) {
       // Not a known Key — try to resolve as a Name
       var resolved = nameToKey[siteVal.toLowerCase()];
-      if (resolved) p.data['Site'] = resolved;
+      if (resolved) {
+        p.data['Site'] = resolved;
+      } else if (ski > -1 && sni > -1) {
+        // The school exists by Name but its Key cell is blank (v11.54): create a Key so the
+        // chore can be attached, and save it back to the Sites sheet.
+        for (var sr2 = 1; sr2 < sd.length; sr2++) {
+          if (String(sd[sr2][sni] || '').trim().toLowerCase() !== siteVal.toLowerCase()) continue;
+          if (String(sd[sr2][ski] || '').trim()) continue;
+          var chars = 'abcdefghijklmnopqrstuvwxyz0123456789', nk = '';
+          do { nk = ''; for (var ci2 = 0; ci2 < 7; ci2++) nk += chars.charAt(Math.floor(Math.random() * chars.length)); } while (allKeys[nk]);
+          sitesSheet.getRange(sr2 + 1, ski + 1).setValue(nk);
+          p.data['Site'] = nk;
+          break;
+        }
+      }
       // If still unresolvable, leave as-is (best effort)
     }
   }
@@ -1629,7 +1643,7 @@ function handleAddChore(p) {
   logActivity(p.actor||p.data['Asked by']||'', 'added chore',
     String(newId||''), 'chore',
     String(p.data['Task']||'') + ' — ' + String(p.data['Site']||''));
-  return { ok: true, id: newId };
+  return { ok: true, id: newId, siteKey: p.data['Site'] };
 }
 
 function handleUploadChoreImage(p) {
@@ -5948,7 +5962,7 @@ function _askRunQuery(T, q, excludes) {
 
 var ASK_HINT_TOOL = {
   name: 'save_hint',
-  description: 'Save a standing rule that Ask Rover follows in ALL future conversations. Use ONLY when the person explicitly ' +
+  description: 'Save a standing rule that Ladybug follows in ALL future conversations. Use ONLY when the person explicitly ' +
     'gives a correction or standing instruction ("don\'t count X", "from now on...", "remember that...", "X means Y"). ' +
     'Never save hints on your own initiative. Rewrite the hint as one clear sentence. If the rule is about leaving certain ' +
     'rows out of counts (test schools, closed sites, etc.), ALSO fill "exclude" so it is enforced automatically on every query.',
@@ -5998,7 +6012,7 @@ function _askSystem(T, me, hints) {
   var cache = CacheService.getScriptCache();
   schema = cache.get('ask_schema_v1');
   if (!schema) { schema = _askSchema(T); try { cache.put('ask_schema_v1', schema, 600); } catch (e) {} }
-  return 'You are Ask Rover, the data assistant inside Ranger Rover, the operations app for Enrich LA\'s school garden ' +
+  return 'You are Ladybug, the data assistant inside Ranger Rover, the operations app for Enrich LA\'s school garden ' +
     'Garden Rangers program in Los Angeles. You are talking with ' + me + ' (staff). Today is ' +
     Utilities.formatDate(new Date(), 'America/Los_Angeles', 'EEEE M/d/yyyy') + '.\n\n' +
     'RULES\n' +
@@ -6033,7 +6047,7 @@ function _askCall(apiKey, system, messages) {
 // action: askRover { accessLevel, email, question, history:[{role,text}] }
 function handleAskRover(p) {
   var lvl = parseInt(p.accessLevel || '3', 10);
-  if (!_askRoverAuthorized(lvl)) return { ok: false, error: 'Ask Rover is not turned on for your access level.' };
+  if (!_askRoverAuthorized(lvl)) return { ok: false, error: 'Ladybug is not turned on for your access level.' };
   var question = String(p.question || '').trim().slice(0, 1000);
   if (!question) return { ok: false, error: 'Empty question' };
   var apiKey = _aiApiKey();
@@ -6068,7 +6082,7 @@ function handleAskRover(p) {
     if (!toolUses.length || body.stop_reason !== 'tool_use') {
       var answer = content.filter(function(c) { return c.type === 'text'; }).map(function(c) { return c.text; }).join('\n').trim();
       try {
-        logActivity(p.email || '', 'asked Rover', question.slice(0, 120), 'ai', '');
+        logActivity(p.email || '', 'asked Ladybug', question.slice(0, 120), 'ai', '');
       } catch (e) {}
       return { ok: true, answer: answer || '(No answer - try rephrasing.)', links: lastLinks, linkTable: lastTable,
                linkCount: lastCount, queries: queries, ms: Date.now() - t0, tokens: { in: usageIn, out: usageOut },
