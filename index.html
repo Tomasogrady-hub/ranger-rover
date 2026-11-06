@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.57 -->
+<!-- v11.58 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2196,10 +2196,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.57';
+const APP_VERSION='v11.58';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-05 10:00 PT - Chores: Sort and Filter are now the same two dropdown buttons as the Rangers tab (quick chips folded into Filter). Importance is now 1 = most important: sort puts 1 first, filter says Up to 1, 2, 3...';
+const BUILD_STAMP='2026-11-05 17:40 PT - Videos now play inside the app in a pop-up player (no download). iPhone .mov clips are converted to MP4 on the fly so they play on Windows and Android. Drive and YouTube videos play in the same player.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2730,13 +2730,91 @@ function isVideoLink(url){
 }
 function videoLinkHtml(url){
   if(!url)return '';
-  let label='▶ View Video';
-  if(url.includes('youtube')||url.includes('youtu.be'))label='▶ Watch on YouTube';
+  url=String(url).trim();
+  let label='▶ Play Video';
+  if(url.includes('youtube')||url.includes('youtu.be'))label='▶ Play Video';
   else if(url.includes('photos.app.goo.gl'))label='▶ View in Google Photos';
-  else if(url.includes('cloudinary.com'))label='▶ Play Video';
-  else label='▶ View Video in Drive';
-  return `<a href="${url}" target="_blank" rel="noopener"
+  // Google Photos share links cannot be embedded — those still open in a new tab
+  if(url.includes('photos.app.goo.gl')){
+    return `<a href="${ea(url)}" target="_blank" rel="noopener"
     style="display:inline-flex;align-items:center;gap:8px;padding:13px 18px;background:var(--grove);color:white;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;text-decoration:none;letter-spacing:.04em;margin-top:8px">${label}</a>`;
+  }
+  return `<button type="button" data-vurl="${ea(url)}" onclick="openVideoPlayer(this.dataset.vurl)"
+    style="display:inline-flex;align-items:center;gap:8px;padding:13px 18px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;cursor:pointer;letter-spacing:.04em;margin-top:8px">${label}</button>`;
+}
+
+/* ── IN-APP VIDEO PLAYER (v11.58) ──────────────────────────────────────────
+   Videos play inside the app instead of opening a link that the browser
+   downloads. Cloudinary clips (often .mov from iPhones, which Chrome on
+   Windows/Android downloads instead of playing) are requested as H.264 MP4
+   via an on-the-fly Cloudinary transformation, which plays everywhere.
+   Nothing is fetched until the user taps Play (speed rule). */
+function _cldVideoVariant(url,transform,ext){
+  const m=url.match(/^(https?:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(.*)$/);
+  if(!m)return null;
+  let rest=m[2];
+  // keep only the version + public id (drop any existing transformation segments)
+  const vi=rest.search(/(^|\/)v\d+\//);
+  if(vi>=0)rest=rest.slice(vi===0?0:vi+1);
+  rest=rest.replace(/\.[A-Za-z0-9]{2,5}$/,'')+'.'+ext;
+  return m[1]+transform+'/'+rest;
+}
+function _videoEmbedInfo(url){
+  const u=(url||'').trim();
+  if(u.includes('res.cloudinary.com')&&u.includes('/video/upload/')){
+    return{kind:'video',
+      src:_cldVideoVariant(u,'f_mp4,vc_h264,q_auto','mp4')||u,
+      poster:_cldVideoVariant(u,'so_0,f_jpg,w_720','jpg')||'',
+      orig:u};
+  }
+  let m=u.match(/drive\.google\.com\/file\/d\/([^/?#]+)/)||u.match(/drive\.google\.com\/(?:open|uc)\?(?:.*&)?id=([^&#]+)/);
+  if(m)return{kind:'iframe',src:'https://drive.google.com/file/d/'+m[1]+'/preview',orig:u};
+  m=u.match(/youtu\.be\/([^?&#/]+)/)||u.match(/youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)([^?&#/]+)/);
+  if(m)return{kind:'iframe',src:'https://www.youtube.com/embed/'+m[1]+'?autoplay=1&playsinline=1&rel=0',orig:u};
+  if(/\.(mp4|webm|m4v|mov|ogg)(\?|#|$)/i.test(u))return{kind:'video',src:u,poster:'',orig:u};
+  return{kind:'link',src:u,orig:u};
+}
+function openVideoPlayer(url){
+  const info=_videoEmbedInfo(url);
+  if(!info.src)return;
+  if(info.kind==='link'){window.open(info.src,'_blank','noopener');return;}
+  closeVideoPlayer(true);
+  const el=document.createElement('div');
+  el.id='rr-video-player';
+  el.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  const media=info.kind==='video'
+    ?`<video id="rr-vp-video" src="${ea(info.src)}" ${info.poster?`poster="${ea(info.poster)}"`:''} controls autoplay playsinline preload="auto" controlslist="nodownload" style="max-width:100%;max-height:80vh;width:100%;background:#000;border-radius:8px"></video>`
+    :`<iframe src="${ea(info.src)}" allow="autoplay; fullscreen; encrypted-media" allowfullscreen style="width:100%;max-width:900px;aspect-ratio:16/9;max-height:80vh;border:0;border-radius:8px;background:#000"></iframe>`;
+  el.innerHTML=`
+    <button type="button" onclick="closeVideoPlayer()" aria-label="Close video"
+      style="position:absolute;top:max(12px,env(safe-area-inset-top));right:12px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:24px;line-height:44px;cursor:pointer">✕</button>
+    <div style="width:100%;max-width:900px;display:flex;justify-content:center">${media}</div>
+    <div id="rr-vp-msg" style="color:#ddd;font-family:var(--font-b);font-size:14px;margin-top:12px;text-align:center;min-height:18px"></div>`;
+  el.addEventListener('click',e=>{if(e.target===el)closeVideoPlayer();});
+  document.body.appendChild(el);
+  const v=document.getElementById('rr-vp-video');
+  if(v){
+    let triedOrig=false;
+    v.addEventListener('error',()=>{
+      // MP4 conversion failed (e.g. still processing) — try the original file once
+      if(!triedOrig&&info.orig&&info.orig!==info.src){triedOrig=true;v.src=info.orig;v.play().catch(()=>{});return;}
+      const msg=document.getElementById('rr-vp-msg');
+      if(msg)msg.textContent='This video could not be played here. Please try again in a minute.';
+    });
+  }
+  try{history.pushState({rrNav:true,tab:_activeTab,rrVideo:true},'','');}catch(e){}
+  window._rrVideoOpen=true;
+}
+function closeVideoPlayer(silent){
+  const el=document.getElementById('rr-video-player');
+  if(!el)return;
+  const v=el.querySelector('video');
+  if(v){try{v.pause();v.removeAttribute('src');v.load();}catch(e){}}
+  el.remove();
+  const wasOpen=window._rrVideoOpen;
+  window._rrVideoOpen=false;
+  // Closed with the ✕ button: consume the history entry we pushed
+  if(!silent&&wasOpen&&!window._rrVideoClosingByBack){try{history.back();window._rrVideoSkipPop=true;}catch(e){}}
 }
 
 function dc(d=''){d=d.toLowerCase();if(d.includes('glendale'))return 'gusd';if(d.includes('bellflower')||d.includes('burbank'))return 'busd';if(d.includes('los angeles')||d.includes('lausd'))return 'lausd';return 'other';}
@@ -9888,6 +9966,8 @@ function _navHome(){
   _updateNavUtilBar();
 }
 window.addEventListener('popstate',()=>{
+  if(window._rrVideoSkipPop){window._rrVideoSkipPop=false;return;}
+  if(window._rrVideoOpen){window._rrVideoClosingByBack=true;closeVideoPlayer();window._rrVideoClosingByBack=false;return;}
   const overlay=document.getElementById('detail-overlay');
   if(overlay&&overlay.classList.contains('open')){
     closeDetailImmediate();
