@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.59 -->
+<!-- v11.60 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2196,10 +2196,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.59';
+const APP_VERSION='v11.60';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-05 18:05 PT - Chores: Importance removed from Add Chore form and hidden from Level 3 everywhere. Photo uploaded screen now says OK name, your photo has been uploaded with two clear choices: I am all set (saves and closes) or Add more details.';
+const BUILD_STAMP='2026-11-05 18:20 PT - Just-uploaded photos and videos show right away from a local copy on the uploading device, with a Don’t worry, your photo is saved - still processing note, until Google or Cloudinary finishes.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2681,9 +2681,90 @@ function toE164US(raw){
   return s;
 }
 
+/* ── JUST-UPLOADED MEDIA (v11.60) ─────────────────────────────────────────
+   Google Drive and Cloudinary can take a few minutes before a new photo or
+   video is viewable. This device keeps a small local copy of what it just
+   uploaded and shows that instead, with a "Saved - still processing" note,
+   until the real file is ready. Thumbnails are ~480px (a few dozen KB),
+   kept for 2 hours, max 12, in localStorage. Videos keep an in-memory copy
+   for this session only. Nothing extra is downloaded. */
+const _RR_PEND_KEY='rr_pending_media',_RR_PEND_MS=2*60*60*1000;
+const _rrLocalVideo={};const _rrProbeAt={};let _rrPendCache=null;
+function _rrMediaKey(url){
+  if(!url)return '';url=String(url).trim();
+  const m=url.match(/[?&]id=([a-zA-Z0-9_-]+)/)||url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if(m)return 'd:'+m[1];
+  if(url.includes('res.cloudinary.com'))return 'c:'+url.replace(/^.*\/upload\/(?:[^/]*,[^/]*\/)*/,'').replace(/\.[A-Za-z0-9]{2,5}$/,'');
+  return '';
+}
+function _rrPendLoad(){
+  if(_rrPendCache)return _rrPendCache;
+  let o={};try{o=JSON.parse(localStorage.getItem(_RR_PEND_KEY)||'{}')||{};}catch(e){}
+  const now=Date.now();Object.keys(o).forEach(k=>{if(!o[k]||now-o[k].t>(o[k].kind==='video'?20*60*1000:_RR_PEND_MS))delete o[k];});
+  return (_rrPendCache=o);
+}
+function _rrPendSave(){
+  const o=_rrPendLoad();const keys=Object.keys(o).sort((a,b)=>o[b].t-o[a].t);
+  keys.slice(12).forEach(k=>delete o[k]);
+  try{localStorage.setItem(_RR_PEND_KEY,JSON.stringify(o));}
+  catch(e){Object.keys(o).forEach(k=>{delete o[k].thumb;});try{localStorage.setItem(_RR_PEND_KEY,JSON.stringify(o));}catch(_){}}
+}
+function _rrMakeThumb(file,max){
+  return new Promise(res=>{
+    try{
+      const u=URL.createObjectURL(file),img=new Image();
+      img.onload=()=>{try{const sc=Math.min(1,(max||480)/Math.max(img.naturalWidth,img.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);const d=c.toDataURL('image/jpeg',0.7);res(d&&d.length>30?d:null);}catch(e){URL.revokeObjectURL(u);res(null);}};
+      img.onerror=()=>{URL.revokeObjectURL(u);res(null);};
+      img.src=u;
+    }catch(e){res(null);}
+  });
+}
+async function _rrMarkPending(url,file,kind){
+  const k=_rrMediaKey(url);if(!k)return;
+  const o=_rrPendLoad();
+  o[k]={t:Date.now(),kind:kind||'photo'};
+  if(kind==='video'){try{if(file)_rrLocalVideo[k]=URL.createObjectURL(file);}catch(e){}}
+  else if(file){const th=await _rrMakeThumb(file,480);if(th)o[k].thumb=th;}
+  _rrPendSave();
+}
+function _rrIsPending(url){const k=_rrMediaKey(url);return !!(k&&_rrPendLoad()[k]);}
+function _rrClearPending(k){const o=_rrPendLoad();if(o[k]){delete o[k];_rrPendSave();}}
+// Returns the local copy for a just-uploaded Drive photo (and quietly checks
+// whether Google has finished; once it has, the real photo is used again).
+function _rrPendingThumb(url){
+  const k=_rrMediaKey(url);if(!k||k[0]!=='d')return '';
+  const e=_rrPendLoad()[k];if(!e||!e.thumb)return '';
+  const now=Date.now();
+  if(!_rrProbeAt[k]||now-_rrProbeAt[k]>60000){
+    _rrProbeAt[k]=now;
+    const p=new Image();
+    p.onload=()=>{if(p.naturalWidth>1)_rrClearPending(k);};
+    p.src='https://lh3.googleusercontent.com/d/'+k.slice(2)+'=w40';
+  }
+  return e.thumb+'#rrpending';
+}
+function _rrProcessingNoteHtml(kind){
+  return `<div class="rr-proc-note" style="display:flex;gap:10px;align-items:flex-start;background:#eef7ee;border:1px solid #b9dcb9;color:#1e3a1e;border-radius:var(--r-sm);padding:10px 12px;margin:8px 0 12px;font-size:14px;line-height:1.45">
+    <span style="font-size:20px;line-height:1">✅</span>
+    <span><b>Don’t worry, your ${kind==='video'?'video':'photo'} is saved.</b> It can take a few minutes to finish processing. Until then you’re seeing the copy from this device. Nothing else to do.</span></div>`;
+}
+// When a local copy shows on screen, add the reassurance note once
+document.addEventListener('load',e=>{
+  const img=e.target;
+  if(!img||img.tagName!=='IMG'||!(img.currentSrc||img.src||'').endsWith('#rrpending'))return;
+  const host=img.closest('#detail-content');
+  if(host){
+    if(!host.querySelector('.rr-proc-note'))host.insertAdjacentHTML('afterbegin',_rrProcessingNoteHtml('photo'));
+  }else{
+    const now=Date.now();
+    if(!window._rrProcToastAt||now-window._rrProcToastAt>120000){window._rrProcToastAt=now;showSaveToast('✅ Your new photo is saved - still processing, showing your copy for now');}
+  }
+},true);
+
 function getImgSrc(url){
   if(!url||typeof url!=='string'||url.trim()==='')return '';
   url=url.trim();
+  {const _loc=_rrPendingThumb(url);if(_loc)return _loc;}
   if(url.startsWith('https://lh3.googleusercontent.com/'))return url;
   const openM=url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if(openM)return `https://lh3.googleusercontent.com/d/${openM[1]}`;
@@ -2739,8 +2820,9 @@ function videoLinkHtml(url){
     return `<a href="${ea(url)}" target="_blank" rel="noopener"
     style="display:inline-flex;align-items:center;gap:8px;padding:13px 18px;background:var(--grove);color:white;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;text-decoration:none;letter-spacing:.04em;margin-top:8px">${label}</a>`;
   }
+  const pend=_rrIsPending(url)?`<div style="font-size:13px;color:var(--sage);margin-top:6px">✅ Saved - may take a few minutes to finish processing</div>`:'';
   return `<button type="button" data-vurl="${ea(url)}" onclick="openVideoPlayer(this.dataset.vurl)"
-    style="display:inline-flex;align-items:center;gap:8px;padding:13px 18px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;cursor:pointer;letter-spacing:.04em;margin-top:8px">${label}</button>`;
+    style="display:inline-flex;align-items:center;gap:8px;padding:13px 18px;background:var(--grove);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;font-weight:500;cursor:pointer;letter-spacing:.04em;margin-top:8px">${label}</button>${pend}`;
 }
 
 /* ── IN-APP VIDEO PLAYER (v11.58) ──────────────────────────────────────────
@@ -2776,6 +2858,8 @@ function _videoEmbedInfo(url){
 }
 function openVideoPlayer(url){
   const info=_videoEmbedInfo(url);
+  const _pk=_rrMediaKey(url),_pending=_rrIsPending(url),_local=_pk&&_rrLocalVideo[_pk];
+  if(_pending&&_local){info.kind='video';info.src=_local;info.poster='';}
   if(!info.src)return;
   if(info.kind==='link'){window.open(info.src,'_blank','noopener');return;}
   closeVideoPlayer(true);
@@ -2789,7 +2873,7 @@ function openVideoPlayer(url){
     <button type="button" onclick="closeVideoPlayer()" aria-label="Close video"
       style="position:absolute;top:max(12px,env(safe-area-inset-top));right:12px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:24px;line-height:44px;cursor:pointer">✕</button>
     <div style="width:100%;max-width:900px;display:flex;justify-content:center">${media}</div>
-    <div id="rr-vp-msg" style="color:#ddd;font-family:var(--font-b);font-size:14px;margin-top:12px;text-align:center;min-height:18px"></div>`;
+    <div id="rr-vp-msg" style="color:#ddd;font-family:var(--font-b);font-size:14px;margin-top:12px;text-align:center;min-height:18px;max-width:520px;line-height:1.45">${_pending?(_local?'✅ Your video is saved. It is still processing in the cloud, so this is the copy from your device.':'✅ Your video is saved. It can take a few minutes to finish processing.'):''}</div>`;
   el.addEventListener('click',e=>{if(e.target===el)closeVideoPlayer();});
   document.body.appendChild(el);
   const v=document.getElementById('rr-vp-video');
@@ -2799,7 +2883,7 @@ function openVideoPlayer(url){
       // MP4 conversion failed (e.g. still processing) — try the original file once
       if(!triedOrig&&info.orig&&info.orig!==info.src){triedOrig=true;v.src=info.orig;v.play().catch(()=>{});return;}
       const msg=document.getElementById('rr-vp-msg');
-      if(msg)msg.textContent='This video could not be played here. Please try again in a minute.';
+      if(msg)msg.textContent=_pending?'✅ Don’t worry, your video is saved. It is still processing - please check back in a few minutes.':'This video could not be played here. Please try again in a minute.';
     });
   }
   try{history.pushState({rrNav:true,tab:_activeTab,rrVideo:true},'','');}catch(e){}
@@ -10550,6 +10634,7 @@ async function _doVideoUpload(file, saveFn, colName, dataUpdater){
       _updateVideoOverlay(0,'Uploading video…','Please keep the app open');
       document.getElementById('vuo-actions').style.display='none';
       const url=await _uploadToCloudinaryXHR(f);
+      _rrMarkPending(url,f,'video');
       // Success
       _updateVideoOverlay(100,'✓ Video uploaded!','Saving…');
       dataUpdater(url);
@@ -10732,6 +10817,7 @@ async function handleSelfPhotoFile(file,email){
   try{
     const url=await _uploadHumanPhoto(email,file);
     if(!url)throw new Error('Upload failed');
+    await _rrMarkPending(url,file,'photo');
     await saveToSheet('Humans',email,{'Main Image':url});
     const h=DATA.humans.find(x=>(x.Email||x.email||'').toLowerCase()===email.toLowerCase());
     if(h)h['Main Image']=url;
@@ -10973,6 +11059,7 @@ async function _doPhotoUploadWithOverlay(file,context,onSuccess,onCancel){
         }
       }
       const url=await _uploadPhotoXHR(_uf,payload);
+      await _rrMarkPending(url,_uf,'photo');
       const _first=((SESSION&&(SESSION.name||''))||'').trim().split(/\s+/)[0]||'';
       const _what=context.type==='site'?'school':context.type==='chore'?'chore':'card';
       _updatePhotoOverlay(100,(_first?'OK '+_first+', y':'Y')+'our photo has been uploaded','You\u2019re all set. Tap <b>I\u2019m all set</b> to save and close this '+_what+', or <b>Add more details</b> to keep working on it.');
