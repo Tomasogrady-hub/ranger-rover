@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.60 -->
+<!-- v11.61 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -420,6 +420,16 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .chore-school{flex:1 1 54%;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--stone);font-weight:600;cursor:pointer}
 .chore-task{flex:1 1 46%;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--enrich-teal);font-weight:500}
 .chore-row.urgent .chore-task{color:var(--danger);font-weight:700}
+.chm-btn{flex:0 0 auto;width:34px;height:26px;padding:0;border:0;background:transparent;color:var(--silver);font-size:16px;line-height:1;cursor:pointer;text-align:center}
+.chm-pop{position:fixed;z-index:6000;min-width:200px;max-width:260px;background:var(--paper,#fff);border:1px solid var(--mist);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.22);padding:4px;display:flex;flex-direction:column}
+.chm-i{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 12px;border:0;background:none;border-radius:7px;font-family:var(--font-b);font-size:15px;color:var(--ink,#222);text-align:left;cursor:pointer}
+.chm-i:active{background:var(--fog)}
+.chm-del{color:var(--danger)}
+.chm-cur{margin-left:auto;font-weight:700;color:var(--grove)}
+.chm-imp{display:none;flex-wrap:wrap;gap:4px;padding:4px 8px 8px}
+.chm-imp.open{display:flex}
+.chm-n{width:34px;height:32px;border:1px solid var(--mist);border-radius:6px;background:var(--fog);font-family:var(--font-b);font-size:14px;font-weight:600;color:var(--stone);cursor:pointer}
+.chm-n.on{background:var(--grove);color:#fff;border-color:var(--grove)}
 .imp-sel{flex:0 0 auto;width:42px;height:24px;padding:0;font-size:13px;font-weight:600;border:0;border-radius:0;background:transparent;color:var(--stone);text-align:center;text-align-last:center;font-family:var(--font-b);cursor:pointer;-webkit-appearance:none;appearance:none}
 .imp-hi{color:var(--danger);font-weight:800}
 .imp-mid{color:var(--stone)}
@@ -934,135 +944,72 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 
   <!-- SCHOOLS -->
   <div class="tab-pane" id="tab-schools">
-    <div id="schoolFilters" style="padding:10px 16px 4px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:680px;margin:0 auto;border-bottom:1px solid var(--mist)">
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program</label>
-        <select id="schoolProgramFilter" class="settings-input" style="margin:0" onchange="setSchoolProgramFilter(this.value)">
-          <option value="all">All</option>
-          <option value="Active Ranger Program" selected>Active Ranger Program</option>
-          <option value="Future Ranger Program">Future Ranger Program</option>
-          <option value="Inactive Ranger Program">Inactive Ranger Program</option>
-          <option value="Possible Ranger Program">Possible Ranger Program</option>
-        </select>
+    <div class="ddwrap" id="scDD">
+      <div class="ddbar">
+        <button type="button" class="dd-btn" data-dd="sort" onclick="toggleDD('scDD','sort')"><span class="dd-k">Sort</span><span class="dd-v" id="scDDsortV">Name A-Z</span></button>
+        <button type="button" class="dd-btn" data-dd="filter" id="scDDfilterBtn" onclick="toggleDD('scDD','filter')"><span class="dd-k">Filter</span><span class="dd-v" id="scDDfilterV">Active</span></button>
+        <button type="button" class="dd-btn" data-dd="detail" onclick="toggleDD('scDD','detail')"><span class="dd-k">Detail</span><span class="dd-v" id="scDDdetailV">Summary</span></button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By District</label>
-        <select id="schoolDistrictFilter" class="settings-input" style="margin:0" onchange="setSchoolDistrictFilter(this.value)">
-          <option value="all">All Districts</option>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Placement</label>
-        <select id="schoolPlacementFilter" class="settings-input" style="margin:0" onchange="setSchoolPlacementFilter(this.value)">
-          <option value="all">All</option>
-          <option value="assigned">Assigned</option>
-          <option value="unassigned">Unassigned</option>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:row;gap:8px;flex:2;min-width:300px">
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger</label>
-          <select id="schoolRangerFilter" class="settings-input" style="margin:0" onchange="setSchoolRangerFilter(this.value)">
-            <option value="all">All Rangers</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Number</label>
-          <select id="schoolRangerNumberFilter" class="settings-input" style="margin:0" onchange="setSchoolRangerNumberFilter(this.value)">
-            <option value="all">All Ranger Numbers</option>
-          </select>
+      <div class="dd-panel" data-dd="sort">
+        <div class="dd-opts" id="schoolSortOpts">
+          <button type="button" class="dd-opt" data-v="name-asc" onclick="setSchoolSort('name-asc');closeDD('scDD')">Name (A → Z)</button>
+          <button type="button" class="dd-opt" data-v="name-desc" onclick="setSchoolSort('name-desc');closeDD('scDD')">Name (Z → A)</button>
+          <button type="button" class="dd-opt" data-v="distance-asc" onclick="setSchoolSort('distance-asc');closeDD('scDD')">Distance (Nearest First)</button>
+          <button type="button" class="dd-opt" data-v="classstart-asc" onclick="setSchoolSort('classstart-asc');closeDD('scDD')">Classes Start Date (Earliest First)</button>
+          <button type="button" class="dd-opt" data-v="classstart-desc" onclick="setSchoolSort('classstart-desc');closeDD('scDD')">Classes Start Date (Latest First)</button>
+          <button type="button" class="dd-opt" data-v="classend-asc" onclick="setSchoolSort('classend-asc');closeDD('scDD')">Classes End Date (Earliest First)</button>
+          <button type="button" class="dd-opt" data-v="classend-desc" onclick="setSchoolSort('classend-desc');closeDD('scDD')">Classes End Date (Latest First)</button>
+          <button type="button" class="dd-opt" data-v="lastupdate-desc" onclick="setSchoolSort('lastupdate-desc');closeDD('scDD')">Last Update (Newest First)</button>
+          <button type="button" class="dd-opt" data-v="lastupdate-asc" onclick="setSchoolSort('lastupdate-asc');closeDD('scDD')">Last Update (Oldest First)</button>
+          <button type="button" class="dd-opt" data-v="progstarted-first" onclick="setSchoolSort('progstarted-first');closeDD('scDD')">Program Started First</button>
+          <button type="button" class="dd-opt" data-v="ranger-asc" onclick="setSchoolSort('ranger-asc');closeDD('scDD')">Ranger Name (A → Z)</button>
+          <button type="button" class="dd-opt" data-v="district-asc" onclick="setSchoolSort('district-asc');closeDD('scDD')">District (A → Z)</button>
+          <button type="button" class="dd-opt" data-v="program-asc" onclick="setSchoolSort('program-asc');closeDD('scDD')">Program Type (A → Z)</button>
+          <button type="button" class="dd-opt" data-v="units-desc" onclick="setSchoolSort('units-desc');closeDD('scDD')">Ranger Program Units (High → Low)</button>
+          <button type="button" class="dd-opt" data-v="units-asc" onclick="setSchoolSort('units-asc');closeDD('scDD')">Ranger Program Units (Low → High)</button>
+          <button type="button" class="dd-opt" data-v="enrollment-desc" onclick="setSchoolSort('enrollment-desc');closeDD('scDD')">Enrollment (High → Low)</button>
+          <button type="button" class="dd-opt" data-v="enrollment-asc" onclick="setSchoolSort('enrollment-asc');closeDD('scDD')">Enrollment (Low → High)</button>
+          <button type="button" class="dd-opt" data-v="po-first" onclick="setSchoolSort('po-first');closeDD('scDD')">Has PO First</button>
+          <button type="button" class="dd-opt" data-v="sched-first" onclick="setSchoolSort('sched-first');closeDD('scDD')">Has Schedule First</button>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Day of Week</label>
-        <select id="schoolDayFilter" class="settings-input" style="margin:0" onchange="setSchoolDayFilter(this.value)">
-          <option value="all">All</option>
-          <option value="none">None</option>
-          <option value="Monday">Monday</option>
-          <option value="Tuesday">Tuesday</option>
-          <option value="Wednesday">Wednesday</option>
-          <option value="Thursday">Thursday</option>
-          <option value="Friday">Friday</option>
-          <option value="Saturday">Saturday</option>
-          <option value="Sunday">Sunday</option>
-        </select>
+      <div class="dd-panel" data-dd="filter" id="schoolFilters">
+        <div class="dd-grid">
+          <label class="dd-lab">Program
+            <select id="schoolProgramFilter" onchange="setSchoolProgramFilter(this.value)"><option value="all">All</option><option value="Active Ranger Program" selected>Active Ranger Program</option><option value="Future Ranger Program">Future Ranger Program</option><option value="Inactive Ranger Program">Inactive Ranger Program</option><option value="Possible Ranger Program">Possible Ranger Program</option></select></label>
+          <label class="dd-lab">District
+            <select id="schoolDistrictFilter" onchange="setSchoolDistrictFilter(this.value)"><option value="all">All Districts</option></select></label>
+          <label class="dd-lab">Ranger Placement
+            <select id="schoolPlacementFilter" onchange="setSchoolPlacementFilter(this.value)"><option value="all">All</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option></select></label>
+          <label class="dd-lab">Ranger
+            <select id="schoolRangerFilter" onchange="setSchoolRangerFilter(this.value)"><option value="all">All Rangers</option></select></label>
+          <label class="dd-lab">Ranger Number
+            <select id="schoolRangerNumberFilter" onchange="setSchoolRangerNumberFilter(this.value)"><option value="all">All Ranger Numbers</option></select></label>
+          <label class="dd-lab">Day of Week
+            <select id="schoolDayFilter" onchange="setSchoolDayFilter(this.value)"><option value="all">All</option><option value="none">None</option><option value="Monday">Monday</option><option value="Tuesday">Tuesday</option><option value="Wednesday">Wednesday</option><option value="Thursday">Thursday</option><option value="Friday">Friday</option><option value="Saturday">Saturday</option><option value="Sunday">Sunday</option></select></label>
+          <label class="dd-lab">PO
+            <select id="schoolPoFilter" onchange="setSchoolPoFilter(this.value)"><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+          <label class="dd-lab">Ranger Program Units
+            <select id="schoolUnitsFilter" onchange="setSchoolUnitsFilter(this.value)"><option value="all">All</option></select></label>
+          <label class="dd-lab">Schedule
+            <select id="schoolScheduleFilter" onchange="setSchoolScheduleFilter(this.value)"><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+          <label class="dd-lab">Program Classes Start Date
+            <select id="schoolClassStartFilter" onchange="setSchoolClassStartFilter(this.value)"><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+          <label class="dd-lab">Program Classes End Date
+            <select id="schoolClassEndFilter" onchange="setSchoolClassEndFilter(this.value)"><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+          <label class="dd-lab">Program Started?
+            <select id="schoolProgStartedFilter" onchange="setSchoolProgStartedFilter(this.value)"><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        </div>
+        <button type="button" class="dd-clear" onclick="clearSchoolFilters()">Clear filters</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By PO</label>
-        <select id="schoolPoFilter" class="settings-input" style="margin:0" onchange="setSchoolPoFilter(this.value)">
-          <option value="all">All</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
-        </select>
+      <div class="dd-panel" data-dd="detail">
+        <div class="dd-opts dd-opts-row">
+          <button type="button" class="dd-opt" id="csViewSimpleBtn" onclick="setSchoolResultsMode('simple');closeDD('scDD')">Simple</button>
+          <button type="button" class="dd-opt active" id="csViewSummaryBtn" onclick="setSchoolResultsMode('summary');closeDD('scDD')">Summary</button>
+          <button type="button" class="dd-opt" id="csViewDetailedBtn" onclick="setSchoolResultsMode('detailed');closeDD('scDD')">Detailed</button>
+          <button type="button" class="dd-opt" id="csViewPicturesBtn" onclick="setSchoolResultsMode('pictures');closeDD('scDD')">Pictures</button>
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Program Units</label>
-        <select id="schoolUnitsFilter" class="settings-input" style="margin:0" onchange="setSchoolUnitsFilter(this.value)">
-          <option value="all">All</option>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Schedule</label>
-        <select id="schoolScheduleFilter" class="settings-input" style="margin:0" onchange="setSchoolScheduleFilter(this.value)">
-          <option value="all">All</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes Start Date</label>
-        <select id="schoolClassStartFilter" class="settings-input" style="margin:0" onchange="setSchoolClassStartFilter(this.value)">
-          <option value="all">All</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes End Date</label>
-        <select id="schoolClassEndFilter" class="settings-input" style="margin:0" onchange="setSchoolClassEndFilter(this.value)">
-          <option value="all">All</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Started?</label>
-        <select id="schoolProgStartedFilter" class="settings-input" style="margin:0" onchange="setSchoolProgStartedFilter(this.value)">
-          <option value="all">All</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
-        </select>
-      </div>
-    </div>
-    <div style="padding:10px 16px 4px;display:flex;flex-direction:column;gap:4px;max-width:280px;margin:0 auto">
-      <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Sort By</label>
-      <select id="csSortSelect" class="settings-input" style="margin:0" onchange="setSchoolSort(this.value)">
-        <option value="name-asc">Name (A → Z)</option>
-        <option value="name-desc">Name (Z → A)</option>
-        <option value="distance-asc">Distance (Nearest First)</option>
-        <option value="classstart-asc">Classes Start Date (Earliest First)</option>
-        <option value="classstart-desc">Classes Start Date (Latest First)</option>
-        <option value="classend-asc">Classes End Date (Earliest First)</option>
-        <option value="classend-desc">Classes End Date (Latest First)</option>
-        <option value="lastupdate-desc">Last Update (Newest First)</option>
-        <option value="lastupdate-asc">Last Update (Oldest First)</option>
-        <option value="progstarted-first">Program Started First</option>
-        <option value="ranger-asc">Ranger Name (A → Z)</option>
-        <option value="district-asc">District (A → Z)</option>
-        <option value="program-asc">Program Type (A → Z)</option>
-        <option value="units-desc">Ranger Program Units (High → Low)</option>
-        <option value="units-asc">Ranger Program Units (Low → High)</option>
-        <option value="enrollment-desc">Enrollment (High → Low)</option>
-        <option value="enrollment-asc">Enrollment (Low → High)</option>
-        <option value="po-first">Has PO First</option>
-        <option value="sched-first">Has Schedule First</option>
-      </select>
-    </div>
-    <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 8px;flex-wrap:wrap">
-      <button class="chip" id="csViewSimpleBtn" onclick="setSchoolResultsMode('simple')">Simple</button>
-      <button class="chip active" id="csViewSummaryBtn" onclick="setSchoolResultsMode('summary')">Summary</button>
-      <button class="chip" id="csViewDetailedBtn" onclick="setSchoolResultsMode('detailed')">Detailed</button>
-      <button class="chip" id="csViewPicturesBtn" onclick="setSchoolResultsMode('pictures')">Pictures</button>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
@@ -2196,10 +2143,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.60';
+const APP_VERSION='v11.61';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-05 18:20 PT - Just-uploaded photos and videos show right away from a local copy on the uploading device, with a Don’t worry, your photo is saved - still processing note, until Google or Cloudinary finishes.';
+const BUILD_STAMP='2026-11-08 09:48 PT - Schools tab now uses clean Sort / Filter / Detail dropdowns; Chores rows have an arrow menu (Importance, Mark complete, Reassign, Delete); Operations shows a save-then-calculate note and can add a new Program; Level 3 loses Operations, resumes and contact editing.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3321,9 +3268,37 @@ function choreCardHtml(c,showSite=false){
   const school=siteName?`<span class="chore-school" onclick="event.stopPropagation();showSchoolDetailByKey('${ea(siteKey)}')">${escHtml(siteName)}</span>`:'';
   return `<div class="chore-card chore-row ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')">
     <div class="chore-line">${school}<span class="chore-task">${task}</span></div>
-    ${canSeeImp()?`<select class="imp-sel ${_impCls(imp)}" title="Importance (1 = most important)" onclick="event.stopPropagation()" onchange="quickSetImportance('${ea(id)}',this.value,this)">${_impOpts(imp)}</select>`:''}
+    ${canSeeImp()?`<button type="button" class="chm-btn ${_impCls(imp)}" title="Chore actions" aria-label="Chore actions" onclick="event.stopPropagation();_choreMenuOpen('${ea(id)}',this)">▾</button>`:''}
   </div>`;
 }
+
+/* ═══ CHORE ROW MENU (v11.61) — one small arrow: Importance, Mark complete, Reassign, Delete ═══ */
+function _choreMenuClose(){const m=document.getElementById('choreMenuPop');if(m)m.remove();}
+function _choreMenuOpen(id,btn){
+  if(!canSeeImp())return;
+  const had=document.getElementById('choreMenuPop');_choreMenuClose();
+  if(had&&had.dataset.id===String(id))return;
+  const c=DATA.chores.find(x=>String(x.ID||x.id)===String(id));if(!c)return;
+  const imp=_choreImp(c);
+  const site=siteNameFromKey(c.Site||c.site||'');
+  const desc=String(c.Task||c.task||'');
+  const m=document.createElement('div');m.id='choreMenuPop';m.className='chm-pop';m.dataset.id=String(id);
+  m.addEventListener('click',e=>e.stopPropagation());
+  const impBtns=[1,2,3,4,5,6,7,8,9,10].map(i=>`<button type="button" class="chm-n ${_impCls(i)}${imp===i?' on':''}" onclick="_choreMenuSetImp('${ea(id)}',${i})">${i}</button>`).join('')+`<button type="button" class="chm-n imp-0${!imp?' on':''}" onclick="_choreMenuSetImp('${ea(id)}','')">–</button>`;
+  m.innerHTML=`<button type="button" class="chm-i" onclick="document.getElementById('chmImp').classList.toggle('open')">Importance <span class="chm-cur">${imp||'–'}</span> ▸</button>
+    <div class="chm-imp" id="chmImp">${impBtns}</div>
+    <button type="button" class="chm-i" onclick="_choreMenuClose();closeChore('${ea(id)}','${ea(desc.replace(/'/g,"\\'"))}')">✓ Mark as complete</button>
+    <button type="button" class="chm-i" onclick="_choreMenuClose();showReassignChore('${ea(id)}','${ea(site.replace(/'/g,"\\'"))}')">↩ Reassign</button>
+    <button type="button" class="chm-i chm-del" onclick="_choreMenuClose();deleteChoreFromDetail('${ea(id)}','${ea(desc.replace(/'/g,"\\'"))}')">🗑 Delete</button>`;
+  document.body.appendChild(m);
+  const r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+  let left=Math.min(Math.max(8,r.right-w),window.innerWidth-w-8);
+  let top=r.bottom+4;if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-4);
+  m.style.left=left+'px';m.style.top=top+'px';
+}
+function _choreMenuSetImp(id,v){_choreMenuClose();quickSetImportance(id,String(v),null);}
+document.addEventListener('click',e=>{if(!e.target.closest||!e.target.closest('#choreMenuPop'))_choreMenuClose();});
+window.addEventListener('scroll',_choreMenuClose,true);
 
 // ── Chore Importance 1-10 (v11.52) — 10 = most important, blank = not rated ──
 function _choreImp(c){const v=parseInt(c&&(c.Importance!=null?c.Importance:c.importance),10);return v>=1&&v<=10?v:0;}
@@ -3351,7 +3326,7 @@ async function quickSetImportance(id,val,el){
   c.Importance=v;
   try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(e){}
   if(el)el.className='imp-sel '+_impCls(_choreImp(c));
-  if(_activeTab==='chores'&&_choreSortMode()==='importance'){clearTimeout(_impRerenderTimer);_impRerenderTimer=setTimeout(renderChores,900);}
+  if(_activeTab==='chores'&&(_choreSortMode()==='importance'||!el)){clearTimeout(_impRerenderTimer);_impRerenderTimer=setTimeout(renderChores,900);}
   try{await updateChoreApi(id,{'Importance':v});showSaveToast('✓ Importance '+(v||'cleared'));}
   catch(e){
     c.Importance=prev;try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(_){}
@@ -3514,7 +3489,7 @@ function showApp(){
   const lvl=SESSION.accessLevel;
   buildNav(lvl); // Nav Visibility settings (incl. Plants) are applied by loadAppSettings once loaded
   document.getElementById('addContactBar').style.display=lvl<=2?'flex':'none';
-  document.getElementById('schoolFilters').style.display=lvl>=3?'none':'flex';
+  _scApplyLevel();
   const _mtf=document.getElementById('mapTypeFilters');if(_mtf)_mtf.style.display='flex';
   document.getElementById('searchInput').placeholder='Search…';
   const nb=document.getElementById('hdrNameLabel');if(nb)nb.textContent=(SESSION.name||SESSION.email.split('@')[0]);
@@ -3560,9 +3535,54 @@ function _opsProgramDropdown(id,current){
     opts.push(`<option value="${ea(n)}"${cur===n?' selected':''}>${ea(n)}</option>`);
   });
   if(cur&&!(DATA.programs||[]).some(p=>(p.name||p.Name)===cur)) opts.push(`<option value="${ea(cur)}" selected>${ea(cur)}</option>`);
-  return `<select class="edit-input" id="${id}" onchange="_opsProgramChanged(this)">${opts.join('')}</select>`;
+  opts.push('<option value="__new__">＋ Add new program…</option>');
+  return `<select class="edit-input" id="${id}" data-prev="${ea(cur)}" onchange="_opsProgramChanged(this)">${opts.join('')}</select>`;
+}
+const _OPS_CALC_MSG='The calculated amounts from this change will fill in after saving and a refresh.';
+function _opsCalcNotice(el,what){
+  if(!el||el.dataset.noted==='1')return;
+  el.dataset.noted='1';
+  showNotice('Saves first, then calculates',escHtml(what+' '+_OPS_CALC_MSG)+'<br><br>Total Cost and Amount Owed are worked out by the server once you tap <b>Save</b>.','Got it');
+}
+function _opsAddProgramDialog(sel){
+  const prev=sel.dataset.prev||'';
+  sel.value=prev;
+  const old=document.getElementById('rrNotice');if(old)old.remove();
+  const d=document.createElement('div');d.id='rrNotice';d.className='rr-notice-ov';
+  d.innerHTML=`<div class="rr-notice"><div class="rr-notice-t">Add new program</div>
+    <div class="rr-notice-m">It will be added to the Program list and to Data &gt; Prices.</div>
+    <input class="edit-input" id="npName" placeholder="Program name" style="margin-top:10px">
+    <input class="edit-input" id="npAmt" type="number" inputmode="decimal" step="0.01" placeholder="Price ($)" style="margin-top:8px">
+    <div id="npMsg" style="font-size:13px;color:var(--danger);min-height:16px;margin-top:6px"></div>
+    <button type="button" class="rr-notice-b" id="npSave">Add program</button>
+    <button type="button" class="rr-notice-b" id="npCancel" style="background:var(--fog);color:var(--ink);margin-top:8px">Cancel</button></div>`;
+  document.body.appendChild(d);
+  d.querySelector('#npCancel').onclick=()=>d.remove();
+  d.querySelector('#npSave').onclick=async()=>{
+    const name=d.querySelector('#npName').value.trim(),amt=d.querySelector('#npAmt').value;
+    const msg=d.querySelector('#npMsg'),btn=d.querySelector('#npSave');
+    if(!name){msg.textContent='Please enter a name.';return;}
+    if(amt===''||isNaN(parseFloat(amt))){msg.textContent='Please enter a price.';return;}
+    btn.disabled=true;btn.textContent='Adding…';msg.textContent='';
+    try{
+      const res=await gasPost({action:'addProgram',name,amount:parseFloat(amt),actor:SESSION?SESSION.email:''});
+      if(!res||!res.ok){msg.textContent=(res&&res.error)||'Could not add program.';btn.disabled=false;btn.textContent='Add program';return;}
+      DATA.programs=(DATA.programs||[]).concat([{name,amount:parseFloat(amt)}]);
+      try{_dataPricesCache=null;}catch(e){}
+      const o=document.createElement('option');o.value=name;o.textContent=name;
+      sel.insertBefore(o,sel.querySelector('option[value="__new__"]'));
+      sel.value=name;sel.dataset.prev=name;
+      const costEl=document.getElementById('ef-ProgramCost');if(costEl)costEl.value=parseFloat(amt);
+      d.remove();
+      _opsCalcNotice(sel,'Program changed.');
+    }catch(e){msg.textContent='Connection error.';btn.disabled=false;btn.textContent='Add program';}
+  };
+  setTimeout(()=>{const n=d.querySelector('#npName');if(n)n.focus();},50);
 }
 function _opsProgramChanged(sel){
+  if(sel.value==='__new__'){_opsAddProgramDialog(sel);return;}
+  sel.dataset.prev=sel.value;
+  _opsCalcNotice(sel,'Program changed.');
   const cost=_lookupProgramCostClient(sel.value);
   const costEl=document.getElementById('ef-ProgramCost');
   if(costEl)costEl.value=(cost===null||cost===undefined)?'':cost;
@@ -3676,7 +3696,7 @@ function _resyncOwnAccessLevel(){
   localStorage.setItem(CFG.SK,JSON.stringify(SESSION));
   buildNav(fresh);
   const acb=document.getElementById('addContactBar');if(acb)acb.style.display=fresh<=2?'flex':'none';
-  const sf=document.getElementById('schoolFilters');if(sf)sf.style.display=fresh>=3?'none':'flex';
+  _scApplyLevel();
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=fresh===1?'block':'none';
   const flr=document.getElementById('forceLogoutRow');if(flr)flr.style.display=fresh===1?'block':'none';
   // If their current tab no longer exists at the new level, bounce to a safe
@@ -5206,8 +5226,8 @@ function renderSchools(){
   window._fsDistMap=Object.fromEntries(sitesWithDist.map(({s,distM})=>[sf(s,'Name','name'),distM]));
   window._fs=sortedSites;
   document.getElementById('schoolCount').textContent=sites.length+' sites';
-  const filtersRow=document.getElementById('schoolFilters');
-  if(filtersRow)filtersRow.style.display=SESSION&&SESSION.accessLevel>=3?'none':'flex';
+  _scApplyLevel();
+  _updateSchoolDDLabels();
   if(SESSION&&SESSION.accessLevel<=2)_fillSchoolDynamicFilters();
   const listEl=document.getElementById('schoolList');
   const cardFn=csResultsMode==='simple'?_schoolSimpleCardHtml:csResultsMode==='detailed'?_schoolCardHtml:csResultsMode==='pictures'?_dataSchoolPicCardHtml:_schoolSummaryCardHtml;
@@ -5253,6 +5273,30 @@ function setSchoolResultsMode(v){
   }
 }
 function setSchoolSort(v){csSortMode=v;renderSchools();}
+const SCHOOL_SORT_SHORT={"name-asc": "Name A-Z", "name-desc": "Name Z-A", "distance-asc": "Nearest", "classstart-asc": "Start (earliest)", "classstart-desc": "Start (latest)", "classend-asc": "End (earliest)", "classend-desc": "End (latest)", "lastupdate-desc": "Updated (newest)", "lastupdate-asc": "Updated (oldest)", "progstarted-first": "Started first", "ranger-asc": "Ranger A-Z", "district-asc": "District A-Z", "program-asc": "Program type", "units-desc": "Units high-low", "units-asc": "Units low-high", "enrollment-desc": "Enrollment high-low", "enrollment-asc": "Enrollment low-high", "po-first": "Has PO first", "sched-first": "Has schedule first"};
+// Level 3 gets no Filter button (they only ever see their own schools)
+function _scApplyLevel(){
+  const b=document.getElementById('scDDfilterBtn');
+  const l3=!!(SESSION&&SESSION.accessLevel>=3);
+  if(b)b.style.display=l3?'none':'';
+  if(l3)closeDD('scDD');
+}
+function _updateSchoolDDLabels(){
+  const sv=document.getElementById('scDDsortV'),fv=document.getElementById('scDDfilterV'),dv=document.getElementById('scDDdetailV');
+  if(sv)sv.textContent=SCHOOL_SORT_SHORT[csSortMode]||'Name A-Z';
+  document.querySelectorAll('#schoolSortOpts .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===csSortMode));
+  const progLbl={all:'All','Active Ranger Program':'Active','Future Ranger Program':'Future','Inactive Ranger Program':'Inactive','Possible Ranger Program':'Possible'}[csProgF]||'Active';
+  const extra=[csDistF,csPlaceF,csRangerF,csRangerNumF,csDayF,csPoF,csUnitsF,csSchedF,csClassStartF,csClassEndF,csProgStartedF].filter(v=>v!=='all').length;
+  if(fv)fv.textContent=progLbl+(extra?' +'+extra:'');
+  const fb=document.getElementById('scDDfilterBtn');if(fb)fb.classList.toggle('on',extra>0||csProgF!=='Active Ranger Program');
+  const sb=document.querySelector('#scDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',csSortMode!=='name-asc');
+  if(dv)dv.textContent=csResultsMode.charAt(0).toUpperCase()+csResultsMode.slice(1);
+}
+function clearSchoolFilters(){
+  csProgF='Active Ranger Program';csDistF=csPlaceF=csRangerF=csRangerNumF=csDayF=csPoF=csUnitsF=csSchedF=csClassStartF=csClassEndF=csProgStartedF='all';
+  ['schoolProgramFilter','schoolDistrictFilter','schoolPlacementFilter','schoolRangerFilter','schoolRangerNumberFilter','schoolDayFilter','schoolPoFilter','schoolUnitsFilter','schoolScheduleFilter','schoolClassStartFilter','schoolClassEndFilter','schoolProgStartedFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=(id==='schoolProgramFilter')?'Active Ranger Program':'all';});
+  closeDD('scDD');renderSchools();
+}
 // Distance needs the precomputed {s,distM} wrapper (siteslatlong vs the
 // user's live position — not a stored sheet field), so it's handled here;
 // every other key reuses _dataSchoolSortCompare, same comparator as Data > Schools.
@@ -7144,7 +7188,7 @@ function renderSchoolDetail(site,editMode,opsMode){
         <div style="flex:1"><div class="edit-label">Country</div><input class="edit-input" id="ef-Country" value="${ea(stCountry)}" placeholder="Country"></div>
       </div>
       <hr class="section-divider">
-      ${canAssign?`
+      ${(canAssign&&lvl<=2)?`
       <div class="edit-wrap" style="position:relative;z-index:95"><div class="edit-label">Ranger 1</div>${bdd('r1',rangers,r1e,'Ranger')}</div>
       <div class="edit-wrap" style="position:relative;z-index:90"><div class="edit-label">Ranger 2</div>${bdd('r2',rangers,r2e,'Ranger')}</div>
       <div class="edit-wrap" style="position:relative;z-index:85"><div class="edit-label">Garden Keeper</div>${bdd('gk',gardenKeepers,gke,'Garden Keeper')}</div>
@@ -7190,7 +7234,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       <div class="edit-wrap"><div class="edit-label" style="font-weight:700;font-size:14px;letter-spacing:.05em;text-transform:uppercase">Operations &amp; Finance</div></div>
       <div class="edit-wrap" style="display:flex;gap:10px">
         <div style="flex:1"><div class="edit-label">Status</div><input class="edit-input" id="ef-Status" value="${ea(String(status))}" placeholder="e.g. Pending, Paid"></div>
-        <div style="flex:1"><div class="edit-label">Adjustment</div><input class="edit-input" id="ef-Adjustment" value="${ea(String(adj))}"></div>
+        <div style="flex:1"><div class="edit-label">Adjustment</div><input class="edit-input" id="ef-Adjustment" value="${ea(String(adj))}" onchange="_opsCalcNotice(this,'Adjustment changed.')"></div>
       </div>
       <div class="edit-wrap"><div class="edit-label">Response</div>${_opsResponseDropdown('ef-Response',response)}</div>
       <div class="edit-wrap" style="display:flex;gap:10px">
@@ -7198,7 +7242,7 @@ function renderSchoolDetail(site,editMode,opsMode){
         <div style="flex:1"><div class="edit-label">Program Cost</div><input class="edit-input" id="ef-ProgramCost" value="${ea(String(programCost))}" placeholder="$" disabled style="${roStyle}"></div>
       </div>
       <div class="edit-wrap" style="display:flex;gap:10px">
-        <div style="flex:1"><div class="edit-label">Ranger Program Units</div><input class="edit-input" id="ef-RangerProgramUnits" value="${ea(String(units))}"></div>
+        <div style="flex:1"><div class="edit-label">Ranger Program Units</div><input class="edit-input" id="ef-RangerProgramUnits" value="${ea(String(units))}" onchange="_opsCalcNotice(this,'Ranger Program Units changed.')"></div>
         <div style="flex:1"><div class="edit-label">Total Cost</div><input class="edit-input" id="ef-TotalCost" value="${ea(String(totalCost))}" placeholder="$" disabled style="${roStyle}"></div>
       </div>
       <div class="edit-wrap"><div class="edit-label">Unit Description</div><input class="edit-input" id="ef-UnitDescription" value="${ea(unitDesc)}"></div>
@@ -7208,7 +7252,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       </div>
       <div class="edit-wrap" style="display:flex;gap:10px">
         <div style="flex:1"><div class="edit-label">Amount Owed</div><input class="edit-input" id="ef-AmountOwed" value="${ea(String(owed))}" placeholder="$" disabled style="${roStyle}"></div>
-        <div style="flex:1"><div class="edit-label">Amount Paid</div><input class="edit-input" id="ef-AmountPaid" value="${ea(String(paid))}" placeholder="$"></div>
+        <div style="flex:1"><div class="edit-label">Amount Paid</div><input class="edit-input" id="ef-AmountPaid" value="${ea(String(paid))}" placeholder="$" onchange="_opsCalcNotice(this,'Amount Paid changed.')"></div>
       </div>
       <div class="edit-wrap"><div class="edit-label">Financial Notes</div><textarea class="edit-textarea" id="ef-FinancialNotes">${ea(finNotes)}</textarea></div>`;
       })():''}
@@ -7781,7 +7825,7 @@ function renderPD(h,edit){
       ${rangerSchools?`<div class="ds"><div class="dl">Garden Ranger School(s)</div><div class="dv">${rangerSchools}</div></div>`:''}
       ${gkSchools?`<div class="ds"><div class="dl">Garden Keeper School(s)</div><div class="dv">${gkSchools}</div></div>`:''}
       ${princAt?`<div class="ds"><div class="dl">Principal At</div><div class="dv">${princAt}</div></div>`:''}
-      ${resume?`<div class="ds"><div class="dl">Resume</div><div class="dv">${resumeIsUrl?`<a class="dlink" href="${ea(resume)}" target="_blank" rel="noopener">📄 View Resume</a>`:ea(resume)}</div></div>`:''}
+      ${(resume&&!(SESSION&&SESSION.accessLevel>=3))?`<div class="ds"><div class="dl">Resume</div><div class="dv">${resumeIsUrl?`<a class="dlink" href="${ea(resume)}" target="_blank" rel="noopener">📄 View Resume</a>`:ea(resume)}</div></div>`:''}
       ${email?`<div class="ds"><div class="dl">Email</div><div class="dv"><a class="dlink" href="${gmailUrl(email)}" target="_blank" rel="noopener">${email}</a></div></div>`:''}
       ${mobile?`<div class="ds"><div class="dl">Mobile</div><div class="dv"><a class="dlink" href="tel:${cleanPhone(mobile)}">${mobile}</a></div></div>`:''}
       </div>
@@ -7810,7 +7854,7 @@ function renderPD(h,edit){
       ${_personActionsHtml(email)}
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
-      ${SESSION?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
+      ${(SESSION&&(SESSION.accessLevel<=2||(email&&email.toLowerCase()===String(SESSION.email||'').toLowerCase())))?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
       ${canEdit()?`<button class="btn-danger" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
   }
@@ -7926,7 +7970,7 @@ function addNewRoleAdditional(){
   if(panel)panel.classList.remove('open');
 }
 async function addNewRole(){if(!canManageRoles()){alert('Only access level 1–2 can add new roles.');return;}const role=prompt('Enter new role name:');if(!role||!role.trim())return;const r=role.trim();if(_roleExistsCI(r)){alert('Role "'+r+'" already exists.');return;}try{await addRoleToSheet(r);const list=document.querySelector('#role-dd .dropdown-list');if(list){const item=document.createElement('div');item.className='dropdown-item';item.dataset.name=r;item.textContent=r;item.onclick=function(){selectRoleItem(this,'role-select-btn','role-dd');};list.appendChild(item);}document.getElementById('role-select-btn').textContent=r;document.getElementById('role-select-btn').dataset.value=r;document.getElementById('role-dd').classList.remove('open');}catch(e){alert('Could not save role: '+e.message);}}
-function editPerson(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
+function editPerson(k){if(SESSION&&SESSION.accessLevel>=3&&String(k||'').toLowerCase()!==String(SESSION.email||'').toLowerCase())return;const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(h)renderPD(h,true);}
 
 async function savePerson(orig){
   // Snapshot form values immediately before any async work
@@ -9116,6 +9160,7 @@ async function _dssDelete(key){
 let _opsTargetKey=null;
 let _opsTargetTimer=null;
 function goToOperationsForSite(key){
+  if(!SESSION||SESSION.accessLevel>=3)return;
   _opsFilterType='all';_opsFilterStatus='';_opsFilterRanger='';_opsFilterSchedule='';
   const selType=document.getElementById('opsFilterType');
   const selStatus=document.getElementById('opsFilterStatus');
@@ -10069,6 +10114,7 @@ window.addEventListener('popstate',()=>{
   // normally (this is the one case where leaving the app is expected).
 });
 function switchTab(tab,initMapFlag=false){
+  if(tab==='operations'&&SESSION&&SESSION.accessLevel>=3)tab='schools';
   const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   if(tab!=='operations')_exitSmartMapFullscreen();
   if(tab!=='map')_exitMapFullscreen();
@@ -15789,6 +15835,8 @@ function _navTabAllowed(tabKey, lvl){
   // regardless of what's stored — same always-on rule already used below for
   // _teamEmailSearchAllowed.
   if(Number(lvl)===1)return true;
+  // Level 3 (field rangers) never get Operations or its card buttons, whatever the nav settings say
+  if(Number(lvl)>=3&&(tabKey==='operations'||tabKey==='site_ops_btn'))return false;
   const vis=_appSettings.navVisibility;
   if(!vis)return true;
   // Keys may be stored as strings ("1") or numbers (1) - check both

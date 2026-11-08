@@ -763,6 +763,7 @@ function _doPostRoute(e) {
 
       // ── PROGRAMS (Items All → Operations edit card dropdown) ────────────────
       case 'getPrograms':   return respond(handleGetPrograms());
+      case 'addProgram':    return respond(handleAddProgram(p));
 
       // ── PRICES (Data tab → Items All, Type 3 = "Our Prices") ─────────────────
       case 'getPrices':     return respond(handleGetPrices());
@@ -3479,6 +3480,49 @@ function handleGetPrograms() {
   return { programs: programs, responses: responses };
 }
 
+// Adds a new Program to Items All: it becomes a Program dropdown option (Type 'enrichla product',
+// Type 2 'Program') AND shows in Data > Prices (Type 3 'Our Prices'). Level 1-2 only (client gates it too).
+function handleAddProgram(p) {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var headers = sheet.getDataRange().getValues()[0];
+  if (headers.indexOf('Name') === -1 || headers.indexOf('Amount') === -1 || headers.indexOf('Type') === -1 || headers.indexOf('Type 2') === -1) {
+    return { ok: false, error: 'Expected Name/Amount/Type/Type 2 columns not found in Items All.' };
+  }
+  var name = String(p.name || '').trim();
+  if (!name) return { ok: false, error: 'Program name is required.' };
+  var amount = (p.amount === undefined || p.amount === null || p.amount === '') ? '' : parseFloat(p.amount);
+  if (amount !== '' && isNaN(amount)) return { ok: false, error: 'Price must be a number.' };
+  var all = sheet.getDataRange().getValues();
+  var ni = headers.indexOf('Name'), ti = headers.indexOf('Type'), t2i = headers.indexOf('Type 2');
+  for (var r = 1; r < all.length; r++) {
+    if (String(all[r][ni] || '').trim().toLowerCase() === name.toLowerCase() &&
+        String(all[r][ti] || '') === 'enrichla product' && String(all[r][t2i] || '') === 'Program') {
+      return { ok: false, error: 'A program named "' + name + '" already exists.' };
+    }
+  }
+  var newId = _newItemsAllId();
+  var now = new Date();
+  var multiplier = 1.75;
+  var fullDayAmount = (amount !== '') ? (amount * multiplier) : '';
+  var row = headers.map(function(h) {
+    if (h === 'ID')                        return newId;
+    if (h === 'Name')                      return name;
+    if (h === 'Amount')                    return amount;
+    if (h === 'Type')                      return 'enrichla product';
+    if (h === 'Type 2')                    return 'Program';
+    if (h === 'Type 3')                    return 'Our Prices';
+    if (h === 'Description')               return String(p.description || '').trim();
+    if (h === 'Full day multiplier')       return multiplier;
+    if (h === 'Full day Amount')           return fullDayAmount;
+    if (h === 'Date added or last edited') return now;
+    return '';
+  });
+  sheet.appendRow(row);
+  logActivity(p.actor || '', 'added program', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
+  return { ok: true, id: newId, name: name, amount: amount };
+}
+
 // ── SITES FINANCIAL RECALCULATION ──────────────────────────────────────────────
 // Mirrors the same logic already running in Rover Operations (JohannaEditSync.gs /
 // pushFieldAndRecalcFinancials). This is necessary because handleSaveEdit writes via
@@ -5531,6 +5575,22 @@ function _aiOpenChoresBySite() {
   return out;
 }
 
+// Newest upload date across the Sites image columns. handleUploadSiteImage stamps a companion
+// "<Column> Info" cell as "actor|ISO date" every time a photo is added or replaced.
+function _aiLatestPhotoDate(row, idx) {
+  var cols = ['Main Image', 'Image 2', 'Image 3', 'Helpful Image 1', 'Helpful Image 2', 'Helpful Before Image'];
+  var best = 0;
+  cols.forEach(function(c) {
+    var i = idx[c + ' Info'];
+    if (i === undefined) return;
+    var v = String(row[i] || '');
+    var iso = v.indexOf('|') > -1 ? v.split('|').slice(1).join('|') : v;
+    var t = new Date(iso).getTime();
+    if (!isNaN(t) && t > best) best = t;
+  });
+  return best ? Utilities.formatDate(new Date(best), 'America/Los_Angeles', 'M/d/yyyy') : '';
+}
+
 function _aiBuildInput(row, idx, chores) {
   function g(col) { var i = idx[col]; return i === undefined ? '' : row[i]; }
   var comments = String(g('Comments') || '').trim();
@@ -5545,6 +5605,7 @@ function _aiBuildInput(row, idx, chores) {
     'Any response from school: ' + (g('Any Response?') === '' ? 'unknown' : g('Any Response?')),
     'Ranger day: ' + (g('Ranger Day Of Week 1') || ''),
     'Record last updated: ' + _aiFmtDate(g('Last Update')),
+    'Latest photo/video upload: ' + (_aiLatestPhotoDate(row, idx) || 'none recorded'),
     'Open chores:\n' + (chores.length ? chores.join('\n') : 'none'),
     'Site details:\n' + (details || 'none'),
     'Staff comments (dated log, oldest first):\n' + (comments || 'none')
@@ -5558,11 +5619,14 @@ function _aiRequest(apiKey, input, today) {
     'Today is ' + today + '. Read the school record and reply with ONLY a JSON object: ' +
     '{"summary": "...", "status": "good|watch|attention"}. ' +
     'summary: at most 2 short sentences, under 200 characters, plain words, no names of private individuals except the Ranger. ' +
-    'Say how the garden/program is doing, the most important open issue if any, and the date of the latest logged note (as written, e.g. "last note 1/5/26"). ' +
+    'Say how the garden/program is doing, the most important open issue if any, and the date of the latest activity. ' +
+    'Activity means EITHER a logged staff note OR a photo/video upload (Rangers often upload photos without writing a note). ' +
+    'Use the later of the two dates, and name which it was (e.g. "last note 1/5/26" or "photos added 11/3/26"). ' +
+    'Never say that no detail or activity has been logged if there is a recent photo upload. ' +
     'Never use relative time like "3 weeks ago". Comment dates often omit the year; infer it from order. ' +
     'Never include gate codes, passwords or phone numbers. ' +
     'status: good = running well, nothing pending; watch = minor open item or unclear; ' +
-    'attention = needs staff action (unresolved problem, urgent chore, school not responding, or an active program with no logged activity in over 60 days).';
+    'attention = needs staff action (unresolved problem, urgent chore, school not responding, or an active program with no logged note AND no photo upload in over 60 days).';
   return {
     url: 'https://api.anthropic.com/v1/messages',
     method: 'post',
