@@ -754,6 +754,8 @@ function _doPostRoute(e) {
       case 'deleteHuman':   return respond(handleDeleteHuman(p));
       case 'getComments':   return respond(handleGetComments(p));
       case 'getAiSummaries':  return respond(handleGetAiSummaries(p));
+      case 'refreshAiSummary': return respond(handleRefreshAiSummary(p));
+      case 'getRangerActivity': return respond(handleGetRangerActivity(p));
       case 'runAiSummaries':  return respond(handleRunAiSummaries(p));
       case 'aiSummaryStatus': return respond(handleAiSummaryStatus(p));
       case 'askRover':        return respond(handleAskRover(p));
@@ -840,6 +842,18 @@ function _doPostRoute(e) {
 // Payload: { action:'sendTwilioSms', sid, keySid, keySecret, from,
 //            messages:[{to, body}], actor }
 // Auth: Twilio API Key (keySid:keySecret) with Account SID in URL.
+// Logs one sent text to the Memos sheet (Type 'SMS'; To = phone number) so Ladybug can see Reach texts too
+function _logSmsToMemos(toNum, body, actor, category) {
+  var ss = SpreadsheetApp.openById(MEMOS_ID);
+  var sheet = ss.getSheetByName('Memos');
+  if (!sheet) {
+    sheet = ss.insertSheet('Memos');
+    sheet.appendRow(['ID','Subject','Time+Date','To','From','CC','BCC','Message','Category','Type']);
+    sheet.setFrozenRows(1);
+  }
+  sheet.appendRow([Utilities.getUuid(), 'Text message', new Date(), String(toNum || ''), actor, '', '', String(body || ''), category, 'SMS']);
+}
+
 function handleSendTwilioSms(payload) {
   var sid      = payload.sid       || '';
   var keySid   = payload.keySid    || '';
@@ -880,6 +894,7 @@ function handleSendTwilioSms(payload) {
         var code = resp.getResponseCode();
         if (code >= 200 && code < 300) {
           sent++;
+          try { _logSmsToMemos(toNum, m.body, payload.actor || '', payload.category || ''); } catch (le) {}
         } else {
           failed++;
           errors.push(toNum + ': HTTP ' + code + ' — ' +
@@ -894,12 +909,8 @@ function handleSendTwilioSms(payload) {
 
   // Log to Activity sheet
   try {
-    logActivity({
-      action: 'sendTwilioSms',
-      actor:  payload.actor || '',
-      detail: 'Sent ' + sent + ' SMS, ' + failed + ' failed. ' +
-              'Recipients: ' + messages.length
-    });
+    logActivity(payload.actor || '', 'Sent SMS', 'Reach', 'sms',
+      'Sent ' + sent + ' SMS, ' + failed + ' failed. Recipients: ' + messages.length);
   } catch(e) {}
 
   return { ok: true, sent: sent, failed: failed, errors: errors };
@@ -5575,6 +5586,261 @@ function _aiOpenChoresBySite() {
   return out;
 }
 
+// ── LADYBUG ACTIVITY FACTS (v11.62) ──────────────────────────────────────────
+// Plain facts (not AI) gathered from the sheets: newest photo upload, recently closed
+// chores, Reach messages sent to a school's contacts, Sub/Reschedule history.
+// Used (a) as extra input to the AI summary and (b) shown live under each summary,
+// so a summary can never hide a photo upload, a closed chore or an outreach message.
+var AI_ACT_DAYS = 120;
+function _aiShortDate(ms) { return ms ? Utilities.formatDate(new Date(ms), 'America/Los_Angeles', 'M/d/yy') : ''; }
+function _aiMs(v) {
+  if (v instanceof Date) return v.getTime();
+  if (v === '' || v === null || v === undefined) return 0;
+  var t = new Date(v).getTime();
+  return isNaN(t) ? 0 : t;
+}
+function _aiPhoneKey(v) { var d = String(v || '').replace(new RegExp('[^0-9]', 'g'), ''); return d.length > 10 ? d.slice(-10) : d; }
+function _aiEmailsIn(v) {
+  var out = [];
+  String(v || '').toLowerCase().split(new RegExp('[,;\\s<>]+')).forEach(function(x) { if (x.indexOf('@') > 0) out.push(x); });
+  return out;
+}
+// phone digits -> email, from the Humans sheet
+function _aiPhoneMap() {
+  var map = {};
+  try {
+    var d = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans').getDataRange().getValues();
+    var ei = d[0].indexOf('Email'), mi = d[0].indexOf('Mobile');
+    if (ei < 0 || mi < 0) return map;
+    for (var r = 1; r < d.length; r++) {
+      var pk = _aiPhoneKey(d[r][mi]), em = String(d[r][ei] || '').trim().toLowerCase();
+      if (pk.length === 10 && em) map[pk] = em;
+    }
+  } catch (e) {}
+  return map;
+}
+// Recent Memos rows (emails + SMS logged by the Reach tab): [{ms, subject, emails[], text, type}]
+function _aiRecentMemos(sinceMs, phoneMap) {
+  var out = [];
+  try {
+    var sh = SpreadsheetApp.openById(MEMOS_ID).getSheetByName('Memos');
+    if (!sh || sh.getLastRow() < 2) return out;
+    var n = Math.min(900, sh.getLastRow() - 1), start = sh.getLastRow() - n + 1;
+    var v = sh.getRange(start, 1, n, 10).getValues();
+    v.forEach(function(r) {
+      var ms = _aiMs(r[2]);
+      if (!ms || ms < sinceMs) return;
+      var type = String(r[9] || '');
+      var emails = _aiEmailsIn(r[3]).concat(_aiEmailsIn(r[5]));
+      if (/sms/i.test(type)) {
+        var pk = _aiPhoneKey(r[3]);
+        if (phoneMap && phoneMap[pk]) emails.push(phoneMap[pk]);
+      }
+      out.push({ ms: ms, subject: String(r[1] || ''), emails: emails, text: (String(r[1] || '') + ' ' + String(r[7] || '')).toLowerCase(), type: type });
+    });
+  } catch (e) { Logger.log('_aiRecentMemos: ' + e.message); }
+  return out;
+}
+// Recent Sub/Reschedule History rows: [{ms, type, site, action, actor, summary}]
+function _aiRecentSubHist(sinceMs) {
+  var out = [];
+  try {
+    var sh = _subGetSheet(SUB_HIST_TAB, SUB_HIST_HEADERS);
+    if (sh.getLastRow() < 2) return out;
+    var n = Math.min(1500, sh.getLastRow() - 1), start = sh.getLastRow() - n + 1;
+    sh.getRange(start, 1, n, 9).getValues().forEach(function(r) {
+      var ms = _aiMs(r[0]);
+      if (!ms || ms < sinceMs) return;
+      out.push({ ms: ms, type: String(r[1] || ''), site: String(r[4] || '').trim(), action: String(r[5] || ''), actor: String(r[6] || '').trim().toLowerCase(), summary: String(r[8] || '') });
+    });
+  } catch (e) { Logger.log('_aiRecentSubHist: ' + e.message); }
+  return out;
+}
+var _AI_IMG_COLS = ['Main Image', 'Image 2', 'Image 3', 'Helpful Image 1', 'Helpful Image 2', 'Helpful Before Image'];
+// Returns { <lowercased Key or Name>: { ph:ms, phBy, closed:[{t,ms}], rc:{n,ms,subj}, sb:{n,ms,act}, fm:ms } }
+function _aiSiteFacts() {
+  var since = Date.now() - AI_ACT_DAYS * 86400000;
+  var facts = {};
+  var sd = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues();
+  var idx = {};
+  sd[0].forEach(function(h, i) { if (h !== '' && idx[h] === undefined) idx[h] = i; });
+  var contactCols = ['Principal', 'School Administrative Assistant', 'Main Contact 1', 'Main Contact 2', 'Main Contact 3', 'Plant Manager', 'Other Contacts', 'Principal Email Raw'];
+  var byEmail = {}, nameToId = {}, sites = [];
+  for (var r = 1; r < sd.length; r++) {
+    var row = sd[r];
+    var name = String(row[idx['Name']] || '').trim();
+    if (!name) continue;
+    var key = idx['Key'] !== undefined ? String(row[idx['Key']] || '').trim() : '';
+    var id = (key || name).toLowerCase();
+    var f = { ph: 0, phBy: '', closed: [], rc: null, sb: null, fm: 0 };
+    _AI_IMG_COLS.forEach(function(c) {
+      var i = idx[c + ' Info'];
+      if (i === undefined) return;
+      var v = String(row[i] || '');
+      var p = v.indexOf('|');
+      var ms = _aiMs(p > -1 ? v.slice(p + 1) : v);
+      if (ms > f.ph) { f.ph = ms; f.phBy = p > -1 ? v.slice(0, p) : ''; }
+    });
+    facts[id] = f;
+    nameToId[name.toLowerCase()] = id;
+    if (key) nameToId[key.toLowerCase()] = id;
+    sites.push({ id: id, name: name.toLowerCase() });
+    contactCols.forEach(function(c) {
+      if (idx[c] === undefined) return;
+      _aiEmailsIn(row[idx[c]]).forEach(function(em) { (byEmail[em] = byEmail[em] || {})[id] = true; });
+    });
+  }
+  // closed chores
+  try {
+    var cd = SpreadsheetApp.openById(CHORES_ID).getSheetByName('Chores').getDataRange().getValues();
+    var h = cd[0], si = h.indexOf('Site'), ti = h.indexOf('Task'), st = h.indexOf('Status'), di = h.indexOf('Date Closed');
+    for (var c = 1; c < cd.length; c++) {
+      if (String(cd[c][st] || '').toLowerCase() !== 'closed') continue;
+      var ms = di > -1 ? _aiMs(cd[c][di]) : 0;
+      if (!ms || ms < since) continue;
+      var sid = nameToId[String(cd[c][si] || '').trim().toLowerCase()];
+      if (sid && facts[sid]) facts[sid].closed.push({ t: String(cd[c][ti] || '').trim(), ms: ms });
+    }
+  } catch (e) { Logger.log('closed chores: ' + e.message); }
+  // Reach messages (Memos)
+  var memos = _aiRecentMemos(since, _aiPhoneMap());
+  memos.forEach(function(m) {
+    var hit = {};
+    m.emails.forEach(function(em) { if (byEmail[em]) Object.keys(byEmail[em]).forEach(function(id) { hit[id] = true; }); });
+    sites.forEach(function(s) { if (s.name.length > 6 && m.text.indexOf(s.name) > -1) hit[s.id] = true; });
+    Object.keys(hit).forEach(function(id) {
+      var f = facts[id];
+      var rc = f.rc || (f.rc = { n: 0, ms: 0, subj: '', seen: {} });
+      var k = m.subject + '|' + _aiShortDate(m.ms);
+      if (!rc.seen[k]) { rc.seen[k] = 1; rc.n++; }
+      if (m.ms > rc.ms) { rc.ms = m.ms; rc.subj = m.subject; }
+    });
+  });
+  // Sub / reschedule history
+  _aiRecentSubHist(since).forEach(function(e) {
+    var id = nameToId[e.site.toLowerCase()];
+    if (!id || !facts[id]) return;
+    var sb = facts[id].sb || (facts[id].sb = { n: 0, ms: 0, act: '' });
+    sb.n++;
+    if (e.ms > sb.ms) { sb.ms = e.ms; sb.act = e.type + ' ' + e.action; }
+  });
+  Object.keys(facts).forEach(function(id) {
+    var f = facts[id];
+    f.closed.sort(function(a, b) { return b.ms - a.ms; });
+    f.closed = f.closed.slice(0, 3);
+    if (f.rc) delete f.rc.seen;
+    f.fm = Math.max(f.ph, f.closed.length ? f.closed[0].ms : 0, f.rc ? f.rc.ms : 0, f.sb ? f.sb.ms : 0);
+  });
+  return facts;
+}
+// Compact, client-ready version of one site's facts
+function _aiFactsOut(f) {
+  if (!f) return null;
+  var o = {};
+  if (f.ph) { o.ph = _aiShortDate(f.ph); if (f.phBy) o.pb = f.phBy; }
+  if (f.closed && f.closed.length) { o.ch = _aiShortDate(f.closed[0].ms); o.ct = f.closed[0].t.slice(0, 40); o.cn = f.closed.length; }
+  if (f.rc) { o.rc = _aiShortDate(f.rc.ms); o.rn = f.rc.n; o.rs = f.rc.subj.slice(0, 50); }
+  if (f.sb) { o.sb = _aiShortDate(f.sb.ms); o.sn = f.sb.n; o.sa = f.sb.act.slice(0, 40); }
+  o.fm = f.fm || 0;
+  return (o.ph || o.ch || o.rc || o.sb) ? o : null;
+}
+function _aiFactsText(f) {
+  if (!f) return 'Photo uploads, closed chores, Reach messages and Sub requests: none recorded in the last ' + AI_ACT_DAYS + ' days';
+  var t = [];
+  t.push('Latest photo/video upload: ' + (f.ph ? _aiShortDate(f.ph) : 'none recorded'));
+  t.push('Chores closed in the last ' + AI_ACT_DAYS + ' days (finished, NOT open): ' +
+    (f.closed.length ? f.closed.map(function(c) { return c.t + ' (closed ' + _aiShortDate(c.ms) + ')'; }).join('; ') : 'none'));
+  t.push('Reach messages (email/text) sent to this school\'s contacts in the last ' + AI_ACT_DAYS + ' days: ' +
+    (f.rc ? f.rc.n + ', latest ' + _aiShortDate(f.rc.ms) + ' subject "' + f.rc.subj.slice(0, 80) + '"' : 'none'));
+  t.push('Sub/reschedule requests for this school in the last ' + AI_ACT_DAYS + ' days: ' +
+    (f.sb ? f.sb.n + ' entries, latest ' + _aiShortDate(f.sb.ms) + ' (' + f.sb.act + ')' : 'none'));
+  return t.join('\n');
+}
+
+// action: refreshAiSummary (Levels 1-2) -> rebuilds ONE school's Ladybug summary right now
+function handleRefreshAiSummary(p) {
+  if (parseInt(p.accessLevel || '3') > 2) return { ok: false, error: 'Not authorized' };
+  var apiKey = _aiApiKey();
+  if (!apiKey) return { ok: false, error: 'No Anthropic API key in Script Properties.' };
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+  var headers = _aiEnsureColumns(sheet);
+  var data = sheet.getDataRange().getValues();
+  var idx = {};
+  headers.forEach(function(h, i) { if (h !== '' && idx[h] === undefined) idx[h] = i; });
+  var wantKey = String(p.siteKey || '').trim().toLowerCase(), wantName = String(p.siteName || '').trim().toLowerCase();
+  var rowNum = -1;
+  for (var r = 1; r < data.length; r++) {
+    var k = idx['Key'] !== undefined ? String(data[r][idx['Key']] || '').trim().toLowerCase() : '';
+    var n = String(data[r][idx['Name']] || '').trim().toLowerCase();
+    if ((wantKey && k === wantKey) || (wantName && n === wantName)) { rowNum = r; break; }
+  }
+  if (rowNum < 0) return { ok: false, error: 'School not found.' };
+  var row = data[rowNum];
+  var name = String(row[idx['Name']] || '').trim();
+  var key = idx['Key'] !== undefined ? String(row[idx['Key']] || '').trim() : '';
+  var chores = _aiOpenChoresBySite();
+  var ch = chores[key.toLowerCase()] || chores[name.toLowerCase()] || [];
+  var facts = _aiSiteFacts();
+  var f = facts[(key || name).toLowerCase()];
+  var input = _aiBuildInput(row, idx, ch, f);
+  var today = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d/yyyy');
+  var req = _aiRequest(apiKey, input, today);
+  var resp = UrlFetchApp.fetch(req.url, req);
+  var res = _aiParse(resp);
+  if (res.err) return { ok: false, error: res.err };
+  var vals = [res.summary, res.status, new Date(), _aiHash(input)];
+  AI_COLS.forEach(function(c, i) { sheet.getRange(rowNum + 1, idx[c] + 1).setValue(vals[i]); });
+  try { bumpLiveVersion(['sites']); } catch (e) {}
+  return { ok: true, key: key || name, s: res.summary, st: res.status, d: _aiShortDate(Date.now()), n: name, f: _aiFactsOut(f) };
+}
+
+// action: getRangerActivity (Levels 1-2) -> what one person has been doing lately
+function handleGetRangerActivity(p) {
+  if (parseInt(p.accessLevel || '3') > 2) return { ok: false, error: 'Not authorized' };
+  var email = String(p.email || '').trim().toLowerCase();
+  if (!email) return { ok: false, error: 'No email.' };
+  var since = Date.now() - AI_ACT_DAYS * 86400000;
+  var out = { ok: true, days: AI_ACT_DAYS, photos: { n: 0, last: '', school: '' }, subs: { n: 0, last: '', byAction: {}, recent: [] }, reach: { n: 0, last: '', subj: '' } };
+  // photos uploaded by this person (Info cells are "actor|ISO")
+  var sd = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues();
+  var idx = {};
+  sd[0].forEach(function(h, i) { if (h !== '' && idx[h] === undefined) idx[h] = i; });
+  var nameById = {}, lastPh = 0;
+  for (var r = 1; r < sd.length; r++) {
+    var nm = String(sd[r][idx['Name']] || '').trim();
+    if (idx['Key'] !== undefined) nameById[String(sd[r][idx['Key']] || '').trim().toLowerCase()] = nm;
+    nameById[nm.toLowerCase()] = nm;
+    _AI_IMG_COLS.forEach(function(c) {
+      var i = idx[c + ' Info'];
+      if (i === undefined) return;
+      var v = String(sd[r][i] || ''), pp = v.indexOf('|');
+      if (pp < 0 || v.slice(0, pp).trim().toLowerCase() !== email) return;
+      var ms = _aiMs(v.slice(pp + 1));
+      if (!ms || ms < since) return;
+      out.photos.n++;
+      if (ms > lastPh) { lastPh = ms; out.photos.last = _aiShortDate(ms); out.photos.school = nm; }
+    });
+  }
+  // sub / reschedule history by this person
+  var hist = _aiRecentSubHist(since).filter(function(e) { return e.actor === email; });
+  hist.sort(function(a, b) { return b.ms - a.ms; });
+  out.subs.n = hist.length;
+  if (hist.length) out.subs.last = _aiShortDate(hist[0].ms);
+  hist.forEach(function(e) { var a = e.type + ' ' + e.action; out.subs.byAction[a] = (out.subs.byAction[a] || 0) + 1; });
+  out.subs.recent = hist.slice(0, 5).map(function(e) {
+    return { d: _aiShortDate(e.ms), a: (e.type + ' ' + e.action).slice(0, 40), s: nameById[e.site.toLowerCase()] || e.site, t: e.summary.slice(0, 80) };
+  });
+  // Reach messages this person received
+  var memos = _aiRecentMemos(since, _aiPhoneMap()), seen = {}, lastReach = 0;
+  memos.forEach(function(m) {
+    if (m.emails.indexOf(email) < 0) return;
+    var k = m.subject + '|' + _aiShortDate(m.ms);
+    if (!seen[k]) { seen[k] = 1; out.reach.n++; }
+    if (m.ms > lastReach) { lastReach = m.ms; out.reach.last = _aiShortDate(m.ms); out.reach.subj = m.subject.slice(0, 60); }
+  });
+  return out;
+}
+
 // Newest upload date across the Sites image columns. handleUploadSiteImage stamps a companion
 // "<Column> Info" cell as "actor|ISO date" every time a photo is added or replaced.
 function _aiLatestPhotoDate(row, idx) {
@@ -5591,7 +5857,7 @@ function _aiLatestPhotoDate(row, idx) {
   return best ? Utilities.formatDate(new Date(best), 'America/Los_Angeles', 'M/d/yyyy') : '';
 }
 
-function _aiBuildInput(row, idx, chores) {
+function _aiBuildInput(row, idx, chores, facts) {
   function g(col) { var i = idx[col]; return i === undefined ? '' : row[i]; }
   var comments = String(g('Comments') || '').trim();
   if (comments.length > 3500) comments = '…' + comments.slice(-3500); // keep the most recent notes
@@ -5605,7 +5871,7 @@ function _aiBuildInput(row, idx, chores) {
     'Any response from school: ' + (g('Any Response?') === '' ? 'unknown' : g('Any Response?')),
     'Ranger day: ' + (g('Ranger Day Of Week 1') || ''),
     'Record last updated: ' + _aiFmtDate(g('Last Update')),
-    'Latest photo/video upload: ' + (_aiLatestPhotoDate(row, idx) || 'none recorded'),
+    _aiFactsText(facts),
     'Open chores:\n' + (chores.length ? chores.join('\n') : 'none'),
     'Site details:\n' + (details || 'none'),
     'Staff comments (dated log, oldest first):\n' + (comments || 'none')
@@ -5622,11 +5888,13 @@ function _aiRequest(apiKey, input, today) {
     'Say how the garden/program is doing, the most important open issue if any, and the date of the latest activity. ' +
     'Activity means EITHER a logged staff note OR a photo/video upload (Rangers often upload photos without writing a note). ' +
     'Use the later of the two dates, and name which it was (e.g. "last note 1/5/26" or "photos added 11/3/26"). ' +
-    'Never say that no detail or activity has been logged if there is a recent photo upload. ' +
+    'Never say that no detail or activity has been logged if there is a recent photo upload, closed chore, Reach message or Sub request. ' +
+    'Chores listed as closed are FINISHED: never call them open, urgent or pending; you may say one was resolved on its date. ' +
+    'Reach messages are emails/texts the office sent to the school contacts: when relevant, mention the latest one briefly (date, topic). ' +
     'Never use relative time like "3 weeks ago". Comment dates often omit the year; infer it from order. ' +
     'Never include gate codes, passwords or phone numbers. ' +
     'status: good = running well, nothing pending; watch = minor open item or unclear; ' +
-    'attention = needs staff action (unresolved problem, urgent chore, school not responding, or an active program with no logged note AND no photo upload in over 60 days).';
+    'attention = needs staff action (unresolved problem, urgent chore, school not responding, or an active program with no logged note, photo upload, closed chore or Reach message in over 60 days).';
   return {
     url: 'https://api.anthropic.com/v1/messages',
     method: 'post',
@@ -5698,6 +5966,8 @@ function runAiSummaries(budgetMs, force) {
     var idx = {};
     headers.forEach(function(h, i) { if (h !== '' && idx[h] === undefined) idx[h] = i; });
     var chores = _aiOpenChoresBySite();
+    var allFacts = {};
+    try { allFacts = _aiSiteFacts(); } catch (e) { Logger.log('facts: ' + e.message); }
     var today = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d/yyyy');
     var monthAgo = Date.now() - 30 * 86400000;
 
@@ -5710,7 +5980,7 @@ function runAiSummaries(budgetMs, force) {
       var key = idx['Key'] !== undefined ? String(row[idx['Key']] || '').trim() : '';
       var ch = chores[key.toLowerCase()] || chores[name.toLowerCase()] || [];
       if (!String(row[idx['Comments']] || '').trim() && !ch.length) continue;
-      var input = _aiBuildInput(row, idx, ch);
+      var input = _aiBuildInput(row, idx, ch, allFacts[(key || name).toLowerCase()]);
       var hash = _aiHash(input);
       var prevDate = row[idx['AI Summary Date']];
       var prevMs = prevDate instanceof Date ? prevDate.getTime() : (prevDate ? new Date(prevDate).getTime() : 0);
@@ -5805,12 +6075,24 @@ function handleGetAiSummaries(p) {
       ti = h.indexOf('AI Status'), di = h.indexOf('AI Summary Date');
   if (si === -1) return { ok: true, summaries: {} };
   var out = {};
+  var facts = {};
+  try {
+    var cache = CacheService.getScriptCache(), hit = cache.get('ai_facts_v1');
+    if (hit) facts = JSON.parse(hit);
+    else {
+      var all = _aiSiteFacts();
+      Object.keys(all).forEach(function(k) { var o = _aiFactsOut(all[k]); if (o) facts[k] = o; });
+      try { cache.put('ai_facts_v1', JSON.stringify(facts), 600); } catch (e) {}
+    }
+  } catch (e) { Logger.log('getAiSummaries facts: ' + e.message); }
   for (var r = 1; r < data.length; r++) {
     var s = String(data[r][si] || '').trim();
-    if (!s) continue;
     var id = (ki > -1 && String(data[r][ki] || '').trim()) || String(data[r][ni] || '').trim();
+    var fo = facts[id.toLowerCase()];
+    if (!s && !fo) continue;
     out[id] = { s: s, st: ti > -1 ? String(data[r][ti] || '') : '', d: di > -1 ? _aiFmtDate(data[r][di]) : '',
                 n: String(data[r][ni] || '').trim() };
+    if (fo) out[id].f = fo;
   }
   return { ok: true, summaries: out };
 }

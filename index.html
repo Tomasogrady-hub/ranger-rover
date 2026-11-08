@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.61 -->
+<!-- v11.62 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -420,7 +420,11 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .chore-school{flex:1 1 54%;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--stone);font-weight:600;cursor:pointer}
 .chore-task{flex:1 1 46%;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--enrich-teal);font-weight:500}
 .chore-row.urgent .chore-task{color:var(--danger);font-weight:700}
-.chm-btn{flex:0 0 auto;width:34px;height:26px;padding:0;border:0;background:transparent;color:var(--silver);font-size:16px;line-height:1;cursor:pointer;text-align:center}
+.chm-btn{flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;gap:3px;min-width:44px;height:26px;padding:0;border:0;background:transparent;color:var(--silver);font-size:16px;line-height:1;cursor:pointer;text-align:center}
+.chm-num{font-size:13px;font-weight:700;color:var(--stone)}
+.chm-btn.imp-hi .chm-num{color:var(--danger)}
+.chm-btn.imp-mid .chm-num{color:var(--amber)}
+.chm-arr{font-size:14px;color:var(--silver)}
 .chm-pop{position:fixed;z-index:6000;min-width:200px;max-width:260px;background:var(--paper,#fff);border:1px solid var(--mist);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.22);padding:4px;display:flex;flex-direction:column}
 .chm-i{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 12px;border:0;background:none;border-radius:7px;font-family:var(--font-b);font-size:15px;color:var(--ink,#222);text-align:left;cursor:pointer}
 .chm-i:active{background:var(--fog)}
@@ -778,6 +782,9 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   html:not(.rr-narrow) .ar-msgs,html:not(.rr-narrow) .ar-inputrow{padding-left:max(14px,calc(50% - 440px));padding-right:max(14px,calc(50% - 440px))}
 }
 /* AI summaries */
+.ai-facts{margin-top:3px;font-size:12px;color:var(--silver);line-height:1.5}
+.ai-stale{color:var(--amber);font-weight:600}
+.ai-refresh{border:0;background:none;color:var(--grove);font-size:12px;font-weight:600;cursor:pointer;padding:0 0 0 4px}
 .ai-line{margin-top:6px;padding:4px 0 4px 9px;border-left:3px solid var(--mist);font-size:13.5px;line-height:1.45;color:var(--stone);display:block}
 .ai-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
 #askRoverPanel{position:absolute;inset:0;z-index:1000;background:var(--paper,#faf8f3);display:flex;flex-direction:column}
@@ -2143,10 +2150,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.61';
+const APP_VERSION='v11.62';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-08 09:48 PT - Schools tab now uses clean Sort / Filter / Detail dropdowns; Chores rows have an arrow menu (Importance, Mark complete, Reassign, Delete); Operations shows a save-then-calculate note and can add a new Program; Level 3 loses Operations, resumes and contact editing.';
+const BUILD_STAMP='2026-11-08 10:53 PT - Ladybug now shows live photo, closed chore, Reach and Sub activity under each summary with a Refresh now button; Ranger cards show recent activity; chores show importance next to the arrow.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2194,15 +2201,86 @@ function _aiFor(site){
   if(n&&_AI[n])return _AI[n];
   return null;
 }
+// Live facts (photos, closed chores, Reach, Sub) come straight from the sheets, so they are always current
+function _aiFactsHtml(a){
+  const f=a&&a.f;if(!f)return '';
+  const p=[];
+  if(f.ph)p.push('📷 Photos '+escHtml(f.ph));
+  if(f.ch)p.push('✓ Chore closed '+escHtml(f.ch)+(f.ct?' - '+escHtml(f.ct):''));
+  if(f.rc)p.push('✉ Reach '+escHtml(f.rc)+(f.rn>1?' ('+f.rn+')':''));
+  if(f.sb)p.push('🔁 Sub '+escHtml(f.sb));
+  return p.length?p.join(' · '):'';
+}
+function _aiIsStale(a){
+  if(!a||!a.f||!a.f.fm)return false;
+  if(!a.s)return false;
+  const t=new Date(a.d).getTime();
+  return !isNaN(t)&&a.f.fm>t+3*3600*1000;
+}
 function _aiCardLine(site){
   const a=_aiFor(site);if(!a)return '';
   const st=_AI_ST[a.st]||_AI_ST.watch;
-  return `<div class="ai-line" style="border-left-color:${st.c}">${lbSvg(13,false)} ${escHtml(a.s)}</div>`;
+  const facts=_aiFactsHtml(a);
+  const stale=_aiIsStale(a);
+  const txt=a.s?`${lbSvg(13,false)} ${escHtml(a.s)}`:'';
+  if(!txt&&!facts)return '';
+  return `<div class="ai-line" style="border-left-color:${st.c}">${txt}${facts?`<div class="ai-facts">${facts}${stale?' <span class="ai-stale">· newer than summary</span>':''}</div>`:''}</div>`;
 }
 function _aiDetailBlock(site){
   const a=_aiFor(site);if(!a)return '';
   const st=_AI_ST[a.st]||_AI_ST.watch;
-  return `<div class="ds"><div class="dl">${lbSvg(18)} Ladybug says <span class="ai-badge" style="background:${st.bg};color:${st.c}">${st.l}</span></div><div class="dv" style="font-size:16px;color:var(--stone);line-height:1.55">${escHtml(a.s)}<div style="font-size:12px;color:var(--silver);margin-top:4px">Ladybug's summary of staff comments and open chores${a.d?' · '+escHtml(a.d):''}. May be imperfect.</div></div></div>`;
+  const facts=_aiFactsHtml(a);
+  const stale=_aiIsStale(a);
+  const k=sf(site,'Key','key')||'',n=sf(site,'Name','name')||'';
+  return `<div class="ds"><div class="dl">${lbSvg(18)} Ladybug says <span class="ai-badge" style="background:${st.bg};color:${st.c}">${st.l}</span></div><div class="dv" style="font-size:16px;color:var(--stone);line-height:1.55">${a.s?escHtml(a.s):'<span style="color:var(--silver)">No summary yet.</span>'}${facts?`<div class="ai-facts" style="margin-top:6px">${facts}</div>`:''}<div style="font-size:12px;color:var(--silver);margin-top:4px">Ladybug's summary of staff notes, open and closed chores, photos, Reach messages and Sub requests${a.d?' · '+escHtml(a.d):''}. May be imperfect.${stale?' <b style="color:var(--amber)">There is newer activity than this summary.</b>':''} <button type="button" class="ai-refresh" onclick="_aiRefresh('${ea(k)}','${ea(n.replace(/'/g,"\\'"))}',this)">↻ Refresh now</button></div></div></div>`;
+}
+/* ═══ RANGER ACTIVITY (Levels 1-2) — photos, Sub/reschedule actions and Reach messages, loaded only when a Ranger card opens ═══ */
+const _RA_CACHE={};
+function _rangerActivityShell(h,email){
+  if(!SESSION||SESSION.accessLevel>2||!email)return '';
+  if(!_showsRangerDocs(h))return '';
+  const k=String(email).toLowerCase();
+  setTimeout(()=>_rangerActivityLoad(k),30);
+  return `<div class="ds" id="raBlock"><div class="dl">${lbSvg(18)} Activity (last 120 days)</div><div class="dv" id="raBody" style="font-size:14px;color:var(--stone);line-height:1.6">Loading…</div></div>`;
+}
+async function _rangerActivityLoad(email){
+  const put=html=>{const b=document.getElementById('raBody');if(b)b.innerHTML=html;};
+  const c=_RA_CACHE[email];
+  if(c&&Date.now()-c.t<600000){put(_rangerActivityHtml(c.r));return;}
+  try{
+    const r=await gasPost({action:'getRangerActivity',email,accessLevel:SESSION.accessLevel});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'failed');
+    _RA_CACHE[email]={t:Date.now(),r};
+    put(_rangerActivityHtml(r));
+  }catch(e){put('<span style="color:var(--silver)">Could not load activity.</span>');}
+}
+function _rangerActivityHtml(r){
+  const rows=[];
+  rows.push(r.photos&&r.photos.n?`📷 <b>${r.photos.n}</b> photo${r.photos.n>1?'s':''} uploaded · latest ${escHtml(r.photos.last)}${r.photos.school?' at '+escHtml(r.photos.school):''}`:'📷 No photo uploads');
+  if(r.subs&&r.subs.n){
+    const acts=Object.keys(r.subs.byAction||{}).map(k=>escHtml(k)+' ×'+r.subs.byAction[k]).join(', ');
+    rows.push(`🔁 <b>${r.subs.n}</b> Sub/reschedule action${r.subs.n>1?'s':''} · latest ${escHtml(r.subs.last)}<div style="font-size:12px;color:var(--silver)">${acts}</div>`);
+    (r.subs.recent||[]).forEach(e=>rows.push(`<div style="font-size:12px;color:var(--stone);padding-left:18px">${escHtml(e.d)} · ${escHtml(e.a)} · ${escHtml(e.s||'')}${e.t?' - '+escHtml(e.t):''}</div>`));
+  }else rows.push('🔁 No Sub or reschedule activity');
+  rows.push(r.reach&&r.reach.n?`✉ <b>${r.reach.n}</b> Reach message${r.reach.n>1?'s':''} received · latest ${escHtml(r.reach.last)}${r.reach.subj?' - '+escHtml(r.reach.subj):''}`:'✉ No Reach messages received');
+  return rows.join('<br>');
+}
+async function _aiRefresh(key,name,btn){
+  if(!SESSION||SESSION.accessLevel>2)return;
+  if(btn){btn.disabled=true;btn.textContent='Refreshing…';}
+  try{
+    const r=await gasPost({action:'refreshAiSummary',siteKey:key,siteName:name,accessLevel:SESSION.accessLevel});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'Could not refresh');
+    const v={s:r.s,st:r.st,d:r.d,n:r.n};if(r.f)v.f=r.f;
+    _AI[r.key]=v;if(r.n)_AI[r.n]=v;
+    try{localStorage.setItem('rr_ai_sum',JSON.stringify(_AI));}catch(e){}
+    showSaveToast('✓ Ladybug summary refreshed');
+    if(key)showSchoolDetailByKey(key);
+    try{renderSchools();}catch(e){}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='↻ Refresh now';}
+    showSaveToast('⚠ '+e.message);
+  }
 }
 async function _aiLoadSummaries(){
   if(!SESSION||SESSION.accessLevel>2||!CFG.URL)return;
@@ -3268,7 +3346,7 @@ function choreCardHtml(c,showSite=false){
   const school=siteName?`<span class="chore-school" onclick="event.stopPropagation();showSchoolDetailByKey('${ea(siteKey)}')">${escHtml(siteName)}</span>`:'';
   return `<div class="chore-card chore-row ${isUrgent?'urgent':''}" onclick="showChoreDetail('${ea(id)}')">
     <div class="chore-line">${school}<span class="chore-task">${task}</span></div>
-    ${canSeeImp()?`<button type="button" class="chm-btn ${_impCls(imp)}" title="Chore actions" aria-label="Chore actions" onclick="event.stopPropagation();_choreMenuOpen('${ea(id)}',this)">▾</button>`:''}
+    ${canSeeImp()?`<button type="button" class="chm-btn ${_impCls(imp)}" title="Importance ${imp||'not set'} - tap for chore actions" aria-label="Chore actions" onclick="event.stopPropagation();_choreMenuOpen('${ea(id)}',this)"><span class="chm-num">${imp||'–'}</span><span class="chm-arr">▾</span></button>`:''}
   </div>`;
 }
 
@@ -7852,6 +7930,7 @@ function renderPD(h,edit){
         <button class="dcta" id="pd-forward-btn" onclick="forwardContactCard('${ea(email||name)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>
       </div>
       ${_personActionsHtml(email)}
+      ${_rangerActivityShell(h,email)}
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${(SESSION&&(SESSION.accessLevel<=2||(email&&email.toLowerCase()===String(SESSION.email||'').toLowerCase())))?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
