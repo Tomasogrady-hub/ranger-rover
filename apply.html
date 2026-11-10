@@ -7,7 +7,7 @@
 <meta name="description" content="Apply to join Enrich LA - teach and grow school gardens across Los Angeles.">
 <meta property="og:title" content="Apply to Enrich LA">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- apply.html v2.0 - 2026-11-01 - ONE application form for every posting; ?p=ID pre-selects the position. Writes to Humans via GAS publicApply. -->
+<!-- apply.html v2.1 - 2026-11-10 - pitch + experience merged into one box; ONE application form for every posting; ?p=ID pre-selects the position. Writes to Humans via GAS publicApply. -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b}
   *{box-sizing:border-box}
@@ -90,11 +90,9 @@
       </label>
 
       <div class="grp">Why you</div>
-      <label for="pitch">Tell us about yourself <span class="req">*</span></label>
-      <div class="hint">Why do you want this job? What would you bring to our students and gardens?</div>
-      <textarea id="pitch" required></textarea>
-      <label for="experience">Gardening, teaching or kids experience <span class="opt">(optional)</span></label>
-      <textarea id="experience" style="min-height:80px"></textarea>
+      <label for="pitch">Tell us about yourself and your experience <span class="req">*</span></label>
+      <div class="hint">Why do you want this job? Any gardening, teaching or working-with-kids experience? What would you bring to our students and gardens?</div>
+      <textarea id="pitch" required style="min-height:170px"></textarea>
       <label>Resume <span class="opt">(optional - PDF, Word or photo, up to 6 MB)</span></label>
       <label class="file" id="fileBox">
         <input type="file" id="resume" accept=".pdf,.doc,.docx,.rtf,.txt,.odt,.pages,image/*,application/pdf">
@@ -248,7 +246,7 @@
       positionId: pid,
       firstName: val('firstName'), lastName: val('lastName'), email: val('email'), mobile: val('mobile'),
       street: val('street'), city: val('city'), state: val('state'), zip: val('zip'),
-      pitch: val('pitch'), experience: val('experience'),
+      pitch: val('pitch'),
       availability: [].map.call(document.querySelectorAll('#days .chip.on'), function(c){ return c.dataset.v; }),
       timeOfDay: val('timeOfDay'), startDate: val('startDate'), hasCar: val('hasCar'), areas: val('areas'),
       languages: val('languages'), howHeard: val('howHeard'), website: val('website')

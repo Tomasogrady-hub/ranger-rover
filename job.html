@@ -114,7 +114,6 @@
       '<h2>' + esc(p.title) + '</h2>' + (p.date ? '<div class="posted">Posted ' + esc(p.date) + '</div>' : '') +
       '<div class="facts">' + fact('📍','Where',p.location) + fact('🗓️','Schedule',p.schedule) + fact('⏰','When',p.when) + fact('💵','Pay',p.pay) + '</div>' +
       '<div class="sec">' + fmt(p.description) +
-        sec('About the position', fmt(p.positionDescription)) +
         sec('Requirements', fmt(p.requirements)) +
         sec('Questions & answers', p.faq ? fmtFaq(p.faq) : '') +
       '</div>' +

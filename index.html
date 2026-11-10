@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.63 -->
+<!-- v11.64 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2150,10 +2150,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.63';
+const APP_VERSION='v11.64';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-09 20:30 PT - Job postings: one public page lists all open postings (job.html), clickable page links in Operations > Humans; new posting picks its Position from Roles (or add new), fills Public Title, and can start from another postings description. Restored sw.js (was blank since v11.60).';
+const BUILD_STAMP='2026-11-10 11:10 PT - Job postings: Delete button; picking a Role fills Public Title, Public Description and Requirements from the Roles tab and edits save back to the Role; who-gets-emailed picks from Level 1-2 people; Position Description removed; Resumes folder link. Apply form: one About you + experience box.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -9280,16 +9280,17 @@ let _opsFilterSchedule=''; // default: no schedule sub-filter
 // when this page opens (never at startup). Every sheet column shows up in the
 // edit form automatically, so new columns added to the sheet need no code change.
 const HR_SHEET_URL='https://docs.google.com/spreadsheets/d/1XWq8SMAl0_FijkhyAZ_vrS4-vvC9LHwS0zfblg0UXY8/edit';
+const HR_RESUMES_URL='https://drive.google.com/drive/folders/1XY4kQGCh8J5PqjhGNUqP98MSWf_ANGFJ';
 const HR_JOBS_URL='https://tomasogrady-hub.github.io/ranger-rover/job.html';
 const _hr={loaded:false,loading:false,headers:[],system:[],positions:[],filter:'open',openApps:{},editId:null};
 const _HR_LONG=['Public Description','Position Description','Requirements','FAQ'];
 const _HR_HINTS={
-  'Public Title':'The job title applicants see.',
-  'Public Description':'Start a line with "- " for a bullet point. A short line right before bullets becomes a heading.',
+  'Public Title':'The job title applicants see. Filled in from the Role (Role Name Public); changes are saved back to the Role.',
+  'Public Description':'Filled in from the Role. Start a line with "- " for a bullet point; a short line right before bullets becomes a heading. Changes here are saved back to the Role.',
   'Position Description':'Day-to-day duties. Shown under "About the position".',
   'FAQ':'Put each question on its own line ending in "?" and the answer on the line below.',
   'When':'e.g. Starts January 2027, or Ongoing.',
-  'Notify Email':'Who gets emailed when someone applies (blank = Tomas).',
+  'Requirements':'Filled in from the Role. Changes here are saved back to the Role for next time.',
   'Form Location':'Leave blank to use the standard application form. Paste a different form link here later (e.g. on the new website).'
 };
 function _hrStatusCls(st){st=String(st||'').trim().toLowerCase();if(!st||/^(open|active|posted)$/.test(st))return '';if(/pause|hold|draft/.test(st))return ' pause';return ' off';}
@@ -9322,7 +9323,8 @@ function _hrRender(){
   const chip=(k,l,n)=>'<button class="reach-token-chip'+(f===k?' on':'')+'" style="'+(f===k?'background:var(--ink);color:#fff;':'')+'padding:7px 13px;border-radius:99px;border:1px solid var(--mist);font-size:13px;font-weight:600;cursor:pointer" onclick="_hrSetFilter(\''+k+'\')">'+l+' ('+n+')</button>';
   let h='<div style="display:flex;gap:8px;flex-wrap:wrap">'+
     '<button class="settings-btn" style="flex:1;width:auto;margin-top:0" onclick="_hrEdit(\'\')">➕ New Job Posting</button>'+
-    '<a class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;text-decoration:none;text-align:center;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a>'+
+    '<a class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;text-decoration:none;text-align:center;background:var(--fog);color:var(--ink);border:1px solid var(--mist) target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a>'+
+    '<a class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;text-decoration:none;text-align:center;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" target="_blank" href="'+HR_RESUMES_URL+'">Resumes ↗</a>'+
     '<button class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" onclick="_hrOpen(true)">↻</button></div>'+
     '<div class="hr-card" style="display:flex;align-items:center;gap:10px;background:var(--fog)">'+
       '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:15px;font-family:var(--font-b)">🌐 Public job postings page</div>'+
@@ -9345,14 +9347,16 @@ function _hrRender(){
         '<button onclick="_hrToggleApps(\''+ea(p.id)+'\')">👥 Applicants ('+n+')'+(open?' ▲':'')+'</button>'+
         '<button data-link="'+ea(p.postingUrl)+'" onclick="_hrCopy(this.dataset.link,\'Posting link copied\')">🔗 Copy link</button>'+
         '<button onclick="_hrEdit(\'\',\''+ea(p.id)+'\')">⧉ Duplicate</button>'+
+        '<button style="color:var(--danger)" onclick="_hrDelete(\''+ea(p.id)+'\')">🗑 Delete</button>'+
       '</div>'+
       (open?_hrAppsHtml(apps):'')+
     '</div>';
   });
   // General applications (no posting picked)
   if(humansReady&&f!=='closed'){
-    const gen=(DATA.humans||[]).filter(x=>sf(x,'Applied Date','AppliedDate')&&!String(sf(x,'Position Applied','PositionApplied')||'').trim());
-    if(gen.length)h+='<div class="hr-card"><div class="hr-t">General applications</div><div class="hr-m">Applied without picking a posting</div>'+
+    const _ids=new Set(all.map(p=>p.id.toLowerCase()));
+    const gen=(DATA.humans||[]).filter(x=>{if(!sf(x,'Applied Date','AppliedDate'))return false;const pa=String(sf(x,'Position Applied','PositionApplied')||'').trim().toLowerCase();return !pa||!_ids.has(pa);});
+    if(gen.length)h+='<div class="hr-card"><div class="hr-t">General applications</div><div class="hr-m">Applied without picking a posting, or to a posting that was deleted</div>'+
       '<div class="hr-btns"><button onclick="_hrToggleApps(\'_general\')">👥 Applicants ('+gen.length+')'+(_hr.openApps._general?' ▲':'')+'</button></div>'+
       (_hr.openApps._general?_hrAppsHtml(gen):'')+'</div>';
   }
@@ -9392,6 +9396,20 @@ function _hrEdit(id,copyFrom){
     if(c==='ID'){
       if(!isNew)h+='<label>ID</label><div class="hr-ro">'+escHtml(val)+'</div>';return;
     }
+    if(c==='Position Description')return;
+    if(c==='Notify Email'){
+      const cur=val.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+      const staff=(DATA.humans||[]).filter(x=>{const l=parseInt(x['Access Level']||x.accessLevel||x.AccessLevel);return l===1||l===2;})
+        .map(x=>({em:String(x.Email||x.email||'').trim(),nm:fullName(x)||x.Email||'',lv:parseInt(x['Access Level']||x.accessLevel||x.AccessLevel)}))
+        .filter(x=>x.em).sort((a,b)=>a.lv-b.lv||a.nm.localeCompare(b.nm));
+      cur.forEach(e=>{if(!staff.some(x=>x.em.toLowerCase()===e))staff.push({em:e,nm:e,lv:''});});
+      const pre=cur.length?cur:(isNew?[String(SESSION&&SESSION.email||'').toLowerCase()]:[]);
+      h+='<label>Who gets emailed when someone applies</label>'+
+        '<div id="hrNotify" style="background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:6px 10px;max-height:220px;overflow-y:auto">'+
+        (staff.length?staff.map(x=>'<label style="display:flex;align-items:center;gap:10px;margin:0;padding:7px 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;flex-shrink:0" value="'+ea(x.em)+'"'+(pre.includes(x.em.toLowerCase())?' checked':'')+'><span>'+escHtml(x.nm)+(x.lv?' <span style="color:var(--stone);font-size:12px">Level '+x.lv+'</span>':'')+'</span></label>').join(''):'<div class="hr-hint">People are still loading.</div>')+
+        '</div><div class="hr-hint">Level 1 and 2 people. The applicant\'s "reply" goes to the first one ticked.</div>';
+      return;
+    }
     if(c==='Date'||c==='Applications'||c==='Apply Link'){
       if(!isNew)h+='<label>'+escHtml(c==='Apply Link'?'Posting link (share this)':c)+'</label><div class="hr-ro">'+escHtml(val||'-')+'</div>';return;
     }
@@ -9402,7 +9420,7 @@ function _hrEdit(id,copyFrom){
       h+='<select id="'+fid+'" data-col="'+ea(c)+'" onchange="_hrRolePicked(this)">'+
         '<option value="">Choose a role…</option>'+roles.map(r=>'<option'+(r===val?' selected':'')+'>'+escHtml(r)+'</option>').join('')+
         (typeof canManageRoles==='function'&&canManageRoles()?'<option value="__new">➕ Add new role…</option>':'')+'</select>'+
-        '<div class="hr-hint">From the Humans Roles list. Picking one fills in the Public Title below - change the title if you like.</div>';return;
+        '<div class="hr-hint">From the Humans Roles list. Picking one fills in Public Title, Public Description and Requirements from that Role - change any of them here.</div>';return;
     }
     if(c==='Public Description'){
       const others=_hr.positions.filter(p=>p.id!==id&&String((p.values||{})['Public Description']||'').trim());
@@ -9419,10 +9437,19 @@ function _hrEdit(id,copyFrom){
     if(_HR_HINTS[c])h+='<div class="hr-hint">'+escHtml(_HR_HINTS[c])+'</div>';
   });
   h+='<button class="btn-save" id="hrSaveBtn" style="width:100%;margin-top:20px" onclick="_hrSave()">'+(isNew?'Create posting':'Save changes')+'</button>'+
-     '<button class="btn-cancel" style="width:100%;margin-top:8px;text-align:center" onclick="_hrCancel()">Cancel</button></div>';
+     '<button class="btn-cancel" style="width:100%;margin-top:8px;text-align:center" onclick="_hrCancel()">Cancel</button>'+
+     (isNew?'':'<button class="btn-cancel" style="width:100%;margin-top:18px;text-align:center;color:var(--danger);border-color:var(--danger)" onclick="_hrDelete(\''+ea(id)+'\')">🗑 Delete this posting</button>')+'</div>';
   body.innerHTML=h;
   body.scrollIntoView({block:'start'});
-  const _t=document.getElementById('hrf-Public_Title');if(_t)_t.dataset.auto=_t.value===String(v['Name of Position Internal']||'')?'1':'';
+  ['hrf-Public_Title','hrf-Public_Description','hrf-Requirements'].forEach(fid=>{const el=document.getElementById(fid);if(el){el.dataset.auto=el.value.trim()?'':'1';el.addEventListener('input',()=>{el.dataset.auto='';});}});
+}
+function _hrRoleObj(name){const n=String(name||'').trim().toLowerCase();return (DATA.roles||[]).find(r=>String(r.name||'').trim().toLowerCase()===n)||null;}
+// Put a Role default into a posting field: always if blank or untouched, ask if someone typed their own.
+function _hrFillFromRole(fid,val,label){
+  const el=document.getElementById(fid);if(!el||!val)return;
+  if(el.value.trim()===val.trim())return;
+  if(el.value.trim()&&el.dataset.auto!=='1'&&!confirm('Replace the '+label+' you typed with the one saved for this Role?'))return;
+  el.value=val;el.dataset.auto='1';
 }
 // Role picked for a posting -> fill Public Title (unless someone already typed their own).
 async function _hrRolePicked(sel){
@@ -9438,8 +9465,11 @@ async function _hrRolePicked(sel){
     else{const o=document.createElement('option');o.textContent=nm;sel.insertBefore(o,sel.options[sel.options.length-1]);sel.value=nm;}
     role=sel.value;showToast('Role added');
   }
-  const t=document.getElementById('hrf-Public_Title');
-  if(t&&role&&(!t.value.trim()||t.dataset.auto==='1')){t.value=role;t.dataset.auto='1';}
+  if(!role)return;
+  const ro=_hrRoleObj(role)||{};
+  _hrFillFromRole('hrf-Public_Title',ro.publicName||role,'Public Title');
+  _hrFillFromRole('hrf-Public_Description',ro.publicDescription||ro.description||'','Public Description');
+  _hrFillFromRole('hrf-Requirements',ro.requirements||'','Requirements');
 }
 // Copy another posting's Public Description into this one to adjust.
 function _hrDescFrom(sel){
@@ -9450,11 +9480,24 @@ function _hrDescFrom(sel){
   ta.value=txt;sel.value='';ta.focus();
   showToast('Copied - edit it as you like');
 }
+async function _hrDelete(id){
+  const p=_hr.positions.find(x=>x.id===id);if(!p)return;
+  const t=(p.values||{})['Public Title']||id;
+  if(!confirm('Delete the job posting "'+t+'" ('+id+')?\n\nIt comes off the public page and out of the Positions sheet. People who applied stay in Humans.'))return;
+  try{
+    const r=await gasPost({action:'deletePosition',id,accessLevel:SESSION?SESSION.accessLevel:3,actor:SESSION?SESSION.email:''});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'Delete failed');
+    _hr.positions=_hr.positions.filter(x=>x.id!==id);_hr.editId=null;
+    showToast('Posting deleted');_hrRender();
+  }catch(e){showToast(e.message);}
+}
 function _hrCancel(){_hr.editId=null;_hrRender();}
 async function _hrSave(){
   const btn=document.getElementById('hrSaveBtn');
   const values={};
   document.querySelectorAll('#hrBody [data-col]').forEach(el=>{values[el.dataset.col]=el.value.trim();});
+  const _nb=document.getElementById('hrNotify');
+  if(_nb){const ems=[..._nb.querySelectorAll('input:checked')].map(i=>i.value);if(!ems.length){showToast('Tick at least one person to email');return;}values['Notify Email']=ems.join(', ');}
   if(values['Name of Position Internal']==='__new')values['Name of Position Internal']='';
   if(!values['Name of Position Internal']&&!_hr.editId){showToast('Please choose a Position (Role)');return;}
   if(!values['Public Title']){showToast('Please add a Public Title');return;}
@@ -9463,6 +9506,8 @@ async function _hrSave(){
     const r=await gasPost({action:'savePosition',accessLevel:SESSION?SESSION.accessLevel:3,actor:SESSION?SESSION.email:'',id:_hr.editId||'',values});
     if(!r||!r.ok)throw new Error((r&&r.error)||'Save failed');
     showToast(r.created?'Posting '+r.id+' created':'Posting saved');
+    const _ro=_hrRoleObj(values['Name of Position Internal']);
+    if(_ro){if(values['Public Title'])_ro.publicName=values['Public Title'];if(values['Public Description'])_ro.publicDescription=values['Public Description'];if(values['Requirements'])_ro.requirements=values['Requirements'];}
     _hr.editId=null;
     await _hrOpen(true);
   }catch(e){

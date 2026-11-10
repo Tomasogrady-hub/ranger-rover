@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.51 | 2026-11-01 | HR: create/edit postings in Operations > Humans, job.html posting page, photo upload on apply form';
+const GAS_BUILD = 'v11.64 | 2026-11-10 | HR: delete postings, Roles sync (Role Name Public / Public Description / Requirements), resumes to Resumes and Pictures';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -488,7 +488,7 @@ var LIVE_FILES = [
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
 var LIVE_ACTION_SCOPES = {
-  addHuman: ['humans'], addRole: ['humans'], deleteHuman: ['humans', 'sites'],
+  addHuman: ['humans'], addRole: ['humans'], deleteHuman: ['humans', 'sites'], savePosition: ['humans'],
   uploadHumanImage: ['humans'], uploadHumanDoc: ['humans'], removeHumanFile: ['humans'],
   saveComments: ['humans'], publicSmsOptIn: ['humans'], publicApply: ['humans'],
   cascadeEmail: ['humans', 'sites', 'chores'], clearRangerFromSites: ['sites'],
@@ -826,6 +826,7 @@ function _doPostRoute(e) {
       case 'publicApply':        return respond(handlePublicApply(p));
       case 'getPositions':       return respond(handleGetPositions(p));
       case 'savePosition':       return respond(handleSavePosition(p));
+      case 'deletePosition':     return respond(handleDeletePosition(p));
 
       // ── DEFAULT: save edit ───────────────────────────────────────────────────
       default: return respond(handleSaveEdit(p));
@@ -3105,6 +3106,15 @@ function getOpenChores(imgMap) {
   } catch(e) { return []; }
 }
 
+// Roles-tab header lookup that ignores case and spacing ("Role name public" == "Role Name Public").
+function _rolesCol(headers, name) {
+  var want = String(name).toLowerCase().replace(/\s+/g, '');
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]).toLowerCase().replace(/\s+/g, '') === want) return i;
+  }
+  return -1;
+}
+
 function getRoles() {
   try {
     var sheet = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Roles');
@@ -3115,13 +3125,29 @@ function getRoles() {
     var descIdx = headers.indexOf('Description');
     var catIdx  = headers.indexOf('Category');
     if (nameIdx === -1) nameIdx = 0;
+    // v11.64 job-posting columns (matched loosely: case/spacing don't matter)
+    var pubNameIdx = _rolesCol(headers, 'Role Name Public');
+    var pubDescIdx = _rolesCol(headers, 'Public Description');
+    var reqIdx     = _rolesCol(headers, 'Requirements');
+    // Description filled in but Public Description blank -> copy it across once.
+    if (pubDescIdx > -1 && descIdx > -1) {
+      for (var r = 1; r < data.length; r++) {
+        if (String(data[r][descIdx] || '').trim() && !String(data[r][pubDescIdx] || '').trim()) {
+          data[r][pubDescIdx] = data[r][descIdx];
+          sheet.getRange(r + 1, pubDescIdx + 1).setValue(data[r][descIdx]);
+        }
+      }
+    }
     return data.slice(1)
       .filter(function(row) { return row[nameIdx] && String(row[nameIdx]).trim() !== ''; })
       .map(function(row) {
         return {
           name:        String(row[nameIdx]).trim(),
           description: descIdx >= 0 ? String(row[descIdx] || '').trim() : '',
-          category:    catIdx  >= 0 ? String(row[catIdx]  || '').trim().toLowerCase() : ''
+          category:    catIdx  >= 0 ? String(row[catIdx]  || '').trim().toLowerCase() : '',
+          publicName:  pubNameIdx >= 0 ? String(row[pubNameIdx] || '').trim() : '',
+          publicDescription: pubDescIdx >= 0 ? String(row[pubDescIdx] || '').trim() : '',
+          requirements: reqIdx >= 0 ? String(row[reqIdx] || '').trim() : ''
         };
       });
   } catch(e) { return []; }
@@ -6697,6 +6723,7 @@ function handleGetPositions(p) {
   if (parseInt(p.accessLevel || '3') > 2) return { ok: false, error: 'Not authorized' };
   var sheet = _hrPosSheet();
   _hrEnsurePosCols(sheet);
+  _hrMoveOldResumes();
   var d = _hrReadPositions();
   var ai = d.h.indexOf('Apply Link'), fi = d.h.indexOf('Form Location');
   var rows = d.rows.map(function(o) {
@@ -6710,7 +6737,8 @@ function handleGetPositions(p) {
     return { id: id, values: vals, open: _hrIsOpen(o['Status']),
              postingUrl: _hrPostingUrl(id), formUrl: String(o['Form Location'] || '').trim() || _hrFormUrl(id) };
   });
-  return { ok: true, headers: d.h.filter(String), system: HR_POS_SYSTEM.concat(['ID', 'Date']), positions: rows };
+  return { ok: true, headers: d.h.filter(String), system: HR_POS_SYSTEM.concat(['ID', 'Date']), positions: rows,
+           resumeFolderUrl: 'https://drive.google.com/drive/folders/' + HR_RESUME_FOLDER };
 }
 
 // Short ID from the title: "Garden Keeper - Fall" -> GK-2611 (yyMM), -2/-3... if taken.
@@ -6758,6 +6786,7 @@ function handleSavePosition(p) {
       sheet.appendRow(row);
       logActivity(p.actor || '', 'created job posting', title, 'posting', newId);
       _hrClearPosCache();
+      _hrSyncRole(vals);
       return { ok: true, id: newId, created: true };
     }
     var o = d.rows.filter(function(x) { return String(x['ID']).trim().toLowerCase() === editId.toLowerCase(); })[0];
@@ -6772,21 +6801,79 @@ function handleSavePosition(p) {
     sheet.getRange(o._row, 1, 1, h.length).setValues([cur]);
     logActivity(p.actor || '', 'edited job posting', title, 'posting', editId);
     _hrClearPosCache();
+    _hrSyncRole(vals);
     return { ok: true, id: editId };
   } finally {
     lock.releaseLock();
   }
 }
 
+// All resumes live in one place: the existing "Resumes and Pictures" folder
+// (team@ Drive), alongside the resumes that were collected before the form.
+const HR_RESUME_FOLDER = '1XY4kQGCh8J5PqjhGNUqP98MSWf_ANGFJ';
+// A posting's Public Title / Public Description / Requirements become that
+// role's defaults on the Roles tab (Role Name Public / Public Description /
+// Requirements), so the next posting for the role starts from them.
+function _hrSyncRole(vals) {
+  try {
+    var role = String(vals['Name of Position Internal'] || '').trim();
+    if (!role) return;
+    var sh = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Roles');
+    if (!sh) return;
+    var data = sh.getDataRange().getValues(), h = data[0];
+    var ni = h.indexOf('Role'); if (ni === -1) ni = 0;
+    var map = { 'Role Name Public': vals['Public Title'], 'Public Description': vals['Public Description'], 'Requirements': vals['Requirements'] };
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][ni]).trim().toLowerCase() !== role.toLowerCase()) continue;
+      Object.keys(map).forEach(function(col) {
+        var v = String(map[col] == null ? '' : map[col]).trim();
+        var ci = _rolesCol(h, col);
+        if (!v) return;
+        if (ci === -1) { h.push(col); ci = h.length - 1; sh.getRange(1, ci + 1).setValue(col); }
+        if (String(data[r][ci] || '').trim() !== v) sh.getRange(r + 1, ci + 1).setValue(v);
+      });
+      return;
+    }
+  } catch (e) { Logger.log('_hrSyncRole: ' + e.message); }
+}
+
+// Admin (Levels 1-2): remove a posting row. Applicants keep their Humans rows.
+function handleDeletePosition(p) {
+  if (parseInt(p.accessLevel || '3') > 2) return { ok: false, error: 'Not authorized' };
+  var id = String(p.id || '').trim();
+  if (!id) return { ok: false, error: 'No posting given' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var d = _hrReadPositions();
+    var o = d.rows.filter(function(x) { return String(x['ID']).trim().toLowerCase() === id.toLowerCase(); })[0];
+    if (!o) return { ok: false, error: 'Posting ' + id + ' not found.' };
+    var title = String(o['Public Title'] || o['Name of Position Internal'] || id);
+    _hrClearPosCache();
+    d.sheet.deleteRow(o._row);
+    logActivity(p.actor || '', 'deleted job posting', title, 'posting', id);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
 function _hrResumeFolder() {
+  return DriveApp.getFolderById(HR_RESUME_FOLDER);
+}
+
+// One-time: move anything the form saved into HR/Resumes (v11.50-v11.63) over
+// to Resumes and Pictures. Runs automatically from getPositions; safe to repeat.
+function _hrMoveOldResumes() {
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty('hr_resume_folder');
-  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
-  var parent = DriveApp.getFolderById(HR_FOLDER);
-  var it = parent.getFoldersByName('Resumes');
-  var f = it.hasNext() ? it.next() : parent.createFolder('Resumes');
-  props.setProperty('hr_resume_folder', f.getId());
-  return f;
+  if (props.getProperty('hr_resumes_moved_v1')) return;
+  try {
+    var dest = _hrResumeFolder();
+    var it = DriveApp.getFolderById(HR_FOLDER).getFoldersByName('Resumes');
+    while (it.hasNext()) {
+      var files = it.next().getFiles();
+      while (files.hasNext()) { files.next().moveTo(dest); }
+    }
+    props.setProperty('hr_resumes_moved_v1', '1');
+  } catch (e) { Logger.log('_hrMoveOldResumes: ' + e.message); }
 }
 
 // Finds the Roles tab entry for Ranger Applicant (exact sheet spelling), adding it if missing.
@@ -6976,7 +7063,7 @@ function handlePublicApply(p) {
 
   // Confirmation to the applicant
   try {
-    MailApp.sendEmail({ to: email, replyTo: notifyTo, name: 'Enrich LA',
+    MailApp.sendEmail({ to: email, replyTo: notifyTo.split(',')[0].trim(), name: 'Enrich LA',
       subject: 'Thanks for applying to Enrich LA, ' + first + '!',
       htmlBody: '<div style="font-family:Arial,sans-serif;font-size:15px;color:#222;line-height:1.5">' +
         '<p>Hi ' + first.replace(/</g, '') + ',</p>' +
