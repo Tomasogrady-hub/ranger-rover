@@ -8,13 +8,13 @@
 <meta property="og:title" content="Join the Enrich LA team">
 <meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- job.html v1.0 - 2026-11-01 - public job posting page (one per Positions row). Apply button -> apply.html?p=ID -->
+<!-- job.html v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--fog);line-height:1.6}
-  .wrap{max-width:680px;margin:0 auto;padding:0 16px 120px}
+  .wrap{max-width:680px;margin:0 auto;padding:0 16px 60px}
   header{background:var(--grove);color:#fff;padding:22px 16px 30px}
   header .in{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:14px}
   header img{width:52px;height:52px;border-radius:50%;flex-shrink:0;background:#fff}
@@ -22,6 +22,7 @@
   header h1{margin:2px 0 0;font-size:25px;line-height:1.2}
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 20px;margin-top:-14px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
   .card + .card{margin-top:16px}
+  .post{scroll-margin-top:12px}
   .posted{font-size:13px;color:var(--muted)}
   .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0 6px}
   .fact{display:flex;gap:10px;font-size:15px;background:var(--fog);border-radius:10px;padding:10px 12px}
@@ -60,7 +61,6 @@
   </div>
   <footer><img src="enrich-logo.png" alt="Enrich LA" loading="lazy">Growing school gardens across Los Angeles</footer>
 </div>
-<div class="bar" id="bar"><a class="apply" id="barBtn" href="apply.html">Apply now</a></div>
 
 <script>
 (function(){
@@ -107,43 +107,48 @@
   function fact(ic, label, val){ return val ? '<div class="fact"><span class="ic">' + ic + '</span><div><b>' + label + '</b>' + esc(val) + '</div></div>' : ''; }
   function sec(title, body){ return body ? '<h3>' + title + '</h3>' + body : ''; }
 
-  function showPosting(p){
-    $('hTitle').textContent = p.title;
-    document.title = p.title + ' | Enrich LA';
+  // One posting as its own card (all postings live on this one page).
+  function postingHtml(p, highlight){
     var applyUrl = p.formUrl || ('apply.html?p=' + encodeURIComponent(p.id));
-    var html = '<h2>' + esc(p.title) + '</h2>' + (p.date ? '<div class="posted">Posted ' + esc(p.date) + '</div>' : '') +
+    return '<div class="card post" id="' + esc(p.id) + '"' + (highlight ? ' style="outline:3px solid var(--sun)"' : '') + '>' +
+      '<h2>' + esc(p.title) + '</h2>' + (p.date ? '<div class="posted">Posted ' + esc(p.date) + '</div>' : '') +
       '<div class="facts">' + fact('📍','Where',p.location) + fact('🗓️','Schedule',p.schedule) + fact('⏰','When',p.when) + fact('💵','Pay',p.pay) + '</div>' +
       '<div class="sec">' + fmt(p.description) +
         sec('About the position', fmt(p.positionDescription)) +
         sec('Requirements', fmt(p.requirements)) +
         sec('Questions & answers', p.faq ? fmtFaq(p.faq) : '') +
-      '</div>';
-    if (p.open) {
-      html += '<a class="apply" href="' + esc(applyUrl) + '">Apply for this position</a>';
-      $('barBtn').href = applyUrl;
-      // Sticky Apply bar once the main button scrolls away
-      window.addEventListener('scroll', function(){
-        var b = document.querySelector('#main a.apply');
-        $('bar').style.display = (b && b.getBoundingClientRect().top < 0) ? 'block' : 'none';
-      }, {passive:true});
-    } else {
-      html += '<div class="closed">This posting is no longer accepting applications.</div>';
-    }
-    $('main').innerHTML = html;
+      '</div>' +
+      (p.open ? '<a class="apply" href="' + esc(applyUrl) + '">Apply for ' + esc(p.title) + '</a>'
+              : '<div class="closed">This posting is no longer accepting applications.</div>') +
+    '</div>';
   }
-  function showList(list, note){
-    $('hTitle').textContent = 'Jobs at Enrich LA';
-    $('main').innerHTML = (note ? '<div class="closed" style="margin:0 0 14px">' + esc(note) + '</div>' : '') +
-      (list.length ? '<h2>Open positions</h2><div class="list">' + list.map(function(p){
-        return '<a href="?p=' + encodeURIComponent(p.id) + '"><div class="t">' + esc(p.title) + '</div><div class="posted">' + esc([p.location, p.schedule].filter(Boolean).join(' · ')) + '</div></a>';
-      }).join('') + '</div>'
-      : '<h2>Join our team</h2><p>We have no open postings right now, but we are always glad to hear from people who love gardens and kids.</p><a class="apply" href="apply.html">Send a general application</a>');
+  function showAll(list, asked, note){
+    var shown = list.slice();
+    // A closed posting someone linked to directly still shows (marked closed), first.
+    if (asked && !shown.some(function(x){ return x.id === asked.id; })) shown.unshift(asked);
+    var html = '';
+    if (note) html += '<div class="card"><div class="closed" style="margin:0">' + esc(note) + '</div></div>';
+    if (!shown.length) {
+      html += '<div class="card"><h2>Join our team</h2><p>We have no open postings right now, but we are always glad to hear from people who love gardens and kids.</p><a class="apply" href="apply.html">Send a general application</a></div>';
+    } else {
+      if (shown.length > 1) {
+        html += '<div class="card"><h2>Open positions</h2><div class="list">' + shown.map(function(p){
+          return '<a href="#' + encodeURIComponent(p.id) + '"><div class="t">' + esc(p.title) + '</div><div class="posted">' + esc([p.location, p.schedule].filter(Boolean).join(' · ')) + '</div></a>';
+        }).join('') + '</div></div>';
+      }
+      html += shown.map(function(p){ return postingHtml(p, asked && shown.length > 1 && p.id === asked.id); }).join('');
+      html += '<div class="card" style="text-align:center"><p style="margin:0 0 4px">Not sure which one fits?</p><a href="apply.html" style="color:var(--leaf);font-weight:600">Send a general application</a></div>';
+    }
+    $('main').outerHTML = '<div id="main">' + html + '</div>';
+    if (asked && shown.length > 1) {
+      var el = document.getElementById(asked.id);
+      if (el) setTimeout(function(){ el.scrollIntoView({behavior:'smooth', block:'start'}); }, 60);
+    }
   }
   function load(retried){
     return raw(GAS_URL, 'publicGetPositions', posId ? {id: posId} : {}).then(function(r){
       if (!r || r.hr !== 2) throw new Error('stale');
-      if (r.position) return showPosting(r.position);
-      showList(r.positions || [], posId ? 'That posting could not be found - here is what is open now.' : '');
+      showAll(r.positions || [], r.position || null, (posId && !r.position) ? 'That posting could not be found - here is what is open now.' : '');
     }).catch(function(){
       if (retried) { $('main').innerHTML = '<h2>Join our team</h2><p>Teach hands-on garden lessons and help care for school gardens across Los Angeles.</p><a class="apply" href="apply.html' + (posId ? '?p=' + encodeURIComponent(posId) : '') + '">Apply</a>'; return; }
       return resolved.then(function(){ return load(true); });

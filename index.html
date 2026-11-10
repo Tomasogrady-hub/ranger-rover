@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.62 -->
+<!-- v11.63 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2150,10 +2150,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.62';
+const APP_VERSION='v11.63';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-08 10:53 PT - Ladybug now shows live photo, closed chore, Reach and Sub activity under each summary with a Refresh now button; Ranger cards show recent activity; chores show importance next to the arrow.';
+const BUILD_STAMP='2026-11-09 20:30 PT - Job postings: one public page lists all open postings (job.html), clickable page links in Operations > Humans; new posting picks its Position from Roles (or add new), fills Public Title, and can start from another postings description. Restored sw.js (was blank since v11.60).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -9280,10 +9280,10 @@ let _opsFilterSchedule=''; // default: no schedule sub-filter
 // when this page opens (never at startup). Every sheet column shows up in the
 // edit form automatically, so new columns added to the sheet need no code change.
 const HR_SHEET_URL='https://docs.google.com/spreadsheets/d/1XWq8SMAl0_FijkhyAZ_vrS4-vvC9LHwS0zfblg0UXY8/edit';
+const HR_JOBS_URL='https://tomasogrady-hub.github.io/ranger-rover/job.html';
 const _hr={loaded:false,loading:false,headers:[],system:[],positions:[],filter:'open',openApps:{},editId:null};
 const _HR_LONG=['Public Description','Position Description','Requirements','FAQ'];
 const _HR_HINTS={
-  'Name of Position Internal':'Only staff see this.',
   'Public Title':'The job title applicants see.',
   'Public Description':'Start a line with "- " for a bullet point. A short line right before bullets becomes a heading.',
   'Position Description':'Day-to-day duties. Shown under "About the position".',
@@ -9324,6 +9324,11 @@ function _hrRender(){
     '<button class="settings-btn" style="flex:1;width:auto;margin-top:0" onclick="_hrEdit(\'\')">➕ New Job Posting</button>'+
     '<a class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;text-decoration:none;text-align:center;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a>'+
     '<button class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" onclick="_hrOpen(true)">↻</button></div>'+
+    '<div class="hr-card" style="display:flex;align-items:center;gap:10px;background:var(--fog)">'+
+      '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:15px;font-family:var(--font-b)">🌐 Public job postings page</div>'+
+      '<a target="_blank" href="'+HR_JOBS_URL+'" style="font-size:13px;color:var(--leaf,#2f6b35);word-break:break-all">'+HR_JOBS_URL.replace('https://','')+' ↗</a>'+
+      '<div class="hr-m">All Open postings on one page - share this link.</div></div>'+
+      '<div class="hr-btns" style="margin-top:0;flex-direction:column"><a target="_blank" href="'+HR_JOBS_URL+'">Open ↗</a><button onclick="_hrCopy(\''+HR_JOBS_URL+'\',\'Job page link copied\')">🔗 Copy</button></div></div>'+
     '<div style="display:flex;gap:6px;margin:12px 0 2px;flex-wrap:wrap">'+chip('open','Open',all.filter(p=>p.open).length)+chip('closed','Closed / paused',all.filter(p=>!p.open).length)+chip('all','All',all.length)+'</div>';
   if(!list.length)h+='<div class="settings-note" style="padding:16px 0">'+(all.length?'Nothing here.':'No job postings yet - tap ➕ New Job Posting.')+'</div>';
   const humansReady=(DATA.humans||[]).length>0;
@@ -9332,14 +9337,13 @@ function _hrRender(){
     const n=apps?apps.length:Number(v['Applications']||0);
     const st=v['Status']||'Open',open=!!_hr.openApps[p.id];
     h+='<div class="hr-card">'+
-      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div class="hr-t">'+escHtml(v['Public Title']||v['Name of Position Internal']||p.id)+'</div><span class="hr-st'+_hrStatusCls(st)+'">'+escHtml(st)+'</span></div>'+
-      '<div class="hr-m">'+escHtml([p.id,v['Name of Position Internal'],v['Date']].filter(Boolean).join(' · '))+'</div>'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><a class="hr-t" target="_blank" href="'+ea(p.postingUrl)+'" style="text-decoration:none">'+escHtml(v['Public Title']||v['Name of Position Internal']||p.id)+' <span style="font-size:13px;color:var(--stone)">↗</span></a><span class="hr-st'+_hrStatusCls(st)+'">'+escHtml(st)+'</span></div>'+
+      '<div class="hr-m">'+escHtml([v['Name of Position Internal'],v['Date'],p.id].filter(Boolean).join(' · '))+'</div>'+
+      (p.open?'<a target="_blank" href="'+ea(p.postingUrl)+'" style="display:inline-block;margin-top:6px;font-size:13px;color:var(--leaf,#2f6b35);word-break:break-all">👁 View on the job page ↗</a>':'<div class="hr-m" style="margin-top:6px">Not on the public page (status is '+escHtml(st)+')</div>')+
       '<div class="hr-btns">'+
         '<button onclick="_hrEdit(\''+ea(p.id)+'\')">✏️ Edit</button>'+
         '<button onclick="_hrToggleApps(\''+ea(p.id)+'\')">👥 Applicants ('+n+')'+(open?' ▲':'')+'</button>'+
         '<button data-link="'+ea(p.postingUrl)+'" onclick="_hrCopy(this.dataset.link,\'Posting link copied\')">🔗 Copy link</button>'+
-        '<a target="_blank" href="'+ea(p.postingUrl)+'">👁 Posting</a>'+
-        '<a target="_blank" href="'+ea(p.formUrl)+'">📝 Form</a>'+
         '<button onclick="_hrEdit(\'\',\''+ea(p.id)+'\')">⧉ Duplicate</button>'+
       '</div>'+
       (open?_hrAppsHtml(apps):'')+
@@ -9386,31 +9390,73 @@ function _hrEdit(id,copyFrom){
     const val=v[c]==null?'':String(v[c]);
     const fid='hrf-'+c.replace(/[^A-Za-z0-9]/g,'_');
     if(c==='ID'){
-      h+='<label>ID</label>'+(isNew?'<input id="'+fid+'" data-col="ID" placeholder="Leave blank to create one (e.g. GK-2611)">':'<div class="hr-ro">'+escHtml(val)+'</div>');return;
+      if(!isNew)h+='<label>ID</label><div class="hr-ro">'+escHtml(val)+'</div>';return;
     }
     if(c==='Date'||c==='Applications'||c==='Apply Link'){
       if(!isNew)h+='<label>'+escHtml(c==='Apply Link'?'Posting link (share this)':c)+'</label><div class="hr-ro">'+escHtml(val||'-')+'</div>';return;
     }
-    h+='<label for="'+fid+'">'+escHtml(c)+(c==='Public Title'?' *':'')+'</label>';
+    h+='<label for="'+fid+'">'+escHtml(c==='Name of Position Internal'?'Position (Role)':c)+(c==='Public Title'||c==='Name of Position Internal'?' *':'')+'</label>';
+    if(c==='Name of Position Internal'){
+      const roles=[...new Set((DATA.roles||[]).map(r=>String(r.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      if(val&&!roles.includes(val))roles.unshift(val);
+      h+='<select id="'+fid+'" data-col="'+ea(c)+'" onchange="_hrRolePicked(this)">'+
+        '<option value="">Choose a role…</option>'+roles.map(r=>'<option'+(r===val?' selected':'')+'>'+escHtml(r)+'</option>').join('')+
+        (typeof canManageRoles==='function'&&canManageRoles()?'<option value="__new">➕ Add new role…</option>':'')+'</select>'+
+        '<div class="hr-hint">From the Humans Roles list. Picking one fills in the Public Title below - change the title if you like.</div>';return;
+    }
+    if(c==='Public Description'){
+      const others=_hr.positions.filter(p=>p.id!==id&&String((p.values||{})['Public Description']||'').trim());
+      if(others.length)h+='<select id="hrDescFrom" style="margin-bottom:6px" onchange="_hrDescFrom(this)"><option value="">📋 Start from another posting\'s description…</option>'+
+        others.slice().reverse().map(p=>{const pv=p.values||{};return '<option value="'+ea(p.id)+'">'+escHtml((pv['Public Title']||p.id)+' ('+p.id+')')+'</option>';}).join('')+'</select>';
+    }
     if(c==='Status'){
       const opts=['Open','Paused','Closed'];if(val&&!opts.some(o=>o.toLowerCase()===val.toLowerCase()))opts.push(val);
       h+='<select id="'+fid+'" data-col="Status">'+opts.map(o=>'<option'+((val||'Open').toLowerCase()===o.toLowerCase()?' selected':'')+'>'+escHtml(o)+'</option>').join('')+'</select>'+
         '<div class="hr-hint">Only Open postings take applications.</div>';return;
     }
     if(_HR_LONG.includes(c)||/description|faq|notes/i.test(c))h+='<textarea id="'+fid+'" data-col="'+ea(c)+'" rows="'+(c==='Public Description'?9:5)+'">'+escHtml(val)+'</textarea>';
-    else h+='<input id="'+fid+'" data-col="'+ea(c)+'" type="'+(c==='Notify Email'?'email':'text')+'" value="'+ea(escHtml(val))+'">';
+    else h+='<input id="'+fid+'" data-col="'+ea(c)+'" type="'+(c==='Notify Email'?'email':'text')+'" value="'+ea(escHtml(val))+'"'+(c==='Public Title'?' oninput="this.dataset.auto=\'\'"':'')+'>';
     if(_HR_HINTS[c])h+='<div class="hr-hint">'+escHtml(_HR_HINTS[c])+'</div>';
   });
   h+='<button class="btn-save" id="hrSaveBtn" style="width:100%;margin-top:20px" onclick="_hrSave()">'+(isNew?'Create posting':'Save changes')+'</button>'+
      '<button class="btn-cancel" style="width:100%;margin-top:8px;text-align:center" onclick="_hrCancel()">Cancel</button></div>';
   body.innerHTML=h;
   body.scrollIntoView({block:'start'});
+  const _t=document.getElementById('hrf-Public_Title');if(_t)_t.dataset.auto=_t.value===String(v['Name of Position Internal']||'')?'1':'';
+}
+// Role picked for a posting -> fill Public Title (unless someone already typed their own).
+async function _hrRolePicked(sel){
+  let role=sel.value;
+  if(role==='__new'){
+    const nm=(prompt('New role name (adds it to the Humans Roles list):')||'').trim();
+    if(!nm){sel.value='';return;}
+    if(!_roleExistsCI(nm)){
+      try{showToast('Adding role…');await addRoleToSheet(nm);}catch(e){showToast(e.message);sel.value='';return;}
+    }
+    const ex=[...sel.options].find(o=>o.value.toLowerCase()===nm.toLowerCase());
+    if(ex)sel.value=ex.value;
+    else{const o=document.createElement('option');o.textContent=nm;sel.insertBefore(o,sel.options[sel.options.length-1]);sel.value=nm;}
+    role=sel.value;showToast('Role added');
+  }
+  const t=document.getElementById('hrf-Public_Title');
+  if(t&&role&&(!t.value.trim()||t.dataset.auto==='1')){t.value=role;t.dataset.auto='1';}
+}
+// Copy another posting's Public Description into this one to adjust.
+function _hrDescFrom(sel){
+  const p=_hr.positions.find(x=>x.id===sel.value),ta=document.getElementById('hrf-Public_Description');
+  if(!p||!ta){sel.value='';return;}
+  const txt=String((p.values||{})['Public Description']||'');
+  if(ta.value.trim()&&ta.value.trim()!==txt.trim()&&!confirm('Replace the description you have with the one from '+((p.values||{})['Public Title']||p.id)+'?')){sel.value='';return;}
+  ta.value=txt;sel.value='';ta.focus();
+  showToast('Copied - edit it as you like');
 }
 function _hrCancel(){_hr.editId=null;_hrRender();}
 async function _hrSave(){
   const btn=document.getElementById('hrSaveBtn');
   const values={};
   document.querySelectorAll('#hrBody [data-col]').forEach(el=>{values[el.dataset.col]=el.value.trim();});
+  if(values['Name of Position Internal']==='__new')values['Name of Position Internal']='';
+  if(!values['Name of Position Internal']&&!_hr.editId){showToast('Please choose a Position (Role)');return;}
   if(!values['Public Title']){showToast('Please add a Public Title');return;}
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
