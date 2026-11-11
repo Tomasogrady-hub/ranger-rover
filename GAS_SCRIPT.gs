@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.67 | 2026-11-11 | Plants: previewPlantDuplicates() and dedupePlants() one-time cleanup (with Drive backup)';
+const GAS_BUILD = 'v11.68 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -698,6 +698,8 @@ function _doPostRoute(e) {
       // ── PLANTS ──────────────────────────────────────────────────────────────
       case 'searchPlants': return respond(handleSearchPlants(p.query));
       case 'getPlant':     return respond(handleGetPlant(p.rowIndex));
+      case 'getTopPlants': return respond(handleGetTopPlants());
+      case 'logPlantView': return respond(handleLogPlantView(p));
 
       // ── AUTH ─────────────────────────────────────────────────────────────────
       case 'checkEmail':     return respond(handleCheckEmail(p));
@@ -781,6 +783,7 @@ function _doPostRoute(e) {
       case 'uploadInfoFile':  return respond(handleUploadInfoFile(p));
       case 'updateInfoFile':  return respond(handleUpdateInfoFile(p));
       case 'replaceInfoFile': return respond(handleReplaceInfoFile(p));
+      case 'refreshDynamicDocs': return respond(handleRefreshDynamicDocs(p));
 
       // ── RANGER RATES (People add/edit → Items All, Type 2 = "Ranger Rate") ───
       case 'getRangerRates': return respond(handleGetRangerRates());
@@ -1336,6 +1339,99 @@ function handleGetPlant(rowIndex) {
     plant['Plant Page URL'] = row[puIdx + 1] ? String(row[puIdx + 1]) : '';
   }
   return { plant: plant };
+}
+
+
+// ── PLANTS: MOST-USED LIST ────────────────────────────────────────────────────
+// Every time someone opens a plant's detail, the app calls logPlantView. Counts live
+// on a "PlantViews" tab in the Plants spreadsheet (auto-created). The Plants page then
+// opens with the 20 most-viewed plants (ties → most recently viewed) instead of an
+// empty search box. Until enough views exist it is padded with "starter" plants.
+// Keyed by Common + Botanical name, so it survives duplicate cleanup / row moves.
+function _plantKey(common, botanical) {
+  return (String(common || '').trim() + '|' + String(botanical || '').trim()).toLowerCase();
+}
+function _plantViewsSheet() {
+  var ss = SpreadsheetApp.openById(PLANTS_ID);
+  var sh = ss.getSheetByName('PlantViews');
+  if (!sh) {
+    sh = ss.insertSheet('PlantViews');
+    sh.appendRow(['Key', 'Common Name', 'Botanical Name', 'Views', 'Last Viewed', 'Last Viewed By']);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+function handleLogPlantView(p) {
+  var common = String(p.common || '').trim(), bot = String(p.botanical || '').trim();
+  if (!common && !bot) return { ok: false, error: 'Missing plant' };
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(5000);
+    var sh = _plantViewsSheet(), key = _plantKey(common, bot);
+    var last = sh.getLastRow(), row = -1;
+    if (last > 1) {
+      var keys = sh.getRange(2, 1, last - 1, 1).getValues();
+      for (var i = 0; i < keys.length; i++) { if (keys[i][0] === key) { row = i + 2; break; } }
+    }
+    var now = new Date();
+    if (row === -1) sh.appendRow([key, common, bot, 1, now, p.actor || '']);
+    else {
+      var views = Number(sh.getRange(row, 4).getValue()) || 0;
+      sh.getRange(row, 4, 1, 3).setValues([[views + 1, now, p.actor || '']]);
+    }
+    CacheService.getScriptCache().remove('topPlants');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+  finally { try { lock.releaseLock(); } catch (e2) {} }
+}
+function handleGetTopPlants() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get('topPlants');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var views = [];
+  try {
+    var vs = _plantViewsSheet(), vl = vs.getLastRow();
+    if (vl > 1) views = vs.getRange(2, 1, vl - 1, 5).getValues();
+  } catch (e) {}
+  views = views.filter(function(v) { return v[0]; }).sort(function(a, b) {
+    return (Number(b[3]) - Number(a[3])) || (new Date(b[4]) - new Date(a[4]));
+  });
+  var sheet = getPlantSheet(), all = sheet.getDataRange().getValues(), headers = all[0];
+  var cardIdx = {};
+  PLANT_CARD_FIELDS.forEach(function(h) { cardIdx[h] = headers.indexOf(h); });
+  var ci = cardIdx['Common Name'], bi = headers.indexOf('Botanical Name'), imgI = cardIdx['Main Image'];
+  var byKey = {};
+  for (var r = 1; r < all.length; r++) {
+    if (!all[r][ci]) continue;
+    var k = _plantKey(all[r][ci], all[r][bi]);
+    if (byKey[k] === undefined) byKey[k] = r;
+  }
+  function cardAt(r) {
+    var row = all[r], card = { _rowIndex: r };
+    PLANT_CARD_FIELDS.forEach(function(h) { card[h] = cardIdx[h] >= 0 ? (row[cardIdx[h]] || '') : ''; });
+    return card;
+  }
+  var plants = [], used = {};
+  for (var i = 0; i < views.length && plants.length < 20; i++) {
+    var rr = byKey[views[i][0]];
+    if (rr === undefined || used[views[i][0]]) continue;
+    used[views[i][0]] = true;
+    var c = cardAt(rr); c._views = Number(views[i][3]) || 0;
+    plants.push(c);
+  }
+  var tracked = plants.length;
+  // Starter picks: first plants that have a photo, until real usage fills the list.
+  for (var s2 = 1; s2 < all.length && plants.length < 20; s2++) {
+    if (!all[s2][ci] || !(imgI > -1 && String(all[s2][imgI] || '').trim())) continue;
+    var sk = _plantKey(all[s2][ci], all[s2][bi]);
+    if (used[sk]) continue;
+    used[sk] = true;
+    var sc = cardAt(s2); sc._starter = true;
+    plants.push(sc);
+  }
+  var result = { ok: true, plants: plants, tracked: tracked };
+  try { cache.put('topPlants', JSON.stringify(result), 600); } catch (e) {}
+  return result;
 }
 
 
@@ -3477,6 +3573,7 @@ function handleAddItem(p) {
   });
   sheet.appendRow(row);
   logActivity(p.actor || '', 'added item', name, 'item', [t1, t2, t3].filter(String).join(' / '));
+  _refreshDynamicDocsSafe();
   return { ok: true, id: newId, row: sheet.getLastRow() };
 }
 
@@ -3514,6 +3611,7 @@ function handleUpdateItem(p) {
   var dti = headers.indexOf('Date added or last edited');
   sheet.getRange(target, (dti > -1 ? dti : 7) + 1).setValue(new Date());
   logActivity(p.actor || '', 'edited item', name || String(data[target - 1][headers.indexOf('Name')] || ''), 'item', 'Items All row ' + target);
+  _refreshDynamicDocsSafe();
   return { ok: true, row: target };
 }
 
@@ -3522,14 +3620,34 @@ function _driveIdFromUrl(url) {
   var m = String(url || '').match(/[-\w]{25,}/);
   return m ? m[0] : '';
 }
+var DYN_MARK = 'RR:dynamic';
+var LIVE_PREFIX = 'RR:live-of:';
+var GDOC_MIME = 'application/vnd.google-apps.document';
+function _isLiveCopy(f) { return String(f.getDescription() || '').indexOf(LIVE_PREFIX) === 0; }
+function _isDynamicTemplate(f) { return String(f.getDescription() || '').indexOf(DYN_MARK) === 0; }
+// A dynamic template (Google Doc with {{tokens}}) has a "live" copy next to it. The app
+// links to the LIVE copy (what readers should see); the template is what staff edit.
+function _liveCopyOf(tpl) {
+  var m = String(tpl.getDescription() || '').match(/live=([-\w]{20,})/);
+  if (!m) return null;
+  try { var lf = DriveApp.getFileById(m[1]); return lf.isTrashed() ? null : lf; } catch (e) { return null; }
+}
 function _infoFileJson(f) {
-  var acc = f.getSharingAccess();
+  var dyn = _isDynamicTemplate(f), live = dyn ? _liveCopyOf(f) : null;
+  var shown = live || f;
+  var acc = shown.getSharingAccess();
   return {
-    id: f.getId(),
+    id: shown.getId(),
     name: f.getName(),
-    url: f.getUrl(),
+    url: shown.getUrl(),
     mimeType: f.getMimeType(),
-    isPublic: (acc === DriveApp.Access.ANYONE_WITH_LINK || acc === DriveApp.Access.ANYONE)
+    isPublic: (acc === DriveApp.Access.ANYONE_WITH_LINK || acc === DriveApp.Access.ANYONE),
+    isDoc: f.getMimeType() === GDOC_MIME,
+    dynamic: dyn,
+    templateId: f.getId(),
+    templateUrl: f.getUrl(),
+    liveReady: !!live,
+    refreshed: dyn ? (String(f.getDescription() || '').match(/refreshed=([^;]+)/) || [])[1] || '' : ''
   };
 }
 function _setInfoFilePublic(f, makePublic) {
@@ -3539,7 +3657,7 @@ function _setInfoFilePublic(f, makePublic) {
 function handleGetInfoFiles() {
   try {
     var it = DriveApp.getFolderById(INFO_FILES_FOLDER).getFiles(), out = [];
-    while (it.hasNext()) out.push(_infoFileJson(it.next()));
+    while (it.hasNext()) { var f0 = it.next(); if (_isLiveCopy(f0)) continue; out.push(_infoFileJson(f0)); }
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
     return { ok: true, files: out };
   } catch (e) { return { ok: false, error: e.message }; }
@@ -3564,12 +3682,184 @@ function handleUpdateInfoFile(p) {
     var id = p.fileId || _driveIdFromUrl(p.url);
     if (!id) return { ok: false, error: 'Missing file' };
     var f = DriveApp.getFileById(id);
-    if (p.name !== undefined && String(p.name).trim()) f.setName(String(p.name).trim());
-    if (p.isPublic !== undefined) _setInfoFilePublic(f, !!p.isPublic);
-    logActivity(p.actor || '', 'edited information file', f.getName(), 'item', p.isPublic === undefined ? 'renamed' : (p.isPublic ? 'made public' : 'made not public'));
-    return { ok: true, file: _infoFileJson(f) };
+    // The app passes the LIVE copy's id for dynamic files; find the template that owns it.
+    var tpl = f;
+    if (_isLiveCopy(f)) tpl = DriveApp.getFileById(String(f.getDescription()).replace(LIVE_PREFIX, '').split(';')[0]);
+    if (p.name !== undefined && String(p.name).trim()) {
+      tpl.setName(String(p.name).trim());
+      var lv0 = _liveCopyOf(tpl); if (lv0) lv0.setName(String(p.name).trim() + ' (live)');
+    }
+    var msgs = [];
+    if (p.dynamic !== undefined) {
+      if (p.dynamic) {
+        if (tpl.getMimeType() !== GDOC_MIME) return { ok: false, error: 'Only Google Docs can be dynamic.' };
+        var pubWas = tpl.getSharingAccess() === DriveApp.Access.ANYONE_WITH_LINK || tpl.getSharingAccess() === DriveApp.Access.ANYONE;
+        tpl.setDescription(DYN_MARK + ';');
+        var r = _refreshDynamicDoc(tpl);
+        var lv1 = _liveCopyOf(tpl);
+        if (lv1) { if (pubWas) _setInfoFilePublic(lv1, true); _repointItems(tpl.getId(), lv1.getUrl()); }
+        msgs.push(r);
+      } else {
+        var lv2 = _liveCopyOf(tpl);
+        var wasPub = lv2 && (lv2.getSharingAccess() === DriveApp.Access.ANYONE_WITH_LINK || lv2.getSharingAccess() === DriveApp.Access.ANYONE);
+        if (lv2) lv2.setTrashed(true);
+        tpl.setDescription('');
+        if (wasPub) _setInfoFilePublic(tpl, true);
+        _repointItems(lv2 ? lv2.getId() : '', tpl.getUrl());
+      }
+    }
+    if (p.isPublic !== undefined) _setInfoFilePublic(_liveCopyOf(tpl) || tpl, !!p.isPublic);
+    logActivity(p.actor || '', 'edited information file', tpl.getName(), 'item',
+      p.dynamic !== undefined ? (p.dynamic ? 'made dynamic' : 'made static') : (p.isPublic === undefined ? 'renamed' : (p.isPublic ? 'made public' : 'made not public')));
+    return { ok: true, file: _infoFileJson(tpl), refresh: msgs[0] || null };
   } catch (e) { return { ok: false, error: e.message }; }
 }
+// Points every Items All "information file" link at newUrl (used when a dynamic file's live copy goes away).
+function _repointItems(oldId, newUrl) {
+  if (!oldId) return 0;
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return 0;
+  var data = sheet.getDataRange().getValues(), lki = _itemsInfoIdx(data[0]), n = 0;
+  if (lki < 0) return 0;
+  for (var r = 1; r < data.length; r++) {
+    if (_driveIdFromUrl(data[r][lki]) === oldId) { sheet.getRange(r + 1, lki + 1).setValue(newUrl); n++; }
+  }
+  return n;
+}
+
+// ── DYNAMIC DOCS: {{tokens}} in a Google Doc are filled from app data ─────────
+// Tokens (type them into the Google Doc, e.g. "Schools contribute {{item:59otsbd}} yearly"):
+//   {{item:ID}} or {{item:ID.amount}}   price, formatted like $8,175   (also .name .description .type1 .type2 .type3)
+//   {{item:Exact Item Name.amount}}      same, matched by the item's name
+//   {{sites.count}}                      number of Active Ranger Program schools
+//   {{sites.list}}                       their names, comma separated  ({{sites.lines}} = one per line)
+//   {{today}}                            today's date
+// The doc you edit stays untouched (the "template"); a "(live)" copy beside it is rewritten
+// with the values filled in. The live copy keeps the same link, so shared links never break.
+function _fmtMoney(v) {
+  var n = parseFloat(v);
+  if (isNaN(n)) return String(v === null || v === undefined ? '' : v);
+  var fixed = (Math.round(n * 100) % 100 === 0) ? String(Math.round(n)) : n.toFixed(2);
+  var parts = fixed.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return '$' + parts.join('.');
+}
+function _tokenContext() {
+  var ctx = { items: [], sites: [] };
+  var ss = SpreadsheetApp.openById(SITES_ID);
+  var it = ss.getSheetByName('Items All');
+  if (it) {
+    var d = it.getDataRange().getValues(), h = d[0];
+    var idi = h.indexOf('ID'), ni = h.indexOf('Name'), ai = h.indexOf('Amount'), di = h.indexOf('Description'),
+        t1 = _itemsTypeIdx(h), t2 = h.indexOf('Type 2'), t3 = h.indexOf('Type 3');
+    for (var r = 1; r < d.length; r++) {
+      if (!d[r][ni] && !d[r][idi]) continue;
+      ctx.items.push({ id: String(d[r][idi] || '').trim(), name: String(d[r][ni] || '').trim(),
+        amount: ai > -1 ? d[r][ai] : '', description: di > -1 ? String(d[r][di] || '') : '',
+        type1: t1 > -1 ? String(d[r][t1] || '') : '', type2: t2 > -1 ? String(d[r][t2] || '') : '', type3: t3 > -1 ? String(d[r][t3] || '') : '' });
+    }
+  }
+  var st = ss.getSheetByName('Sites');
+  if (st) {
+    var sd = st.getDataRange().getValues(), sh = sd[0], sn = sh.indexOf('Name'), sty = sh.indexOf('Type');
+    for (var q = 1; q < sd.length; q++) {
+      if (String(sd[q][sty] || '').trim() === 'Active Ranger Program' && String(sd[q][sn] || '').trim()) ctx.sites.push(String(sd[q][sn]).trim());
+    }
+    ctx.sites.sort(function(a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; });
+  }
+  return ctx;
+}
+function _resolveToken(tok, ctx) {
+  var t = String(tok).trim(), low = t.toLowerCase();
+  if (low === 'sites.count') return String(ctx.sites.length);
+  if (low === 'sites.list')  return ctx.sites.join(', ');
+  if (low === 'sites.lines') return ctx.sites.join('\n');
+  if (low === 'today')       return Utilities.formatDate(new Date(), 'America/Los_Angeles', 'MMMM d, yyyy');
+  var m = t.match(/^item\s*:\s*(.+)$/i);
+  if (!m) return null;
+  var ref = m[1].trim(), field = 'amount';
+  var fm = ref.match(/^(.*)\.(amount|name|description|type1|type2|type3)$/i);
+  if (fm) { ref = fm[1].trim(); field = fm[2].toLowerCase(); }
+  var hit = null, i;
+  for (i = 0; i < ctx.items.length; i++) { if (ctx.items[i].id && ctx.items[i].id.toLowerCase() === ref.toLowerCase()) { hit = ctx.items[i]; break; } }
+  if (!hit) for (i = 0; i < ctx.items.length; i++) { if (ctx.items[i].name.toLowerCase() === ref.toLowerCase()) { hit = ctx.items[i]; break; } }
+  if (!hit) return null;
+  return field === 'amount' ? _fmtMoney(hit.amount) : String(hit[field] || '');
+}
+function _copyBodyInto(srcBody, dstBody) {
+  dstBody.clear();
+  var n = srcBody.getNumChildren(), i, el, T = DocumentApp.ElementType;
+  for (i = 0; i < n; i++) {
+    el = srcBody.getChild(i);
+    var ty = el.getType();
+    if (ty === T.PARAGRAPH)            dstBody.appendParagraph(el.asParagraph().copy());
+    else if (ty === T.LIST_ITEM)       dstBody.appendListItem(el.asListItem().copy());
+    else if (ty === T.TABLE)           dstBody.appendTable(el.asTable().copy());
+    else if (ty === T.HORIZONTAL_RULE) dstBody.appendHorizontalRule();
+    else if (ty === T.PAGE_BREAK)      dstBody.appendPageBreak();
+  }
+  // body.clear() leaves one empty first paragraph; drop it when there is real content after it
+  if (dstBody.getNumChildren() > 1) {
+    var first = dstBody.getChild(0);
+    if (first.getType() === T.PARAGRAPH && !first.asParagraph().getText()) { try { dstBody.removeChild(first); } catch (e) {} }
+  }
+}
+// Rebuilds the live copy of one dynamic template. Returns { ok, replaced, unresolved[] }.
+function _refreshDynamicDoc(tpl, ctx) {
+  ctx = ctx || _tokenContext();
+  var folder = DriveApp.getFolderById(INFO_FILES_FOLDER);
+  var live = _liveCopyOf(tpl);
+  if (!live) {
+    live = tpl.makeCopy(tpl.getName() + ' (live)', folder);
+    live.setDescription(LIVE_PREFIX + tpl.getId() + ';');
+  }
+  var tdoc = DocumentApp.openById(tpl.getId()), ldoc = DocumentApp.openById(live.getId());
+  _copyBodyInto(tdoc.getBody(), ldoc.getBody());
+  var lbody = ldoc.getBody(), text = lbody.getText();
+  var re = /\{\{\s*([^{}]+?)\s*\}\}/g, m, seen = {}, unresolved = [], replaced = 0;
+  while ((m = re.exec(text)) !== null) {
+    var raw = m[0];
+    if (seen[raw]) continue;
+    seen[raw] = true;
+    var val = _resolveToken(m[1], ctx);
+    if (val === null) { unresolved.push(m[1].trim()); continue; }
+    var pat = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    lbody.replaceText(pat, val.replace(/\\/g, '\\\\').replace(/\$/g, '\\$'));
+    replaced++;
+  }
+  ldoc.saveAndClose(); tdoc.saveAndClose();
+  tpl.setDescription(DYN_MARK + ';live=' + live.getId() + ';refreshed=' + Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d/yyyy h:mm a'));
+  live.setDescription(LIVE_PREFIX + tpl.getId() + ';');
+  return { ok: true, replaced: replaced, unresolved: unresolved };
+}
+// Refreshes all dynamic docs (or just one when p.fileId is given). Used by the app's
+// Refresh button, after item saves, and by the hourly trigger.
+function handleRefreshDynamicDocs(p) {
+  try {
+    var ctx = _tokenContext(), out = [], it = DriveApp.getFolderById(INFO_FILES_FOLDER).getFiles();
+    var only = p && (p.fileId || p.templateId) ? String(p.fileId || p.templateId) : '';
+    while (it.hasNext()) {
+      var f = it.next();
+      if (!_isDynamicTemplate(f)) continue;
+      if (only && f.getId() !== only && (_liveCopyOf(f) || { getId: function() { return ''; } }).getId() !== only) continue;
+      try { var r = _refreshDynamicDoc(f, ctx); out.push({ name: f.getName(), replaced: r.replaced, unresolved: r.unresolved }); }
+      catch (e) { out.push({ name: f.getName(), error: e.message }); }
+    }
+    return { ok: true, refreshed: out };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Quietly refresh after item/price edits so docs stay current. Never blocks the save.
+function _refreshDynamicDocsSafe() {
+  try { handleRefreshDynamicDocs({}); } catch (e) {}
+}
+// Run once from the editor to also refresh every hour.
+function installDynamicDocTrigger() {
+  ScriptApp.getProjectTriggers().filter(function(t) { return t.getHandlerFunction() === 'refreshAllDynamicDocs'; })
+    .forEach(function(t) { ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('refreshAllDynamicDocs').timeBased().everyHours(1).create();
+}
+function refreshAllDynamicDocs() { var r = handleRefreshDynamicDocs({}); Logger.log(JSON.stringify(r)); }
+
 // Replaces an information file's content. Drive's basic service cannot overwrite a
 // file in place, so this creates the new file (same name, same public setting),
 // re-points every Items All row that linked to the old one, then trashes the old file.

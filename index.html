@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.66 -->
+<!-- v11.68 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2122,6 +2122,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       </div>
       <div style="margin:6px 16px 10px">
         <button type="button" id="itAddToggleBtn" class="settings-btn" style="width:100%" onclick="toggleNewItemForm()">+ Add New Item</button>
+        <button type="button" class="settings-btn" style="width:100%;margin-top:8px;background:var(--mist);color:var(--stone)" onclick="toggleInfoPanel()">📚 Information files &nbsp;⚡ dynamic / 📄 static</button>
+        <div id="itInfoPanel" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--mist);border-radius:10px;background:var(--white)"></div>
       </div>
       <div id="itNewForm" style="display:none;margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:14px">
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:10px">Add New Item</div>
@@ -2219,10 +2221,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.66';
+const APP_VERSION='v11.68';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-11 12:55 PT - Data > Items: Edit button on every item; Information file field (pick from the Information Files folder, upload new, rename, replace, public or not) saved to Items All column K.';
+const BUILD_STAMP='2026-11-11 15:20 PT - Plants page opens with top 20 most-used plants; Information files: Dynamic checkmark + live {{tokens}} in Google Docs; Items: link (#item=ID) to each item card.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10424,7 +10426,35 @@ function initPlants(){
   const input=document.getElementById('plantSearchInput');
   if(input)input.value='';
   document.getElementById('plantsCount').textContent='';
-  _showPlantEmptyState();
+  _showTopPlants();
+}
+// Plants page opens with the 20 most-used plants (opened most, ties = most recent);
+// padded with starter picks until real usage builds up. Cached locally so it paints instantly.
+async function _showTopPlants(){
+  const results=document.getElementById('plantResults');if(!results)return;
+  let cached=null;
+  try{cached=JSON.parse(localStorage.getItem('rr_topPlants')||'null');}catch(e){}
+  if(cached&&cached.plants&&cached.plants.length)_renderTopPlants(cached);
+  else results.innerHTML='<div class="spinner" style="margin-top:40px"></div>';
+  try{
+    const d=await gasPost({action:'getTopPlants'});
+    if(d&&d.ok&&d.plants){
+      try{localStorage.setItem('rr_topPlants',JSON.stringify(d));}catch(e){}
+      _renderTopPlants(d);
+    }else if(!cached)_showPlantEmptyState();
+  }catch(e){if(!cached)_showPlantEmptyState();}
+}
+function _renderTopPlants(d){
+  const input=document.getElementById('plantSearchInput');
+  if(input&&input.value.trim().length>=2)return; // user is searching — don't overwrite results
+  const results=document.getElementById('plantResults');if(!results)return;
+  if(!d.plants||!d.plants.length){_showPlantEmptyState();return;}
+  const tracked=d.tracked||0;
+  const head=tracked>=d.plants.length?'⭐ Most-used plants'
+    :tracked>0?'⭐ Most-used plants, then starter picks'
+    :'🌱 Starter picks — this list becomes your most-used plants as plants get opened';
+  document.getElementById('plantsCount').textContent='Top '+d.plants.length;
+  results.innerHTML=`<div style="font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--silver);padding:4px 2px 10px">${head}</div><div class="card-list" style="padding:0">${d.plants.map(p=>plantCardHtml(p)).join('')}</div><div style="text-align:center;color:var(--silver);font-size:14px;padding:14px 0">Search above to find any of the 8,000+ plants.</div>`;
 }
 function _showPlantEmptyState(){
   document.getElementById('plantResults').innerHTML=`
@@ -10436,7 +10466,7 @@ function _showPlantEmptyState(){
 function onPlantSearchInput(val){
   clearTimeout(_plantSearchTimer);
   const q=val.trim();
-  if(q.length<2){document.getElementById('plantsCount').textContent='';_showPlantEmptyState();return;}
+  if(q.length<2){document.getElementById('plantsCount').textContent='';_showTopPlants();return;}
   _plantSearchTimer=setTimeout(()=>searchPlants(q),380);
 }
 async function searchPlants(query){
@@ -10496,6 +10526,8 @@ async function showPlantDetail(rowIndex){
     const p=data.plant||{};
     const name=p['Common Name']||'Unknown Plant';
     const bot=p['Botanical Name']||'';
+    // Count this view toward the "most-used plants" list (fire-and-forget).
+    try{gasPost({action:'logPlantView',common:p['Common Name']||'',botanical:p['Botanical Name']||'',actor:SESSION?SESSION.email:''}).catch(()=>{});}catch(e){}
     const img=getImgSrc((p['Main Image']||'').trim());
     const imgUrl=(p['Main Image']||'').trim();
     const pageUrl=(p['Plant Page URL']||'').trim();
@@ -14224,6 +14256,14 @@ function _tryDeepLink(retries){
     }
     return;
   }
+  // Deep link: .../ranger-rover/#item=59otsbd  → Bulk Data > Items, straight to that item's card.
+  const mi=/[#&]item=([^&]+)/.exec(location.hash);
+  if(mi){
+    if(!SESSION)return;
+    openItemCard(decodeURIComponent(mi[1]));
+    try{history.replaceState(null,'',location.pathname);}catch(e){}
+    return;
+  }
   // Deep link: .../ranger-rover/#chore=abc12345 (used by the "Forward" button on
   // a chore card to build a shareable link back to that exact chore).
   const mc=/[#&]chore=([^&]+)/.exec(location.hash);
@@ -16205,15 +16245,15 @@ function _itemInfoLinkHtml(i){
 }
 function _itemRowHtml(i){
   const amount=_dataPriceFmtAmount(i.amount),rid=ea(_itemRid(i));
-  const editBtn=`<button type="button" onclick="toggleEditItem('${rid}')" title="Edit" style="border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1;flex:none">✏️</button>`;
+  const editBtn=`<button type="button" onclick="copyItemLink('${rid}')" title="Copy link to this item card" style="border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1;flex:none">🔗</button><button type="button" onclick="toggleEditItem('${rid}')" title="Edit" style="border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1;flex:none">✏️</button>`;
   const panel=`<div id="itEdit-${rid}" style="display:none"></div>`;
   if(itView==='simple'){
-    return `<div style="border-bottom:1px solid var(--mist)"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 16px;font-size:14px"><span style="color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(i.name)}${i.infoLink?' 📎':''}</span><span style="color:var(--silver);flex:none">${escHtml(i.type1||'')}</span>${editBtn}</div>${panel}</div>`;
+    return `<div id="itRow-${rid}" class="it-row" style="border-bottom:1px solid var(--mist)"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 16px;font-size:14px"><span style="color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(i.name)}${i.infoLink?' 📎':''}</span><span style="color:var(--silver);flex:none">${escHtml(i.type1||'')}</span>${editBtn}</div>${panel}</div>`;
   }
   const head=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="flex:1;min-width:0"><div style="font-size:15px;color:var(--ink);font-weight:600">${escHtml(i.name)}</div><div>${_itemTypeChips(i)}</div>${_itemInfoLinkHtml(i)}</div>${i.amount!==''&&i.amount!==null&&i.amount!==undefined?`<div style="font-size:15px;font-weight:700;color:var(--sage);flex:none;padding-top:2px">${amount}</div>`:''}${editBtn}</div>`;
-  if(itView==='summary')return `<div style="padding:12px 16px;border-bottom:1px solid var(--mist)">${head}${panel}</div>`;
+  if(itView==='summary')return `<div id="itRow-${rid}" class="it-row" style="padding:12px 16px;border-bottom:1px solid var(--mist)">${head}${panel}</div>`;
   const stamp=i.dateStamp?fmtDate(i.dateStamp):'';
-  return `<div style="padding:14px 16px;border-bottom:1px solid var(--mist)">${head}${i.description?`<div style="font-size:13px;color:var(--stone);margin-top:6px;line-height:1.4">${escHtml(i.description)}</div>`:''}<div style="font-size:12px;color:var(--silver);margin-top:6px">ID ${escHtml(i.id||'—')}${stamp?' · Updated '+escHtml(stamp):''}</div>${panel}</div>`;
+  return `<div id="itRow-${rid}" class="it-row" style="padding:14px 16px;border-bottom:1px solid var(--mist)">${head}${i.description?`<div style="font-size:13px;color:var(--stone);margin-top:6px;line-height:1.4">${escHtml(i.description)}</div>`:''}<div style="font-size:12px;color:var(--silver);margin-top:6px">ID ${escHtml(i.id||'—')}${stamp?' · Updated '+escHtml(stamp):''}</div>${panel}</div>`;
 }
 function _updateItemDDLabels(){
   const sv=document.getElementById('itDDsortV'),fv=document.getElementById('itDDfilterV'),dv=document.getElementById('itDDdetailV');
@@ -16244,6 +16284,28 @@ function clearItemFilters(){
   itF1=itF2=itF3='all';itQ='';
   const q=document.getElementById('itSearch');if(q)q.value='';
   _fillItemFilterSelects();closeDD('itDD');renderDataItems();
+}
+
+// ── Item card links ────────────────────────────────────────────────────────
+// Every item has a link  .../ranger-rover/#item=<ID>  that opens Bulk Data > Items straight to
+// that item's card. 🔗 copies it; Prices rows and docs can point at it too.
+function itemLinkUrl(rid){return location.origin+location.pathname+'#item='+encodeURIComponent(rid);}
+function copyItemLink(rid){_hrCopy(itemLinkUrl(rid),'Item link copied');}
+async function openItemCard(ref){
+  if(!SESSION||SESSION.accessLevel>=3)return false;
+  switchTab('data');showDataPage('items');
+  if(!_itemsCache&&!(await _loadItems()))return false;
+  _fillItemFilterSelects();
+  const it=(_itemsCache||[]).find(i=>_itemRid(i)===String(ref)||String(i.id)===String(ref));
+  if(!it){showToast('Item not found');return false;}
+  itF1=itF2=itF3='all';itQ=it.name||'';itView='detailed';
+  const q=document.getElementById('itSearch');if(q)q.value=itQ;
+  _fillItemFilterSelects();renderDataItems();
+  setTimeout(()=>{
+    const el=document.getElementById('itRow-'+_itemRid(it));
+    if(el){el.scrollIntoView({block:'center',behavior:'smooth'});el.style.animation='opsRowPulse 2.2s ease-out 1';}
+  },60);
+  return true;
 }
 
 // Add New Item — Type 1 / Type 2 / Type 3 are dropdowns of the values already used
@@ -16372,10 +16434,13 @@ function _infoFieldHtml(pfx){
   return `<div style="display:flex;flex-direction:column;gap:6px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Information file</label>
     <select id="${pfx}InfoSel" class="settings-input" style="margin:0" onchange="onInfoSelChange('${pfx}')"><option value="">(none)</option></select>
     <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--stone)"><input type="checkbox" id="${pfx}InfoPub" onchange="onInfoPublicToggle('${pfx}')"> Public (anyone with the link can view)</label>
+    <label id="${pfx}InfoDynRow" style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--stone)"><input type="checkbox" id="${pfx}InfoDyn" onchange="onInfoDynamicToggle('${pfx}')"> ⚡ Dynamic — live values from the app <button type="button" style="${bs};margin-left:auto" onclick="event.preventDefault();showTokenHelp()">🧩 Tokens</button></label>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
       <button type="button" style="${bs}" onclick="document.getElementById('${pfx}InfoUp').click()">⬆ Upload new file</button>
       <button type="button" id="${pfx}InfoReplBtn" style="${bs}" onclick="document.getElementById('${pfx}InfoRep').click()">🔄 Replace selected</button>
       <button type="button" id="${pfx}InfoRenBtn" style="${bs}" onclick="renameInfoFile('${pfx}')">✏️ Rename</button>
+      <button type="button" id="${pfx}InfoRefBtn" style="${bs};display:none" onclick="refreshInfoDynamic('${pfx}')">↻ Refresh now</button>
+      <a id="${pfx}InfoTpl" class="dlink" target="_blank" rel="noopener" style="font-size:13px;display:none">✏️ Edit template ↗</a>
       <a id="${pfx}InfoOpen" class="dlink" target="_blank" rel="noopener" style="font-size:13px;display:none">Open ↗</a>
     </div>
     <input type="file" id="${pfx}InfoUp" style="display:none" onchange="uploadInfoFromInput('${pfx}','new',this)">
@@ -16407,6 +16472,121 @@ function onInfoSelChange(pfx,quiet){
   if(pub){pub.checked=!!(f&&f.isPublic);pub.disabled=!!url&&!f;}
   if(open){open.style.display=url?'inline':'none';open.href=url||'#';}
   [rb,nb].forEach(b=>{if(b){b.disabled=!f;b.style.opacity=f?'1':'.4';}});
+  if(rb&&f&&f.dynamic){rb.disabled=true;rb.style.opacity='.4';} // a dynamic doc is edited in Google Docs, not replaced
+  const dyn=document.getElementById(pfx+'InfoDyn'),dynRow=document.getElementById(pfx+'InfoDynRow');
+  const refB=document.getElementById(pfx+'InfoRefBtn'),tpl=document.getElementById(pfx+'InfoTpl');
+  if(dyn){dyn.checked=!!(f&&f.dynamic);dyn.disabled=!f||!f.isDoc;}
+  if(dynRow)dynRow.style.opacity=(f&&f.isDoc)?'1':'.5';
+  if(refB)refB.style.display=(f&&f.dynamic)?'inline':'none';
+  if(tpl){tpl.style.display=(f&&f.dynamic)?'inline':'none';if(f&&f.dynamic)tpl.href=f.templateUrl;}
+}
+// Turn a Google Doc dynamic/static. Dynamic = {{tokens}} in the doc are filled from app data
+// into a "(live)" copy; the item then links to that live copy.
+async function _setInfoDynamic(f,on){
+  const res=await gasPost({action:'updateInfoFile',fileId:f.templateId||f.id,dynamic:on,actor:SESSION?SESSION.email:''});
+  if(!res||!res.ok)throw new Error((res&&res.error)||'Could not change');
+  await _loadInfoFiles(true);
+  await _loadItems(true); // links may have moved between the doc and its live copy
+  return res;
+}
+function _refreshSummary(r){
+  if(!r)return '';
+  const un=(r.unresolved||[]);
+  return (r.replaced!==undefined?r.replaced+' value(s) filled. ':'')+(un.length?'Not found: '+un.map(t=>'{{'+t+'}}').join(', '):'');
+}
+async function onInfoDynamicToggle(pfx){
+  const f=_infoFileByUrl(_infoFieldValue(pfx)),cb=document.getElementById(pfx+'InfoDyn');
+  if(!f||!cb)return;
+  const on=cb.checked;
+  _infoStatus(pfx,on?'Making dynamic…':'Making static…');
+  try{
+    const res=await _setInfoDynamic(f,on);
+    const nf=(_infoFilesCache||[]).find(x=>x.templateId===(f.templateId||f.id));
+    _fillInfoSelect(pfx,nf?nf.url:'');
+    renderDataItems();
+    _infoStatus(pfx,on?('Dynamic. '+_refreshSummary(res.refresh)):'Static again.',!!(on&&res.refresh&&res.refresh.unresolved&&res.refresh.unresolved.length));
+  }catch(e){cb.checked=!on;_infoStatus(pfx,e.message,true);}
+}
+async function refreshInfoDynamic(pfx){
+  const f=_infoFileByUrl(_infoFieldValue(pfx));if(!f)return;
+  _infoStatus(pfx,'Refreshing…');
+  try{
+    const res=await gasPost({action:'refreshDynamicDocs',fileId:f.templateId});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Refresh failed');
+    const r=(res.refreshed||[])[0];
+    _infoStatus(pfx,r&&r.error?r.error:'Refreshed. '+_refreshSummary(r),!!(r&&(r.error||(r.unresolved||[]).length)));
+  }catch(e){_infoStatus(pfx,e.message,true);}
+}
+
+// ── Information files panel (Bulk Data > Items) ────────────────────────────
+// Shows every file in the Information Files folder as ⚡ dynamic or 📄 static with a checkmark.
+async function toggleInfoPanel(){
+  const box=document.getElementById('itInfoPanel');if(!box)return;
+  const open=box.style.display==='none';
+  box.style.display=open?'block':'none';
+  if(open)await renderInfoPanel(true);
+}
+async function renderInfoPanel(force){
+  const box=document.getElementById('itInfoPanel');if(!box)return;
+  box.innerHTML='<div class="spinner" style="margin:14px auto"></div>';
+  const files=await _loadInfoFiles(force);
+  const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)';
+  const rows=files.map(f=>`<div style="padding:10px 0;border-bottom:1px solid var(--mist)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px;flex:none">${f.dynamic?'⚡':'📄'}</span>
+      <a class="dlink" href="${ea(f.url)}" target="_blank" rel="noopener" style="flex:1;min-width:0;font-size:14px">${escHtml(f.name)}</a>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--stone);flex:none"><input type="checkbox" ${f.dynamic?'checked':''} ${f.isDoc?'':'disabled'} onchange="onInfoPanelDynamic('${ea(f.templateId)}',this)"> Dynamic</label>
+    </div>
+    ${f.dynamic?`<div style="margin:4px 0 0 26px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--silver)"><span>Updated ${escHtml(f.refreshed||'—')}</span><button type="button" style="${bs}" onclick="refreshInfoFromPanel('${ea(f.templateId)}',this)">↻ Refresh</button><a class="dlink" href="${ea(f.templateUrl)}" target="_blank" rel="noopener">✏️ Edit template</a></div>`:''}
+    ${f.isDoc?'':'<div style="margin:2px 0 0 26px;font-size:12px;color:var(--silver)">Only Google Docs can be dynamic</div>'}
+    <div id="ifp-${ea(f.templateId)}" style="margin:2px 0 0 26px;font-size:12px;min-height:14px"></div></div>`).join('');
+  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><b style="font-size:14px;color:var(--ink)">Information files</b><button type="button" style="${bs}" onclick="showTokenHelp()">🧩 Tokens</button></div>
+    <div style="font-size:12px;color:var(--silver);margin-bottom:4px">⚡ Dynamic docs update themselves from the app; 📄 static docs never change.</div>${rows||'<div style="padding:12px 0;color:var(--silver);font-size:14px">No files yet.</div>'}`;
+}
+function _ifpMsg(id,msg,bad){const e=document.getElementById('ifp-'+id);if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
+async function onInfoPanelDynamic(tid,cb){
+  const f=(_infoFilesCache||[]).find(x=>x.templateId===tid);if(!f)return;
+  const on=cb.checked;_ifpMsg(tid,on?'Making dynamic…':'Making static…');
+  try{
+    const res=await _setInfoDynamic(f,on);
+    renderDataItems();
+    await renderInfoPanel(false);
+    const msg=on?('Dynamic. '+_refreshSummary(res.refresh)):'Static again.';
+    _ifpMsg(tid,msg,!!(on&&res.refresh&&res.refresh.unresolved&&res.refresh.unresolved.length));
+  }catch(e){cb.checked=!on;_ifpMsg(tid,e.message,true);}
+}
+async function refreshInfoFromPanel(tid,btn){
+  _ifpMsg(tid,'Refreshing…');
+  try{
+    const res=await gasPost({action:'refreshDynamicDocs',fileId:tid});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Refresh failed');
+    const r=(res.refreshed||[])[0];
+    await renderInfoPanel(true);
+    _ifpMsg(tid,r&&r.error?r.error:'Refreshed. '+_refreshSummary(r),!!(r&&(r.error||(r.unresolved||[]).length)));
+  }catch(e){_ifpMsg(tid,e.message,true);}
+}
+// Token cheat-sheet: copy a token, paste it into the Google Doc.
+let _tokQ='';
+async function showTokenHelp(){
+  if(!_itemsCache)await _loadItems();
+  let ov=document.getElementById('tokSheet');
+  if(!ov){ov=document.createElement('div');ov.className='sub-ov';ov.id='tokSheet';ov.onclick=e=>{if(e.target===ov)ov.remove();};document.body.appendChild(ov);}
+  _tokQ='';
+  ov.innerHTML=`<div class="sub-sheet"><h3>🧩 Tokens for dynamic docs</h3>
+    <div class="sub-meta" style="margin-bottom:8px">Type a token into the Google Doc. In the live copy it is replaced with the current value from the app.</div>
+    <div id="tokFixed"></div>
+    <input class="memo-input" type="search" placeholder="Find an item…" oninput="_tokQ=this.value;_tokRender()" style="margin:10px 0 4px">
+    <div id="tokItems"></div>
+    <div class="sub-actions"><button class="sub-btn alt" onclick="document.getElementById('tokSheet').remove()">Close</button></div></div>`;
+  _tokRender();
+}
+function _tokRow(label,tok){return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--mist);font-size:13px"><span style="flex:1;min-width:0"><b>${escHtml(label)}</b><br><code style="color:var(--stone)">${escHtml(tok)}</code></span><button type="button" class="sub-btn alt" style="flex:none" onclick="_hrCopy(this.dataset.t,'Token copied')" data-t="${ea(tok)}">Copy</button></div>`;}
+function _tokRender(){
+  const fx=document.getElementById('tokFixed'),it=document.getElementById('tokItems');if(!fx||!it)return;
+  fx.innerHTML=[['Number of active schools','{{sites.count}}'],['Active school names (comma list)','{{sites.list}}'],['Active school names (one per line)','{{sites.lines}}'],['Today’s date','{{today}}']].map(r=>_tokRow(r[0],r[1])).join('');
+  const q=(_tokQ||'').trim().toLowerCase();
+  const rows=(_itemsCache||[]).filter(i=>i.id&&(!q||(i.name||'').toLowerCase().indexOf(q)>-1)).slice(0,40);
+  it.innerHTML=rows.length?rows.map(i=>_tokRow(i.name+(i.amount!==''&&i.amount!==null?' — '+_dataPriceFmtAmount(i.amount):''),'{{item:'+i.id+'}}')).join('')+'<div class="sub-meta" style="padding:6px 0">Other fields: add .name .description .type1 .type2 .type3 after the ID, e.g. {{item:ID.name}}</div>':'<div class="sub-meta" style="padding:10px 0">No items match.</div>';
 }
 function _infoStatus(pfx,msg,bad){const e=document.getElementById(pfx+'InfoStatus');if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
 function _readFileB64(file){
@@ -16514,7 +16694,7 @@ function _dataPriceRowHtml(pr){
   return `<div class="data-price-row" data-id="${rid}" style="padding:14px 16px;border-bottom:1px solid var(--mist)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
       <div style="flex:1;min-width:0">
-        <div style="font-size:15px;color:var(--ink);font-weight:600">${ea(pr.name)}</div>
+        <div style="font-size:15px;color:var(--ink);font-weight:600">${ea(pr.name)} <button type="button" onclick="event.stopPropagation();openItemCard('${rid}')" title="Open this item's card" style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 2px">🔗</button></div>
         ${desc?`<div style="font-size:13px;color:var(--stone);margin-top:2px;line-height:1.4">${ea(desc)}</div>`:''}
         <div style="font-size:12px;color:var(--silver);margin-top:3px">Full day (×${ea(String(multVal))}): ${fdaDisplay}${dateDisplay?' · Updated '+ea(dateDisplay):''}</div>
       </div>
