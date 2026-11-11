@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.65 | 2026-11-11 | Items: getItems/addItem for Data > Items; Items All Type column accepted as Type 1';
+const GAS_BUILD = 'v11.66 | 2026-11-11 | Items: edit, Information Files (list/upload/rename/replace/public) linked from Items All column K';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -84,6 +84,7 @@ const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
 const HUMANS_IMG_FOLDER = '1PsqHbWRwurrVEpwhT-iRNGhjlf9jPgUx';
 const CHORES_IMG_FOLDER = '1f_B10hFEsPg5WUHwpcbS86lq2EcPu_si';
 const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
+const INFO_FILES_FOLDER = '1x8zbWU-t4KJHtNuoj5VqpBtvcJRdMHDI'; // Items All > "Link to information file"
 
 // ── DRIVE FOLDER IDs (sensitive Ranger documents) ─────────────────────────────
 // These folders are intentionally NOT set to "anyone with link" — files stay
@@ -775,6 +776,11 @@ function _doPostRoute(e) {
       // ── ITEMS (Data tab → Items All, all rows) ───────────────────────────────
       case 'getItems':      return respond(handleGetItems());
       case 'addItem':       return respond(handleAddItem(p));
+      case 'updateItem':    return respond(handleUpdateItem(p));
+      case 'getInfoFiles':  return respond(handleGetInfoFiles());
+      case 'uploadInfoFile':  return respond(handleUploadInfoFile(p));
+      case 'updateInfoFile':  return respond(handleUpdateInfoFile(p));
+      case 'replaceInfoFile': return respond(handleReplaceInfoFile(p));
 
       // ── RANGER RATES (People add/edit → Items All, Type 2 = "Ranger Rate") ───
       case 'getRangerRates': return respond(handleGetRangerRates());
@@ -3330,6 +3336,15 @@ function _itemsTypeIdx(headers) {
   return i > -1 ? i : headers.indexOf('Type');
 }
 
+// Items All's "Link to information file" column (K). Matched by header text
+// (anything containing "information"), falling back to the literal column K.
+function _itemsInfoIdx(headers) {
+  for (var i = 0; i < headers.length; i++) {
+    if (/information/i.test(String(headers[i] || ''))) return i;
+  }
+  return headers.length > 10 ? 10 : -1;
+}
+
 // 8-char unique ID generator for Items All rows (same pattern as Chores' ID column).
 function _newItemsAllId() {
   return Utilities.base64Encode(
@@ -3405,6 +3420,7 @@ function handleGetItems() {
   var ai  = headers.indexOf('Amount');
   var di  = headers.indexOf('Description');
   var dti = headers.indexOf('Date added or last edited');
+  var lki = _itemsInfoIdx(headers);
   if (ni === -1 || t1i === -1) return { ok: false, error: 'Expected Name/Type 1 columns not found in Items All.' };
   var out = [], seen = { type1: {}, type2: {}, type3: {} };
   function cell(r, i) { return i > -1 ? String(data[r][i] === null || data[r][i] === undefined ? '' : data[r][i]).trim() : ''; }
@@ -3422,6 +3438,7 @@ function handleGetItems() {
       type1: t1, type2: t2, type3: t3,
       amount: ai > -1 ? data[r][ai] : '',
       description: cell(r, di),
+      infoLink: cell(r, lki),
       dateStamp: dti > -1 ? data[r][dti] : ''
     });
   }
@@ -3445,7 +3462,9 @@ function handleAddItem(p) {
   var t1 = String(p.type1 || '').trim(), t2 = String(p.type2 || '').trim(), t3 = String(p.type3 || '').trim();
   var newId = _newItemsAllId();
   var now = new Date();
-  var row = headers.map(function(h) {
+  var lki = _itemsInfoIdx(headers);
+  var row = headers.map(function(h, hi) {
+    if (hi === lki)                        return String(p.infoLink || '').trim();
     if (h === 'ID')                        return newId;
     if (h === 'Name')                      return name;
     if (h === 'Type 1' || h === 'Type')    return t1;
@@ -3459,6 +3478,125 @@ function handleAddItem(p) {
   sheet.appendRow(row);
   logActivity(p.actor || '', 'added item', name, 'item', [t1, t2, t3].filter(String).join(' / '));
   return { ok: true, id: newId, row: sheet.getLastRow() };
+}
+
+// Updates an existing Items All row, matched by ID (falling back to the sheet row
+// number). Only fields present in the request are written, so Full day columns,
+// extra Link columns etc. are never touched.
+function handleUpdateItem(p) {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idi = headers.indexOf('ID');
+  var target = -1;
+  if (p.id && idi > -1) {
+    for (var r = 1; r < data.length; r++) { if (String(data[r][idi]) === String(p.id)) { target = r + 1; break; } }
+  }
+  if (target === -1 && p.row && Number(p.row) > 1 && Number(p.row) <= data.length) target = Number(p.row);
+  if (target === -1) return { ok: false, error: 'Item not found.' };
+  var name = String(p.name === undefined ? '' : p.name).trim();
+  if (p.name !== undefined && !name) return { ok: false, error: 'Name is required.' };
+  var amount = '';
+  if (p.amount !== undefined) {
+    amount = (p.amount === null || p.amount === '') ? '' : parseFloat(p.amount);
+    if (amount !== '' && isNaN(amount)) return { ok: false, error: 'Amount must be a number.' };
+  }
+  var lki = _itemsInfoIdx(headers);
+  function put(i, v) { if (i > -1) sheet.getRange(target, i + 1).setValue(v); }
+  if (p.name !== undefined)        put(headers.indexOf('Name'), name);
+  if (p.type1 !== undefined)       put(_itemsTypeIdx(headers), String(p.type1 || '').trim());
+  if (p.type2 !== undefined)       put(headers.indexOf('Type 2'), String(p.type2 || '').trim());
+  if (p.type3 !== undefined)       put(headers.indexOf('Type 3'), String(p.type3 || '').trim());
+  if (p.amount !== undefined)      put(headers.indexOf('Amount'), amount);
+  if (p.description !== undefined) put(headers.indexOf('Description'), String(p.description || '').trim());
+  if (p.infoLink !== undefined)    put(lki, String(p.infoLink || '').trim());
+  var dti = headers.indexOf('Date added or last edited');
+  sheet.getRange(target, (dti > -1 ? dti : 7) + 1).setValue(new Date());
+  logActivity(p.actor || '', 'edited item', name || String(data[target - 1][headers.indexOf('Name')] || ''), 'item', 'Items All row ' + target);
+  return { ok: true, row: target };
+}
+
+// ── INFORMATION FILES (Drive folder INFO_FILES_FOLDER → Items All "Link to information file") ──
+function _driveIdFromUrl(url) {
+  var m = String(url || '').match(/[-\w]{25,}/);
+  return m ? m[0] : '';
+}
+function _infoFileJson(f) {
+  var acc = f.getSharingAccess();
+  return {
+    id: f.getId(),
+    name: f.getName(),
+    url: f.getUrl(),
+    mimeType: f.getMimeType(),
+    isPublic: (acc === DriveApp.Access.ANYONE_WITH_LINK || acc === DriveApp.Access.ANYONE)
+  };
+}
+function _setInfoFilePublic(f, makePublic) {
+  if (makePublic) f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  else            f.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+}
+function handleGetInfoFiles() {
+  try {
+    var it = DriveApp.getFolderById(INFO_FILES_FOLDER).getFiles(), out = [];
+    while (it.hasNext()) out.push(_infoFileJson(it.next()));
+    out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+    return { ok: true, files: out };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Uploads a new file into the Information Files folder. p.isPublic = true shares
+// it as "anyone with the link can view"; otherwise it is not shared outside the folder's access.
+function handleUploadInfoFile(p) {
+  try {
+    if (!p.base64) return { ok: false, error: 'Missing file' };
+    var mime = (p.mimeType && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'application/pdf';
+    if (/heic|heif/i.test(mime)) mime = 'image/jpeg';
+    var fname = String(p.filename || 'Information file').trim();
+    var f = DriveApp.getFolderById(INFO_FILES_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, fname));
+    _setInfoFilePublic(f, !!p.isPublic);
+    logActivity(p.actor || '', 'uploaded information file', fname, 'item', p.isPublic ? 'public' : 'not public');
+    return { ok: true, file: _infoFileJson(f) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Renames and/or changes public/not-public on an existing information file.
+function handleUpdateInfoFile(p) {
+  try {
+    var id = p.fileId || _driveIdFromUrl(p.url);
+    if (!id) return { ok: false, error: 'Missing file' };
+    var f = DriveApp.getFileById(id);
+    if (p.name !== undefined && String(p.name).trim()) f.setName(String(p.name).trim());
+    if (p.isPublic !== undefined) _setInfoFilePublic(f, !!p.isPublic);
+    logActivity(p.actor || '', 'edited information file', f.getName(), 'item', p.isPublic === undefined ? 'renamed' : (p.isPublic ? 'made public' : 'made not public'));
+    return { ok: true, file: _infoFileJson(f) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Replaces an information file's content. Drive's basic service cannot overwrite a
+// file in place, so this creates the new file (same name, same public setting),
+// re-points every Items All row that linked to the old one, then trashes the old file.
+function handleReplaceInfoFile(p) {
+  try {
+    var oldId = p.fileId || _driveIdFromUrl(p.url);
+    if (!oldId || !p.base64) return { ok: false, error: 'Missing file' };
+    var old = DriveApp.getFileById(oldId);
+    var mime = (p.mimeType && p.mimeType !== 'application/octet-stream') ? p.mimeType : old.getMimeType();
+    if (/heic|heif/i.test(mime)) mime = 'image/jpeg';
+    var nf = DriveApp.getFolderById(INFO_FILES_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, old.getName()));
+    var oldAcc = old.getSharingAccess();
+    _setInfoFilePublic(nf, oldAcc === DriveApp.Access.ANYONE_WITH_LINK || oldAcc === DriveApp.Access.ANYONE);
+    var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+    var repointed = 0;
+    if (sheet) {
+      var data = sheet.getDataRange().getValues(), lki = _itemsInfoIdx(data[0]);
+      if (lki > -1) {
+        for (var r = 1; r < data.length; r++) {
+          if (_driveIdFromUrl(data[r][lki]) === oldId) { sheet.getRange(r + 1, lki + 1).setValue(nf.getUrl()); repointed++; }
+        }
+      }
+    }
+    old.setTrashed(true);
+    logActivity(p.actor || '', 'replaced information file', nf.getName(), 'item', repointed + ' item(s) re-linked');
+    return { ok: true, file: _infoFileJson(nf), oldUrl: p.url || '', repointed: repointed };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
 
 // Updates an existing Items All "Our Prices" row — matched by ID (col 'ID')

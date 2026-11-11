@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.65 -->
+<!-- v11.66 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2131,6 +2131,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
             <input id="itNewAmount" class="settings-input" style="flex:1;min-width:100px;margin:0" placeholder="Amount (optional)" type="number" step="0.01" inputmode="decimal">
           </div>
           <div id="itNewTypes" style="display:flex;flex-direction:column;gap:10px"></div>
+          <div id="itNewInfoWrap"></div>
           <textarea id="itNewDesc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description (optional)"></textarea>
         </div>
         <div style="display:flex;gap:8px;margin-top:10px">
@@ -2218,10 +2219,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.65';
+const APP_VERSION='v11.66';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-11 11:30 PT - Data tab renamed Bulk Data; new Data > Items page from Items All (Sort / Filter / Detail bar, Add New Item with Type 1, Type 2, Type 3 choices); Items All Type column is now Type 1.';
+const BUILD_STAMP='2026-11-11 12:55 PT - Data > Items: Edit button on every item; Information file field (pick from the Information Files folder, upload new, rename, replace, public or not) saved to Items All column K.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -16198,15 +16199,21 @@ function _itemsFiltered(){
 function _itemTypeChips(i){
   return [i.type1,i.type2,i.type3].filter(Boolean).map(t=>`<span style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--mist);color:var(--stone);margin:2px 4px 0 0">${escHtml(t)}</span>`).join('');
 }
+function _itemRid(i){return String(i.id||('row'+i.row));}
+function _itemInfoLinkHtml(i){
+  return i.infoLink?`<div style="margin-top:4px"><a class="dlink" href="${ea(i.infoLink)}" target="_blank" rel="noopener" style="font-size:13px">📎 Information file</a></div>`:'';
+}
 function _itemRowHtml(i){
-  const amount=_dataPriceFmtAmount(i.amount);
+  const amount=_dataPriceFmtAmount(i.amount),rid=ea(_itemRid(i));
+  const editBtn=`<button type="button" onclick="toggleEditItem('${rid}')" title="Edit" style="border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1;flex:none">✏️</button>`;
+  const panel=`<div id="itEdit-${rid}" style="display:none"></div>`;
   if(itView==='simple'){
-    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 16px;border-bottom:1px solid var(--mist);font-size:14px"><span style="color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.name)}</span><span style="color:var(--silver);flex:none">${escHtml(i.type1||'')}</span></div>`;
+    return `<div style="border-bottom:1px solid var(--mist)"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 16px;font-size:14px"><span style="color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(i.name)}${i.infoLink?' 📎':''}</span><span style="color:var(--silver);flex:none">${escHtml(i.type1||'')}</span>${editBtn}</div>${panel}</div>`;
   }
-  const head=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div style="flex:1;min-width:0"><div style="font-size:15px;color:var(--ink);font-weight:600">${escHtml(i.name)}</div><div>${_itemTypeChips(i)}</div></div>${i.amount!==''&&i.amount!==null&&i.amount!==undefined?`<div style="font-size:15px;font-weight:700;color:var(--sage);flex:none">${amount}</div>`:''}</div>`;
-  if(itView==='summary')return `<div style="padding:12px 16px;border-bottom:1px solid var(--mist)">${head}</div>`;
+  const head=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="flex:1;min-width:0"><div style="font-size:15px;color:var(--ink);font-weight:600">${escHtml(i.name)}</div><div>${_itemTypeChips(i)}</div>${_itemInfoLinkHtml(i)}</div>${i.amount!==''&&i.amount!==null&&i.amount!==undefined?`<div style="font-size:15px;font-weight:700;color:var(--sage);flex:none;padding-top:2px">${amount}</div>`:''}${editBtn}</div>`;
+  if(itView==='summary')return `<div style="padding:12px 16px;border-bottom:1px solid var(--mist)">${head}${panel}</div>`;
   const stamp=i.dateStamp?fmtDate(i.dateStamp):'';
-  return `<div style="padding:14px 16px;border-bottom:1px solid var(--mist)">${head}${i.description?`<div style="font-size:13px;color:var(--stone);margin-top:6px;line-height:1.4">${escHtml(i.description)}</div>`:''}<div style="font-size:12px;color:var(--silver);margin-top:6px">ID ${escHtml(i.id||'—')}${stamp?' · Updated '+escHtml(stamp):''}</div></div>`;
+  return `<div style="padding:14px 16px;border-bottom:1px solid var(--mist)">${head}${i.description?`<div style="font-size:13px;color:var(--stone);margin-top:6px;line-height:1.4">${escHtml(i.description)}</div>`:''}<div style="font-size:12px;color:var(--silver);margin-top:6px">ID ${escHtml(i.id||'—')}${stamp?' · Updated '+escHtml(stamp):''}</div>${panel}</div>`;
 }
 function _updateItemDDLabels(){
   const sv=document.getElementById('itDDsortV'),fv=document.getElementById('itDDfilterV'),dv=document.getElementById('itDDdetailV');
@@ -16241,14 +16248,15 @@ function clearItemFilters(){
 
 // Add New Item — Type 1 / Type 2 / Type 3 are dropdowns of the values already used
 // in Items All, plus "+ New…" to type a brand-new value.
-function _itemTypeSelectHtml(n){
-  const opts=_itemOpts['type'+n]||[];
+function _itemTypeSelectHtml(n,pfx,cur){
+  const opts=(_itemOpts['type'+n]||[]).slice();
+  if(cur&&opts.indexOf(cur)===-1)opts.push(cur);
   return `<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Type ${n}</label>
-    <select id="itNewType${n}" class="settings-input" style="margin:0" onchange="onItemTypeSelect(${n})"><option value="">(none)</option>${opts.map(v=>`<option value="${ea(v)}">${escHtml(v)}</option>`).join('')}<option value="__new__">+ New…</option></select>
-    <input id="itNewType${n}Text" class="settings-input" style="margin:0;display:none" type="text" placeholder="New Type ${n} value"></div>`;
+    <select id="${pfx}Type${n}" class="settings-input" style="margin:0" onchange="onItemTypeSelect('${pfx}',${n})"><option value="">(none)</option>${opts.map(v=>`<option value="${ea(v)}"${v===cur?' selected':''}>${escHtml(v)}</option>`).join('')}<option value="__new__">+ New…</option></select>
+    <input id="${pfx}Type${n}Text" class="settings-input" style="margin:0;display:none" type="text" placeholder="New Type ${n} value"></div>`;
 }
-function onItemTypeSelect(n){
-  const sel=document.getElementById('itNewType'+n),txt=document.getElementById('itNewType'+n+'Text');
+function onItemTypeSelect(pfx,n){
+  const sel=document.getElementById(pfx+'Type'+n),txt=document.getElementById(pfx+'Type'+n+'Text');
   if(!sel||!txt)return;
   txt.style.display=sel.value==='__new__'?'block':'none';
   if(sel.value==='__new__')txt.focus();
@@ -16258,13 +16266,14 @@ async function toggleNewItemForm(){
   const open=f.style.display==='none';
   if(open){
     if(!_itemsCache&&!(await _loadItems()))return;
-    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1)+_itemTypeSelectHtml(2)+_itemTypeSelectHtml(3);
+    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
+    _mountInfoField('itNew','');
   }
   f.style.display=open?'block':'none';
 }
-function _itemTypeValue(n){
-  const sel=document.getElementById('itNewType'+n);if(!sel)return '';
-  if(sel.value==='__new__'){const t=document.getElementById('itNewType'+n+'Text');return t?(t.value||'').trim():'';}
+function _itemTypeValue(pfx,n){
+  const sel=document.getElementById(pfx+'Type'+n);if(!sel)return '';
+  if(sel.value==='__new__'){const t=document.getElementById(pfx+'Type'+n+'Text');return t?(t.value||'').trim():'';}
   return sel.value;
 }
 async function submitNewItem(){
@@ -16275,21 +16284,22 @@ async function submitNewItem(){
   if(!name){statusEl.style.color='var(--danger)';statusEl.textContent='Please enter a name.';return;}
   const amount=amtEl&&amtEl.value!==''?parseFloat(amtEl.value):'';
   const description=descEl?(descEl.value||'').trim():'';
-  const type1=_itemTypeValue(1),type2=_itemTypeValue(2),type3=_itemTypeValue(3);
+  const type1=_itemTypeValue('itNew',1),type2=_itemTypeValue('itNew',2),type3=_itemTypeValue('itNew',3),infoLink=_infoFieldValue('itNew');
   btn.disabled=true;btn.style.opacity='.6';
   statusEl.style.color='var(--sage)';statusEl.textContent='Saving…';
   try{
-    const res=await gasPost({action:'addItem',name,amount,description,type1,type2,type3,actor:SESSION?SESSION.email:''});
+    const res=await gasPost({action:'addItem',name,amount,description,type1,type2,type3,infoLink,actor:SESSION?SESSION.email:''});
     if(!res||!res.ok){
       statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not add item.';
       btn.disabled=false;btn.style.opacity='1';return;
     }
-    (_itemsCache=_itemsCache||[]).push({row:res.row||0,id:res.id||'',name,type1,type2,type3,amount,description,dateStamp:new Date().toISOString()});
+    (_itemsCache=_itemsCache||[]).push({row:res.row||0,id:res.id||'',name,type1,type2,type3,amount,description,infoLink,dateStamp:new Date().toISOString()});
     [['type1',type1],['type2',type2],['type3',type3]].forEach(([k,v])=>{if(v&&(_itemOpts[k]||(_itemOpts[k]=[])).indexOf(v)===-1)_itemOpts[k].push(v);});
     _itemOpts.type1.sort();_itemOpts.type2.sort();_itemOpts.type3.sort();
     _prices_invalidateIfNeeded(type3);
     nameEl.value='';if(amtEl)amtEl.value='';if(descEl)descEl.value='';
-    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1)+_itemTypeSelectHtml(2)+_itemTypeSelectHtml(3);
+    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
+    _mountInfoField('itNew','');
     _fillItemFilterSelects();
     statusEl.style.color='var(--sage)';statusEl.textContent='Added!';
     renderDataItems();
@@ -16301,6 +16311,150 @@ async function submitNewItem(){
 }
 // An item added here with Type 3 = "Our Prices" must also show on the Prices page.
 function _prices_invalidateIfNeeded(type3){ if(type3==='Our Prices')_dataPricesCache=null; }
+
+// ── Item edit panel ────────────────────────────────────────────────────────
+function _itemByRid(rid){return (_itemsCache||[]).find(i=>_itemRid(i)===String(rid));}
+async function toggleEditItem(rid){
+  const box=document.getElementById('itEdit-'+rid);if(!box)return;
+  if(box.style.display!=='none'){box.style.display='none';return;}
+  const it=_itemByRid(rid);if(!it)return;
+  const pfx='itE'+rid.replace(/[^A-Za-z0-9]/g,'');
+  box.style.cssText='display:block;margin-top:10px;padding-top:10px;border-top:1px solid var(--mist)';
+  box.innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <input id="${pfx}Name" class="settings-input" style="flex:2;min-width:140px;margin:0" type="text" placeholder="Name" value="${ea(it.name)}">
+      <input id="${pfx}Amount" class="settings-input" style="flex:1;min-width:100px;margin:0" type="number" step="0.01" inputmode="decimal" placeholder="Amount" value="${ea(it.amount===null||it.amount===undefined?'':it.amount)}">
+    </div>
+    ${_itemTypeSelectHtml(1,pfx,it.type1)}${_itemTypeSelectHtml(2,pfx,it.type2)}${_itemTypeSelectHtml(3,pfx,it.type3)}
+    <div id="${pfx}InfoWrap"></div>
+    <textarea id="${pfx}Desc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description">${escHtml(it.description||'')}</textarea>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="settings-btn" style="flex:1" onclick="saveEditItem('${ea(rid)}','${pfx}')">Save</button>
+      <button type="button" class="settings-btn" style="flex:1;background:var(--mist);color:var(--stone)" onclick="toggleEditItem('${ea(rid)}')">Cancel</button>
+    </div>
+    <div id="${pfx}Status" style="font-size:13px;min-height:16px"></div></div>`;
+  _mountInfoField(pfx,it.infoLink||'');
+}
+async function saveEditItem(rid,pfx){
+  const it=_itemByRid(rid);if(!it)return;
+  const st=document.getElementById(pfx+'Status');
+  const name=(document.getElementById(pfx+'Name').value||'').trim();
+  if(!name){if(st){st.style.color='var(--danger)';st.textContent='Name required.';}return;}
+  const av=document.getElementById(pfx+'Amount').value;
+  const amount=av!==''?parseFloat(av):'';
+  const description=(document.getElementById(pfx+'Desc').value||'').trim();
+  const type1=_itemTypeValue(pfx,1),type2=_itemTypeValue(pfx,2),type3=_itemTypeValue(pfx,3),infoLink=_infoFieldValue(pfx);
+  if(st){st.style.color='var(--sage)';st.textContent='Saving…';}
+  try{
+    const res=await gasPost({action:'updateItem',id:it.id,row:it.row,name,amount,description,type1,type2,type3,infoLink,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok){if(st){st.style.color='var(--danger)';st.textContent=(res&&res.error)||'Could not save.';}return;}
+    Object.assign(it,{name,amount,description,type1,type2,type3,infoLink,dateStamp:new Date().toISOString()});
+    [['type1',type1],['type2',type2],['type3',type3]].forEach(([k,v])=>{if(v&&(_itemOpts[k]||(_itemOpts[k]=[])).indexOf(v)===-1)_itemOpts[k].push(v);});
+    _prices_invalidateIfNeeded(type3);
+    _fillItemFilterSelects();
+    renderDataItems();
+  }catch(e){if(st){st.style.color='var(--danger)';st.textContent='Connection error.';}}
+}
+
+// ── Information file field (Items All "Link to information file") ──────────
+// Pick an existing file from the Information Files Drive folder, upload a new one,
+// rename / replace the selected one, and mark it public (anyone with the link) or not.
+let _infoFilesCache=null;
+async function _loadInfoFiles(force){
+  if(_infoFilesCache&&!force)return _infoFilesCache;
+  try{const r=await gasPost({action:'getInfoFiles'});if(r&&r.ok)_infoFilesCache=r.files||[];}catch(e){}
+  return _infoFilesCache||[];
+}
+function _infoIdFromUrl(u){const m=String(u||'').match(/[-\w]{25,}/);return m?m[0]:'';}
+function _infoFileByUrl(u){const id=_infoIdFromUrl(u);return id?(_infoFilesCache||[]).find(f=>f.id===id):null;}
+function _infoFieldHtml(pfx){
+  const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)';
+  return `<div style="display:flex;flex-direction:column;gap:6px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Information file</label>
+    <select id="${pfx}InfoSel" class="settings-input" style="margin:0" onchange="onInfoSelChange('${pfx}')"><option value="">(none)</option></select>
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--stone)"><input type="checkbox" id="${pfx}InfoPub" onchange="onInfoPublicToggle('${pfx}')"> Public (anyone with the link can view)</label>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <button type="button" style="${bs}" onclick="document.getElementById('${pfx}InfoUp').click()">⬆ Upload new file</button>
+      <button type="button" id="${pfx}InfoReplBtn" style="${bs}" onclick="document.getElementById('${pfx}InfoRep').click()">🔄 Replace selected</button>
+      <button type="button" id="${pfx}InfoRenBtn" style="${bs}" onclick="renameInfoFile('${pfx}')">✏️ Rename</button>
+      <a id="${pfx}InfoOpen" class="dlink" target="_blank" rel="noopener" style="font-size:13px;display:none">Open ↗</a>
+    </div>
+    <input type="file" id="${pfx}InfoUp" style="display:none" onchange="uploadInfoFromInput('${pfx}','new',this)">
+    <input type="file" id="${pfx}InfoRep" style="display:none" onchange="uploadInfoFromInput('${pfx}','replace',this)">
+    <div id="${pfx}InfoStatus" style="font-size:13px;min-height:16px"></div></div>`;
+}
+async function _mountInfoField(pfx,url){
+  const wrap=document.getElementById(pfx+'InfoWrap');if(!wrap)return;
+  wrap.innerHTML=_infoFieldHtml(pfx);
+  _fillInfoSelect(pfx,url);
+  await _loadInfoFiles();
+  _fillInfoSelect(pfx,_infoFieldValue(pfx)||url);
+}
+function _fillInfoSelect(pfx,url){
+  const sel=document.getElementById(pfx+'InfoSel');if(!sel)return;
+  const files=_infoFilesCache||[];
+  let opts='<option value="">(none)</option>'+files.map(f=>`<option value="${ea(f.url)}">${escHtml(f.name)}</option>`).join('');
+  if(url&&!_infoFileByUrl(url))opts+=`<option value="${ea(url)}">(current link)</option>`;
+  sel.innerHTML=opts;
+  sel.value=url||'';
+  if(sel.value!==(url||''))sel.value='';
+  onInfoSelChange(pfx,true);
+}
+function _infoFieldValue(pfx){const s=document.getElementById(pfx+'InfoSel');return s?s.value:'';}
+function onInfoSelChange(pfx,quiet){
+  const url=_infoFieldValue(pfx),f=_infoFileByUrl(url);
+  const pub=document.getElementById(pfx+'InfoPub'),open=document.getElementById(pfx+'InfoOpen');
+  const rb=document.getElementById(pfx+'InfoReplBtn'),nb=document.getElementById(pfx+'InfoRenBtn');
+  if(pub){pub.checked=!!(f&&f.isPublic);pub.disabled=!!url&&!f;}
+  if(open){open.style.display=url?'inline':'none';open.href=url||'#';}
+  [rb,nb].forEach(b=>{if(b){b.disabled=!f;b.style.opacity=f?'1':'.4';}});
+}
+function _infoStatus(pfx,msg,bad){const e=document.getElementById(pfx+'InfoStatus');if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
+function _readFileB64(file){
+  return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>resolve(String(e.target.result).split(',')[1]);r.onerror=()=>reject(new Error('File read error'));r.readAsDataURL(file);});
+}
+async function uploadInfoFromInput(pfx,mode,input){
+  const file=input.files&&input.files[0];input.value='';
+  if(!file)return;
+  const cur=_infoFieldValue(pfx),curFile=_infoFileByUrl(cur);
+  if(mode==='replace'&&!curFile){_infoStatus(pfx,'Pick a file from the list first.',true);return;}
+  _infoStatus(pfx,(mode==='replace'?'Replacing ':'Uploading ')+file.name+'…');
+  try{
+    const base64=await _readFileB64(file);
+    let res;
+    if(mode==='replace')res=await gasPost({action:'replaceInfoFile',fileId:curFile.id,url:curFile.url,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
+    else{const pub=document.getElementById(pfx+'InfoPub');res=await gasPost({action:'uploadInfoFile',base64,mimeType:file.type,filename:file.name,isPublic:!!(pub&&pub.checked),actor:SESSION?SESSION.email:''});}
+    if(!res||!res.ok){_infoStatus(pfx,(res&&res.error)||'Upload failed.',true);return;}
+    await _loadInfoFiles(true);
+    if(mode==='replace'){
+      (_itemsCache||[]).forEach(i=>{if(_infoIdFromUrl(i.infoLink)===curFile.id)i.infoLink=res.file.url;});
+      renderDataItems();
+    }
+    _fillInfoSelect(pfx,res.file.url);
+    _infoStatus(pfx,mode==='replace'?'Replaced. Items using it were re-linked.':'Uploaded. Remember to Save.');
+  }catch(e){_infoStatus(pfx,'Upload failed: '+e.message,true);}
+}
+async function onInfoPublicToggle(pfx){
+  const f=_infoFileByUrl(_infoFieldValue(pfx)),pub=document.getElementById(pfx+'InfoPub');
+  if(!f||!pub)return;
+  _infoStatus(pfx,'Updating sharing…');
+  try{
+    const res=await gasPost({action:'updateInfoFile',fileId:f.id,isPublic:pub.checked,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok){pub.checked=!pub.checked;_infoStatus(pfx,(res&&res.error)||'Could not change sharing.',true);return;}
+    f.isPublic=res.file.isPublic;
+    _infoStatus(pfx,f.isPublic?'File is now public (anyone with the link).':'File is no longer public.');
+  }catch(e){pub.checked=!pub.checked;_infoStatus(pfx,'Connection error.',true);}
+}
+async function renameInfoFile(pfx){
+  const f=_infoFileByUrl(_infoFieldValue(pfx));if(!f)return;
+  const nn=prompt('Rename file:',f.name);
+  if(nn===null||!nn.trim()||nn.trim()===f.name)return;
+  _infoStatus(pfx,'Renaming…');
+  try{
+    const res=await gasPost({action:'updateInfoFile',fileId:f.id,name:nn.trim(),actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok){_infoStatus(pfx,(res&&res.error)||'Could not rename.',true);return;}
+    f.name=res.file.name;_fillInfoSelect(pfx,f.url);_infoStatus(pfx,'Renamed.');
+  }catch(e){_infoStatus(pfx,'Connection error.',true);}
+}
 
 // ── DATA page (Prices) — Items All tab, filtered to Type 3 = "Our Prices" ──
 async function renderDataPrices(){
