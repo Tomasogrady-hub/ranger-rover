@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.66 | 2026-11-11 | Items: edit, Information Files (list/upload/rename/replace/public) linked from Items All column K';
+const GAS_BUILD = 'v11.67 | 2026-11-11 | Plants: previewPlantDuplicates() and dedupePlants() one-time cleanup (with Drive backup)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -7308,4 +7308,80 @@ function setupHrPositions() {
   _hrApplicantRole();
   _hrClearPosCache();
   Logger.log('HR Positions ready.');
+}
+
+
+// ── PLANTS: ONE-TIME DUPLICATE CLEANUP ────────────────────────────────────────
+// Run from the Apps Script editor (not from the app).
+//  1) previewPlantDuplicates()  – read-only: logs how many rows are exact copies.
+//  2) dedupePlants()            – makes a backup copy of the Plants spreadsheet in
+//                                 Drive, then removes exact-duplicate rows (keeps the
+//                                 FIRST copy of each). Formulas are preserved.
+// A row is a duplicate only if ALL data columns match (Common Name through Main
+// Image URL), so different plants that share a common name are never removed.
+
+function _plantRowKeys(values, lastDataCol) {
+  var keys = [];
+  for (var r = 0; r < values.length; r++) {
+    keys.push(JSON.stringify(values[r].slice(0, lastDataCol)));
+  }
+  return keys;
+}
+
+function previewPlantDuplicates() {
+  var sh = getPlantSheet();
+  var last = sh.getLastRow();
+  if (last < 2) { Logger.log('No data.'); return; }
+  var vals = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
+  var keys = _plantRowKeys(vals, 22);
+  var seen = {}, dup = 0, blank = 0;
+  keys.forEach(function (k, i) {
+    if (!String(vals[i][0]).trim() && !String(vals[i][1]).trim()) { blank++; return; }
+    if (seen[k]) dup++; else seen[k] = 1;
+  });
+  Logger.log('Plants rows: ' + vals.length + ' | unique: ' + Object.keys(seen).length +
+             ' | exact duplicates: ' + dup + ' | blank rows: ' + blank);
+}
+
+function dedupePlants() {
+  var ss = SpreadsheetApp.openById(PLANTS_ID);
+  var sh = ss.getSheetByName('Plants');
+  var last = sh.getLastRow();
+  var cols = sh.getLastColumn();
+  if (last < 2) { Logger.log('No data.'); return; }
+
+  // 1) Backup first
+  var stamp = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM-dd HHmm');
+  var backup = DriveApp.getFileById(PLANTS_ID).makeCopy('Plants BACKUP before dedupe ' + stamp);
+  Logger.log('Backup created: ' + backup.getUrl());
+
+  // 2) Read values + formulas
+  var rng = sh.getRange(2, 1, last - 1, cols);
+  var vals = rng.getValues();
+  var forms = rng.getFormulas();
+  var keys = _plantRowKeys(vals, 22);
+
+  var seen = {}, out = [];
+  for (var i = 0; i < vals.length; i++) {
+    var blank = !String(vals[i][0]).trim() && !String(vals[i][1]).trim();
+    if (blank) continue;
+    if (seen[keys[i]]) continue;
+    seen[keys[i]] = 1;
+    var row = [];
+    for (var c = 0; c < cols; c++) row.push(forms[i][c] ? forms[i][c] : vals[i][c]);
+    out.push(row);
+  }
+  var removed = vals.length - out.length;
+  if (!out.length) { Logger.log('Nothing to write – aborting.'); return; }
+
+  // 3) Rewrite unique rows, then trim the leftover rows
+  sh.getRange(2, 1, out.length, cols).setValues(out);
+  var oldLast = last;
+  var newLast = out.length + 1;
+  if (oldLast > newLast) sh.getRange(newLast + 1, 1, oldLast - newLast, cols).clearContent();
+  SpreadsheetApp.flush();
+  if (sh.getMaxRows() > newLast + 100) sh.deleteRows(newLast + 101, sh.getMaxRows() - newLast - 100);
+
+  try { CacheService.getScriptCache().removeAll(['plants']); } catch (e) {}
+  Logger.log('Done. Kept ' + out.length + ' rows, removed ' + removed + '. Backup: ' + backup.getUrl());
 }
