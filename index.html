@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.64 -->
+<!-- v11.65 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1839,12 +1839,12 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   <div class="tab-pane" id="tab-data">
     <!-- Menu -->
     <div id="data-menu" style="display:block">
-      <div class="page-header"><span class="page-title">Data</span></div>
+      <div class="page-header"><span class="page-title">Bulk Data</span></div>
       <div style="padding:4px 16px 28px;display:flex;flex-direction:column;gap:12px">
         <button class="reach-menu-btn" onclick="showDataPage('people')">👥 People</button>
         <button class="reach-menu-btn" onclick="showDataPage('schools')">🏫 Schools</button>
         <button class="reach-menu-btn" onclick="showDataPage('prices')">💲 Prices</button>
-        <button class="reach-menu-btn" disabled style="opacity:.45;cursor:default">▫ Empty</button>
+        <button class="reach-menu-btn" onclick="showDataPage('items')">📦 Items</button>
       </div>
     </div>
 
@@ -2074,6 +2074,74 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <div class="card-list" id="dataSchoolsList"><div class="spinner"></div></div>
     </div>
 
+    <!-- Items (Items All — every row; Type 1 / Type 2 / Type 3) -->
+    <div id="data-items" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Items</span>
+        <span class="page-count" id="dataItemsCount"></span>
+      </div>
+      <div class="ddwrap" id="itDD">
+        <div class="ddbar">
+          <button type="button" class="dd-btn" data-dd="sort" onclick="toggleDD('itDD','sort')"><span class="dd-k">Sort</span><span class="dd-v" id="itDDsortV">Name A-Z</span></button>
+          <button type="button" class="dd-btn" data-dd="filter" onclick="toggleDD('itDD','filter')"><span class="dd-k">Filter</span><span class="dd-v" id="itDDfilterV">All</span></button>
+          <button type="button" class="dd-btn" data-dd="detail" onclick="toggleDD('itDD','detail')"><span class="dd-k">Detail</span><span class="dd-v" id="itDDdetailV">Summary</span></button>
+        </div>
+        <div class="dd-panel" data-dd="sort">
+          <div class="dd-opts" id="itSortOpts">
+            <button type="button" class="dd-opt" data-v="name-asc" onclick="setItemSort('name-asc')">Name (A → Z)</button>
+            <button type="button" class="dd-opt" data-v="name-desc" onclick="setItemSort('name-desc')">Name (Z → A)</button>
+            <button type="button" class="dd-opt" data-v="type1" onclick="setItemSort('type1')">Type 1</button>
+            <button type="button" class="dd-opt" data-v="type2" onclick="setItemSort('type2')">Type 2</button>
+            <button type="button" class="dd-opt" data-v="type3" onclick="setItemSort('type3')">Type 3</button>
+            <button type="button" class="dd-opt" data-v="amount-asc" onclick="setItemSort('amount-asc')">Amount (Low → High)</button>
+            <button type="button" class="dd-opt" data-v="amount-desc" onclick="setItemSort('amount-desc')">Amount (High → Low)</button>
+            <button type="button" class="dd-opt" data-v="recent" onclick="setItemSort('recent')">Recently Edited</button>
+          </div>
+        </div>
+        <div class="dd-panel" data-dd="filter">
+          <div class="dd-grid">
+            <label class="dd-lab">Search name
+              <input id="itSearch" class="settings-input" style="margin:0" type="search" placeholder="Search items" oninput="itQ=this.value;renderDataItems()"></label>
+            <label class="dd-lab">Type 1
+              <select id="itF1" onchange="itF1=this.value;renderDataItems();closeDD('itDD')"><option value="all">All</option></select></label>
+            <label class="dd-lab">Type 2
+              <select id="itF2" onchange="itF2=this.value;renderDataItems();closeDD('itDD')"><option value="all">All</option></select></label>
+            <label class="dd-lab">Type 3
+              <select id="itF3" onchange="itF3=this.value;renderDataItems();closeDD('itDD')"><option value="all">All</option></select></label>
+            <button type="button" class="settings-btn" style="background:var(--mist);color:var(--stone)" onclick="clearItemFilters()">Clear filters</button>
+          </div>
+        </div>
+        <div class="dd-panel" data-dd="detail">
+          <div class="dd-opts dd-opts-row">
+            <button type="button" class="dd-opt" id="itViewSimpleBtn" onclick="setItemView('simple')">Simple</button>
+            <button type="button" class="dd-opt active" id="itViewSummaryBtn" onclick="setItemView('summary')">Summary</button>
+            <button type="button" class="dd-opt" id="itViewDetailedBtn" onclick="setItemView('detailed')">Detailed</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin:6px 16px 10px">
+        <button type="button" id="itAddToggleBtn" class="settings-btn" style="width:100%" onclick="toggleNewItemForm()">+ Add New Item</button>
+      </div>
+      <div id="itNewForm" style="display:none;margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:14px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:10px">Add New Item</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input id="itNewName" class="settings-input" style="flex:2;min-width:140px;margin:0" placeholder="Name" type="text">
+            <input id="itNewAmount" class="settings-input" style="flex:1;min-width:100px;margin:0" placeholder="Amount (optional)" type="number" step="0.01" inputmode="decimal">
+          </div>
+          <div id="itNewTypes" style="display:flex;flex-direction:column;gap:10px"></div>
+          <textarea id="itNewDesc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description (optional)"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button id="itAddBtn" type="button" class="settings-btn" style="flex:1" onclick="submitNewItem()">+ Add Item</button>
+          <button type="button" class="settings-btn" style="flex:1;background:var(--mist);color:var(--stone)" onclick="toggleNewItemForm()">Cancel</button>
+        </div>
+        <div id="itAddStatus" style="font-size:14px;color:var(--sage);margin-top:6px;min-height:18px"></div>
+      </div>
+      <div id="dataItemsList" style="padding:0 0 20px"><div class="spinner"></div></div>
+    </div>
+
     <!-- Prices (Items All, Type 3 = "Our Prices") -->
     <div id="data-prices" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
@@ -2150,10 +2218,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.64';
+const APP_VERSION='v11.65';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-10 11:10 PT - Job postings: Delete button; picking a Role fills Public Title, Public Description and Requirements from the Roles tab and edits save back to the Role; who-gets-emailed picks from Level 1-2 people; Position Description removed; Resumes folder link. Apply form: one About you + experience box.';
+const BUILD_STAMP='2026-11-11 11:30 PT - Data tab renamed Bulk Data; new Data > Items page from Items All (Sort / Filter / Detail bar, Add New Item with Type 1, Type 2, Type 3 choices); Items All Type column is now Type 1.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2601,7 +2669,7 @@ async function _fillRangerRateDropdown(prefix){
   const rates=await _getRangerRates();
   const listEl=document.getElementById(prefix+'-rangerNum-dd-list');
   if(!listEl)return; // form may have been closed/navigated away already
-  if(!rates.length){listEl.innerHTML='<div style="padding:10px;color:var(--stone);font-size:13px">No Ranger Rates found — add one in Data ▸ Prices (Items All, Type 2 = "Ranger Rate")</div>';return;}
+  if(!rates.length){listEl.innerHTML='<div style="padding:10px;color:var(--stone);font-size:13px">No Ranger Rates found — add one in Bulk Data ▸ Prices (Items All, Type 2 = "Ranger Rate")</div>';return;}
   listEl.innerHTML=rates.map(r=>`<div class="dropdown-item" data-name="${ea(r.name)}" data-amount="${ea(r.amount)}" data-fullday="${ea(r.fullDayAmount)}" onclick="selectRangerRate(this,'${prefix}')">${escHtml(r.name)}</div>`).join('');
 }
 function selectRangerRate(el,prefix){
@@ -3536,7 +3604,7 @@ function buildNav(lvl){
       const dataVisible = _navTabAllowed('data',lvl);
       const reachVisible = _navTabAllowed('reach',lvl);
       const calVisible = _navTabAllowed('calendar',lvl);
-      let r3html = dataVisible ? _navBtn('data','Data') : '';
+      let r3html = dataVisible ? _navBtn('data','Bulk Data') : '';
       r3html += reachVisible ? _navBtn('reach','Reach') : '';
       r3html += calVisible ? _navBtn('calendar','Calendar') : '';
       if(dataVisible || reachVisible || calVisible){
@@ -3628,7 +3696,7 @@ function _opsAddProgramDialog(sel){
   const old=document.getElementById('rrNotice');if(old)old.remove();
   const d=document.createElement('div');d.id='rrNotice';d.className='rr-notice-ov';
   d.innerHTML=`<div class="rr-notice"><div class="rr-notice-t">Add new program</div>
-    <div class="rr-notice-m">It will be added to the Program list and to Data &gt; Prices.</div>
+    <div class="rr-notice-m">It will be added to the Program list and to Bulk Data &gt; Prices.</div>
     <input class="edit-input" id="npName" placeholder="Program name" style="margin-top:10px">
     <input class="edit-input" id="npAmt" type="number" inputmode="decimal" step="0.01" placeholder="Price ($)" style="margin-top:8px">
     <div id="npMsg" style="font-size:13px;color:var(--danger);min-height:16px;margin-top:6px"></div>
@@ -4636,7 +4704,7 @@ function _mySiteRoles(s){
   return {ranger:!!e&&(r1===e||r2===e),gk:!!e&&gk===e};
 }
 
-// Items All (Type = "Site Type") → "By Program" dropdown. Fetched once per
+// Items All (Type 1 = "Site Type") → "By Program" dropdown. Fetched once per
 // session; hardcoded options already in the HTML act as an instant fallback
 // so the dropdown works before this resolves.
 let _siteTypesCache=null,_schoolProgramFilterFilled=false;
@@ -15899,7 +15967,7 @@ const NAV_ALL_TABS = [
   {key:'operations', label:'🧭 Operations'},
   {key:'reach',    label:'📡 Reach'},
   {key:'settings', label:'⚙️ Settings'},
-  {key:'data',     label:'🗂 Data'},
+  {key:'data',     label:'🗂 Bulk Data'},
   {key:'site_ops_btn', label:'📍 Site Card: OPERATIONS Button'},
   {key:'team_email_search_btn', label:'🔎 Contact Row: Team Email Search Button'},
   {key:'ask_rover', label:'🐞 Ask Ladybug chat (Levels 1-2 only)'},
@@ -16064,7 +16132,7 @@ let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
 function showDataPage(page){
   _dataCurrentPage = page;
-  ['menu','people','schools','prices'].forEach(p=>{
+  ['menu','people','schools','prices','items'].forEach(p=>{
     const el=document.getElementById('data-'+p);
     if(el)el.style.display='none';
   });
@@ -16081,7 +16149,158 @@ function showDataPage(page){
   if(page==='prices'){
     renderDataPrices();
   }
+  if(page==='items'){
+    renderDataItems();
+  }
 }
+
+// ── DATA page (Items) — every row of the Items All tab ─────────────────────
+// Fetched once per session (cached); Add New Item pushes straight into the cache.
+let _itemsCache=null,_itemOpts={type1:[],type2:[],type3:[]};
+let itSort='name-asc',itF1='all',itF2='all',itF3='all',itQ='',itView='summary';
+const ITEM_SORT_SHORT={'name-asc':'Name A-Z','name-desc':'Name Z-A','type1':'Type 1','type2':'Type 2','type3':'Type 3','amount-asc':'Amount Low-High','amount-desc':'Amount High-Low','recent':'Recent'};
+async function _loadItems(force){
+  if(_itemsCache&&!force)return true;
+  const listEl=document.getElementById('dataItemsList');
+  if(listEl)listEl.innerHTML='<div class="spinner"></div>';
+  let res;
+  try{ res=await gasPost({action:'getItems'}); }
+  catch(e){ if(listEl)listEl.innerHTML=empty('—','Connection error.',''); return false; }
+  if(!res||!res.ok){ if(listEl)listEl.innerHTML=empty('—',(res&&res.error)||'Could not load items.',''); return false; }
+  _itemsCache=res.items||[];
+  _itemOpts=res.options||{type1:[],type2:[],type3:[]};
+  return true;
+}
+function _fillItemFilterSelects(){
+  [['itF1','type1',itF1],['itF2','type2',itF2],['itF3','type3',itF3]].forEach(([id,k,cur])=>{
+    const el=document.getElementById(id);if(!el)return;
+    const opts=(_itemOpts[k]||[]);
+    el.innerHTML='<option value="all">All</option><option value="__none__">(blank)</option>'+opts.map(v=>`<option value="${ea(v)}">${escHtml(v)}</option>`).join('');
+    el.value=(cur==='all'||cur==='__none__'||opts.indexOf(cur)>-1)?cur:'all';
+  });
+}
+function _itemsFiltered(){
+  const q=(itQ||'').trim().toLowerCase();
+  const m=(v,f)=>f==='all'||(f==='__none__'?!v:v===f);
+  let rows=(_itemsCache||[]).filter(i=>m(i.type1,itF1)&&m(i.type2,itF2)&&m(i.type3,itF3)&&(!q||(i.name||'').toLowerCase().indexOf(q)>-1));
+  const nm=(a,b)=>(a.name||'').localeCompare(b.name||'');
+  const amt=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
+  const byStr=k=>(a,b)=>{const x=a[k]||'',y=b[k]||'';if(!x&&y)return 1;if(x&&!y)return -1;return x.localeCompare(y)||nm(a,b);};
+  const cmp={
+    'name-asc':nm,'name-desc':(a,b)=>nm(b,a),
+    'type1':byStr('type1'),'type2':byStr('type2'),'type3':byStr('type3'),
+    'amount-asc':(a,b)=>{const x=amt(a.amount),y=amt(b.amount);if(x===null&&y!==null)return 1;if(x!==null&&y===null)return -1;return (x-y)||nm(a,b);},
+    'amount-desc':(a,b)=>{const x=amt(a.amount),y=amt(b.amount);if(x===null&&y!==null)return 1;if(x!==null&&y===null)return -1;return (y-x)||nm(a,b);},
+    'recent':(a,b)=>(new Date(b.dateStamp||0)-new Date(a.dateStamp||0))||nm(a,b)
+  }[itSort]||nm;
+  return rows.sort(cmp);
+}
+function _itemTypeChips(i){
+  return [i.type1,i.type2,i.type3].filter(Boolean).map(t=>`<span style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--mist);color:var(--stone);margin:2px 4px 0 0">${escHtml(t)}</span>`).join('');
+}
+function _itemRowHtml(i){
+  const amount=_dataPriceFmtAmount(i.amount);
+  if(itView==='simple'){
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 16px;border-bottom:1px solid var(--mist);font-size:14px"><span style="color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.name)}</span><span style="color:var(--silver);flex:none">${escHtml(i.type1||'')}</span></div>`;
+  }
+  const head=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div style="flex:1;min-width:0"><div style="font-size:15px;color:var(--ink);font-weight:600">${escHtml(i.name)}</div><div>${_itemTypeChips(i)}</div></div>${i.amount!==''&&i.amount!==null&&i.amount!==undefined?`<div style="font-size:15px;font-weight:700;color:var(--sage);flex:none">${amount}</div>`:''}</div>`;
+  if(itView==='summary')return `<div style="padding:12px 16px;border-bottom:1px solid var(--mist)">${head}</div>`;
+  const stamp=i.dateStamp?fmtDate(i.dateStamp):'';
+  return `<div style="padding:14px 16px;border-bottom:1px solid var(--mist)">${head}${i.description?`<div style="font-size:13px;color:var(--stone);margin-top:6px;line-height:1.4">${escHtml(i.description)}</div>`:''}<div style="font-size:12px;color:var(--silver);margin-top:6px">ID ${escHtml(i.id||'—')}${stamp?' · Updated '+escHtml(stamp):''}</div></div>`;
+}
+function _updateItemDDLabels(){
+  const sv=document.getElementById('itDDsortV'),fv=document.getElementById('itDDfilterV'),dv=document.getElementById('itDDdetailV');
+  if(sv)sv.textContent=ITEM_SORT_SHORT[itSort]||'Name A-Z';
+  document.querySelectorAll('#itSortOpts .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===itSort));
+  const n=(itF1!=='all')+(itF2!=='all')+(itF3!=='all')+((itQ||'').trim()?1:0);
+  if(fv)fv.textContent=n?(n+' on'):'All';
+  const fb=document.querySelector('#itDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',n>0);
+  const sb=document.querySelector('#itDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',itSort!=='name-asc');
+  if(dv)dv.textContent=itView.charAt(0).toUpperCase()+itView.slice(1);
+  ['simple','summary','detailed'].forEach(v=>{const b=document.getElementById('itView'+v.charAt(0).toUpperCase()+v.slice(1)+'Btn');if(b)b.classList.toggle('active',v===itView);});
+}
+async function renderDataItems(){
+  const listEl=document.getElementById('dataItemsList');
+  const countEl=document.getElementById('dataItemsCount');
+  if(!listEl)return;
+  if(!_itemsCache){ if(!(await _loadItems()))return; _fillItemFilterSelects(); }
+  _updateItemDDLabels();
+  const rows=_itemsFiltered();
+  const total=(_itemsCache||[]).length;
+  if(countEl)countEl.textContent=rows.length===total?(total+' item'+(total===1?'':'s')):(rows.length+' of '+total);
+  if(!rows.length){listEl.innerHTML=empty('—','No items match','');return;}
+  listEl.innerHTML=rows.map(_itemRowHtml).join('');
+}
+function setItemSort(v){itSort=v;closeDD('itDD');renderDataItems();}
+function setItemView(v){itView=v;closeDD('itDD');renderDataItems();}
+function clearItemFilters(){
+  itF1=itF2=itF3='all';itQ='';
+  const q=document.getElementById('itSearch');if(q)q.value='';
+  _fillItemFilterSelects();closeDD('itDD');renderDataItems();
+}
+
+// Add New Item — Type 1 / Type 2 / Type 3 are dropdowns of the values already used
+// in Items All, plus "+ New…" to type a brand-new value.
+function _itemTypeSelectHtml(n){
+  const opts=_itemOpts['type'+n]||[];
+  return `<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Type ${n}</label>
+    <select id="itNewType${n}" class="settings-input" style="margin:0" onchange="onItemTypeSelect(${n})"><option value="">(none)</option>${opts.map(v=>`<option value="${ea(v)}">${escHtml(v)}</option>`).join('')}<option value="__new__">+ New…</option></select>
+    <input id="itNewType${n}Text" class="settings-input" style="margin:0;display:none" type="text" placeholder="New Type ${n} value"></div>`;
+}
+function onItemTypeSelect(n){
+  const sel=document.getElementById('itNewType'+n),txt=document.getElementById('itNewType'+n+'Text');
+  if(!sel||!txt)return;
+  txt.style.display=sel.value==='__new__'?'block':'none';
+  if(sel.value==='__new__')txt.focus();
+}
+async function toggleNewItemForm(){
+  const f=document.getElementById('itNewForm');if(!f)return;
+  const open=f.style.display==='none';
+  if(open){
+    if(!_itemsCache&&!(await _loadItems()))return;
+    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1)+_itemTypeSelectHtml(2)+_itemTypeSelectHtml(3);
+  }
+  f.style.display=open?'block':'none';
+}
+function _itemTypeValue(n){
+  const sel=document.getElementById('itNewType'+n);if(!sel)return '';
+  if(sel.value==='__new__'){const t=document.getElementById('itNewType'+n+'Text');return t?(t.value||'').trim():'';}
+  return sel.value;
+}
+async function submitNewItem(){
+  const statusEl=document.getElementById('itAddStatus'),btn=document.getElementById('itAddBtn');
+  const nameEl=document.getElementById('itNewName'),amtEl=document.getElementById('itNewAmount'),descEl=document.getElementById('itNewDesc');
+  if(!statusEl||!btn||!nameEl)return;
+  const name=(nameEl.value||'').trim();
+  if(!name){statusEl.style.color='var(--danger)';statusEl.textContent='Please enter a name.';return;}
+  const amount=amtEl&&amtEl.value!==''?parseFloat(amtEl.value):'';
+  const description=descEl?(descEl.value||'').trim():'';
+  const type1=_itemTypeValue(1),type2=_itemTypeValue(2),type3=_itemTypeValue(3);
+  btn.disabled=true;btn.style.opacity='.6';
+  statusEl.style.color='var(--sage)';statusEl.textContent='Saving…';
+  try{
+    const res=await gasPost({action:'addItem',name,amount,description,type1,type2,type3,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok){
+      statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not add item.';
+      btn.disabled=false;btn.style.opacity='1';return;
+    }
+    (_itemsCache=_itemsCache||[]).push({row:res.row||0,id:res.id||'',name,type1,type2,type3,amount,description,dateStamp:new Date().toISOString()});
+    [['type1',type1],['type2',type2],['type3',type3]].forEach(([k,v])=>{if(v&&(_itemOpts[k]||(_itemOpts[k]=[])).indexOf(v)===-1)_itemOpts[k].push(v);});
+    _itemOpts.type1.sort();_itemOpts.type2.sort();_itemOpts.type3.sort();
+    _prices_invalidateIfNeeded(type3);
+    nameEl.value='';if(amtEl)amtEl.value='';if(descEl)descEl.value='';
+    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1)+_itemTypeSelectHtml(2)+_itemTypeSelectHtml(3);
+    _fillItemFilterSelects();
+    statusEl.style.color='var(--sage)';statusEl.textContent='Added!';
+    renderDataItems();
+    setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000);
+  }catch(e){
+    statusEl.style.color='var(--danger)';statusEl.textContent='Connection error.';
+  }
+  btn.disabled=false;btn.style.opacity='1';
+}
+// An item added here with Type 3 = "Our Prices" must also show on the Prices page.
+function _prices_invalidateIfNeeded(type3){ if(type3==='Our Prices')_dataPricesCache=null; }
 
 // ── DATA page (Prices) — Items All tab, filtered to Type 3 = "Our Prices" ──
 async function renderDataPrices(){

@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.64 | 2026-11-10 | HR: delete postings, Roles sync (Role Name Public / Public Description / Requirements), resumes to Resumes and Pictures';
+const GAS_BUILD = 'v11.65 | 2026-11-11 | Items: getItems/addItem for Data > Items; Items All Type column accepted as Type 1';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -771,6 +771,10 @@ function _doPostRoute(e) {
       case 'getPrices':     return respond(handleGetPrices());
       case 'addPriceItem':  return respond(handleAddPriceItem(p));
       case 'updatePriceItem': return respond(handleUpdatePriceItem(p));
+
+      // ── ITEMS (Data tab → Items All, all rows) ───────────────────────────────
+      case 'getItems':      return respond(handleGetItems());
+      case 'addItem':       return respond(handleAddItem(p));
 
       // ── RANGER RATES (People add/edit → Items All, Type 2 = "Ranger Rate") ───
       case 'getRangerRates': return respond(handleGetRangerRates());
@@ -2437,8 +2441,8 @@ function handleGetSchoolDistricts() {
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
   var ni = headers.indexOf('Name');
-  var ti = headers.indexOf('Type');
-  if (ni === -1 || ti === -1) return { ok: false, error: 'Expected Name/Type columns not found in Items All.' };
+  var ti = _itemsTypeIdx(headers);
+  if (ni === -1 || ti === -1) return { ok: false, error: 'Expected Name/Type 1 columns not found in Items All.' };
   var seen = {}, out = [];
   for (var r = 1; r < data.length; r++) {
     var type = String(data[r][ti] || '').trim().toLowerCase();
@@ -2462,8 +2466,8 @@ function handleGetSiteTypes() {
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
   var ni = headers.indexOf('Name');
-  var ti = headers.indexOf('Type');
-  if (ni === -1 || ti === -1) return { ok: false, error: 'Expected Name/Type columns not found in Items All.' };
+  var ti = _itemsTypeIdx(headers);
+  if (ni === -1 || ti === -1) return { ok: false, error: 'Expected Name/Type 1 columns not found in Items All.' };
   var seen = {}, out = [];
   for (var r = 1; r < data.length; r++) {
     var type = String(data[r][ti] || '').trim().toLowerCase();
@@ -3319,6 +3323,13 @@ function handleGetActiveRangersForForms() {
   return { ok: true, rangers: out };
 }
 
+// Items All's first type column was renamed "Type" -> "Type 1". Accept either
+// header so the app keeps working whichever name the sheet currently has.
+function _itemsTypeIdx(headers) {
+  var i = headers.indexOf('Type 1');
+  return i > -1 ? i : headers.indexOf('Type');
+}
+
 // 8-char unique ID generator for Items All rows (same pattern as Chores' ID column).
 function _newItemsAllId() {
   return Utilities.base64Encode(
@@ -3375,6 +3386,79 @@ function handleAddPriceItem(p) {
   }
   logActivity(p.actor || '', 'added price', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
   return { ok: true, id: newId, fullDayAmount: fullDayAmount };
+}
+
+// ── ITEMS (Items All → Data > Items) ─────────────────────────────────────────
+// Returns every Items All row (ID, Name, Type 1/2/3, Amount, Description, date
+// stamp) plus the distinct Type 1 / Type 2 / Type 3 values already in use, which
+// the app offers as dropdown choices on Add New Item.
+function handleGetItems() {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idi = headers.indexOf('ID');
+  var ni  = headers.indexOf('Name');
+  var t1i = _itemsTypeIdx(headers);
+  var t2i = headers.indexOf('Type 2');
+  var t3i = headers.indexOf('Type 3');
+  var ai  = headers.indexOf('Amount');
+  var di  = headers.indexOf('Description');
+  var dti = headers.indexOf('Date added or last edited');
+  if (ni === -1 || t1i === -1) return { ok: false, error: 'Expected Name/Type 1 columns not found in Items All.' };
+  var out = [], seen = { type1: {}, type2: {}, type3: {} };
+  function cell(r, i) { return i > -1 ? String(data[r][i] === null || data[r][i] === undefined ? '' : data[r][i]).trim() : ''; }
+  for (var r = 1; r < data.length; r++) {
+    var name = cell(r, ni);
+    if (!name && !cell(r, idi)) continue;
+    var t1 = cell(r, t1i), t2 = cell(r, t2i), t3 = cell(r, t3i);
+    if (t1) seen.type1[t1] = true;
+    if (t2) seen.type2[t2] = true;
+    if (t3) seen.type3[t3] = true;
+    out.push({
+      row: r + 1,
+      id: cell(r, idi),
+      name: name,
+      type1: t1, type2: t2, type3: t3,
+      amount: ai > -1 ? data[r][ai] : '',
+      description: cell(r, di),
+      dateStamp: dti > -1 ? data[r][dti] : ''
+    });
+  }
+  function keys(o) { return Object.keys(o).sort(function(a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }); }
+  return { ok: true, items: out, options: { type1: keys(seen.type1), type2: keys(seen.type2), type3: keys(seen.type3) } };
+}
+
+// Appends a new Items All row: ID, Name, Type 1/2/3, Amount, Description and the
+// "Date added or last edited" stamp. Level 1-2 only (the client gates it too).
+function handleAddItem(p) {
+  var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+  var headers = sheet.getDataRange().getValues()[0];
+  if (headers.indexOf('Name') === -1 || _itemsTypeIdx(headers) === -1) {
+    return { ok: false, error: 'Expected Name/Type 1 columns not found in Items All.' };
+  }
+  var name = String(p.name || '').trim();
+  if (!name) return { ok: false, error: 'Name is required.' };
+  var amount = (p.amount === undefined || p.amount === null || p.amount === '') ? '' : parseFloat(p.amount);
+  if (amount !== '' && isNaN(amount)) return { ok: false, error: 'Amount must be a number.' };
+  var t1 = String(p.type1 || '').trim(), t2 = String(p.type2 || '').trim(), t3 = String(p.type3 || '').trim();
+  var newId = _newItemsAllId();
+  var now = new Date();
+  var row = headers.map(function(h) {
+    if (h === 'ID')                        return newId;
+    if (h === 'Name')                      return name;
+    if (h === 'Type 1' || h === 'Type')    return t1;
+    if (h === 'Type 2')                    return t2;
+    if (h === 'Type 3')                    return t3;
+    if (h === 'Amount')                    return amount;
+    if (h === 'Description')               return String(p.description || '').trim();
+    if (h === 'Date added or last edited') return now;
+    return '';
+  });
+  sheet.appendRow(row);
+  logActivity(p.actor || '', 'added item', name, 'item', [t1, t2, t3].filter(String).join(' / '));
+  return { ok: true, id: newId, row: sheet.getLastRow() };
 }
 
 // Updates an existing Items All "Our Prices" row — matched by ID (col 'ID')
@@ -3499,7 +3583,7 @@ function handleGetPrograms() {
   var data = itemsSheet.getDataRange().getValues();
   var headers = data[0];
   var nameCol   = headers.indexOf('Name');
-  var typeCol   = headers.indexOf('Type');
+  var typeCol   = _itemsTypeIdx(headers);
   var type2Col  = headers.indexOf('Type 2');
   var amountCol = headers.indexOf('Amount');
   if ([nameCol, typeCol, type2Col, amountCol].indexOf(-1) !== -1) return { programs: [], responses: [] };
@@ -3523,15 +3607,15 @@ function handleAddProgram(p) {
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
   var headers = sheet.getDataRange().getValues()[0];
-  if (headers.indexOf('Name') === -1 || headers.indexOf('Amount') === -1 || headers.indexOf('Type') === -1 || headers.indexOf('Type 2') === -1) {
-    return { ok: false, error: 'Expected Name/Amount/Type/Type 2 columns not found in Items All.' };
+  if (headers.indexOf('Name') === -1 || headers.indexOf('Amount') === -1 || _itemsTypeIdx(headers) === -1 || headers.indexOf('Type 2') === -1) {
+    return { ok: false, error: 'Expected Name/Amount/Type 1/Type 2 columns not found in Items All.' };
   }
   var name = String(p.name || '').trim();
   if (!name) return { ok: false, error: 'Program name is required.' };
   var amount = (p.amount === undefined || p.amount === null || p.amount === '') ? '' : parseFloat(p.amount);
   if (amount !== '' && isNaN(amount)) return { ok: false, error: 'Price must be a number.' };
   var all = sheet.getDataRange().getValues();
-  var ni = headers.indexOf('Name'), ti = headers.indexOf('Type'), t2i = headers.indexOf('Type 2');
+  var ni = headers.indexOf('Name'), ti = _itemsTypeIdx(headers), t2i = headers.indexOf('Type 2');
   for (var r = 1; r < all.length; r++) {
     if (String(all[r][ni] || '').trim().toLowerCase() === name.toLowerCase() &&
         String(all[r][ti] || '') === 'enrichla product' && String(all[r][t2i] || '') === 'Program') {
@@ -3546,7 +3630,7 @@ function handleAddProgram(p) {
     if (h === 'ID')                        return newId;
     if (h === 'Name')                      return name;
     if (h === 'Amount')                    return amount;
-    if (h === 'Type')                      return 'enrichla product';
+    if (h === 'Type 1' || h === 'Type')   return 'enrichla product';
     if (h === 'Type 2')                    return 'Program';
     if (h === 'Type 3')                    return 'Our Prices';
     if (h === 'Description')               return String(p.description || '').trim();
