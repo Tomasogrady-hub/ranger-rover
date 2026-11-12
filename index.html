@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.68 -->
+<!-- v11.69 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2221,10 +2221,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.68';
+const APP_VERSION='v11.69';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-11 15:20 PT - Plants page opens with top 20 most-used plants; Information files: Dynamic checkmark + live {{tokens}} in Google Docs; Items: link (#item=ID) to each item card.';
+const BUILD_STAMP='2026-11-11 17:30 PT - Tokens: Full day Amount ({{item:ID.fullday}}) and two-decimal format (.00); Google Docs sidebar script.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -16586,7 +16586,8 @@ function _tokRender(){
   fx.innerHTML=[['Number of active schools','{{sites.count}}'],['Active school names (comma list)','{{sites.list}}'],['Active school names (one per line)','{{sites.lines}}'],['Today’s date','{{today}}']].map(r=>_tokRow(r[0],r[1])).join('');
   const q=(_tokQ||'').trim().toLowerCase();
   const rows=(_itemsCache||[]).filter(i=>i.id&&(!q||(i.name||'').toLowerCase().indexOf(q)>-1)).slice(0,40);
-  it.innerHTML=rows.length?rows.map(i=>_tokRow(i.name+(i.amount!==''&&i.amount!==null?' — '+_dataPriceFmtAmount(i.amount):''),'{{item:'+i.id+'}}')).join('')+'<div class="sub-meta" style="padding:6px 0">Other fields: add .name .description .type1 .type2 .type3 after the ID, e.g. {{item:ID.name}}</div>':'<div class="sub-meta" style="padding:10px 0">No items match.</div>';
+  const hasV=v=>v!==''&&v!==null&&v!==undefined&&!isNaN(parseFloat(v));
+  it.innerHTML=rows.length?rows.map(i=>_tokRow(i.name+(hasV(i.amount)?' — '+_dataPriceFmtAmount(i.amount):''),'{{item:'+i.id+'}}')+(hasV(i.fullDay)?_tokRow(i.name+' — full day '+_dataPriceFmtAmount(i.fullDay),'{{item:'+i.id+'.fullday}}'):'')).join('')+'<div class="sub-meta" style="padding:6px 0">Add .00 for two decimals, e.g. {{item:ID.amount.00}} gives $140.00. Other fields: .name .description .type1 .type2 .type3 .multiplier</div>':'<div class="sub-meta" style="padding:10px 0">No items match.</div>';
 }
 function _infoStatus(pfx,msg,bad){const e=document.getElementById(pfx+'InfoStatus');if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
 function _readFileB64(file){

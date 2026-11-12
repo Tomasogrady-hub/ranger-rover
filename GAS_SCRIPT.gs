@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.68 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
+const GAS_BUILD = 'v11.69 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -3516,6 +3516,7 @@ function handleGetItems() {
   var ai  = headers.indexOf('Amount');
   var di  = headers.indexOf('Description');
   var dti = headers.indexOf('Date added or last edited');
+  var fdi = headers.indexOf('Full day Amount');
   var lki = _itemsInfoIdx(headers);
   if (ni === -1 || t1i === -1) return { ok: false, error: 'Expected Name/Type 1 columns not found in Items All.' };
   var out = [], seen = { type1: {}, type2: {}, type3: {} };
@@ -3533,6 +3534,7 @@ function handleGetItems() {
       name: name,
       type1: t1, type2: t2, type3: t3,
       amount: ai > -1 ? data[r][ai] : '',
+      fullDay: fdi > -1 ? data[r][fdi] : '',
       description: cell(r, di),
       infoLink: cell(r, lki),
       dateStamp: dti > -1 ? data[r][dti] : ''
@@ -3730,16 +3732,18 @@ function _repointItems(oldId, newUrl) {
 // ── DYNAMIC DOCS: {{tokens}} in a Google Doc are filled from app data ─────────
 // Tokens (type them into the Google Doc, e.g. "Schools contribute {{item:59otsbd}} yearly"):
 //   {{item:ID}} or {{item:ID.amount}}   price, formatted like $8,175   (also .name .description .type1 .type2 .type3)
+//   {{item:ID.fullday}}                  the item's "Full day Amount" (Items All column J)
+//   add .00 for two decimals: {{item:ID.amount.00}} -> $140.00,  {{item:ID.fullday.00}} -> $245.00
 //   {{item:Exact Item Name.amount}}      same, matched by the item's name
 //   {{sites.count}}                      number of Active Ranger Program schools
 //   {{sites.list}}                       their names, comma separated  ({{sites.lines}} = one per line)
 //   {{today}}                            today's date
 // The doc you edit stays untouched (the "template"); a "(live)" copy beside it is rewritten
 // with the values filled in. The live copy keeps the same link, so shared links never break.
-function _fmtMoney(v) {
+function _fmtMoney(v, force2) {
   var n = parseFloat(v);
   if (isNaN(n)) return String(v === null || v === undefined ? '' : v);
-  var fixed = (Math.round(n * 100) % 100 === 0) ? String(Math.round(n)) : n.toFixed(2);
+  var fixed = (!force2 && Math.round(n * 100) % 100 === 0) ? String(Math.round(n)) : n.toFixed(2);
   var parts = fixed.split('.');
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return '$' + parts.join('.');
@@ -3751,11 +3755,12 @@ function _tokenContext() {
   if (it) {
     var d = it.getDataRange().getValues(), h = d[0];
     var idi = h.indexOf('ID'), ni = h.indexOf('Name'), ai = h.indexOf('Amount'), di = h.indexOf('Description'),
+        fdi = h.indexOf('Full day Amount'), mli = h.indexOf('Full day multiplier'),
         t1 = _itemsTypeIdx(h), t2 = h.indexOf('Type 2'), t3 = h.indexOf('Type 3');
     for (var r = 1; r < d.length; r++) {
       if (!d[r][ni] && !d[r][idi]) continue;
       ctx.items.push({ id: String(d[r][idi] || '').trim(), name: String(d[r][ni] || '').trim(),
-        amount: ai > -1 ? d[r][ai] : '', description: di > -1 ? String(d[r][di] || '') : '',
+        amount: ai > -1 ? d[r][ai] : '', fullday: fdi > -1 ? d[r][fdi] : '', multiplier: mli > -1 ? d[r][mli] : '', description: di > -1 ? String(d[r][di] || '') : '',
         type1: t1 > -1 ? String(d[r][t1] || '') : '', type2: t2 > -1 ? String(d[r][t2] || '') : '', type3: t3 > -1 ? String(d[r][t3] || '') : '' });
     }
   }
@@ -3778,13 +3783,18 @@ function _resolveToken(tok, ctx) {
   var m = t.match(/^item\s*:\s*(.+)$/i);
   if (!m) return null;
   var ref = m[1].trim(), field = 'amount';
-  var fm = ref.match(/^(.*)\.(amount|name|description|type1|type2|type3)$/i);
-  if (fm) { ref = fm[1].trim(); field = fm[2].toLowerCase(); }
+  var two = false;
+  var fm = ref.match(/^(.*)\.(amount|fullday|multiplier|name|description|type1|type2|type3)(\.00)?$/i);
+  if (fm) { ref = fm[1].trim(); field = fm[2].toLowerCase(); two = !!fm[3]; }
   var hit = null, i;
   for (i = 0; i < ctx.items.length; i++) { if (ctx.items[i].id && ctx.items[i].id.toLowerCase() === ref.toLowerCase()) { hit = ctx.items[i]; break; } }
   if (!hit) for (i = 0; i < ctx.items.length; i++) { if (ctx.items[i].name.toLowerCase() === ref.toLowerCase()) { hit = ctx.items[i]; break; } }
   if (!hit) return null;
-  return field === 'amount' ? _fmtMoney(hit.amount) : String(hit[field] || '');
+  if (field === 'amount' || field === 'fullday') {
+    if (hit[field] === '' || hit[field] === null || hit[field] === undefined) return '';
+    return _fmtMoney(hit[field], two);
+  }
+  return String(hit[field] === undefined || hit[field] === null ? '' : hit[field]);
 }
 function _copyBodyInto(srcBody, dstBody) {
   dstBody.clear();
