@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.70 -->
+<!-- v11.71 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1845,6 +1845,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <button class="reach-menu-btn" onclick="showDataPage('schools')">🏫 Schools</button>
         <button class="reach-menu-btn" onclick="showDataPage('prices')">💲 Prices</button>
         <button class="reach-menu-btn" onclick="showDataPage('items')">📦 Items</button>
+        <button class="reach-menu-btn" onclick="showDataPage('documents')">📄 Documents</button>
       </div>
     </div>
 
@@ -2122,8 +2123,6 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       </div>
       <div style="margin:6px 16px 10px">
         <button type="button" id="itAddToggleBtn" class="settings-btn" style="width:100%" onclick="toggleNewItemForm()">+ Add New Item</button>
-        <button type="button" class="settings-btn" style="width:100%;margin-top:8px;background:var(--mist);color:var(--stone)" onclick="toggleInfoPanel()">📚 Information files &nbsp;⚡ dynamic / 📄 static</button>
-        <div id="itInfoPanel" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--mist);border-radius:10px;background:var(--white)"></div>
       </div>
       <div id="itNewForm" style="display:none;margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:14px">
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:10px">Add New Item</div>
@@ -2146,6 +2145,29 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     </div>
 
     <!-- Prices (Items All, Type 3 = "Our Prices") -->
+    <!-- Documents -->
+    <div id="data-documents" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Documents</span>
+        <span class="page-count" id="dataDocsCount"></span>
+      </div>
+      <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:8px">
+        <input id="docSearch" class="settings-input" style="margin:0" type="search" placeholder="Search documents" oninput="docQ=this.value;renderDataDocuments()">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="chip active" data-dkind="all" onclick="setDocKind('all')">All</button>
+          <button type="button" class="chip" data-dkind="dynamic" onclick="setDocKind('dynamic')">⚡ Dynamic</button>
+          <button type="button" class="chip" data-dkind="static" onclick="setDocKind('static')">📄 Static</button>
+          <span style="flex:1"></span>
+          <button type="button" class="settings-btn" style="padding:6px 12px" onclick="showTokenHelp()">🧩 Tokens</button>
+          <button type="button" class="settings-btn" style="padding:6px 12px" onclick="document.getElementById('docUploadInput').click()">⬆ Upload</button>
+          <input type="file" id="docUploadInput" style="display:none" onchange="uploadDocument(this)">
+        </div>
+        <div id="docUploadStatus" style="font-size:13px;min-height:16px"></div>
+      </div>
+      <div id="dataDocsList"></div>
+    </div>
+
     <div id="data-prices" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
         <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
@@ -2221,10 +2243,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.70';
+const APP_VERSION='v11.71';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-11 18:45 PT - Information Files: reads Static/Dynamic Documents subfolders (needs GAS v11.70).';
+const BUILD_STAMP='2026-11-11 20:30 PT - Bulk Data > Documents page (static/dynamic, public, rename, refresh, upload, used-by); replaces the grey button on Items.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -16173,7 +16195,7 @@ let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
 function showDataPage(page){
   _dataCurrentPage = page;
-  ['menu','people','schools','prices','items'].forEach(p=>{
+  ['menu','people','schools','prices','items','documents'].forEach(p=>{
     const el=document.getElementById('data-'+p);
     if(el)el.style.display='none';
   });
@@ -16192,6 +16214,9 @@ function showDataPage(page){
   }
   if(page==='items'){
     renderDataItems();
+  }
+  if(page==='documents'){
+    renderDataDocuments(true);
   }
 }
 
@@ -16518,53 +16543,6 @@ async function refreshInfoDynamic(pfx){
   }catch(e){_infoStatus(pfx,e.message,true);}
 }
 
-// ── Information files panel (Bulk Data > Items) ────────────────────────────
-// Shows every file in the Information Files folder as ⚡ dynamic or 📄 static with a checkmark.
-async function toggleInfoPanel(){
-  const box=document.getElementById('itInfoPanel');if(!box)return;
-  const open=box.style.display==='none';
-  box.style.display=open?'block':'none';
-  if(open)await renderInfoPanel(true);
-}
-async function renderInfoPanel(force){
-  const box=document.getElementById('itInfoPanel');if(!box)return;
-  box.innerHTML='<div class="spinner" style="margin:14px auto"></div>';
-  const files=await _loadInfoFiles(force);
-  const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)';
-  const rows=files.map(f=>`<div style="padding:10px 0;border-bottom:1px solid var(--mist)">
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:18px;flex:none">${f.dynamic?'⚡':'📄'}</span>
-      <a class="dlink" href="${ea(f.url)}" target="_blank" rel="noopener" style="flex:1;min-width:0;font-size:14px">${escHtml(f.name)}</a>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--stone);flex:none"><input type="checkbox" ${f.dynamic?'checked':''} ${f.isDoc?'':'disabled'} onchange="onInfoPanelDynamic('${ea(f.templateId)}',this)"> Dynamic</label>
-    </div>
-    ${f.dynamic?`<div style="margin:4px 0 0 26px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--silver)"><span>Updated ${escHtml(f.refreshed||'—')}</span><button type="button" style="${bs}" onclick="refreshInfoFromPanel('${ea(f.templateId)}',this)">↻ Refresh</button><a class="dlink" href="${ea(f.templateUrl)}" target="_blank" rel="noopener">✏️ Edit template</a></div>`:''}
-    ${f.isDoc?'':'<div style="margin:2px 0 0 26px;font-size:12px;color:var(--silver)">Only Google Docs can be dynamic</div>'}
-    <div id="ifp-${ea(f.templateId)}" style="margin:2px 0 0 26px;font-size:12px;min-height:14px"></div></div>`).join('');
-  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><b style="font-size:14px;color:var(--ink)">Information files</b><button type="button" style="${bs}" onclick="showTokenHelp()">🧩 Tokens</button></div>
-    <div style="font-size:12px;color:var(--silver);margin-bottom:4px">⚡ Dynamic docs update themselves from the app; 📄 static docs never change.</div>${rows||'<div style="padding:12px 0;color:var(--silver);font-size:14px">No files yet.</div>'}`;
-}
-function _ifpMsg(id,msg,bad){const e=document.getElementById('ifp-'+id);if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
-async function onInfoPanelDynamic(tid,cb){
-  const f=(_infoFilesCache||[]).find(x=>x.templateId===tid);if(!f)return;
-  const on=cb.checked;_ifpMsg(tid,on?'Making dynamic…':'Making static…');
-  try{
-    const res=await _setInfoDynamic(f,on);
-    renderDataItems();
-    await renderInfoPanel(false);
-    const msg=on?('Dynamic. '+_refreshSummary(res.refresh)):'Static again.';
-    _ifpMsg(tid,msg,!!(on&&res.refresh&&res.refresh.unresolved&&res.refresh.unresolved.length));
-  }catch(e){cb.checked=!on;_ifpMsg(tid,e.message,true);}
-}
-async function refreshInfoFromPanel(tid,btn){
-  _ifpMsg(tid,'Refreshing…');
-  try{
-    const res=await gasPost({action:'refreshDynamicDocs',fileId:tid});
-    if(!res||!res.ok)throw new Error((res&&res.error)||'Refresh failed');
-    const r=(res.refreshed||[])[0];
-    await renderInfoPanel(true);
-    _ifpMsg(tid,r&&r.error?r.error:'Refreshed. '+_refreshSummary(r),!!(r&&(r.error||(r.unresolved||[]).length)));
-  }catch(e){_ifpMsg(tid,e.message,true);}
-}
 // Token cheat-sheet: copy a token, paste it into the Google Doc.
 let _tokQ='';
 async function showTokenHelp(){
@@ -16635,6 +16613,102 @@ async function renameInfoFile(pfx){
     if(!res||!res.ok){_infoStatus(pfx,(res&&res.error)||'Could not rename.',true);return;}
     f.name=res.file.name;_fillInfoSelect(pfx,f.url);_infoStatus(pfx,'Renamed.');
   }catch(e){_infoStatus(pfx,'Connection error.',true);}
+}
+
+// ── DATA page (Documents) — every file in the Information Files folders ───
+// ⚡ Dynamic docs have {{tokens}} filled from app data into a "(live)" copy; 📄 Static docs never change.
+let docQ='',docKind='all';
+function setDocKind(k){
+  docKind=k;
+  document.querySelectorAll('#data-documents [data-dkind]').forEach(b=>b.classList.toggle('active',b.dataset.dkind===k));
+  renderDataDocuments();
+}
+function _docUsedBy(f){
+  return (_itemsCache||[]).filter(i=>i.infoLink&&(_infoIdFromUrl(i.infoLink)===f.id||_infoIdFromUrl(i.infoLink)===f.templateId));
+}
+function _docRowHtml(f){
+  const t=ea(f.templateId),bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)';
+  const used=_docUsedBy(f);
+  return `<div style="padding:12px 16px;border-bottom:1px solid var(--mist)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:20px;flex:none">${f.dynamic?'⚡':'📄'}</span>
+      <a class="dlink" href="${ea(f.url)}" target="_blank" rel="noopener" style="flex:1;min-width:0;font-size:15px;font-weight:600">${escHtml(f.name)}</a>
+      <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--mist);color:var(--stone);flex:none">${f.isPublic?'Public':'Private'}</span>
+    </div>
+    <div style="margin:6px 0 0 28px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--stone)">
+      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${f.dynamic?'checked':''} ${f.isDoc?'':'disabled'} onchange="docToggleDynamic('${t}',this)"> Dynamic</label>
+      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${f.isPublic?'checked':''} onchange="docTogglePublic('${t}',this)"> Public</label>
+      <button type="button" style="${bs}" onclick="docRename('${t}')">✏️ Rename</button>
+      ${f.dynamic?`<button type="button" style="${bs}" onclick="docRefresh('${t}')">↻ Refresh</button><a class="dlink" href="${ea(f.templateUrl)}" target="_blank" rel="noopener">✏️ Edit template</a>`:''}
+    </div>
+    <div style="margin:4px 0 0 28px;font-size:12px;color:var(--silver)">${f.dynamic?'Updated '+escHtml(f.refreshed||'not yet')+' · ':''}${used.length?'Used by '+escHtml(used.slice(0,3).map(i=>i.name).join(', '))+(used.length>3?' +'+(used.length-3)+' more':''):'Not linked to any item'}${f.isDoc?'':' · Only Google Docs can be dynamic'}</div>
+    <div id="docMsg-${t}" style="margin:2px 0 0 28px;font-size:12px;min-height:14px"></div></div>`;
+}
+async function renderDataDocuments(force){
+  const list=document.getElementById('dataDocsList'),cnt=document.getElementById('dataDocsCount');
+  if(!list)return;
+  if(force||!_infoFilesCache)list.innerHTML='<div class="spinner"></div>';
+  const files=await _loadInfoFiles(!!force);
+  if(!_itemsCache)await _loadItems(); // for "Used by"
+  const q=(docQ||'').trim().toLowerCase();
+  const rows=files.filter(f=>(docKind==='all'||(docKind==='dynamic')===!!f.dynamic)&&(!q||f.name.toLowerCase().indexOf(q)>-1));
+  if(cnt)cnt.textContent=rows.length===files.length?(files.length+' document'+(files.length===1?'':'s')):(rows.length+' of '+files.length);
+  list.innerHTML=rows.length?rows.map(_docRowHtml).join(''):empty('—','No documents match','');
+}
+function _docMsg(t,msg,bad){const e=document.getElementById('docMsg-'+t);if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
+function _docByTid(t){return (_infoFilesCache||[]).find(x=>x.templateId===t);}
+async function docToggleDynamic(t,cb){
+  const f=_docByTid(t);if(!f)return;
+  const on=cb.checked;_docMsg(t,on?'Making dynamic…':'Making static…');
+  try{
+    const res=await _setInfoDynamic(f,on);
+    await renderDataDocuments();
+    const un=(res.refresh&&res.refresh.unresolved)||[];
+    _docMsg(t,on?('Dynamic. '+_refreshSummary(res.refresh)):'Static again.',!!un.length);
+  }catch(e){cb.checked=!on;_docMsg(t,e.message,true);}
+}
+async function docTogglePublic(t,cb){
+  const f=_docByTid(t);if(!f)return;
+  _docMsg(t,'Updating sharing…');
+  try{
+    const res=await gasPost({action:'updateInfoFile',fileId:f.id,isPublic:cb.checked,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Could not change sharing');
+    f.isPublic=res.file.isPublic;await renderDataDocuments();_docMsg(t,f.isPublic?'Now public (anyone with the link).':'No longer public.');
+  }catch(e){cb.checked=!cb.checked;_docMsg(t,e.message,true);}
+}
+async function docRename(t){
+  const f=_docByTid(t);if(!f)return;
+  const nn=prompt('Rename document:',f.name);
+  if(nn===null||!nn.trim()||nn.trim()===f.name)return;
+  _docMsg(t,'Renaming…');
+  try{
+    const res=await gasPost({action:'updateInfoFile',fileId:f.id,name:nn.trim(),actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Could not rename');
+    await renderDataDocuments(true);
+  }catch(e){_docMsg(t,e.message,true);}
+}
+async function docRefresh(t){
+  _docMsg(t,'Refreshing…');
+  try{
+    const res=await gasPost({action:'refreshDynamicDocs',fileId:t});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Refresh failed');
+    const r=(res.refreshed||[])[0];
+    await renderDataDocuments(true);
+    _docMsg(t,r&&r.error?r.error:'Refreshed. '+_refreshSummary(r),!!(r&&(r.error||(r.unresolved||[]).length)));
+  }catch(e){_docMsg(t,e.message,true);}
+}
+async function uploadDocument(input){
+  const file=input.files&&input.files[0];input.value='';if(!file)return;
+  const st=document.getElementById('docUploadStatus');
+  if(st){st.style.color='var(--sage)';st.textContent='Uploading '+file.name+'…';}
+  try{
+    const base64=await _readFileB64(file);
+    const res=await gasPost({action:'uploadInfoFile',base64,mimeType:file.type,filename:file.name,isPublic:false,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Upload failed');
+    if(st)st.textContent='Uploaded to Static Documents.';
+    await renderDataDocuments(true);
+    setTimeout(()=>{if(st)st.textContent='';},2500);
+  }catch(e){if(st){st.style.color='var(--danger)';st.textContent=e.message;}}
 }
 
 // ── DATA page (Prices) — Items All tab, filtered to Type 3 = "Our Prices" ──
