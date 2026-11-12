@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.69 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
+const GAS_BUILD = 'v11.70 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -85,6 +85,11 @@ const HUMANS_IMG_FOLDER = '1PsqHbWRwurrVEpwhT-iRNGhjlf9jPgUx';
 const CHORES_IMG_FOLDER = '1f_B10hFEsPg5WUHwpcbS86lq2EcPu_si';
 const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
 const INFO_FILES_FOLDER = '1x8zbWU-t4KJHtNuoj5VqpBtvcJRdMHDI'; // Items All > "Link to information file"
+// Inside it: "Static Documents" and "Dynamic Documents", each with a "Templates" subfolder
+// (templates are for copying and are never listed in the app). The folder a doc sits in
+// is what makes it static or dynamic.
+const INFO_STATIC_FOLDER  = '1X5ElYK0ryJCAxiLSn0AkV3E9eeCOYM4E';
+const INFO_DYNAMIC_FOLDER = '1pUC83rJHyV_zpHL2g_JTb-cVIDGFXP1j';
 
 // ── DRIVE FOLDER IDs (sensitive Ranger documents) ─────────────────────────────
 // These folders are intentionally NOT set to "anyone with link" — files stay
@@ -3626,7 +3631,38 @@ var DYN_MARK = 'RR:dynamic';
 var LIVE_PREFIX = 'RR:live-of:';
 var GDOC_MIME = 'application/vnd.google-apps.document';
 function _isLiveCopy(f) { return String(f.getDescription() || '').indexOf(LIVE_PREFIX) === 0; }
-function _isDynamicTemplate(f) { return String(f.getDescription() || '').indexOf(DYN_MARK) === 0; }
+function _hasAncestor(f, folderId) {
+  var level = [f];
+  for (var d = 0; d < 4; d++) {
+    var next = [];
+    for (var i = 0; i < level.length; i++) {
+      var it = level[i].getParents();
+      while (it.hasNext()) { var pf = it.next(); if (pf.getId() === folderId) return true; next.push(pf); }
+    }
+    if (!next.length) return false;
+    level = next;
+  }
+  return false;
+}
+function _isDynamicTemplate(f) {
+  if (_isLiveCopy(f)) return false;
+  if (String(f.getDescription() || '').indexOf(DYN_MARK) === 0) return true;
+  return f.getMimeType() === GDOC_MIME && _hasAncestor(f, INFO_DYNAMIC_FOLDER);
+}
+// Visits every file under the Information Files folder, skipping any folder named "Templates".
+function _eachInfoFile(cb) {
+  function walk(folder) {
+    var fi = folder.getFiles();
+    while (fi.hasNext()) cb(fi.next());
+    var sf = folder.getFolders();
+    while (sf.hasNext()) { var sub = sf.next(); if (String(sub.getName()).trim().toLowerCase() === 'templates') continue; walk(sub); }
+  }
+  walk(DriveApp.getFolderById(INFO_FILES_FOLDER));
+}
+function _parentFolderOf(f, fallbackId) {
+  var it = f.getParents();
+  return it.hasNext() ? it.next() : DriveApp.getFolderById(fallbackId);
+}
 // A dynamic template (Google Doc with {{tokens}}) has a "live" copy next to it. The app
 // links to the LIVE copy (what readers should see); the template is what staff edit.
 function _liveCopyOf(tpl) {
@@ -3658,8 +3694,8 @@ function _setInfoFilePublic(f, makePublic) {
 }
 function handleGetInfoFiles() {
   try {
-    var it = DriveApp.getFolderById(INFO_FILES_FOLDER).getFiles(), out = [];
-    while (it.hasNext()) { var f0 = it.next(); if (_isLiveCopy(f0)) continue; out.push(_infoFileJson(f0)); }
+    var out = [];
+    _eachInfoFile(function(f0) { if (!_isLiveCopy(f0)) out.push(_infoFileJson(f0)); });
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
     return { ok: true, files: out };
   } catch (e) { return { ok: false, error: e.message }; }
@@ -3672,7 +3708,7 @@ function handleUploadInfoFile(p) {
     var mime = (p.mimeType && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'application/pdf';
     if (/heic|heif/i.test(mime)) mime = 'image/jpeg';
     var fname = String(p.filename || 'Information file').trim();
-    var f = DriveApp.getFolderById(INFO_FILES_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, fname));
+    var f = DriveApp.getFolderById(INFO_STATIC_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, fname));
     _setInfoFilePublic(f, !!p.isPublic);
     logActivity(p.actor || '', 'uploaded information file', fname, 'item', p.isPublic ? 'public' : 'not public');
     return { ok: true, file: _infoFileJson(f) };
@@ -3697,6 +3733,7 @@ function handleUpdateInfoFile(p) {
         if (tpl.getMimeType() !== GDOC_MIME) return { ok: false, error: 'Only Google Docs can be dynamic.' };
         var pubWas = tpl.getSharingAccess() === DriveApp.Access.ANYONE_WITH_LINK || tpl.getSharingAccess() === DriveApp.Access.ANYONE;
         tpl.setDescription(DYN_MARK + ';');
+        tpl.moveTo(DriveApp.getFolderById(INFO_DYNAMIC_FOLDER));
         var r = _refreshDynamicDoc(tpl);
         var lv1 = _liveCopyOf(tpl);
         if (lv1) { if (pubWas) _setInfoFilePublic(lv1, true); _repointItems(tpl.getId(), lv1.getUrl()); }
@@ -3706,6 +3743,7 @@ function handleUpdateInfoFile(p) {
         var wasPub = lv2 && (lv2.getSharingAccess() === DriveApp.Access.ANYONE_WITH_LINK || lv2.getSharingAccess() === DriveApp.Access.ANYONE);
         if (lv2) lv2.setTrashed(true);
         tpl.setDescription('');
+        tpl.moveTo(DriveApp.getFolderById(INFO_STATIC_FOLDER));
         if (wasPub) _setInfoFilePublic(tpl, true);
         _repointItems(lv2 ? lv2.getId() : '', tpl.getUrl());
       }
@@ -3817,7 +3855,7 @@ function _copyBodyInto(srcBody, dstBody) {
 // Rebuilds the live copy of one dynamic template. Returns { ok, replaced, unresolved[] }.
 function _refreshDynamicDoc(tpl, ctx) {
   ctx = ctx || _tokenContext();
-  var folder = DriveApp.getFolderById(INFO_FILES_FOLDER);
+  var folder = _parentFolderOf(tpl, INFO_DYNAMIC_FOLDER);
   var live = _liveCopyOf(tpl);
   if (!live) {
     live = tpl.makeCopy(tpl.getName() + ' (live)', folder);
@@ -3846,15 +3884,14 @@ function _refreshDynamicDoc(tpl, ctx) {
 // Refresh button, after item saves, and by the hourly trigger.
 function handleRefreshDynamicDocs(p) {
   try {
-    var ctx = _tokenContext(), out = [], it = DriveApp.getFolderById(INFO_FILES_FOLDER).getFiles();
+    var ctx = _tokenContext(), out = [];
     var only = p && (p.fileId || p.templateId) ? String(p.fileId || p.templateId) : '';
-    while (it.hasNext()) {
-      var f = it.next();
-      if (!_isDynamicTemplate(f)) continue;
-      if (only && f.getId() !== only && (_liveCopyOf(f) || { getId: function() { return ''; } }).getId() !== only) continue;
+    _eachInfoFile(function(f) {
+      if (!_isDynamicTemplate(f)) return;
+      if (only && f.getId() !== only && (_liveCopyOf(f) || { getId: function() { return ''; } }).getId() !== only) return;
       try { var r = _refreshDynamicDoc(f, ctx); out.push({ name: f.getName(), replaced: r.replaced, unresolved: r.unresolved }); }
       catch (e) { out.push({ name: f.getName(), error: e.message }); }
-    }
+    });
     return { ok: true, refreshed: out };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -3880,7 +3917,7 @@ function handleReplaceInfoFile(p) {
     var old = DriveApp.getFileById(oldId);
     var mime = (p.mimeType && p.mimeType !== 'application/octet-stream') ? p.mimeType : old.getMimeType();
     if (/heic|heif/i.test(mime)) mime = 'image/jpeg';
-    var nf = DriveApp.getFolderById(INFO_FILES_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, old.getName()));
+    var nf = _parentFolderOf(old, INFO_STATIC_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, old.getName()));
     var oldAcc = old.getSharingAccess();
     _setInfoFilePublic(nf, oldAcc === DriveApp.Access.ANYONE_WITH_LINK || oldAcc === DriveApp.Access.ANYONE);
     var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
