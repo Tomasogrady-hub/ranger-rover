@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.70 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
+const GAS_BUILD = 'v11.71 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -90,6 +90,9 @@ const INFO_FILES_FOLDER = '1x8zbWU-t4KJHtNuoj5VqpBtvcJRdMHDI'; // Items All > "L
 // is what makes it static or dynamic.
 const INFO_STATIC_FOLDER  = '1X5ElYK0ryJCAxiLSn0AkV3E9eeCOYM4E';
 const INFO_DYNAMIC_FOLDER = '1pUC83rJHyV_zpHL2g_JTb-cVIDGFXP1j';
+// Starter docs ("Templates" folders): Enrich LA letterhead. The dynamic one also carries the Tokens sidebar script.
+const INFO_STATIC_TEMPLATE  = '1gUkeytAmtv1fZqjrYnkbxX9UpmPjkofHj-9KIQV5akI';
+const INFO_DYNAMIC_TEMPLATE = '1zcMZ2yPPicl118gX-_rzOp4SnLr2ruNZmHd11LMQ5eI';
 
 // ── DRIVE FOLDER IDs (sensitive Ranger documents) ─────────────────────────────
 // These folders are intentionally NOT set to "anyone with link" — files stay
@@ -789,6 +792,7 @@ function _doPostRoute(e) {
       case 'updateInfoFile':  return respond(handleUpdateInfoFile(p));
       case 'replaceInfoFile': return respond(handleReplaceInfoFile(p));
       case 'refreshDynamicDocs': return respond(handleRefreshDynamicDocs(p));
+      case 'createDocFromTemplate': return respond(handleCreateDocFromTemplate(p));
 
       // ── RANGER RATES (People add/edit → Items All, Type 2 = "Ranger Rate") ───
       case 'getRangerRates': return respond(handleGetRangerRates());
@@ -3765,6 +3769,26 @@ function _repointItems(oldId, newUrl) {
     if (_driveIdFromUrl(data[r][lki]) === oldId) { sheet.getRange(r + 1, lki + 1).setValue(newUrl); n++; }
   }
   return n;
+}
+
+// "Add new document": copies the Static or Dynamic starter template into the matching folder.
+function handleCreateDocFromTemplate(p) {
+  try {
+    var dynamic = String(p.kind || '').toLowerCase() === 'dynamic';
+    var name = String(p.name || '').trim();
+    if (!name) return { ok: false, error: 'Please enter a name.' };
+    var dest = DriveApp.getFolderById(dynamic ? INFO_DYNAMIC_FOLDER : INFO_STATIC_FOLDER);
+    var copy = DriveApp.getFileById(dynamic ? INFO_DYNAMIC_TEMPLATE : INFO_STATIC_TEMPLATE).makeCopy(name, dest);
+    var refresh = null;
+    if (dynamic) {
+      copy.setDescription(DYN_MARK + ';');
+      refresh = _refreshDynamicDoc(copy);   // creates the "(live)" copy right away
+    } else {
+      copy.setDescription('');
+    }
+    logActivity(p.actor || '', 'created document', name, 'item', dynamic ? 'dynamic' : 'static');
+    return { ok: true, file: _infoFileJson(copy), refresh: refresh };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
 
 // ── DYNAMIC DOCS: {{tokens}} in a Google Doc are filled from app data ─────────

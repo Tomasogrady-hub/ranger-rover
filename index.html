@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.71 -->
+<!-- v11.72 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2163,6 +2163,17 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <button type="button" class="settings-btn" style="padding:6px 12px" onclick="document.getElementById('docUploadInput').click()">⬆ Upload</button>
           <input type="file" id="docUploadInput" style="display:none" onchange="uploadDocument(this)">
         </div>
+        <button type="button" id="docNewBtn" class="settings-btn" style="width:100%" onclick="toggleNewDoc()">+ Add New Document</button>
+        <div id="docNewForm" style="display:none;padding:12px;border:1px solid var(--mist);border-radius:10px;background:var(--white)">
+          <div style="display:flex;gap:10px;margin-bottom:10px">
+            <button type="button" id="docNewStatic" class="settings-btn" style="flex:1" onclick="setNewDocKind('static')">📄 Static</button>
+            <button type="button" id="docNewDynamic" class="settings-btn" style="flex:1;background:var(--mist);color:var(--stone)" onclick="setNewDocKind('dynamic')">⚡ Dynamic</button>
+          </div>
+          <div id="docNewHint" style="font-size:13px;color:var(--stone);margin-bottom:10px"></div>
+          <input id="docNewName" class="settings-input" style="margin:0 0 10px" type="text" placeholder="Document name">
+          <button type="button" id="docNewCreate" class="settings-btn" style="width:100%" onclick="createNewDoc()">Create &amp; open</button>
+          <div id="docNewStatus" style="font-size:13px;min-height:16px;margin-top:8px"></div>
+        </div>
         <div id="docUploadStatus" style="font-size:13px;min-height:16px"></div>
       </div>
       <div id="dataDocsList"></div>
@@ -2243,10 +2254,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.71';
+const APP_VERSION='v11.72';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-11 20:30 PT - Bulk Data > Documents page (static/dynamic, public, rename, refresh, upload, used-by); replaces the grey button on Items.';
+const BUILD_STAMP='2026-11-11 21:00 PT - Documents: Add New Document (static or dynamic) copies the starter template into the right folder and opens it.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -16696,6 +16707,40 @@ async function docRefresh(t){
     await renderDataDocuments(true);
     _docMsg(t,r&&r.error?r.error:'Refreshed. '+_refreshSummary(r),!!(r&&(r.error||(r.unresolved||[]).length)));
   }catch(e){_docMsg(t,e.message,true);}
+}
+// Add New Document — copies the Static / Dynamic starter template (Enrich LA letterhead) into the
+// matching Drive folder, then opens it so you can paste/type your content (and tokens, for dynamic).
+let _newDocKind='static';
+function toggleNewDoc(){
+  const f=document.getElementById('docNewForm');if(!f)return;
+  const open=f.style.display==='none';
+  f.style.display=open?'block':'none';
+  if(open){setNewDocKind('static');const st=document.getElementById('docNewStatus');if(st)st.textContent='';const n=document.getElementById('docNewName');if(n){n.value='';n.focus();}}
+}
+function setNewDocKind(k){
+  _newDocKind=k;
+  const on='',off='background:var(--mist);color:var(--stone)';
+  const a=document.getElementById('docNewStatic'),b=document.getElementById('docNewDynamic'),hint=document.getElementById('docNewHint');
+  if(a)a.style.cssText='flex:1;'+(k==='static'?on:off);
+  if(b)b.style.cssText='flex:1;'+(k==='dynamic'?on:off);
+  if(hint)hint.textContent=k==='static'
+    ?'Starts from the Static template (Enrich LA letterhead). Paste or type your content — it never changes on its own.'
+    :'Starts from the Dynamic template (Enrich LA letterhead + the Ranger Rover Tokens panel). Type {{tokens}} where prices or school counts should appear; a live copy keeps them up to date.';
+}
+async function createNewDoc(){
+  const name=(document.getElementById('docNewName').value||'').trim(),st=document.getElementById('docNewStatus'),btn=document.getElementById('docNewCreate');
+  if(!name){st.style.color='var(--danger)';st.textContent='Please enter a name.';return;}
+  btn.disabled=true;btn.style.opacity='.6';st.style.color='var(--sage)';st.textContent='Creating…';
+  try{
+    const res=await gasPost({action:'createDocFromTemplate',kind:_newDocKind,name,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Could not create');
+    const url=res.file.templateUrl;
+    st.innerHTML='Created. <a class="dlink" href="'+ea(url)+'" target="_blank" rel="noopener">Open to edit ↗</a>';
+    try{window.open(url,'_blank');}catch(e){}
+    document.getElementById('docNewName').value='';
+    await renderDataDocuments(true);
+  }catch(e){st.style.color='var(--danger)';st.textContent=e.message;}
+  btn.disabled=false;btn.style.opacity='1';
 }
 async function uploadDocument(input){
   const file=input.files&&input.files[0];input.value='';if(!file)return;
