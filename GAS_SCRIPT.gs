@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.71 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
+const GAS_BUILD = 'v11.72 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -3654,14 +3654,20 @@ function _isDynamicTemplate(f) {
   return f.getMimeType() === GDOC_MIME && _hasAncestor(f, INFO_DYNAMIC_FOLDER);
 }
 // Visits every file under the Information Files folder, skipping any folder named "Templates".
+// cb(file, kind): kind = 'dynamic' (under Dynamic Documents), 'static' (under Static Documents) or 'other'.
 function _eachInfoFile(cb) {
-  function walk(folder) {
+  function walk(folder, kind) {
     var fi = folder.getFiles();
-    while (fi.hasNext()) cb(fi.next());
+    while (fi.hasNext()) cb(fi.next(), kind);
     var sf = folder.getFolders();
-    while (sf.hasNext()) { var sub = sf.next(); if (String(sub.getName()).trim().toLowerCase() === 'templates') continue; walk(sub); }
+    while (sf.hasNext()) {
+      var sub = sf.next();
+      if (String(sub.getName()).trim().toLowerCase() === 'templates') continue;
+      var k = sub.getId() === INFO_DYNAMIC_FOLDER ? 'dynamic' : (sub.getId() === INFO_STATIC_FOLDER ? 'static' : kind);
+      walk(sub, k);
+    }
   }
-  walk(DriveApp.getFolderById(INFO_FILES_FOLDER));
+  walk(DriveApp.getFolderById(INFO_FILES_FOLDER), 'other');
 }
 function _parentFolderOf(f, fallbackId) {
   var it = f.getParents();
@@ -3688,6 +3694,7 @@ function _infoFileJson(f) {
     dynamic: dyn,
     templateId: f.getId(),
     templateUrl: f.getUrl(),
+    modified: f.getLastUpdated().toISOString(),
     liveReady: !!live,
     refreshed: dyn ? (String(f.getDescription() || '').match(/refreshed=([^;]+)/) || [])[1] || '' : ''
   };
@@ -3699,7 +3706,7 @@ function _setInfoFilePublic(f, makePublic) {
 function handleGetInfoFiles() {
   try {
     var out = [];
-    _eachInfoFile(function(f0) { if (!_isLiveCopy(f0)) out.push(_infoFileJson(f0)); });
+    _eachInfoFile(function(f0, kind) { if (_isLiveCopy(f0)) return; var j = _infoFileJson(f0); j.kind = kind; out.push(j); });
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
     return { ok: true, files: out };
   } catch (e) { return { ok: false, error: e.message }; }
