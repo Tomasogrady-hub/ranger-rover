@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.75 -->
+<!-- v11.76 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -112,6 +112,13 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="data"]  {background:#6B4E9B;color:#fff}
 .nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
 .nav-btn[data-tab="sub"]      {background:#E07A3F;color:#fff}
+.nav-btn[data-tab="threads"]  {background:#C9A227;color:#1e3a1e}
+.rr-load-ov .rr-thread{max-width:320px;font-size:15px;line-height:1.5;color:var(--stone);background:#f4faf6;border:1px solid var(--mist);border-radius:12px;padding:10px 14px;text-align:left}
+.rr-load-ov .rr-thread b{color:var(--ink)}
+.rr-load-ov .rr-thread .rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3B9E8E;margin-bottom:3px}
+.th-card{background:#fff;border:1px solid var(--mist);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.th-name{font-weight:800;font-size:17px;color:var(--ink);margin-bottom:4px}
+.th-body{font-size:16px;line-height:1.5;color:var(--stone)}
 /* ── SUB TAB (v11.6) ── */
 .nav-btn.has-flash{flex-direction:column;gap:2px}
 .nav-sub-flash{display:block;font-size:9px;font-weight:800;letter-spacing:.02em;text-transform:none;background:#fff;color:#C0392B;border-radius:6px;padding:1px 5px;line-height:1.3;animation:rrSubFlash 1.1s ease-in-out infinite}
@@ -774,7 +781,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   /* Filter bars: let the dropdowns spread across instead of stacking */
   html:not(.rr-narrow) :is(#schoolFilters,#reachSchoolFilters,#dataSchoolFilters){max-width:1300px!important}
   /* Reading/form pages: comfortable line length, centred */
-  html:not(.rr-narrow) :is(#tab-notes,#tab-settings,#tab-latest,#tab-plants) > *{max-width:1400px;margin-left:auto;margin-right:auto}
+  html:not(.rr-narrow) :is(#tab-notes,#tab-settings,#tab-latest,#tab-plants,#tab-threads) > *{max-width:1400px;margin-left:auto;margin-right:auto}
   /* Sub tab: cards flow in columns across the whole screen */
   html:not(.rr-narrow) #subBody{padding:0 12px 24px}
   html:not(.rr-narrow) .sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));column-gap:4px;align-items:start}
@@ -1234,6 +1241,28 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <p>Type a plant name to search<br>the full library of 8,000+ plants.</p>
       </div>
     </div>
+  </div>
+
+  <!-- THREADS -->
+  <div class="tab-pane" id="tab-threads">
+    <div class="page-header">
+      <span class="page-title">Threads</span>
+      <span class="page-count" id="threadsCount"></span>
+    </div>
+    <div style="padding:0 16px 10px;display:flex;gap:8px;align-items:center">
+      <input id="threadSearch" type="search" placeholder="Search threads…" autocomplete="off" oninput="renderThreads()"
+        style="flex:1;min-width:0;padding:12px 14px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;color:var(--ink);outline:none">
+      <button type="button" class="settings-btn" style="margin:0;width:auto;padding:12px 16px;white-space:nowrap" onclick="threadAddToggle()">＋ Add new</button>
+    </div>
+    <div id="threadAddBox" style="display:none;padding:0 16px 12px">
+      <input id="threadNewName" class="edit-input" maxlength="120" placeholder="Name, e.g. Tomato: fruit or vegetable?" style="width:100%;margin-bottom:8px">
+      <textarea id="threadNewContent" class="edit-input" rows="4" maxlength="600" placeholder="Content: the fact or answer, in a sentence or two" style="width:100%;margin-bottom:8px"></textarea>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="settings-btn" style="margin:0" id="threadSaveBtn" onclick="threadSave()">Save thread</button>
+        <button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="threadAddToggle(false)">Cancel</button>
+      </div>
+    </div>
+    <div id="threadList" style="padding:0 16px 28px"><div class="spinner"></div></div>
   </div>
 
   <!-- LATEST -->
@@ -2289,10 +2318,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.75';
+const APP_VERSION='v11.76';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-13 13:00 PT - Documents: instant View (rebuilds only if stale), cached list, Edit/View/Share/Delete/Duplicate, Add New Document (template or upload); ladybug spinner everywhere (needs GAS v11.74).';
+const BUILD_STAMP='2026-11-13 13:05 PT - Threads tab (garden facts list + Add new, reads the Threads sheet); a random Threads fact shows under the ladybug loading spinner (needs GAS v11.76).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3618,6 +3647,7 @@ function _navBtn(tab,label,extraId=''){
   return `<button class="nav-btn" id="nav_${tab}" data-tab="${tab}" onclick="${tab==='map'?`switchTab('map',true)`:`switchTab('${tab}')`}">${label}</button>`;
 }
 function buildNav(lvl){
+  _threadsKick();
   const row1=document.getElementById('navRow1');
   const row2=document.getElementById('navRow2');
   if(!row1||!row2)return;
@@ -3635,6 +3665,7 @@ function buildNav(lvl){
     if(_navTabAllowed('notes',lvl)) row2l3tabs.push(_navBtn('notes','Notes'));
     if(_navTabAllowed('plants',lvl)) row2l3tabs.push(_navBtn('plants','Plants'));
     if(_navTabAllowed('calendar',lvl)) row2l3tabs.push(_navBtn('calendar','Calendar'));
+    if(_navTabAllowed('threads',lvl)) row2l3tabs.push(_navBtn('threads','Threads'));
     if(row2l3tabs.length){row2.innerHTML=row2l3tabs.join('');row2.style.display='flex';}
     else row2.style.display='none';
     // Level 3 never gets Row 3 (Reach) — always hide it explicitly
@@ -3678,7 +3709,9 @@ function buildNav(lvl){
       let r3html = dataVisible ? _navBtn('data','Bulk Data') : '';
       r3html += reachVisible ? _navBtn('reach','Reach') : '';
       r3html += calVisible ? _navBtn('calendar','Calendar') : '';
-      if(dataVisible || reachVisible || calVisible){
+      const thVisible = _navTabAllowed('threads',lvl);
+      r3html += thVisible ? _navBtn('threads','Threads') : '';
+      if(dataVisible || reachVisible || calVisible || thVisible){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
@@ -3815,12 +3848,69 @@ function _opsResponseDropdown(id,current){
   return `<select class="edit-input" id="${id}">${opts.join('')}</select>`;
 }
 
+// ── THREADS (v11.76): short edible-gardening facts from the Threads sheet. Cached locally so the ladybug spinner can show one instantly.
+const THREADS_CK='rr_threads_v1';
+const THREADS_FALLBACK=[{id:'',name:'Tomato: fruit or vegetable?',content:'A tomato is both a fruit and a vegetable, depending on whether you look at it from a scientific or a cooking perspective.'}];
+let _threads=[];try{_threads=(JSON.parse(localStorage.getItem(THREADS_CK)||'[]')||[]).filter(t=>t&&t.name&&t.content);}catch(e){_threads=[];}
+let _threadsLoading=null,_threadsKicked=false;
+function randomThread(){
+  const pool=(_threads&&_threads.length)?_threads:THREADS_FALLBACK;
+  return pool[Math.floor(Math.random()*pool.length)]||null;
+}
+function loadThreads(){
+  if(!CFG.URL)return Promise.resolve();
+  if(_threadsLoading)return _threadsLoading;
+  _threadsLoading=gasPost({action:'getThreads'}).then(r=>{
+    if(r&&r.ok&&Array.isArray(r.threads)){
+      _threads=r.threads.filter(t=>t&&t.name&&t.content);
+      try{localStorage.setItem(THREADS_CK,JSON.stringify(_threads));}catch(e){}
+      if(_activeTab==='threads')renderThreads();
+    }else if(_activeTab==='threads'&&!_threads.length){const el=document.getElementById('threadList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml((r&&r.error)||'Could not load threads.')+'</div>';}
+  }).catch(()=>{}).finally(()=>{_threadsLoading=null;});
+  return _threadsLoading;
+}
+// Low priority: wait until the core data is on its way so Threads never slows the first screen.
+function _threadsKick(){if(_threadsKicked)return;_threadsKicked=true;setTimeout(()=>loadThreads(),4000);}
+function initThreads(){renderThreads();loadThreads();}
+function renderThreads(){
+  const el=document.getElementById('threadList');if(!el)return;
+  const q=((document.getElementById('threadSearch')||{}).value||'').trim().toLowerCase();
+  const all=_threads.slice().sort((a,b)=>String(a.name).toLowerCase()<String(b.name).toLowerCase()?-1:1);
+  const rows=q?all.filter(t=>(t.name+' '+t.content).toLowerCase().indexOf(q)>-1):all;
+  const cnt=document.getElementById('threadsCount');if(cnt)cnt.textContent=all.length?(q?rows.length+' of '+all.length:String(all.length)):'';
+  if(!all.length){el.innerHTML=_threadsLoading?'<div class="spinner"></div>':'<div class="sub-meta" style="padding:14px 0;text-align:center">No threads yet. Tap Add new.</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing matches.</div>';return;}
+  el.innerHTML=rows.map(t=>`<div class="th-card"><div class="th-name">${escHtml(t.name)}</div><div class="th-body">${escHtml(t.content)}</div></div>`).join('');
+}
+function threadAddToggle(show){
+  const b=document.getElementById('threadAddBox');if(!b)return;
+  const open=(typeof show==='boolean')?show:b.style.display==='none';
+  b.style.display=open?'block':'none';
+  if(open){const n=document.getElementById('threadNewName');if(n)setTimeout(()=>n.focus(),50);}
+}
+async function threadSave(){
+  const nEl=document.getElementById('threadNewName'),cEl=document.getElementById('threadNewContent'),btn=document.getElementById('threadSaveBtn');
+  const name=(nEl.value||'').trim(),content=(cEl.value||'').trim();
+  if(!name||!content){showSaveToast('Add both a name and the content');return;}
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const r=await gasPost({action:'addThread',name,content,actor:SESSION&&SESSION.email});
+    if(r&&r.ok){
+      _threads.push({id:r.id||'',name,content});
+      try{localStorage.setItem(THREADS_CK,JSON.stringify(_threads));}catch(e){}
+      nEl.value='';cEl.value='';threadAddToggle(false);renderThreads();showSaveToast('✓ Thread added');
+    }else showSaveToast((r&&r.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+  if(btn){btn.disabled=false;btn.textContent='Save thread';}
+}
+
 // Ladybug loading screen — shown on a cold start (nothing cached yet) until sites, chores and people have all arrived.
 let _loadOvTimer=null;
 function _showLoadOv(msg){
   if(document.getElementById('rrLoadOv'))return;
   const d=document.createElement('div');d.id='rrLoadOv';d.className='rr-load-ov';
-  d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div><div class="rr-load-t">${msg?`<b>${escHtml(msg)}</b><br>Going as fast as I can…`:`<b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…`}</div>`;
+  const _th=randomThread();
+  d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div>${_th?`<div class="rr-thread"><span class="rr-thread-k">🧵 Garden thread</span><b>${escHtml(_th.name)}</b><br>${escHtml(_th.content)}</div>`:''}<div class="rr-load-t">${msg?`<b>${escHtml(msg)}</b><br>Going as fast as I can…`:`<b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…`}</div>`;
   document.body.appendChild(d);
   clearTimeout(_loadOvTimer);_loadOvTimer=setTimeout(_hideLoadOv,30000); // never trap anyone behind it
 }
@@ -10452,7 +10542,7 @@ function switchTab(tab,initMapFlag=false){
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach')?'none':'block';
+  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads')?'none':'block';
   if(tab==='map'||initMapFlag){
     setTimeout(()=>{
       initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();
@@ -10463,6 +10553,7 @@ function switchTab(tab,initMapFlag=false){
     const t=document.getElementById('nearMeToast');if(t)t.classList.remove('visible');
   }
   if(tab==='plants')initPlants();
+  if(tab==='threads')initThreads();
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
@@ -12130,8 +12221,8 @@ function _sanitizeNavVisibility(){
   // Anyone whose per-level array already had 'control' explicitly toggled on/off
   // needs that carried over to 'data' once, so the rename doesn't silently hide
   // the new page for levels that had it customized.
-  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1','calendar_v1','ask_rover_v1'].filter(k=>!v.__migratedKeys.includes(k));
-  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub',calendar_v1:'calendar',ask_rover_v1:'ask_rover'};
+  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1','calendar_v1','ask_rover_v1','threads_v1'].filter(k=>!v.__migratedKeys.includes(k));
+  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub',calendar_v1:'calendar',ask_rover_v1:'ask_rover',threads_v1:'threads'};
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
@@ -16090,6 +16181,7 @@ const NAV_ALL_TABS = [
   {key:'rangers',  label:'🌿 Rangers'},
   {key:'people',   label:'👥 People'},
   {key:'plants',   label:'🪴 Plants'},
+  {key:'threads',  label:'🧵 Threads'},
   {key:'action',   label:'⚡ Action'},
   {key:'operations', label:'🧭 Operations'},
   {key:'reach',    label:'📡 Reach'},

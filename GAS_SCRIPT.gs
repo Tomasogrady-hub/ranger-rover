@@ -6,13 +6,14 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.74 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
+const GAS_BUILD = 'v11.76 | 2026-11-13 | Threads sheet: getThreads + addThread (garden facts for the Threads tab and ladybug spinner)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
 const HUMANS_ID = '19s6gQeFJWeVcAezkE1Lg6MJcZ3C8-h-IdWmZUDT5cHk';
 const CHORES_ID = '13PV1ahdjdelyT3iaZRmpunqKmIb8NjsNOs6Hw_Jw1Yo';
 const PLANTS_ID = '1FFhvdCupYlTJnPQIyGwWDRmHtuhqKFi2whK9BgjSdHk';
+const THREADS_ID = '1Kbo6dWwrIq5EHyeGc5dhJrnBcj9ptTUTbvNCaXif6xU'; // Threads folder > Threads sheet (tab "Threads": ID, Name, Content)
 const MEMOS_ID  = '13Sx_kJejX0gJ3FtnlCtnizr9Bjcna-ekvKe9q0U85ug';
 const MASTER_SCHOOLS_ID = '1j1vjThg9FV0dj-qMP3RM8T_Lr-ujR2r6vANqhMPoFm8'; // full LA-area schools database used by "Add New Site" search
 
@@ -784,6 +785,9 @@ function _doPostRoute(e) {
       case 'updatePriceItem': return respond(handleUpdatePriceItem(p));
 
       // ── ITEMS (Data tab → Items All, all rows) ───────────────────────────────
+      // ── THREADS (garden facts; Threads sheet) ────────────────────────────────
+      case 'getThreads':    return respond(handleGetThreads());
+      case 'addThread':     return respond(handleAddThread(p));
       case 'getItems':      return respond(handleGetItems());
       case 'addItem':       return respond(handleAddItem(p));
       case 'updateItem':    return respond(handleUpdateItem(p));
@@ -3510,6 +3514,57 @@ function handleAddPriceItem(p) {
   logActivity(p.actor || '', 'added price', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
   _itemsChanged();
   return { ok: true, id: newId, fullDayAmount: fullDayAmount };
+}
+
+// ── THREADS (Threads sheet → Threads tab + ladybug spinner facts) ─────────────
+// Tab "Threads" with columns ID | Name | Content. Read is open to everyone signed in;
+// add appends one row with a fresh 8-char ID.
+function _threadsSheet() {
+  var ss = SpreadsheetApp.openById(THREADS_ID);
+  return ss.getSheetByName('Threads') || ss.getSheets()[0];
+}
+function handleGetThreads() {
+  var sheet = _threadsSheet();
+  if (!sheet) return { ok: false, error: 'Threads sheet not found.' };
+  var data = sheet.getDataRange().getValues();
+  if (!data.length) return { ok: true, threads: [] };
+  var h = data[0].map(function(x) { return String(x).trim().toLowerCase(); });
+  var idi = h.indexOf('id'), ni = h.indexOf('name'), ci = h.indexOf('content');
+  if (ni === -1 || ci === -1) return { ok: false, error: 'Expected Name/Content columns not found in Threads.' };
+  var out = [];
+  for (var r = 1; r < data.length; r++) {
+    var name = String(data[r][ni] === null || data[r][ni] === undefined ? '' : data[r][ni]).trim();
+    var content = String(data[r][ci] === null || data[r][ci] === undefined ? '' : data[r][ci]).trim();
+    if (!name || !content) continue;
+    out.push({ id: idi > -1 ? String(data[r][idi]).trim() : '', name: name, content: content });
+  }
+  return { ok: true, threads: out };
+}
+function handleAddThread(p) {
+  var name = String(p.name || '').trim().substring(0, 120);
+  var content = String(p.content || '').trim().substring(0, 600);
+  if (!name || !content) return { ok: false, error: 'Name and content are both required.' };
+  // A leading = + - @ would be read as a formula; store it as plain text instead.
+  function safe(v) { return /^[=+\-@]/.test(v) ? "'" + v : v; }
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = _threadsSheet();
+    if (!sheet) return { ok: false, error: 'Threads sheet not found.' };
+    var headers = sheet.getRange(1, 1, 1, Math.max(3, sheet.getLastColumn())).getValues()[0]
+      .map(function(x) { return String(x).trim().toLowerCase(); });
+    var idi = headers.indexOf('id'), ni = headers.indexOf('name'), ci = headers.indexOf('content');
+    if (idi === -1) idi = 0; if (ni === -1) ni = 1; if (ci === -1) ci = 2;
+    var newId = _newItemsAllId();
+    var row = new Array(Math.max(idi, ni, ci) + 1);
+    for (var i = 0; i < row.length; i++) row[i] = '';
+    row[idi] = newId; row[ni] = safe(name); row[ci] = safe(content);
+    sheet.appendRow(row);
+    logActivity(p.actor || '', 'added thread', name, 'thread', '');
+    return { ok: true, id: newId };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── ITEMS (Items All → Data > Items) ─────────────────────────────────────────
