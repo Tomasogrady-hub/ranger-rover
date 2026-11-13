@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.73 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
+const GAS_BUILD = 'v11.74 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -793,6 +793,9 @@ function _doPostRoute(e) {
       case 'replaceInfoFile': return respond(handleReplaceInfoFile(p));
       case 'refreshDynamicDocs': return respond(handleRefreshDynamicDocs(p));
       case 'createDocFromTemplate': return respond(handleCreateDocFromTemplate(p));
+      case 'getDocTemplates': return respond(handleGetDocTemplates());
+      case 'duplicateInfoFile': return respond(handleDuplicateInfoFile(p));
+      case 'deleteInfoFile': return respond(handleDeleteInfoFile(p));
 
       // ── RANGER RATES (People add/edit → Items All, Type 2 = "Ranger Rate") ───
       case 'getRangerRates': return respond(handleGetRangerRates());
@@ -3505,6 +3508,7 @@ function handleAddPriceItem(p) {
     _setPriceDateStamp(sheet, headers, sheet.getLastRow());
   }
   logActivity(p.actor || '', 'added price', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
+  _itemsChanged();
   return { ok: true, id: newId, fullDayAmount: fullDayAmount };
 }
 
@@ -3584,7 +3588,7 @@ function handleAddItem(p) {
   });
   sheet.appendRow(row);
   logActivity(p.actor || '', 'added item', name, 'item', [t1, t2, t3].filter(String).join(' / '));
-  _refreshDynamicDocsSafe();
+  _itemsChanged();
   return { ok: true, id: newId, row: sheet.getLastRow() };
 }
 
@@ -3622,7 +3626,7 @@ function handleUpdateItem(p) {
   var dti = headers.indexOf('Date added or last edited');
   sheet.getRange(target, (dti > -1 ? dti : 7) + 1).setValue(new Date());
   logActivity(p.actor || '', 'edited item', name || String(data[target - 1][headers.indexOf('Name')] || ''), 'item', 'Items All row ' + target);
-  _refreshDynamicDocsSafe();
+  _itemsChanged();
   return { ok: true, row: target };
 }
 
@@ -3687,8 +3691,12 @@ function _liveCopyOf(tpl) {
   if (!m) return null;
   try { var lf = DriveApp.getFileById(m[1]); return lf.isTrashed() ? null : lf; } catch (e) { return null; }
 }
-function _infoFileJson(f) {
-  var dyn = _isDynamicTemplate(f), live = dyn ? _liveCopyOf(f) : null;
+function _isDynamicIn(f, kind) {
+  if (_isLiveCopy(f)) return false;
+  return kind === 'dynamic' || String(f.getDescription() || '').indexOf(DYN_MARK) === 0;
+}
+function _infoFileJson(f, kind) {
+  var dyn = kind ? _isDynamicIn(f, kind) : _isDynamicTemplate(f), live = dyn ? _liveCopyOf(f) : null;
   var shown = live || f;
   var acc = shown.getSharingAccess();
   return {
@@ -3703,7 +3711,9 @@ function _infoFileJson(f) {
     templateUrl: f.getUrl(),
     modified: f.getLastUpdated().toISOString(),
     liveReady: !!live,
-    refreshed: dyn ? (String(f.getDescription() || '').match(/refreshed=([^;]+)/) || [])[1] || '' : ''
+    refreshed: dyn ? (String(f.getDescription() || '').match(/refreshed=([^;]+)/) || [])[1] || '' : '',
+    refreshedAt: dyn ? Number((String(f.getDescription() || '').match(/at=(\d+)/) || [])[1] || 0) : 0,
+    dataVerSeen: dyn ? ((String(f.getDescription() || '').match(/dv=(\d+)/) || [])[1] || '0') : ''
   };
 }
 function _setInfoFilePublic(f, makePublic) {
@@ -3713,9 +3723,9 @@ function _setInfoFilePublic(f, makePublic) {
 function handleGetInfoFiles() {
   try {
     var out = [];
-    _eachInfoFile(function(f0, kind) { if (_isLiveCopy(f0)) return; var j = _infoFileJson(f0); j.kind = kind; out.push(j); });
+    _eachInfoFile(function(f0, kind) { if (_isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; out.push(j); });
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
-    return { ok: true, files: out };
+    return { ok: true, files: out, dataVer: _dataVer() };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 // Uploads a new file into the Information Files folder. p.isPublic = true shares
@@ -3786,13 +3796,34 @@ function _repointItems(oldId, newUrl) {
 }
 
 // "Add new document": copies the Static or Dynamic starter template into the matching folder.
+var INFO_STATIC_TEMPLATES_FOLDER  = '10lePcMaxxERHwxOGwekPqanahbOsqxMT';
+var INFO_DYNAMIC_TEMPLATES_FOLDER = '19cPm_GTsUiB72k0ATBrTMQ9iR5L4inay';
+// Lists the starter docs in the two "Templates" folders (for the Add New Document picker).
+function handleGetDocTemplates() {
+  try {
+    function list(fid) {
+      var out = [], it = DriveApp.getFolderById(fid).getFiles();
+      while (it.hasNext()) { var f = it.next(); if (f.getMimeType() === GDOC_MIME) out.push({ id: f.getId(), name: f.getName() }); }
+      out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+      return out;
+    }
+    return { ok: true, static: list(INFO_STATIC_TEMPLATES_FOLDER), dynamic: list(INFO_DYNAMIC_TEMPLATES_FOLDER) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
 function handleCreateDocFromTemplate(p) {
   try {
     var dynamic = String(p.kind || '').toLowerCase() === 'dynamic';
     var name = String(p.name || '').trim();
     if (!name) return { ok: false, error: 'Please enter a name.' };
     var dest = DriveApp.getFolderById(dynamic ? INFO_DYNAMIC_FOLDER : INFO_STATIC_FOLDER);
-    var copy = DriveApp.getFileById(dynamic ? INFO_DYNAMIC_TEMPLATE : INFO_STATIC_TEMPLATE).makeCopy(name, dest);
+    var tplId = dynamic ? INFO_DYNAMIC_TEMPLATE : INFO_STATIC_TEMPLATE;
+    if (p.templateId) {   // only accept files that really live in a Templates folder
+      var allowed = false, tf = DriveApp.getFileById(String(p.templateId)).getParents();
+      while (tf.hasNext()) { var pid = tf.next().getId(); if (pid === INFO_STATIC_TEMPLATES_FOLDER || pid === INFO_DYNAMIC_TEMPLATES_FOLDER) allowed = true; }
+      if (!allowed) return { ok: false, error: 'That is not a template.' };
+      tplId = String(p.templateId);
+    }
+    var copy = DriveApp.getFileById(tplId).makeCopy(name, dest);
     var refresh = null;
     if (dynamic) {
       copy.setDescription(DYN_MARK + ';');
@@ -3802,6 +3833,34 @@ function handleCreateDocFromTemplate(p) {
     }
     logActivity(p.actor || '', 'created document', name, 'item', dynamic ? 'dynamic' : 'static');
     return { ok: true, file: _infoFileJson(copy), refresh: refresh };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// Duplicate: copies a document (for a dynamic one, the template; its live copy is rebuilt for the new doc).
+function handleDuplicateInfoFile(p) {
+  try {
+    var f = DriveApp.getFileById(p.fileId || _driveIdFromUrl(p.url));
+    if (_isLiveCopy(f)) f = DriveApp.getFileById(String(f.getDescription()).replace(LIVE_PREFIX, '').split(';')[0]);
+    var dyn = _isDynamicTemplate(f);
+    var name = String(p.name || '').trim() || ('Copy of ' + f.getName());
+    var copy = f.makeCopy(name, _parentFolderOf(f, dyn ? INFO_DYNAMIC_FOLDER : INFO_STATIC_FOLDER));
+    copy.setDescription(dyn ? DYN_MARK + ';' : '');
+    var refresh = dyn ? _refreshDynamicDoc(copy) : null;
+    logActivity(p.actor || '', 'duplicated document', f.getName(), 'item', 'as ' + name);
+    return { ok: true, file: _infoFileJson(copy, dyn ? 'dynamic' : 'static'), refresh: refresh };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Delete: moves the document (and its live copy) to the Drive trash, and clears any item links to it.
+function handleDeleteInfoFile(p) {
+  try {
+    var f = DriveApp.getFileById(p.fileId || _driveIdFromUrl(p.url));
+    if (_isLiveCopy(f)) f = DriveApp.getFileById(String(f.getDescription()).replace(LIVE_PREFIX, '').split(';')[0]);
+    var name = f.getName(), live = _isDynamicTemplate(f) ? _liveCopyOf(f) : null, cleared = 0;
+    cleared += _repointItems(f.getId(), '');
+    if (live) { cleared += _repointItems(live.getId(), ''); live.setTrashed(true); }
+    f.setTrashed(true);
+    logActivity(p.actor || '', 'deleted document', name, 'item', cleared + ' item link(s) cleared');
+    return { ok: true, cleared: cleared };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
@@ -3892,6 +3951,7 @@ function _copyBodyInto(srcBody, dstBody) {
 }
 // Rebuilds the live copy of one dynamic template. Returns { ok, replaced, unresolved[] }.
 function _refreshDynamicDoc(tpl, ctx) {
+  var dv0 = _dataVer();   // read before the data, so an edit made mid-rebuild still counts as newer
   ctx = ctx || _tokenContext();
   var folder = _liveFolderFor(tpl);
   var live = _liveCopyOf(tpl);
@@ -3920,7 +3980,7 @@ function _refreshDynamicDoc(tpl, ctx) {
     replaced++;
   }
   ldoc.saveAndClose(); tdoc.saveAndClose();
-  tpl.setDescription(DYN_MARK + ';live=' + live.getId() + ';refreshed=' + Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d/yyyy h:mm a'));
+  tpl.setDescription(DYN_MARK + ';live=' + live.getId() + ';refreshed=' + Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d/yyyy h:mm a') + ';at=' + Date.now() + ';dv=' + dv0);
   live.setDescription(LIVE_PREFIX + tpl.getId() + ';');
   return { ok: true, replaced: replaced, unresolved: unresolved };
 }
@@ -3930,18 +3990,30 @@ function handleRefreshDynamicDocs(p) {
   try {
     var ctx = _tokenContext(), out = [];
     var only = p && (p.fileId || p.templateId) ? String(p.fileId || p.templateId) : '';
-    _eachInfoFile(function(f) {
-      if (!_isDynamicTemplate(f)) return;
+    _eachInfoFile(function(f, kind) {
+      if (!_isDynamicIn(f, kind)) return;
       if (only && f.getId() !== only && (_liveCopyOf(f) || { getId: function() { return ''; } }).getId() !== only) return;
-      try { var r = _refreshDynamicDoc(f, ctx); out.push({ name: f.getName(), replaced: r.replaced, unresolved: r.unresolved }); }
+      try { var r = _refreshDynamicDoc(f, ctx); out.push({ name: f.getName(), replaced: r.replaced, unresolved: r.unresolved, file: _infoFileJson(f, 'dynamic') }); }
       catch (e) { out.push({ name: f.getName(), error: e.message }); }
     });
     return { ok: true, refreshed: out };
   } catch (e) { return { ok: false, error: e.message }; }
 }
-// Quietly refresh after item/price edits so docs stay current. Never blocks the save.
-function _refreshDynamicDocsSafe() {
-  try { handleRefreshDynamicDocs({}); } catch (e) {}
+// Item/price edits: bump a data version (so View/Share know a live doc is out of date) and schedule a
+// background rebuild about a minute later. Saves stay fast; live docs catch up on their own.
+function _bumpDataVer() { try { PropertiesService.getScriptProperties().setProperty('DATA_VER', String(Date.now())); } catch (e) {} }
+function _dataVer() { try { return PropertiesService.getScriptProperties().getProperty('DATA_VER') || '0'; } catch (e) { return '0'; } }
+function _itemsChanged() {
+  _bumpDataVer();
+  try {
+    var pending = ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'refreshDynamicDocsSoon'; });
+    if (!pending) ScriptApp.newTrigger('refreshDynamicDocsSoon').timeBased().after(60 * 1000).create();
+  } catch (e) {}
+}
+function refreshDynamicDocsSoon() {
+  ScriptApp.getProjectTriggers().filter(function(t) { return t.getHandlerFunction() === 'refreshDynamicDocsSoon'; })
+    .forEach(function(t) { try { ScriptApp.deleteTrigger(t); } catch (e) {} });
+  handleRefreshDynamicDocs({});
 }
 // Run once from the editor to also refresh every hour.
 function installDynamicDocTrigger() {
@@ -4024,6 +4096,7 @@ function handleUpdatePriceItem(p) {
   _setPriceDateStamp(sheet, headers, targetRow);
 
   logActivity(p.actor || '', 'edited price', id || String(targetRow), 'price', name + (amount !== '' ? (' — ' + amount) : ''));
+  _itemsChanged();
   return { ok: true, fullDayAmount: fullDayAmount };
 }
 

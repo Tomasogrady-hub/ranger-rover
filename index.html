@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.74 -->
+<!-- v11.75 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -611,7 +611,9 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .empty-glyph{font-family:var(--font-d);font-size:52px;font-weight:300;font-style:italic;color:var(--mist);margin-bottom:10px}
 .empty h3{font-family:var(--font-d);font-size:28px;font-weight:400;font-style:italic;color:var(--stone);margin-bottom:6px}
 .empty p{font-size:17px;color:var(--silver);line-height:1.5}
-.spinner{width:26px;height:26px;border:2px solid var(--mist);border-top-color:var(--sage);border-radius:50%;animation:spin .8s linear infinite;margin:52px auto}
+.spinner{position:relative;width:46px;height:46px;border:none;border-radius:0;animation:none;margin:52px auto 44px}
+.spinner::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><g stroke='%231d1d1d' stroke-width='1.6' stroke-linecap='round' fill='none'><path d='M8 14L3 12M8 19L2.5 19M9 25L4 28M24 14L29 12M24 19L29.5 19M23 25L28 28'/><path d='M14 5.5Q12.5 2.5 10 2M18 5.5Q19.5 2.5 22 2'/></g><ellipse cx='16' cy='19' rx='10' ry='11.5' fill='%23e0301e'/><circle cx='16' cy='8' r='4.3' fill='%231d1d1d'/><path d='M16 8.5V30' stroke='%231d1d1d' stroke-width='1.3'/><g fill='%231d1d1d'><circle cx='11' cy='15' r='2.2'/><circle cx='21' cy='15' r='2.2'/><circle cx='10.5' cy='22' r='2'/><circle cx='21.5' cy='22' r='2'/><circle cx='12.5' cy='27' r='1.3'/><circle cx='19.5' cy='27' r='1.3'/></g></svg>") center/contain no-repeat;animation:spin 1.1s linear infinite}
+.spinner::after{content:'Fetching… going as fast as I can';position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:8px;font-size:13px;color:var(--silver);white-space:nowrap}
 .mini-spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -2185,6 +2187,30 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           </div>
         </div>
       </div>
+      <div style="margin:6px 16px 10px">
+        <button type="button" class="settings-btn" style="width:100%" onclick="toggleNewDoc()">+ Add New Document</button>
+        <div id="docNewForm" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--mist);border-radius:10px;background:var(--white)">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin-bottom:6px">1. Static or dynamic?</div>
+          <div style="display:flex;gap:10px;margin-bottom:8px">
+            <button type="button" id="docNewStatic" class="settings-btn" style="flex:1" onclick="setNewDocKind('static')">📄 Static</button>
+            <button type="button" id="docNewDynamic" class="settings-btn" style="flex:1" onclick="setNewDocKind('dynamic')">⚡ Dynamic</button>
+          </div>
+          <div id="docNewHint" style="font-size:13px;color:var(--stone);line-height:1.45;margin-bottom:12px"></div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin-bottom:6px">2. Name</div>
+          <input id="docNewName" class="settings-input" style="margin:0 0 12px" type="text" placeholder="Document name">
+          <div id="docNewStaticOpts">
+            <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin-bottom:6px">3. Start from</div>
+            <div style="display:flex;gap:10px;margin-bottom:8px">
+              <button type="button" id="docNewSrcTpl" class="settings-btn" style="flex:1" onclick="setNewDocSrc('template')">Use a template</button>
+              <button type="button" id="docNewSrcUp" class="settings-btn" style="flex:1" onclick="setNewDocSrc('upload')">Upload a file</button>
+            </div>
+          </div>
+          <div id="docNewTplRow" style="margin-bottom:12px"><select id="docNewTpl" class="settings-input" style="margin:0"></select></div>
+          <div id="docNewUpRow" style="margin-bottom:12px;display:none"><input type="file" id="docNewFile" class="settings-input" style="margin:0"></div>
+          <button type="button" id="docNewCreate" class="settings-btn" style="width:100%" onclick="createNewDoc()">Create</button>
+          <div id="docNewStatus" style="font-size:13px;min-height:16px;margin-top:8px"></div>
+        </div>
+      </div>
       <div id="dataDocsList"></div>
     </div>
 
@@ -2263,10 +2289,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.74';
+const APP_VERSION='v11.75';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-12 19:10 PT - Ladybug loading screen on cold start; Documents: View/Share always rebuild the live copy first; live copies kept in their own folder (needs GAS v11.73).';
+const BUILD_STAMP='2026-11-13 13:00 PT - Documents: instant View (rebuilds only if stale), cached list, Edit/View/Share/Delete/Duplicate, Add New Document (template or upload); ladybug spinner everywhere (needs GAS v11.74).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3791,10 +3817,10 @@ function _opsResponseDropdown(id,current){
 
 // Ladybug loading screen — shown on a cold start (nothing cached yet) until sites, chores and people have all arrived.
 let _loadOvTimer=null;
-function _showLoadOv(){
+function _showLoadOv(msg){
   if(document.getElementById('rrLoadOv'))return;
   const d=document.createElement('div');d.id='rrLoadOv';d.className='rr-load-ov';
-  d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div><div class="rr-load-t"><b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…</div>`;
+  d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div><div class="rr-load-t">${msg?`<b>${escHtml(msg)}</b><br>Going as fast as I can…`:`<b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…`}</div>`;
   document.body.appendChild(d);
   clearTimeout(_loadOvTimer);_loadOvTimer=setTimeout(_hideLoadOv,30000); // never trap anyone behind it
 }
@@ -16485,10 +16511,20 @@ async function saveEditItem(rid,pfx){
 // Pick an existing file from the Information Files Drive folder, upload a new one,
 // rename / replace the selected one, and mark it public (anyone with the link) or not.
 let _infoFilesCache=null;
+let _infoDataVer='0';
 async function _loadInfoFiles(force){
   if(_infoFilesCache&&!force)return _infoFilesCache;
-  try{const r=await gasPost({action:'getInfoFiles'});if(r&&r.ok)_infoFilesCache=r.files||[];}catch(e){}
+  try{
+    const r=await gasPost({action:'getInfoFiles'});
+    if(r&&r.ok){_infoFilesCache=r.files||[];_infoDataVer=String(r.dataVer||'0');_docsPersist();}
+  }catch(e){}
   return _infoFilesCache||[];
+}
+function _docsPersist(){try{localStorage.setItem('rr_docs_v1',JSON.stringify({files:_infoFilesCache,dataVer:_infoDataVer}));}catch(e){}}
+function _docsHydrate(){
+  if(_infoFilesCache)return true;
+  try{const c=JSON.parse(localStorage.getItem('rr_docs_v1')||'null');if(c&&c.files){_infoFilesCache=c.files;_infoDataVer=String(c.dataVer||'0');return true;}}catch(e){}
+  return false;
 }
 function _infoIdFromUrl(u){const m=String(u||'').match(/[-\w]{25,}/);return m?m[0]:'';}
 function _infoFileByUrl(u){const id=_infoIdFromUrl(u);return id?(_infoFilesCache||[]).find(f=>f.id===id):null;}
@@ -16655,21 +16691,22 @@ async function renameInfoFile(pfx){
 
 // ── DATA page (Documents) — files in Information Files > Dynamic Documents / Static Documents ──
 // (Templates folders are never listed.) ⚡ Dynamic = {{tokens}} filled from app data into a "(live)" copy.
+// Painted instantly from the last saved list, then refreshed in the background.
 let docSort='name-asc',docKind='all',docView='simple';
 const DOC_SORT_SHORT={'name-asc':'Name A-Z','name-desc':'Name Z-A','dynamic':'Dynamic first','static':'Static first'};
-function _docMark(wrap,attr,val){document.querySelectorAll('#'+wrap+' .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===val));}
+function _docMark(wrap,val){document.querySelectorAll('#'+wrap+' .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===val));}
 function _updateDocDDLabels(){
   const s=document.getElementById('docDDsortV'),f=document.getElementById('docDDfilterV'),d=document.getElementById('docDDdetailV');
   if(s)s.textContent=DOC_SORT_SHORT[docSort]||'Name A-Z';
   if(f)f.textContent=docKind==='all'?'All':(docKind==='dynamic'?'Dynamic':'Static');
   if(d)d.textContent=docView.charAt(0).toUpperCase()+docView.slice(1);
-  _docMark('docSortOpts','v',docSort);_docMark('docFilterOpts','v',docKind);_docMark('docDetailOpts','v',docView);
+  _docMark('docSortOpts',docSort);_docMark('docFilterOpts',docKind);_docMark('docDetailOpts',docView);
   const fb=document.querySelector('#docDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',docKind!=='all');
   const sb=document.querySelector('#docDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',docSort!=='name-asc');
 }
-function setDocSort(v){docSort=v;closeDD('docDD');renderDataDocuments();}
-function setDocKind(v){docKind=v;closeDD('docDD');renderDataDocuments();}
-function setDocView(v){docView=v;closeDD('docDD');renderDataDocuments();}
+function setDocSort(v){docSort=v;closeDD('docDD');_paintDocs();}
+function setDocKind(v){docKind=v;closeDD('docDD');_paintDocs();}
+function setDocView(v){docView=v;closeDD('docDD');_paintDocs();}
 function _docViewUrl(f){return f.isDoc?'https://docs.google.com/document/d/'+f.id+'/preview':f.url;}
 function _docUsedBy(f){
   return (_itemsCache||[]).filter(i=>i.infoLink&&(_infoIdFromUrl(i.infoLink)===f.id||_infoIdFromUrl(i.infoLink)===f.templateId));
@@ -16685,6 +16722,7 @@ function _docRowHtml(f){
     const used=_docUsedBy(f);
     sub+=`<div style="margin:2px 0 0 28px;font-size:12px;color:var(--silver)">${f.isPublic?'Public (anyone with the link)':'Private'} · ${used.length?'Used by '+escHtml(used.slice(0,3).map(i=>i.name).join(', '))+(used.length>3?' +'+(used.length-3)+' more':''):'Not linked to any item'}</div>`;
   }
+  const ab='text-align:left;background:var(--mist);color:var(--ink);margin:0 0 6px';
   return `<div style="border-bottom:1px solid var(--mist)">
     <div style="display:flex;align-items:center;gap:8px;padding:${docView==='simple'?'8':'12'}px 16px 0" onclick="toggleDocActions('${t}')">
       <span style="font-size:18px;flex:none">${icon}</span>
@@ -16692,20 +16730,20 @@ function _docRowHtml(f){
       <span id="docArrow-${t}" style="flex:none;color:var(--silver);font-size:16px;padding:4px 6px;transition:transform .15s">&#9662;</span>
     </div>${sub}
     <div id="docAct-${t}" style="display:none;margin:8px 16px 0 44px;padding-bottom:10px;flex-direction:column;gap:2px">
-      <button type="button" class="settings-btn" style="text-align:left;background:var(--mist);color:var(--ink);margin:0 0 6px" onclick="docEdit('${t}')">✏️ Edit this document</button>
-      <button type="button" class="settings-btn" style="text-align:left;background:var(--mist);color:var(--ink);margin:0 0 6px" onclick="docViewLive('${t}')">👁 View ${f.dynamic?'live ':''}document</button>
-      <button type="button" class="settings-btn" style="text-align:left;background:var(--mist);color:var(--ink);margin:0 0 6px" onclick="docShare('${t}')">🔗 Share this document</button>
+      <button type="button" class="settings-btn" style="${ab}" onclick="docEdit('${t}')">✏️ Edit</button>
+      <button type="button" class="settings-btn" style="${ab}" onclick="docViewLive('${t}')">👁 View</button>
+      <button type="button" class="settings-btn" style="${ab}" onclick="docShare('${t}')">🔗 Share</button>
+      <button type="button" class="settings-btn" style="${ab};color:var(--danger)" onclick="docDelete('${t}')">🗑 Delete</button>
+      <button type="button" class="settings-btn" style="${ab}" onclick="docDuplicate('${t}')">⧉ Duplicate</button>
       <div id="docMsg-${t}" style="font-size:12px;min-height:14px"></div>
     </div>
     <div style="height:${docView==='simple'?'8':'12'}px"></div></div>`;
 }
-async function renderDataDocuments(force){
+function _paintDocs(){
   const list=document.getElementById('dataDocsList'),cnt=document.getElementById('dataDocsCount');
   if(!list)return;
   _updateDocDDLabels();
-  if(force||!_infoFilesCache)list.innerHTML='<div class="spinner"></div>';
-  const all=(await _loadInfoFiles(!!force)).filter(f=>f.kind==='dynamic'||f.kind==='static');
-  if(docView==='detailed'&&!_itemsCache)await _loadItems();
+  const all=(_infoFilesCache||[]).filter(f=>f.kind==='dynamic'||f.kind==='static');
   const rows=all.filter(f=>docKind==='all'||f.kind===docKind);
   const nm=(a,b)=>a.name.localeCompare(b.name);
   const cmp={'name-asc':nm,'name-desc':(a,b)=>nm(b,a),
@@ -16713,7 +16751,21 @@ async function renderDataDocuments(force){
     'static':(a,b)=>((b.kind==='static')-(a.kind==='static'))||nm(a,b)}[docSort]||nm;
   rows.sort(cmp);
   if(cnt)cnt.textContent=rows.length===all.length?(all.length+' document'+(all.length===1?'':'s')):(rows.length+' of '+all.length);
-  list.innerHTML=rows.length?rows.map(_docRowHtml).join(''):empty('—','No documents here yet','Put Google Docs in the Static Documents or Dynamic Documents folder.');
+  // keep open action panels open across a repaint
+  const open=new Set([...document.querySelectorAll('#dataDocsList [id^="docAct-"]')].filter(e=>e.style.display!=='none').map(e=>e.id));
+  list.innerHTML=rows.length?rows.map(_docRowHtml).join(''):empty('—','No documents here yet','Put Google Docs in the Static Documents or Dynamic Documents folder, or tap + Add New Document.');
+  open.forEach(id=>{const e=document.getElementById(id);if(e){e.style.display='flex';const ar=document.getElementById(id.replace('docAct-','docArrow-'));if(ar)ar.style.transform='rotate(180deg)';}});
+}
+async function renderDataDocuments(force){
+  const list=document.getElementById('dataDocsList');
+  if(!list)return;
+  const hadCache=_docsHydrate();
+  if(hadCache)_paintDocs();else{_updateDocDDLabels();list.innerHTML='<div class="spinner"></div>';}
+  if(force||!hadCache){
+    await _loadInfoFiles(true);   // fresh list in the background; repaint when it lands
+    _paintDocs();
+  }
+  if(docView==='detailed'&&!_itemsCache){await _loadItems();_paintDocs();}
 }
 function toggleDocActions(t){
   const box=document.getElementById('docAct-'+t),ar=document.getElementById('docArrow-'+t);if(!box)return;
@@ -16723,46 +16775,163 @@ function toggleDocActions(t){
 }
 function _docMsg(t,msg,bad){const e=document.getElementById('docMsg-'+t);if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
 function _docByTid(t){return (_infoFilesCache||[]).find(x=>x.templateId===t);}
+function _docPut(file,kind){ // update or add one file in the cache without re-listing Drive
+  const i=(_infoFilesCache||[]).findIndex(x=>x.templateId===file.templateId);
+  const nf=Object.assign({},i>-1?_infoFilesCache[i]:{},file,{kind:kind||(i>-1?_infoFilesCache[i].kind:(file.dynamic?'dynamic':'static'))});
+  if(i>-1)_infoFilesCache[i]=nf;else(_infoFilesCache=_infoFilesCache||[]).push(nf);
+  _docsPersist();return nf;
+}
 function docEdit(t){const f=_docByTid(t);if(f)window.open(f.templateUrl,'_blank');}
-// A dynamic doc's live copy is also rebuilt on item saves and hourly; View and Share always rebuild it first.
-async function _docEnsureLive(f,t){
-  if(!f.dynamic)return f;
-  _docMsg(t,'Updating the live document…'); // always rebuilt first so it matches the template and today's data
+// A live copy is out of date if the template was edited after the last rebuild, or item data changed since.
+function _docStale(f){
+  if(!f.dynamic)return false;
+  if(!f.liveReady||!f.refreshedAt)return true;
+  if(f.modified&&Date.parse(f.modified)>f.refreshedAt+20000)return true;
+  return String(f.dataVerSeen||'0')!==String(_infoDataVer||'0');
+}
+async function _docRebuild(f,t){
   const res=await gasPost({action:'refreshDynamicDocs',fileId:f.templateId});
   if(!res||!res.ok)throw new Error((res&&res.error)||'Could not update the live document');
   const r0=(res.refreshed||[])[0];
   if(r0&&r0.error)throw new Error(r0.error);
-  await _loadInfoFiles(true);
+  if(r0&&r0.file)f=_docPut(r0.file,'dynamic');
   const un=(r0&&r0.unresolved)||[];
   _docMsg(t,un.length?'Not found: '+un.map(x=>'{{'+x+'}}').join(', ')+' — check the ID in the template.':'',!!un.length);
-  return _docByTid(t)||f;
+  return f;
 }
+// View: up-to-date live docs open instantly; only a stale one is rebuilt first (with the ladybug).
 async function docViewLive(t){
   let f=_docByTid(t);if(!f)return;
-  const w=window.open('about:blank','_blank'); // opened first so the browser doesn't block it
+  if(!_docStale(f)){window.open(_docViewUrl(f),'_blank');return;}
+  const w=window.open('','_blank');
+  try{if(w)w.document.write('<body style="margin:0;display:flex;height:100vh;align-items:center;justify-content:center;font-family:sans-serif;color:#555;text-align:center"><div><div style="font-size:54px;display:inline-block;animation:r 1.1s linear infinite">🐞</div><p>Updating the live document…<br>Going as fast as I can.</p></div><style>@keyframes r{to{transform:rotate(360deg)}}</style></body>');}catch(e){}
+  _showLoadOv('Updating the live document…');
   try{
-    f=await _docEnsureLive(f,t);
+    f=await _docRebuild(f,t);
+    _hideLoadOv();_paintDocs();
     if(w)w.location.href=_docViewUrl(f);else window.open(_docViewUrl(f),'_blank');
-  }catch(e){if(w)w.close();_docMsg(t,e.message,true);}
+  }catch(e){_hideLoadOv();if(w)w.close();_docMsg(t,e.message,true);}
 }
 // Share: link to the finished (live, tokens filled in) document, then open Reach to pick recipients.
 async function docShare(t){
   let f=_docByTid(t);if(!f)return;
   try{
-    f=await _docEnsureLive(f,t);
+    if(!f.isPublic&&!confirm('To share this, anyone with the link will be able to view it. Make it public and continue?'))return;
+    if(_docStale(f)||!f.isPublic)_showLoadOv(_docStale(f)?'Updating the live document…':'Getting it ready to share…');
+    if(_docStale(f))f=await _docRebuild(f,t);
     if(!f.isPublic){
-      if(!confirm('To share this, anyone with the link will be able to view it. Make it public and continue?'))return;
-      _docMsg(t,'Updating sharing…');
       const r=await gasPost({action:'updateInfoFile',fileId:f.id,isPublic:true,actor:SESSION?SESSION.email:''});
       if(!r||!r.ok)throw new Error((r&&r.error)||'Could not change sharing');
-      f.isPublic=true;
+      f=_docPut(r.file);
     }
+    _hideLoadOv();_paintDocs();
     const link=_docViewUrl(f);
     _reachForwardPrefill={subject:f.name,message:f.name+'\n\n'+link};
-    _docMsg(t,'');
     switchTab('reach');showReachPage('menu');
     showToast('📡 Choose who to send it to');
-  }catch(e){_docMsg(t,e.message,true);}
+  }catch(e){_hideLoadOv();_docMsg(t,e.message,true);}
+}
+async function docDelete(t){
+  const f=_docByTid(t);if(!f)return;
+  const used=_docUsedBy(f);
+  if(!confirm('Delete "'+f.name+'"?\n\nIt moves to the Drive trash (you can restore it there).'+(used.length?'\n\n'+used.length+' item(s) link to it — those links will be cleared.':'')))return;
+  _showLoadOv('Deleting…');
+  try{
+    const res=await gasPost({action:'deleteInfoFile',fileId:f.templateId,actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Could not delete');
+    _infoFilesCache=(_infoFilesCache||[]).filter(x=>x.templateId!==t);_docsPersist();
+    (_itemsCache||[]).forEach(i=>{const id=_infoIdFromUrl(i.infoLink);if(id&&(id===f.id||id===f.templateId))i.infoLink='';});
+    _hideLoadOv();_paintDocs();showToast('Deleted');
+  }catch(e){_hideLoadOv();_docMsg(t,e.message,true);}
+}
+async function docDuplicate(t){
+  const f=_docByTid(t);if(!f)return;
+  const nn=prompt('Name for the copy:','Copy of '+f.name);
+  if(nn===null||!nn.trim())return;
+  _showLoadOv('Duplicating…');
+  try{
+    const res=await gasPost({action:'duplicateInfoFile',fileId:f.templateId,name:nn.trim(),actor:SESSION?SESSION.email:''});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Could not duplicate');
+    _docPut(res.file,f.kind);
+    _hideLoadOv();_paintDocs();showToast('Duplicated');
+  }catch(e){_hideLoadOv();_docMsg(t,e.message,true);}
+}
+
+// ── Add New Document ───────────────────────────────────────────────────────
+let _newDocKind='static',_newDocSrc='template',_docTemplates=null;
+async function _loadDocTemplates(){
+  if(_docTemplates)return _docTemplates;
+  try{const r=await gasPost({action:'getDocTemplates'});if(r&&r.ok)_docTemplates=r;}catch(e){}
+  return _docTemplates||{static:[],dynamic:[]};
+}
+async function toggleNewDoc(){
+  const f=document.getElementById('docNewForm');if(!f)return;
+  const open=f.style.display==='none';
+  f.style.display=open?'block':'none';
+  if(!open)return;
+  document.getElementById('docNewName').value='';document.getElementById('docNewStatus').textContent='';
+  const fi=document.getElementById('docNewFile');if(fi)fi.value='';
+  _newDocKind='static';_newDocSrc='template';
+  _refreshNewDocUi();
+  await _loadDocTemplates();_refreshNewDocUi();
+}
+function setNewDocKind(k){_newDocKind=k;_refreshNewDocUi();}
+function setNewDocSrc(s){_newDocSrc=s;_refreshNewDocUi();}
+function _refreshNewDocUi(){
+  const on='',off='background:var(--mist);color:var(--stone)',dyn=_newDocKind==='dynamic';
+  const sty=(id,active,flex)=>{const e=document.getElementById(id);if(e)e.style.cssText=(flex?'flex:1;':'')+(active?on:off);};
+  sty('docNewStatic',!dyn,true);sty('docNewDynamic',dyn,true);
+  sty('docNewSrcTpl',_newDocSrc==='template',true);sty('docNewSrcUp',_newDocSrc==='upload',true);
+  const hint=document.getElementById('docNewHint');
+  if(hint)hint.innerHTML=dyn
+    ?'<b>Dynamic</b> documents fill in live values from the app — prices, school counts and names — wherever you place a {{token}}. Whenever the app data changes, the finished document updates itself, and the link you share always shows the current numbers.'
+    :'<b>Static</b> documents never change on their own. Use them for anything that is written once — upload a file you already have, or start from one of our templates and paste or type your content.';
+  document.getElementById('docNewStaticOpts').style.display=dyn?'none':'block';
+  const tplMode=dyn||_newDocSrc==='template';
+  const tpls=(_docTemplates&&_docTemplates[dyn?'dynamic':'static'])||[];
+  const sel=document.getElementById('docNewTpl');
+  if(sel){
+    const cur=sel.value;
+    sel.innerHTML=tpls.length?tpls.map(x=>`<option value="${ea(x.id)}">${escHtml(x.name)}</option>`).join(''):'<option value="">(default template)</option>';
+    if(cur&&tpls.some(x=>x.id===cur))sel.value=cur;
+  }
+  // Dynamic only shows the picker when there is more than one template to choose from
+  document.getElementById('docNewTplRow').style.display=tplMode&&(!dyn||tpls.length>1)?'block':'none';
+  document.getElementById('docNewUpRow').style.display=(!dyn&&_newDocSrc==='upload')?'block':'none';
+}
+function _docOpenPrompt(title,msg,url){
+  let ov=document.getElementById('docOpenSheet');if(ov)ov.remove();
+  ov=document.createElement('div');ov.className='sub-ov';ov.id='docOpenSheet';
+  ov.innerHTML=`<div class="sub-sheet"><h3>${escHtml(title)}</h3><div style="font-size:15px;line-height:1.5;color:var(--stone);margin:6px 0 14px">${msg}</div><div class="sub-actions"><button class="sub-btn alt" onclick="document.getElementById('docOpenSheet').remove()">Not now</button><button class="sub-btn hot" onclick="window.open('${ea(url)}','_blank');document.getElementById('docOpenSheet').remove()">Open document</button></div></div>`;
+  document.body.appendChild(ov);
+}
+async function createNewDoc(){
+  const name=(document.getElementById('docNewName').value||'').trim(),st=document.getElementById('docNewStatus'),btn=document.getElementById('docNewCreate');
+  const dyn=_newDocKind==='dynamic',upload=!dyn&&_newDocSrc==='upload';
+  if(!name){st.style.color='var(--danger)';st.textContent='Please enter a name.';return;}
+  const file=upload?(document.getElementById('docNewFile').files||[])[0]:null;
+  if(upload&&!file){st.style.color='var(--danger)';st.textContent='Choose a file to upload.';return;}
+  btn.disabled=true;btn.style.opacity='.6';st.style.color='var(--sage)';st.textContent='';
+  _showLoadOv(dyn?'Creating your dynamic document…':'Creating your document…');
+  try{
+    let res;
+    if(upload){
+      const base64=await _readFileB64(file);
+      const ext=(file.name.match(/\.[A-Za-z0-9]+$/)||[''])[0];
+      res=await gasPost({action:'uploadInfoFile',base64,mimeType:file.type,filename:name+(name.toLowerCase().endsWith(ext.toLowerCase())?'':ext),isPublic:false,actor:SESSION?SESSION.email:''});
+    }else{
+      const tid=(document.getElementById('docNewTpl')||{}).value||'';
+      res=await gasPost({action:'createDocFromTemplate',kind:_newDocKind,name,templateId:tid||undefined,actor:SESSION?SESSION.email:''});
+    }
+    if(!res||!res.ok)throw new Error((res&&res.error)||'Could not create');
+    _docPut(res.file,dyn?'dynamic':'static');
+    _hideLoadOv();_paintDocs();
+    document.getElementById('docNewForm').style.display='none';
+    const url=res.file.templateUrl||res.file.url;
+    if(dyn)_docOpenPrompt('Your dynamic document is ready','When it opens, choose <b>Ranger Rover</b> from the top menu (next to Help) for the mail-merge style <b>Tokens</b> panel. Click in the document where a value should go, then press Insert.',url);
+    else _docOpenPrompt('Document created',upload?'Your file is in Static Documents.':'Your document is in Static Documents. Open it to paste or type your content.',url);
+  }catch(e){_hideLoadOv();st.style.color='var(--danger)';st.textContent=e.message;}
+  btn.disabled=false;btn.style.opacity='1';
 }
 
 // ── DATA page (Prices) — Items All tab, filtered to Type 3 = "Our Prices" ──
