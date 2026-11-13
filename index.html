@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.77 -->
+<!-- v11.78 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1268,8 +1268,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <button type="button" class="settings-btn" style="margin:0;width:auto;padding:12px 16px;white-space:nowrap" onclick="threadAddToggle()">＋ Add new</button>
     </div>
     <div id="threadAddBox" style="display:none;padding:0 16px 12px">
-      <input id="threadNewName" class="edit-input" maxlength="120" placeholder="Name, e.g. Tomato: fruit or vegetable?" style="width:100%;margin-bottom:8px">
-      <textarea id="threadNewContent" class="edit-input" rows="4" maxlength="600" placeholder="Content: the fact or answer, in a sentence or two" style="width:100%;margin-bottom:8px"></textarea>
+      <input id="threadNewName" class="edit-input" maxlength="120" placeholder="Name (just a file label, never shown), e.g. How deep to plant tomatoes" style="width:100%;margin-bottom:8px">
+      <textarea id="threadNewContent" class="edit-input" rows="3" maxlength="160" placeholder="Content: one short fact, shown while the ladybug spins" style="width:100%;margin-bottom:8px"></textarea>
       <div style="display:flex;gap:8px">
         <button type="button" class="settings-btn" style="margin:0" id="threadSaveBtn" onclick="threadSave()">Save thread</button>
         <button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="threadAddToggle(false)">Cancel</button>
@@ -2331,10 +2331,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.77';
+const APP_VERSION='v11.78';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-13 13:35 PT - Share a document as Link, PDF attachment or inline text (by file type); a garden thread now shows during any wait: refresh, opening things, photo and video uploads (needs GAS v11.77).';
+const BUILD_STAMP='2026-11-13 13:15 PT - Threads: only the short content shows (spinner, wait card, uploads, Threads list); the Name is just a file label.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3870,7 +3870,7 @@ function _opsResponseDropdown(id,current){
 
 // ── THREADS (v11.76): short edible-gardening facts from the Threads sheet. Cached locally so the ladybug spinner can show one instantly.
 const THREADS_CK='rr_threads_v1';
-const THREADS_FALLBACK=[{id:'',name:'Tomato: fruit or vegetable?',content:'A tomato is both a fruit and a vegetable, depending on whether you look at it from a scientific or a cooking perspective.'}];
+const THREADS_FALLBACK=[{id:'',name:'Tomato',content:'A tomato is both a fruit and a vegetable, depending on whether you look at it from a scientific or a cooking perspective.'}];
 let _threads=[];try{_threads=(JSON.parse(localStorage.getItem(THREADS_CK)||'[]')||[]).filter(t=>t&&t.name&&t.content);}catch(e){_threads=[];}
 let _threadsLoading=null,_threadsKicked=false;
 function randomThread(){
@@ -3879,7 +3879,7 @@ function randomThread(){
 }
 function _threadBlock(cls){
   const t=randomThread();if(!t)return '';
-  return `<div class="${cls||'rr-thread'}"><span class="rr-thread-k">🧵 Garden thread</span><b>${escHtml(t.name)}</b><br>${escHtml(t.content)}</div>`;
+  return `<div class="${cls||'rr-thread'}"><span class="rr-thread-k">🧵 Garden thread</span>${escHtml(t.content)}</div>`;
 }
 // Floating garden thread while ANY call is slow (opening things, saving, sharing...). Appears after 0.9s so quick calls never flash it.
 let _busyN=0,_busyTimer=null,_busyTick=null;
@@ -3891,7 +3891,7 @@ function _busyPaint(){
   if(document.querySelector(_BUSY_OVERLAYS)){if(el)el.classList.remove('on');return;} // those screens carry their own thread
   const t=randomThread();if(!t)return;
   if(!el){el=document.createElement('div');el.id='rrBusy';el.className='rr-busy';document.body.appendChild(el);}
-  el.innerHTML=`<div class="rr-busy-in"><div class="rr-twirl" style="width:30px;height:30px">${lbSvg(30,false)}</div><div><span class="rr-thread-k">🧵 Garden thread</span><b>${escHtml(t.name)}</b><br>${escHtml(t.content)}</div></div>`;
+  el.innerHTML=`<div class="rr-busy-in"><div class="rr-twirl" style="width:30px;height:30px">${lbSvg(30,false)}</div><div><span class="rr-thread-k">🧵 Garden thread</span>${escHtml(t.content)}</div></div>`;
   requestAnimationFrame(()=>el.classList.add('on'));
 }
 function _busyShow(){
@@ -3926,7 +3926,7 @@ function renderThreads(){
   const cnt=document.getElementById('threadsCount');if(cnt)cnt.textContent=all.length?(q?rows.length+' of '+all.length:String(all.length)):'';
   if(!all.length){el.innerHTML=_threadsLoading?'<div class="spinner"></div>':'<div class="sub-meta" style="padding:14px 0;text-align:center">No threads yet. Tap Add new.</div>';return;}
   if(!rows.length){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing matches.</div>';return;}
-  el.innerHTML=rows.map(t=>`<div class="th-card"><div class="th-name">${escHtml(t.name)}</div><div class="th-body">${escHtml(t.content)}</div></div>`).join('');
+  el.innerHTML=rows.map(t=>`<div class="th-card"><div class="th-body">${escHtml(t.content)}</div></div>`).join('');
 }
 function threadAddToggle(show){
   const b=document.getElementById('threadAddBox');if(!b)return;
