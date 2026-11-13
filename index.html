@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.78 -->
+<!-- v11.79 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2331,10 +2331,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.78';
+const APP_VERSION='v11.79';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-13 13:15 PT - Threads: only the short content shows (spinner, wait card, uploads, Threads list); the Name is just a file label.';
+const BUILD_STAMP='2026-11-13 13:30 PT - Threads: Edit button (Levels 1-2 any, Level 3 their own); threads added by a person read as Name says: ... (needs GAS v11.79).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3877,9 +3877,10 @@ function randomThread(){
   const pool=(_threads&&_threads.length)?_threads:THREADS_FALLBACK;
   return pool[Math.floor(Math.random()*pool.length)]||null;
 }
+function _threadText(t){return (t.author?escHtml(t.author)+' says: ':'')+escHtml(t.content);}
 function _threadBlock(cls){
   const t=randomThread();if(!t)return '';
-  return `<div class="${cls||'rr-thread'}"><span class="rr-thread-k">🧵 Garden thread</span>${escHtml(t.content)}</div>`;
+  return `<div class="${cls||'rr-thread'}"><span class="rr-thread-k">🧵 Garden thread</span>${_threadText(t)}</div>`;
 }
 // Floating garden thread while ANY call is slow (opening things, saving, sharing...). Appears after 0.9s so quick calls never flash it.
 let _busyN=0,_busyTimer=null,_busyTick=null;
@@ -3891,7 +3892,7 @@ function _busyPaint(){
   if(document.querySelector(_BUSY_OVERLAYS)){if(el)el.classList.remove('on');return;} // those screens carry their own thread
   const t=randomThread();if(!t)return;
   if(!el){el=document.createElement('div');el.id='rrBusy';el.className='rr-busy';document.body.appendChild(el);}
-  el.innerHTML=`<div class="rr-busy-in"><div class="rr-twirl" style="width:30px;height:30px">${lbSvg(30,false)}</div><div><span class="rr-thread-k">🧵 Garden thread</span>${escHtml(t.content)}</div></div>`;
+  el.innerHTML=`<div class="rr-busy-in"><div class="rr-twirl" style="width:30px;height:30px">${lbSvg(30,false)}</div><div><span class="rr-thread-k">🧵 Garden thread</span>${_threadText(t)}</div></div>`;
   requestAnimationFrame(()=>el.classList.add('on'));
 }
 function _busyShow(){
@@ -3926,7 +3927,42 @@ function renderThreads(){
   const cnt=document.getElementById('threadsCount');if(cnt)cnt.textContent=all.length?(q?rows.length+' of '+all.length:String(all.length)):'';
   if(!all.length){el.innerHTML=_threadsLoading?'<div class="spinner"></div>':'<div class="sub-meta" style="padding:14px 0;text-align:center">No threads yet. Tap Add new.</div>';return;}
   if(!rows.length){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing matches.</div>';return;}
-  el.innerHTML=rows.map(t=>`<div class="th-card"><div class="th-body">${escHtml(t.content)}</div></div>`).join('');
+  el.innerHTML=rows.map(t=>{
+    const can=_threadCanEdit(t);
+    return `<div class="th-card" id="thc-${ea(t.id)}"><div class="th-body">${_threadText(t)}</div>${can&&t.id?`<div style="margin-top:6px"><button type="button" class="settings-btn" style="margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)" onclick="threadEdit('${ea(t.id)}')">✏️ Edit</button></div>`:''}</div>`;
+  }).join('');
+}
+// Levels 1-2 may edit any thread; Level 3 only the ones they added.
+function _threadCanEdit(t){
+  if(!SESSION)return false;
+  if(Number(SESSION.accessLevel)<=2)return true;
+  return !!t.by&&t.by===String(SESSION.email||'').toLowerCase();
+}
+function threadEdit(id){
+  const t=_threads.find(x=>x.id===id),card=document.getElementById('thc-'+id);if(!t||!card)return;
+  card.innerHTML=`<input id="thEN-${ea(id)}" class="edit-input" maxlength="120" value="${ea(t.name)}" placeholder="Name (just a file label, never shown)" style="width:100%;margin-bottom:8px"><textarea id="thEC-${ea(id)}" class="edit-input" rows="3" maxlength="160" style="width:100%;margin-bottom:8px">${escHtml(t.content)}</textarea><div style="display:flex;gap:8px"><button type="button" class="settings-btn" style="margin:0" onclick="threadEditSave('${ea(id)}',this)">Save</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="renderThreads()">Cancel</button></div>`;
+}
+async function threadEditSave(id,btn){
+  const t=_threads.find(x=>x.id===id);if(!t)return;
+  const name=(document.getElementById('thEN-'+id).value||'').trim(),content=(document.getElementById('thEC-'+id).value||'').trim();
+  if(!name||!content){showSaveToast('Add both a name and the content');return;}
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const r=await gasPost({action:'updateThread',id,name,content,level:SESSION&&SESSION.accessLevel,actor:SESSION&&SESSION.email});
+    if(r&&r.ok){
+      t.name=name;t.content=content;
+      try{localStorage.setItem(THREADS_CK,JSON.stringify(_threads));}catch(e){}
+      renderThreads();showSaveToast('✓ Thread saved');return;
+    }
+    showSaveToast((r&&r.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+  if(btn){btn.disabled=false;btn.textContent='Save';}
+}
+function _threadAuthor(){
+  const n=String((SESSION&&(SESSION.name||''))||'').trim().split(/\s+/)[0];
+  if(n)return n;
+  const e=String((SESSION&&SESSION.email)||'').split('@')[0];
+  return e?e.charAt(0).toUpperCase()+e.slice(1):'';
 }
 function threadAddToggle(show){
   const b=document.getElementById('threadAddBox');if(!b)return;
@@ -3940,9 +3976,10 @@ async function threadSave(){
   if(!name||!content){showSaveToast('Add both a name and the content');return;}
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   try{
-    const r=await gasPost({action:'addThread',name,content,actor:SESSION&&SESSION.email});
+    const author=_threadAuthor();
+    const r=await gasPost({action:'addThread',name,content,author,actor:SESSION&&SESSION.email});
     if(r&&r.ok){
-      _threads.push({id:r.id||'',name,content});
+      _threads.push({id:r.id||'',name,content,author,by:String(SESSION&&SESSION.email||'').toLowerCase()});
       try{localStorage.setItem(THREADS_CK,JSON.stringify(_threads));}catch(e){}
       nEl.value='';cEl.value='';threadAddToggle(false);renderThreads();showSaveToast('✓ Thread added');
     }else showSaveToast((r&&r.error)||'Could not save');

@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.77 | 2026-11-13 | Share documents: Google Docs attach as PDF, getDocText for inline text; Threads (getThreads/addThread)';
+const GAS_BUILD = 'v11.79 | 2026-11-13 | Threads: Author/Email columns, updateThread (edit); Share documents as link/PDF/text';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -788,6 +788,7 @@ function _doPostRoute(e) {
       // ── THREADS (garden facts; Threads sheet) ────────────────────────────────
       case 'getThreads':    return respond(handleGetThreads());
       case 'addThread':     return respond(handleAddThread(p));
+      case 'updateThread':  return respond(handleUpdateThread(p));
       case 'getDocText':    return respond(handleGetDocText(p));
       case 'getItems':      return respond(handleGetItems());
       case 'addItem':       return respond(handleAddItem(p));
@@ -3543,45 +3544,83 @@ function _threadsSheet() {
   var ss = SpreadsheetApp.openById(THREADS_ID);
   return ss.getSheetByName('Threads') || ss.getSheets()[0];
 }
+function _threadCols(sheet) {
+  var h = sheet.getRange(1, 1, 1, Math.max(5, sheet.getLastColumn())).getValues()[0]
+    .map(function(v) { return String(v).trim().toLowerCase(); });
+  function ix(n, d) { var i = h.indexOf(n); return i === -1 ? d : i; }
+  return { id: ix('id', 0), name: ix('name', 1), content: ix('content', 2), author: ix('author', 3), email: ix('email', 4) };
+}
+function _threadCell(v) { return String(v === null || v === undefined ? '' : v).trim(); }
+// A leading = + - @ would be read as a formula; store it as plain text instead.
+function _threadSafe(v) { return /^[=+\-@]/.test(v) ? "'" + v : v; }
 function handleGetThreads() {
   var sheet = _threadsSheet();
   if (!sheet) return { ok: false, error: 'Threads sheet not found.' };
   var data = sheet.getDataRange().getValues();
   if (!data.length) return { ok: true, threads: [] };
-  var h = data[0].map(function(x) { return String(x).trim().toLowerCase(); });
-  var idi = h.indexOf('id'), ni = h.indexOf('name'), ci = h.indexOf('content');
-  if (ni === -1 || ci === -1) return { ok: false, error: 'Expected Name/Content columns not found in Threads.' };
+  var c = _threadCols(sheet);
   var out = [];
   for (var r = 1; r < data.length; r++) {
-    var name = String(data[r][ni] === null || data[r][ni] === undefined ? '' : data[r][ni]).trim();
-    var content = String(data[r][ci] === null || data[r][ci] === undefined ? '' : data[r][ci]).trim();
+    var name = _threadCell(data[r][c.name]);
+    var content = _threadCell(data[r][c.content]);
     if (!name || !content) continue;
-    out.push({ id: idi > -1 ? String(data[r][idi]).trim() : '', name: name, content: content });
+    out.push({
+      id: _threadCell(data[r][c.id]), name: name, content: content,
+      author: _threadCell(data[r][c.author]), by: _threadCell(data[r][c.email]).toLowerCase()
+    });
   }
   return { ok: true, threads: out };
 }
 function handleAddThread(p) {
   var name = String(p.name || '').trim().substring(0, 120);
-  var content = String(p.content || '').trim().substring(0, 600);
+  var content = String(p.content || '').trim().substring(0, 200);
   if (!name || !content) return { ok: false, error: 'Name and content are both required.' };
-  // A leading = + - @ would be read as a formula; store it as plain text instead.
-  function safe(v) { return /^[=+\-@]/.test(v) ? "'" + v : v; }
+  var author = String(p.author || '').trim().substring(0, 40);
+  var email = String(p.actor || '').trim().toLowerCase();
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     var sheet = _threadsSheet();
     if (!sheet) return { ok: false, error: 'Threads sheet not found.' };
-    var headers = sheet.getRange(1, 1, 1, Math.max(3, sheet.getLastColumn())).getValues()[0]
-      .map(function(x) { return String(x).trim().toLowerCase(); });
-    var idi = headers.indexOf('id'), ni = headers.indexOf('name'), ci = headers.indexOf('content');
-    if (idi === -1) idi = 0; if (ni === -1) ni = 1; if (ci === -1) ci = 2;
+    var c = _threadCols(sheet);
     var newId = _newItemsAllId();
-    var row = new Array(Math.max(idi, ni, ci) + 1);
+    var row = new Array(Math.max(c.id, c.name, c.content, c.author, c.email) + 1);
     for (var i = 0; i < row.length; i++) row[i] = '';
-    row[idi] = newId; row[ni] = safe(name); row[ci] = safe(content);
+    row[c.id] = newId; row[c.name] = _threadSafe(name); row[c.content] = _threadSafe(content);
+    row[c.author] = _threadSafe(author); row[c.email] = email;
     sheet.appendRow(row);
     logActivity(p.actor || '', 'added thread', name, 'thread', '');
     return { ok: true, id: newId };
+  } finally {
+    lock.releaseLock();
+  }
+}
+// Edit a thread by ID. Levels 1-2 may edit any thread; Level 3 only the ones they added
+// (the app sends level + actor; the sheet's Email column records who added it).
+function handleUpdateThread(p) {
+  var id = String(p.id || '').trim();
+  var name = String(p.name || '').trim().substring(0, 120);
+  var content = String(p.content || '').trim().substring(0, 200);
+  if (!id) return { ok: false, error: 'Missing thread.' };
+  if (!name || !content) return { ok: false, error: 'Name and content are both required.' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = _threadsSheet();
+    if (!sheet) return { ok: false, error: 'Threads sheet not found.' };
+    var c = _threadCols(sheet);
+    var data = sheet.getDataRange().getValues();
+    for (var r = 1; r < data.length; r++) {
+      if (_threadCell(data[r][c.id]) !== id) continue;
+      var owner = _threadCell(data[r][c.email]).toLowerCase();
+      var mine = owner && owner === String(p.actor || '').trim().toLowerCase();
+      if (Number(p.level) > 2 && !mine) return { ok: false, error: 'You can only edit threads you added.' };
+      sheet.getRange(r + 1, c.name + 1).setValue(_threadSafe(name));
+      sheet.getRange(r + 1, c.content + 1).setValue(_threadSafe(content));
+      logActivity(p.actor || '', 'edited thread', name, 'thread', '');
+      return { ok: true };
+    }
+    return { ok: false, error: 'Thread not found (it may have been removed).' };
   } finally {
     lock.releaseLock();
   }
