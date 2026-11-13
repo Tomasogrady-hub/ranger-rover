@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.79 -->
+<!-- v11.80 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2331,10 +2331,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.79';
+const APP_VERSION='v11.80';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-13 13:30 PT - Threads: Edit button (Levels 1-2 any, Level 3 their own); threads added by a person read as Name says: ... (needs GAS v11.79).';
+const BUILD_STAMP='2026-11-13 13:40 PT - Threads: removed the Garden thread heading, sentence only.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3880,7 +3880,7 @@ function randomThread(){
 function _threadText(t){return (t.author?escHtml(t.author)+' says: ':'')+escHtml(t.content);}
 function _threadBlock(cls){
   const t=randomThread();if(!t)return '';
-  return `<div class="${cls||'rr-thread'}"><span class="rr-thread-k">🧵 Garden thread</span>${_threadText(t)}</div>`;
+  return `<div class="${cls||'rr-thread'}">${_threadText(t)}</div>`;
 }
 // Floating garden thread while ANY call is slow (opening things, saving, sharing...). Appears after 0.9s so quick calls never flash it.
 let _busyN=0,_busyTimer=null,_busyTick=null;
@@ -3892,7 +3892,7 @@ function _busyPaint(){
   if(document.querySelector(_BUSY_OVERLAYS)){if(el)el.classList.remove('on');return;} // those screens carry their own thread
   const t=randomThread();if(!t)return;
   if(!el){el=document.createElement('div');el.id='rrBusy';el.className='rr-busy';document.body.appendChild(el);}
-  el.innerHTML=`<div class="rr-busy-in"><div class="rr-twirl" style="width:30px;height:30px">${lbSvg(30,false)}</div><div><span class="rr-thread-k">🧵 Garden thread</span>${_threadText(t)}</div></div>`;
+  el.innerHTML=`<div class="rr-busy-in"><div class="rr-twirl" style="width:30px;height:30px">${lbSvg(30,false)}</div><div>${_threadText(t)}</div></div>`;
   requestAnimationFrame(()=>el.classList.add('on'));
 }
 function _busyShow(){
