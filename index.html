@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.73 -->
+<!-- v11.74 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -116,6 +116,10 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn.has-flash{flex-direction:column;gap:2px}
 .nav-sub-flash{display:block;font-size:9px;font-weight:800;letter-spacing:.02em;text-transform:none;background:#fff;color:#C0392B;border-radius:6px;padding:1px 5px;line-height:1.3;animation:rrSubFlash 1.1s ease-in-out infinite}
 @keyframes rrSubFlash{0%,100%{opacity:1}50%{opacity:.25}}
+.rr-load-ov{position:fixed;inset:0;z-index:14000;background:rgba(255,255,255,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;transition:opacity .25s}
+.rr-load-ov .rr-twirl{animation:rrTwirl 1.3s linear infinite}
+@keyframes rrTwirl{to{transform:rotate(360deg)}}
+.rr-load-ov .rr-load-t{font-size:17px;color:var(--ink);line-height:1.45;max-width:300px}
 @media (prefers-reduced-motion:reduce){.nav-sub-flash{animation:none}}
 .nav-btn[data-tab="calendar"] {background:#2E86AB;color:#fff}
 .cal-bar{display:flex;align-items:center;gap:8px;padding:0 16px 10px}
@@ -2259,10 +2263,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.73';
+const APP_VERSION='v11.74';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-12 18:30 PT - Documents page: Sort / Filter / Detail bar and a simple list; each document has a dropdown with Edit, View live document and Share (opens Reach).';
+const BUILD_STAMP='2026-11-12 19:10 PT - Ladybug loading screen on cold start; Documents: View/Share always rebuild the live copy first; live copies kept in their own folder (needs GAS v11.73).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3785,6 +3789,20 @@ function _opsResponseDropdown(id,current){
   return `<select class="edit-input" id="${id}">${opts.join('')}</select>`;
 }
 
+// Ladybug loading screen — shown on a cold start (nothing cached yet) until sites, chores and people have all arrived.
+let _loadOvTimer=null;
+function _showLoadOv(){
+  if(document.getElementById('rrLoadOv'))return;
+  const d=document.createElement('div');d.id='rrLoadOv';d.className='rr-load-ov';
+  d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div><div class="rr-load-t"><b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…</div>`;
+  document.body.appendChild(d);
+  clearTimeout(_loadOvTimer);_loadOvTimer=setTimeout(_hideLoadOv,30000); // never trap anyone behind it
+}
+function _hideLoadOv(){
+  clearTimeout(_loadOvTimer);
+  const d=document.getElementById('rrLoadOv');if(!d)return;
+  d.style.opacity='0';setTimeout(()=>{if(d.parentNode)d.remove();},260);
+}
 async function loadData(force=false){
   // ── Cache hit: render immediately then return ──────────────────────────────
   if(!force){
@@ -3820,6 +3838,7 @@ async function loadData(force=false){
   }
 
   // ── PHASE 1: Sites + Chores (fast) ────────────────────────────────────────
+  if(!(DATA.sites&&DATA.sites.length))_showLoadOv();
   try{
     setSync(true);
     const _vp=_liveFetchVer();
@@ -3838,6 +3857,9 @@ async function loadData(force=false){
 }
 
 async function _loadHumansBackground(){
+  try{await _loadHumansBackgroundInner();}finally{_hideLoadOv();}
+}
+async function _loadHumansBackgroundInner(){
   if(!CFG.URL)return;
   try{
     const _vp=_liveFetchVer();
@@ -16702,14 +16724,17 @@ function toggleDocActions(t){
 function _docMsg(t,msg,bad){const e=document.getElementById('docMsg-'+t);if(e){e.style.color=bad?'var(--danger)':'var(--sage)';e.textContent=msg||'';}}
 function _docByTid(t){return (_infoFilesCache||[]).find(x=>x.templateId===t);}
 function docEdit(t){const f=_docByTid(t);if(f)window.open(f.templateUrl,'_blank');}
-// A dynamic doc's live copy is rebuilt on item saves and hourly; build it first if it doesn't exist yet.
+// A dynamic doc's live copy is also rebuilt on item saves and hourly; View and Share always rebuild it first.
 async function _docEnsureLive(f,t){
-  if(!f.dynamic||f.liveReady)return f;
-  _docMsg(t,'Building the live copy…');
+  if(!f.dynamic)return f;
+  _docMsg(t,'Updating the live document…'); // always rebuilt first so it matches the template and today's data
   const res=await gasPost({action:'refreshDynamicDocs',fileId:f.templateId});
-  if(!res||!res.ok)throw new Error((res&&res.error)||'Could not build the live copy');
+  if(!res||!res.ok)throw new Error((res&&res.error)||'Could not update the live document');
+  const r0=(res.refreshed||[])[0];
+  if(r0&&r0.error)throw new Error(r0.error);
   await _loadInfoFiles(true);
-  _docMsg(t,'');
+  const un=(r0&&r0.unresolved)||[];
+  _docMsg(t,un.length?'Not found: '+un.map(x=>'{{'+x+'}}').join(', ')+' — check the ID in the template.':'',!!un.length);
   return _docByTid(t)||f;
 }
 async function docViewLive(t){

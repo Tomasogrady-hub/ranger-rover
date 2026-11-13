@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.72 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
+const GAS_BUILD = 'v11.73 | 2026-11-11 | Dynamic Google Docs ({{tokens}} live from Items/Sites), top-20 plants (PlantViews), plant duplicate cleanup';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -3669,6 +3669,13 @@ function _eachInfoFile(cb) {
   }
   walk(DriveApp.getFolderById(INFO_FILES_FOLDER), 'other');
 }
+// Live copies are kept in a subfolder beside the template so nobody edits one by mistake
+// (anything typed into a live copy is overwritten on the next refresh).
+function _liveFolderFor(tpl) {
+  var parent = _parentFolderOf(tpl, INFO_DYNAMIC_FOLDER), name = 'Live copies (auto-updated, do not edit)';
+  var it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
+}
 function _parentFolderOf(f, fallbackId) {
   var it = f.getParents();
   return it.hasNext() ? it.next() : DriveApp.getFolderById(fallbackId);
@@ -3886,7 +3893,7 @@ function _copyBodyInto(srcBody, dstBody) {
 // Rebuilds the live copy of one dynamic template. Returns { ok, replaced, unresolved[] }.
 function _refreshDynamicDoc(tpl, ctx) {
   ctx = ctx || _tokenContext();
-  var folder = _parentFolderOf(tpl, INFO_DYNAMIC_FOLDER);
+  var folder = _liveFolderFor(tpl);
   var live = _liveCopyOf(tpl);
   if (!live) {
     live = tpl.makeCopy(tpl.getName() + ' (live)', folder);
@@ -3903,6 +3910,12 @@ function _refreshDynamicDoc(tpl, ctx) {
     var val = _resolveToken(m[1], ctx);
     if (val === null) { unresolved.push(m[1].trim()); continue; }
     var pat = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Google Docs auto-links things like "ID.name" as a web address; clear that so the value isn't a link
+    var fr = lbody.findText(pat);
+    while (fr) {
+      try { fr.getElement().asText().setLinkUrl(fr.getStartOffset(), fr.getEndOffsetInclusive(), null); } catch (e) {}
+      fr = lbody.findText(pat, fr);
+    }
     lbody.replaceText(pat, val.replace(/\\/g, '\\\\').replace(/\$/g, '\\$'));
     replaced++;
   }
