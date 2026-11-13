@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.76 | 2026-11-13 | Threads sheet: getThreads + addThread (garden facts for the Threads tab and ladybug spinner)';
+const GAS_BUILD = 'v11.77 | 2026-11-13 | Share documents: Google Docs attach as PDF, getDocText for inline text; Threads (getThreads/addThread)';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -788,6 +788,7 @@ function _doPostRoute(e) {
       // ── THREADS (garden facts; Threads sheet) ────────────────────────────────
       case 'getThreads':    return respond(handleGetThreads());
       case 'addThread':     return respond(handleAddThread(p));
+      case 'getDocText':    return respond(handleGetDocText(p));
       case 'getItems':      return respond(handleGetItems());
       case 'addItem':       return respond(handleAddItem(p));
       case 'updateItem':    return respond(handleUpdateItem(p));
@@ -3080,7 +3081,7 @@ function handleSendMailMerge(p) {
     // Each blob is loaded ONCE here and reused for every recipient.
     var batchAttach = [];
     (Array.isArray(p.attachFileIds) ? p.attachFileIds : []).forEach(function(id) {
-      try { batchAttach.push(DriveApp.getFileById(String(id)).getBlob()); } catch (e) { errors.push('attachment ' + id + ': ' + e.message); }
+      try { batchAttach.push(_reachBlob(id)); } catch (e) { errors.push('attachment ' + id + ': ' + e.message); }
     });
     (Array.isArray(p.attachUrls) ? p.attachUrls : []).forEach(function(a) {
       try {
@@ -3120,7 +3121,7 @@ function handleSendMailMerge(p) {
         var msgAttach = batchAttach.slice();
         if (m && m.attachFileId) {
           try {
-            msgAttach.push(DriveApp.getFileById(String(m.attachFileId)).getBlob());
+            msgAttach.push(_reachBlob(m.attachFileId));
           } catch (attachErr) { /* send without the attachment */ }
         }
         if (msgAttach.length) opts.attachments = msgAttach;
@@ -3514,6 +3515,25 @@ function handleAddPriceItem(p) {
   logActivity(p.actor || '', 'added price', name, 'price', name + (amount !== '' ? (' — ' + amount) : ''));
   _itemsChanged();
   return { ok: true, id: newId, fullDayAmount: fullDayAmount };
+}
+
+// Attachment blob for a Drive file. A Google Doc goes out as a PDF named "<name>.pdf";
+// any other file (PDF, image...) goes as-is.
+function _reachBlob(id) {
+  var f = DriveApp.getFileById(String(id));
+  if (f.getMimeType() === GDOC_MIME) return f.getAs(MimeType.PDF).setName(f.getName().replace(/\.pdf$/i, '') + '.pdf');
+  return f.getBlob();
+}
+// Plain text of a Google Doc, for pasting into an email body (Share > Paste the text).
+function handleGetDocText(p) {
+  try {
+    var id = String(p.fileId || '');
+    if (!id) return { ok: false, error: 'Missing document.' };
+    var f = DriveApp.getFileById(id);
+    if (f.getMimeType() !== GDOC_MIME) return { ok: false, error: 'Only Google Docs can be pasted as text.' };
+    var text = DocumentApp.openById(id).getBody().getText();
+    return { ok: true, text: text.length > 30000 ? text.substring(0, 30000) + '\n\n[…shortened]' : text };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
 
 // ── THREADS (Threads sheet → Threads tab + ladybug spinner facts) ─────────────

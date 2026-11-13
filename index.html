@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.76 -->
+<!-- v11.77 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -116,6 +116,19 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .rr-load-ov .rr-thread{max-width:320px;font-size:15px;line-height:1.5;color:var(--stone);background:#f4faf6;border:1px solid var(--mist);border-radius:12px;padding:10px 14px;text-align:left}
 .rr-load-ov .rr-thread b{color:var(--ink)}
 .rr-load-ov .rr-thread .rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3B9E8E;margin-bottom:3px}
+.rr-busy{position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h,104px) + 14px + env(safe-area-inset-bottom,0px));z-index:13500;display:flex;justify-content:center;pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
+.rr-busy.on{opacity:1;transform:none}
+.rr-busy-in{display:flex;gap:10px;align-items:flex-start;max-width:420px;background:#fff;border:1px solid var(--mist);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 14px;font-size:14px;line-height:1.45;color:var(--stone)}
+.rr-busy-in b{color:var(--ink)}
+.rr-busy .rr-twirl{flex:none;animation:rrTwirl 1.3s linear infinite}
+.rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3B9E8E;margin-bottom:3px}
+.rr-thread-dark{max-width:320px;margin:0 0 20px;font-size:14px;line-height:1.5;color:rgba(255,255,255,.85);text-align:left;background:rgba(255,255,255,.1);border-radius:12px;padding:10px 14px}
+.rr-thread-dark b{color:#fff}
+.rr-thread-dark .rr-thread-k{color:#9fe0d3}
+.rr-blk-card{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:12px;width:min(320px,86vw);text-align:center}
+.rr-blk-card .rr-twirl{animation:rrTwirl 1.3s linear infinite}
+.rr-blk-card .rr-thread{font-size:15px;line-height:1.5;color:var(--stone);background:#f4faf6;border:1px solid var(--mist);border-radius:12px;padding:10px 14px;text-align:left}
+.rr-blk-card .rr-thread b{color:var(--ink)}
 .th-card{background:#fff;border:1px solid var(--mist);border-radius:12px;padding:12px 14px;margin-bottom:10px}
 .th-name{font-weight:800;font-size:17px;color:var(--ink);margin-bottom:4px}
 .th-body{font-size:16px;line-height:1.5;color:var(--stone)}
@@ -2318,10 +2331,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.76';
+const APP_VERSION='v11.77';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-13 13:05 PT - Threads tab (garden facts list + Add new, reads the Threads sheet); a random Threads fact shows under the ladybug loading spinner (needs GAS v11.76).';
+const BUILD_STAMP='2026-11-13 13:35 PT - Share a document as Link, PDF attachment or inline text (by file type); a garden thread now shows during any wait: refresh, opening things, photo and video uploads (needs GAS v11.77).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3761,7 +3774,14 @@ function showApp(){
 }
 
 /* ═══ API ═══ */
-async function gasPost(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
+// Background polls that should never pop the garden thread card
+const _BUSY_SILENT=new Set(['logActivity','getActivity','getAppSettings','getThreads','getAiSummaries','aiSummaryStatus','getMyLocation']);
+async function gasPost(payload){
+  const quiet=_BUSY_SILENT.has(payload&&payload.action);
+  if(!quiet)rrBusyStart();
+  try{return await _gasPostRaw(payload);}finally{if(!quiet)rrBusyEnd();}
+}
+async function _gasPostRaw(payload){if(SESSION&&!payload.actor&&payload.sheet)payload.actor=SESSION.email;const res=await fetch(CFG.URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});return await res.json();}
 // Lazy-loaded once per session — small list, only needed when an Operations edit card opens
 async function loadProgramsIfNeeded(){
   if(_programsLoaded)return;
@@ -3857,6 +3877,32 @@ function randomThread(){
   const pool=(_threads&&_threads.length)?_threads:THREADS_FALLBACK;
   return pool[Math.floor(Math.random()*pool.length)]||null;
 }
+function _threadBlock(cls){
+  const t=randomThread();if(!t)return '';
+  return `<div class="${cls||'rr-thread'}"><span class="rr-thread-k">🧵 Garden thread</span><b>${escHtml(t.name)}</b><br>${escHtml(t.content)}</div>`;
+}
+// Floating garden thread while ANY call is slow (opening things, saving, sharing...). Appears after 0.9s so quick calls never flash it.
+let _busyN=0,_busyTimer=null,_busyTick=null;
+const _BUSY_OVERLAYS='#rrLoadOv,#refresh-blocker,#photo-upload-overlay,#video-upload-overlay';
+function rrBusyStart(){_busyN++;if(_busyN===1){clearTimeout(_busyTimer);_busyTimer=setTimeout(_busyShow,900);}}
+function rrBusyEnd(){_busyN=Math.max(0,_busyN-1);if(_busyN===0){clearTimeout(_busyTimer);_busyHide();}}
+function _busyPaint(){
+  let el=document.getElementById('rrBusy');
+  if(document.querySelector(_BUSY_OVERLAYS)){if(el)el.classList.remove('on');return;} // those screens carry their own thread
+  const t=randomThread();if(!t)return;
+  if(!el){el=document.createElement('div');el.id='rrBusy';el.className='rr-busy';document.body.appendChild(el);}
+  el.innerHTML=`<div class="rr-busy-in"><div class="rr-twirl" style="width:30px;height:30px">${lbSvg(30,false)}</div><div><span class="rr-thread-k">🧵 Garden thread</span><b>${escHtml(t.name)}</b><br>${escHtml(t.content)}</div></div>`;
+  requestAnimationFrame(()=>el.classList.add('on'));
+}
+function _busyShow(){
+  if(_busyN<=0)return;
+  _busyPaint();
+  clearInterval(_busyTick);_busyTick=setInterval(()=>{if(_busyN<=0){_busyHide();return;}_busyPaint();},8000);
+}
+function _busyHide(){
+  clearInterval(_busyTick);_busyTick=null;
+  const el=document.getElementById('rrBusy');if(el){el.classList.remove('on');setTimeout(()=>{if(el.parentNode&&_busyN<=0)el.remove();},300);}
+}
 function loadThreads(){
   if(!CFG.URL)return Promise.resolve();
   if(_threadsLoading)return _threadsLoading;
@@ -3909,8 +3955,7 @@ let _loadOvTimer=null;
 function _showLoadOv(msg){
   if(document.getElementById('rrLoadOv'))return;
   const d=document.createElement('div');d.id='rrLoadOv';d.className='rr-load-ov';
-  const _th=randomThread();
-  d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div>${_th?`<div class="rr-thread"><span class="rr-thread-k">🧵 Garden thread</span><b>${escHtml(_th.name)}</b><br>${escHtml(_th.content)}</div>`:''}<div class="rr-load-t">${msg?`<b>${escHtml(msg)}</b><br>Going as fast as I can…`:`<b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…`}</div>`;
+  d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div>${_threadBlock('rr-thread')}<div class="rr-load-t">${msg?`<b>${escHtml(msg)}</b><br>Going as fast as I can…`:`<b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…`}</div>`;
   document.body.appendChild(d);
   clearTimeout(_loadOvTimer);_loadOvTimer=setTimeout(_hideLoadOv,30000); // never trap anyone behind it
 }
@@ -8862,7 +8907,9 @@ function _showRefreshBlocker(){
   el.style='position:fixed;inset:0;z-index:99997;background:rgba(255,255,255,.55);cursor:wait;-webkit-tap-highlight-color:transparent';
   el.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
   el.addEventListener('click',e=>e.preventDefault());
+  el.innerHTML=`<div class="rr-blk-card"><div class="rr-twirl" style="width:44px;height:44px">${lbSvg(44,false)}</div>${_threadBlock('rr-thread')}</div>`;
   document.body.appendChild(el);
+  _busyHide();
 }
 function _hideRefreshBlocker(){
   const el=document.getElementById('refresh-blocker');
@@ -11040,8 +11087,9 @@ function _showVideoOverlay(){
     <div style="font-size:52px;margin-bottom:18px">🎥</div>
     <div id="vuo-title" style="font-family:var(--font-d);font-size:28px;font-style:italic;
       color:white;margin-bottom:8px;text-align:center">Uploading video…</div>
-    <div id="vuo-sub" style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:28px;
+    <div id="vuo-sub" style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:20px;
       text-align:center;line-height:1.5">Please keep the app open</div>
+    ${_threadBlock('rr-thread-dark')}
     <div style="width:100%;max-width:320px;background:rgba(255,255,255,.2);
       border-radius:99px;height:10px;overflow:hidden;margin-bottom:12px">
       <div id="vuo-bar" style="height:100%;width:0%;background:var(--sage);
@@ -11422,7 +11470,8 @@ function _showPhotoOverlay(label){
   el.innerHTML=`
     <div id="puo-icon" style="font-size:52px;margin-bottom:18px">📷</div>
     <div id="puo-title" style="font-family:var(--font-d);font-size:28px;font-style:italic;color:white;margin-bottom:8px;text-align:center">${label||'Uploading photo\u2026'}</div>
-    <div id="puo-sub" style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:28px;text-align:center;line-height:1.5">Please keep the app open</div>
+    <div id="puo-sub" style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:20px;text-align:center;line-height:1.5">Please keep the app open</div>
+    ${_threadBlock('rr-thread-dark')}
     <div style="width:100%;max-width:320px;background:rgba(255,255,255,.2);border-radius:99px;height:10px;overflow:hidden;margin-bottom:12px">
       <div id="puo-bar" style="height:100%;width:0%;background:var(--sage);border-radius:99px;transition:width .25s ease"></div>
     </div>
@@ -16904,21 +16953,51 @@ async function docViewLive(t){
     if(w)w.location.href=_docViewUrl(f);else window.open(_docViewUrl(f),'_blank');
   }catch(e){_hideLoadOv();if(w)w.close();_docMsg(t,e.message,true);}
 }
-// Share: link to the finished (live, tokens filled in) document, then open Reach to pick recipients.
-async function docShare(t){
+// Share: pick HOW to send it. Google Docs (static or dynamic): link, PDF attachment, or inline text.
+// Other static files (PDF etc.): link or attachment. Then Reach opens to pick recipients.
+function docShare(t){
+  const f=_docByTid(t);if(!f)return;
+  const old=document.getElementById('rrNotice');if(old)old.remove();
+  const isPdf=/pdf/i.test(f.mimeType||'');
+  const opts=[['link','🔗 Send a link','Recipients open the live document online (anyone with the link can view).']];
+  if(f.isDoc){
+    opts.push(['pdf','📎 Attach as a PDF','A PDF copy goes out as an email attachment.']);
+    opts.push(['text','📝 Paste the text into the email','The words go straight into the body of the message.']);
+  }else{
+    opts.push(['attach',isPdf?'📎 Attach the PDF':'📎 Attach the file','The file itself goes out as an email attachment.']);
+  }
+  const d=document.createElement('div');d.id='rrNotice';d.className='rr-notice-ov';
+  d.innerHTML=`<div class="rr-notice"><div class="rr-notice-t">Share “${escHtml(f.name)}”</div><div class="rr-notice-m" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${opts.map(o=>`<button type="button" class="settings-btn" style="text-align:left;margin:0;background:var(--mist);color:var(--ink)" onclick="document.getElementById('rrNotice').remove();docShareAs('${ea(t)}','${o[0]}')"><b>${o[1]}</b><br><span style="font-size:12px;font-weight:400">${o[2]}</span></button>`).join('')}</div><button type="button" class="rr-notice-b" onclick="document.getElementById('rrNotice').remove()">Cancel</button></div>`;
+  document.body.appendChild(d);
+}
+async function docShareAs(t,mode){
   let f=_docByTid(t);if(!f)return;
   try{
-    if(!f.isPublic&&!confirm('To share this, anyone with the link will be able to view it. Make it public and continue?'))return;
-    if(_docStale(f)||!f.isPublic)_showLoadOv(_docStale(f)?'Updating the live document…':'Getting it ready to share…');
-    if(_docStale(f))f=await _docRebuild(f,t);
-    if(!f.isPublic){
-      const r=await gasPost({action:'updateInfoFile',fileId:f.id,isPublic:true,actor:SESSION?SESSION.email:''});
-      if(!r||!r.ok)throw new Error((r&&r.error)||'Could not change sharing');
-      f=_docPut(r.file);
+    if(mode==='link'&&!f.isPublic&&!confirm('To share this, anyone with the link will be able to view it. Make it public and continue?'))return;
+    const needLive=_docStale(f);
+    if(needLive||(mode==='link'&&!f.isPublic)||mode==='text')_showLoadOv(needLive?'Updating the live document…':(mode==='text'?'Getting the text…':'Getting it ready to share…'));
+    if(needLive)f=await _docRebuild(f,t);
+    let subject=f.name,message='',attach=null;
+    if(mode==='link'){
+      if(!f.isPublic){
+        const r=await gasPost({action:'updateInfoFile',fileId:f.id,isPublic:true,actor:SESSION?SESSION.email:''});
+        if(!r||!r.ok)throw new Error((r&&r.error)||'Could not change sharing');
+        f=_docPut(r.file);
+      }
+      message=f.name+'\n\n'+_docViewUrl(f);
+    }else if(mode==='text'){
+      const r=await gasPost({action:'getDocText',fileId:f.id});
+      if(!r||!r.ok)throw new Error((r&&r.error)||'Could not read the document');
+      message=(r.text||'').trim();
+      if(!message)throw new Error('That document has no text to paste.');
+    }else{ // pdf (Google Doc) or attach (any other file)
+      const nm=f.isDoc?(f.name.replace(/\.pdf$/i,'')+'.pdf'):f.name;
+      attach=[{name:nm,fileId:f.id,kind:'file'}];
+      message='Hello,\n\nPlease find "'+f.name+'" attached.\n\nThank you,';
     }
     _hideLoadOv();_paintDocs();
-    const link=_docViewUrl(f);
-    _reachForwardPrefill={subject:f.name,message:f.name+'\n\n'+link};
+    _reachPendingAttach=attach;
+    _reachForwardPrefill={subject,message};
     switchTab('reach');showReachPage('menu');
     showToast('📡 Choose who to send it to');
   }catch(e){_hideLoadOv();_docMsg(t,e.message,true);}
