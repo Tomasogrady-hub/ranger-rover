@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.79 | 2026-11-13 | Threads: Author/Email columns, updateThread (edit); Share documents as link/PDF/text';
+const GAS_BUILD = 'v11.81 | 2026-11-14 | Threads delete + importance; Items info files 1-3, Image 1-2 upload; Information Files sheet sync';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -85,6 +85,8 @@ const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
 const HUMANS_IMG_FOLDER = '1PsqHbWRwurrVEpwhT-iRNGhjlf9jPgUx';
 const CHORES_IMG_FOLDER = '1f_B10hFEsPg5WUHwpcbS86lq2EcPu_si';
 const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
+const ITEM_IMG_FOLDER   = '1cbPd2FInZJvZY2pDiWBmwDRd4u_H-PlB'; // "Item Image Files" - Items All Image 1 / Image 2
+const INFO_SHEET_ID     = '14Z6I1lPXGlI83NKo1ko7KX1S8GqxDCajv6EbQTyS690'; // "Information Files" tracking sheet (ID, Name, Description, Type)
 const INFO_FILES_FOLDER = '1x8zbWU-t4KJHtNuoj5VqpBtvcJRdMHDI'; // Items All > "Link to information file"
 // Inside it: "Static Documents" and "Dynamic Documents", each with a "Templates" subfolder
 // (templates are for copying and are never listed in the app). The folder a doc sits in
@@ -789,12 +791,14 @@ function _doPostRoute(e) {
       case 'getThreads':    return respond(handleGetThreads());
       case 'addThread':     return respond(handleAddThread(p));
       case 'updateThread':  return respond(handleUpdateThread(p));
+      case 'deleteThread':  return respond(handleDeleteThread(p));
       case 'getDocText':    return respond(handleGetDocText(p));
       case 'getItems':      return respond(handleGetItems());
       case 'addItem':       return respond(handleAddItem(p));
       case 'updateItem':    return respond(handleUpdateItem(p));
       case 'getInfoFiles':  return respond(handleGetInfoFiles());
       case 'uploadInfoFile':  return respond(handleUploadInfoFile(p));
+      case 'uploadItemImage': return respond(handleUploadItemImage(p));
       case 'updateInfoFile':  return respond(handleUpdateInfoFile(p));
       case 'replaceInfoFile': return respond(handleReplaceInfoFile(p));
       case 'refreshDynamicDocs': return respond(handleRefreshDynamicDocs(p));
@@ -3450,13 +3454,26 @@ function _itemsTypeIdx(headers) {
   return i > -1 ? i : headers.indexOf('Type');
 }
 
-// Items All's "Link to information file" column (K). Matched by header text
-// (anything containing "information"), falling back to the literal column K.
-function _itemsInfoIdx(headers) {
+// Items All "Information File 1/2/3" columns. Returns [idx1, idx2, idx3] (-1 when missing).
+// Falls back to the old single "Link to information file" column (any header containing "information", else K) as slot 1.
+function _itemsInfoIdxs(headers) {
+  var out = [-1, -1, -1];
   for (var i = 0; i < headers.length; i++) {
-    if (/information/i.test(String(headers[i] || ''))) return i;
+    var m = String(headers[i] || '').trim().match(/^information\s*file\s*([123])$/i);
+    if (m) out[Number(m[1]) - 1] = i;
   }
-  return headers.length > 10 ? 10 : -1;
+  if (out[0] === -1 && out[1] === -1 && out[2] === -1) {
+    for (var j = 0; j < headers.length; j++) { if (/information/i.test(String(headers[j] || ''))) { out[0] = j; break; } }
+    if (out[0] === -1 && headers.length > 10) out[0] = 10;
+  }
+  return out;
+}
+// First information-file column (kept for older callers).
+function _itemsInfoIdx(headers) { return _itemsInfoIdxs(headers)[0]; }
+// Items All "Image 1" / "Image 2" columns ("Image" is accepted as slot 1).
+function _itemsImgIdxs(headers) {
+  var a = headers.indexOf('Image 1'); if (a === -1) a = headers.indexOf('Image');
+  return [a, headers.indexOf('Image 2')];
 }
 
 // 8-char unique ID generator for Items All rows (same pattern as Chores' ID column).
@@ -3548,7 +3565,7 @@ function _threadCols(sheet) {
   var h = sheet.getRange(1, 1, 1, Math.max(5, sheet.getLastColumn())).getValues()[0]
     .map(function(v) { return String(v).trim().toLowerCase(); });
   function ix(n, d) { var i = h.indexOf(n); return i === -1 ? d : i; }
-  return { id: ix('id', 0), name: ix('name', 1), content: ix('content', 2), author: ix('author', 3), email: ix('email', 4) };
+  return { id: ix('id', 0), name: ix('name', 1), content: ix('content', 2), author: ix('author', 3), email: ix('email', 4), importance: ix('importance', -1) };
 }
 function _threadCell(v) { return String(v === null || v === undefined ? '' : v).trim(); }
 // A leading = + - @ would be read as a formula; store it as plain text instead.
@@ -3566,7 +3583,8 @@ function handleGetThreads() {
     if (!name || !content) continue;
     out.push({
       id: _threadCell(data[r][c.id]), name: name, content: content,
-      author: _threadCell(data[r][c.author]), by: _threadCell(data[r][c.email]).toLowerCase()
+      author: _threadCell(data[r][c.author]), by: _threadCell(data[r][c.email]).toLowerCase(),
+      importance: c.importance < 0 ? 0 : (Number(data[r][c.importance]) >= 1 && Number(data[r][c.importance]) <= 10 ? Number(data[r][c.importance]) : 0)
     });
   }
   return { ok: true, threads: out };
@@ -3599,10 +3617,13 @@ function handleAddThread(p) {
 // (the app sends level + actor; the sheet's Email column records who added it).
 function handleUpdateThread(p) {
   var id = String(p.id || '').trim();
+  var hasText = p.name !== undefined || p.content !== undefined;
+  var hasImp = p.importance !== undefined;
   var name = String(p.name || '').trim().substring(0, 120);
   var content = String(p.content || '').trim().substring(0, 200);
   if (!id) return { ok: false, error: 'Missing thread.' };
-  if (!name || !content) return { ok: false, error: 'Name and content are both required.' };
+  if (hasText && (!name || !content)) return { ok: false, error: 'Name and content are both required.' };
+  if (hasImp && Number(p.level) > 2) return { ok: false, error: 'Only Level 1-2 can set importance.' };
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -3614,10 +3635,43 @@ function handleUpdateThread(p) {
       if (_threadCell(data[r][c.id]) !== id) continue;
       var owner = _threadCell(data[r][c.email]).toLowerCase();
       var mine = owner && owner === String(p.actor || '').trim().toLowerCase();
-      if (Number(p.level) > 2 && !mine) return { ok: false, error: 'You can only edit threads you added.' };
-      sheet.getRange(r + 1, c.name + 1).setValue(_threadSafe(name));
-      sheet.getRange(r + 1, c.content + 1).setValue(_threadSafe(content));
-      logActivity(p.actor || '', 'edited thread', name, 'thread', '');
+      if (hasText && Number(p.level) > 2 && !mine) return { ok: false, error: 'You can only edit threads you added.' };
+      if (hasText) {
+        sheet.getRange(r + 1, c.name + 1).setValue(_threadSafe(name));
+        sheet.getRange(r + 1, c.content + 1).setValue(_threadSafe(content));
+        logActivity(p.actor || '', 'edited thread', name, 'thread', '');
+      }
+      if (hasImp) {
+        var ic = c.importance;
+        if (ic < 0) { ic = Math.max(1, sheet.getLastColumn()); sheet.getRange(1, ic + 1).setValue('Importance'); }
+        var iv = Number(p.importance);
+        sheet.getRange(r + 1, ic + 1).setValue(iv >= 1 && iv <= 10 ? iv : '');
+      }
+      return { ok: true };
+    }
+    return { ok: false, error: 'Thread not found (it may have been removed).' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+// Delete a thread by ID. Levels 1-2 any; Level 3 only their own.
+function handleDeleteThread(p) {
+  var id = String(p.id || '').trim();
+  if (!id) return { ok: false, error: 'Missing thread.' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = _threadsSheet();
+    if (!sheet) return { ok: false, error: 'Threads sheet not found.' };
+    var c = _threadCols(sheet);
+    var data = sheet.getDataRange().getValues();
+    for (var r = 1; r < data.length; r++) {
+      if (_threadCell(data[r][c.id]) !== id) continue;
+      var owner = _threadCell(data[r][c.email]).toLowerCase();
+      var mine = owner && owner === String(p.actor || '').trim().toLowerCase();
+      if (Number(p.level) > 2 && !mine) return { ok: false, error: 'You can only delete threads you added.' };
+      sheet.deleteRow(r + 1);
+      logActivity(p.actor || '', 'deleted thread', _threadCell(data[r][c.name]), 'thread', '');
       return { ok: true };
     }
     return { ok: false, error: 'Thread not found (it may have been removed).' };
@@ -3644,7 +3698,7 @@ function handleGetItems() {
   var di  = headers.indexOf('Description');
   var dti = headers.indexOf('Date added or last edited');
   var fdi = headers.indexOf('Full day Amount');
-  var lki = _itemsInfoIdx(headers);
+  var lki = _itemsInfoIdxs(headers), imi = _itemsImgIdxs(headers);
   if (ni === -1 || t1i === -1) return { ok: false, error: 'Expected Name/Type 1 columns not found in Items All.' };
   var out = [], seen = { type1: {}, type2: {}, type3: {} };
   function cell(r, i) { return i > -1 ? String(data[r][i] === null || data[r][i] === undefined ? '' : data[r][i]).trim() : ''; }
@@ -3663,7 +3717,9 @@ function handleGetItems() {
       amount: ai > -1 ? data[r][ai] : '',
       fullDay: fdi > -1 ? data[r][fdi] : '',
       description: cell(r, di),
-      infoLink: cell(r, lki),
+      info1: cell(r, lki[0]), info2: cell(r, lki[1]), info3: cell(r, lki[2]),
+      infoLink: cell(r, lki[0]),
+      img1: cell(r, imi[0]), img2: cell(r, imi[1]),
       dateStamp: dti > -1 ? data[r][dti] : ''
     });
   }
@@ -3687,9 +3743,11 @@ function handleAddItem(p) {
   var t1 = String(p.type1 || '').trim(), t2 = String(p.type2 || '').trim(), t3 = String(p.type3 || '').trim();
   var newId = _newItemsAllId();
   var now = new Date();
-  var lki = _itemsInfoIdx(headers);
+  var lki = _itemsInfoIdxs(headers);
+  var infos = [p.info1 !== undefined ? p.info1 : p.infoLink, p.info2, p.info3];
   var row = headers.map(function(h, hi) {
-    if (hi === lki)                        return String(p.infoLink || '').trim();
+    var si = lki.indexOf(hi);
+    if (si > -1)                           return String(infos[si] || '').trim();
     if (h === 'ID')                        return newId;
     if (h === 'Name')                      return name;
     if (h === 'Type 1' || h === 'Type')    return t1;
@@ -3728,7 +3786,7 @@ function handleUpdateItem(p) {
     amount = (p.amount === null || p.amount === '') ? '' : parseFloat(p.amount);
     if (amount !== '' && isNaN(amount)) return { ok: false, error: 'Amount must be a number.' };
   }
-  var lki = _itemsInfoIdx(headers);
+  var lki = _itemsInfoIdxs(headers);
   function put(i, v) { if (i > -1) sheet.getRange(target, i + 1).setValue(v); }
   if (p.name !== undefined)        put(headers.indexOf('Name'), name);
   if (p.type1 !== undefined)       put(_itemsTypeIdx(headers), String(p.type1 || '').trim());
@@ -3736,7 +3794,8 @@ function handleUpdateItem(p) {
   if (p.type3 !== undefined)       put(headers.indexOf('Type 3'), String(p.type3 || '').trim());
   if (p.amount !== undefined)      put(headers.indexOf('Amount'), amount);
   if (p.description !== undefined) put(headers.indexOf('Description'), String(p.description || '').trim());
-  if (p.infoLink !== undefined)    put(lki, String(p.infoLink || '').trim());
+  var inf = [p.info1 !== undefined ? p.info1 : p.infoLink, p.info2, p.info3];
+  for (var q = 0; q < 3; q++) { if (inf[q] !== undefined) put(lki[q], String(inf[q] || '').trim()); }
   var dti = headers.indexOf('Date added or last edited');
   sheet.getRange(target, (dti > -1 ? dti : 7) + 1).setValue(new Date());
   logActivity(p.actor || '', 'edited item', name || String(data[target - 1][headers.indexOf('Name')] || ''), 'item', 'Items All row ' + target);
@@ -3837,9 +3896,59 @@ function _setInfoFilePublic(f, makePublic) {
 function handleGetInfoFiles() {
   try {
     var out = [];
-    _eachInfoFile(function(f0, kind) { if (_isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; out.push(j); });
+    // Only files inside the Static / Dynamic subfolders are offered (loose files elsewhere are ignored).
+    _eachInfoFile(function(f0, kind) { if (kind === 'other' || _isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; out.push(j); });
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+    try { _syncInfoFilesSheet(out); } catch (e2) { Logger.log('info sheet sync: ' + e2.message); }
     return { ok: true, files: out, dataVer: _dataVer() };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Keeps the "Information Files" tracking sheet (ID | Name | Description | Type) in step with the
+// Static / Dynamic folders. ID = the file's template id. Description is typed by people and is kept.
+// Only rewrites when something changed (signature stored in Script Properties).
+function _syncInfoFilesSheet(files) {
+  var rows = files.map(function(f) { return [f.templateId, f.name, f.dynamic ? 'dynamic' : 'static']; });
+  var sig = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(rows)));
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('INFO_SHEET_SIG') === sig) return;
+  var ss = SpreadsheetApp.openById(INFO_SHEET_ID), sh = ss.getSheets()[0];
+  var last = sh.getLastRow(), old = last > 1 ? sh.getRange(2, 1, last - 1, 4).getValues() : [];
+  var desc = {};
+  old.forEach(function(r) { if (r[0]) desc[String(r[0])] = r[2]; });
+  var out = rows.map(function(r) { return [r[0], r[1], desc[r[0]] || '', r[2]]; });
+  sh.getRange(1, 1, 1, 4).setValues([['ID', 'Name', 'Description', 'Type']]).setFontWeight('bold');
+  if (last > 1) sh.getRange(2, 1, last - 1, 4).clearContent();
+  if (out.length) sh.getRange(2, 1, out.length, 4).setValues(out);
+  props.setProperty('INFO_SHEET_SIG', sig);
+}
+// Uploads a photo for an Items All row into the "Item Image Files" Drive folder and writes its URL
+// into Image 1 / Image 2. p.itemId (or p.row), p.slot = 1 | 2.
+function handleUploadItemImage(p) {
+  try {
+    if (!p.base64) return { ok: false, error: 'Missing photo' };
+    var slot = Number(p.slot) === 2 ? 2 : 1;
+    var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+    if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
+    var data = sheet.getDataRange().getValues(), h = data[0];
+    var idi = h.indexOf('ID'), ni = h.indexOf('Name'), ci = _itemsImgIdxs(h)[slot - 1];
+    if (ci === -1) return { ok: false, error: 'Image ' + slot + ' column not found in Items All.' };
+    var target = -1;
+    if (p.itemId && idi > -1) { for (var r = 1; r < data.length; r++) { if (String(data[r][idi]) === String(p.itemId)) { target = r + 1; break; } } }
+    if (target === -1 && p.row && Number(p.row) > 1 && Number(p.row) <= data.length) target = Number(p.row);
+    if (target === -1) return { ok: false, error: 'Item not found.' };
+    var itemName = ni > -1 ? String(data[target - 1][ni] || '').trim() : 'Item';
+    var safeMime = (p.mimeType && !/heic|heif/i.test(p.mimeType) && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'image/jpeg';
+    var ext = /png/i.test(safeMime) ? '.png' : '.jpg';
+    var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyyMMdd_HHmmss');
+    var file = DriveApp.getFolderById(ITEM_IMG_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), safeMime, (itemName || 'Item') + '.Image ' + slot + '.' + stamp + ext));
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var url = 'https://lh3.googleusercontent.com/d/' + file.getId();
+    sheet.getRange(target, ci + 1).setValue(url);
+    var dti = h.indexOf('Date added or last edited');
+    if (dti > -1) sheet.getRange(target, dti + 1).setValue(new Date());
+    logActivity(p.actor || '', 'uploaded photo', itemName, 'item', 'Image ' + slot);
+    _itemsChanged();
+    return { ok: true, url: url };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 // Uploads a new file into the Information Files folder. p.isPublic = true shares
@@ -3901,10 +4010,12 @@ function _repointItems(oldId, newUrl) {
   if (!oldId) return 0;
   var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sheet) return 0;
-  var data = sheet.getDataRange().getValues(), lki = _itemsInfoIdx(data[0]), n = 0;
-  if (lki < 0) return 0;
+  var data = sheet.getDataRange().getValues(), lks = _itemsInfoIdxs(data[0]), n = 0;
   for (var r = 1; r < data.length; r++) {
-    if (_driveIdFromUrl(data[r][lki]) === oldId) { sheet.getRange(r + 1, lki + 1).setValue(newUrl); n++; }
+    for (var q = 0; q < 3; q++) {
+      var lki = lks[q];
+      if (lki > -1 && _driveIdFromUrl(data[r][lki]) === oldId) { sheet.getRange(r + 1, lki + 1).setValue(newUrl); n++; }
+    }
   }
   return n;
 }
@@ -4153,10 +4264,10 @@ function handleReplaceInfoFile(p) {
     var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
     var repointed = 0;
     if (sheet) {
-      var data = sheet.getDataRange().getValues(), lki = _itemsInfoIdx(data[0]);
-      if (lki > -1) {
-        for (var r = 1; r < data.length; r++) {
-          if (_driveIdFromUrl(data[r][lki]) === oldId) { sheet.getRange(r + 1, lki + 1).setValue(nf.getUrl()); repointed++; }
+      var data = sheet.getDataRange().getValues(), lks = _itemsInfoIdxs(data[0]);
+      for (var r = 1; r < data.length; r++) {
+        for (var q = 0; q < 3; q++) {
+          if (lks[q] > -1 && _driveIdFromUrl(data[r][lks[q]]) === oldId) { sheet.getRange(r + 1, lks[q] + 1).setValue(nf.getUrl()); repointed++; }
         }
       }
     }

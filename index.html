@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.80 -->
+<!-- v11.81 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2180,7 +2180,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
             <input id="itNewAmount" class="settings-input" style="flex:1;min-width:100px;margin:0" placeholder="Amount (optional)" type="number" step="0.01" inputmode="decimal">
           </div>
           <div id="itNewTypes" style="display:flex;flex-direction:column;gap:10px"></div>
-          <div id="itNewInfoWrap"></div>
+          <div id="itNewAInfoWrap"></div><div id="itNewBInfoWrap"></div><div id="itNewCInfoWrap"></div>
+          <div class="sub-meta">Photos (Image 1 / Image 2): add the item first, then tap Edit to upload them.</div>
           <textarea id="itNewDesc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description (optional)"></textarea>
         </div>
         <div style="display:flex;gap:8px;margin-top:10px">
@@ -2331,10 +2332,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.80';
+const APP_VERSION='v11.81';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-13 13:40 PT - Threads: removed the Garden thread heading, sentence only.';
+const BUILD_STAMP='2026-11-14 12:00 PT - Threads delete + importance; Items: 3 info files, 2 photos; menu tap resets tab and hides menu.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3657,7 +3658,7 @@ function setGreeting(){
   el.textContent=salutation+', '+firstName+'.';
 }
 function _navBtn(tab,label,extraId=''){
-  return `<button class="nav-btn" id="nav_${tab}" data-tab="${tab}" onclick="${tab==='map'?`switchTab('map',true)`:`switchTab('${tab}')`}">${label}</button>`;
+  return `<button class="nav-btn" id="nav_${tab}" data-tab="${tab}" onclick="navTap('${tab}')">${label}</button>`;
 }
 function buildNav(lvl){
   _threadsKick();
@@ -3875,7 +3876,16 @@ let _threads=[];try{_threads=(JSON.parse(localStorage.getItem(THREADS_CK)||'[]')
 let _threadsLoading=null,_threadsKicked=false;
 function randomThread(){
   const pool=(_threads&&_threads.length)?_threads:THREADS_FALLBACK;
-  return pool[Math.floor(Math.random()*pool.length)]||null;
+  const imp=t=>{const v=parseInt(t&&t.importance,10);return v>=1&&v<=10?v:0;};
+  // Importance 1 is exclusive: if any exist, only those are ever picked.
+  const ones=pool.filter(t=>imp(t)===1);
+  if(ones.length)return ones[Math.floor(Math.random()*ones.length)];
+  // Otherwise weighted: unrated = 1, importance n (2..10) = 12-n (2 comes up most, 10 least but still above unrated).
+  const w=t=>{const v=imp(t);return v?12-v:1;};
+  let tot=0;pool.forEach(t=>{tot+=w(t);});
+  let r=Math.random()*tot;
+  for(const t of pool){r-=w(t);if(r<0)return t;}
+  return pool[pool.length-1]||null;
 }
 function _threadText(t){return (t.author?escHtml(t.author)+' says: ':'')+escHtml(t.content);}
 function _threadBlock(cls){
@@ -3928,9 +3938,45 @@ function renderThreads(){
   if(!all.length){el.innerHTML=_threadsLoading?'<div class="spinner"></div>':'<div class="sub-meta" style="padding:14px 0;text-align:center">No threads yet. Tap Add new.</div>';return;}
   if(!rows.length){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing matches.</div>';return;}
   el.innerHTML=rows.map(t=>{
-    const can=_threadCanEdit(t);
-    return `<div class="th-card" id="thc-${ea(t.id)}"><div class="th-body">${_threadText(t)}</div>${can&&t.id?`<div style="margin-top:6px"><button type="button" class="settings-btn" style="margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)" onclick="threadEdit('${ea(t.id)}')">✏️ Edit</button></div>`:''}</div>`;
+    const can=_threadCanEdit(t),imp=_choreImp(t);
+    const impBtn=canSeeImp()&&t.id?`<button type="button" class="chm-btn ${_impCls(imp)}" title="Importance ${imp||'not set'}" aria-label="Importance" onclick="event.stopPropagation();_threadImpMenu('${ea(t.id)}',this)"><span class="chm-num">${imp||'–'}</span><span class="chm-arr">▾</span></button>`:'';
+    const btnSt='margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)';
+    const btns=can&&t.id?`<div style="margin-top:6px;display:flex;gap:8px;align-items:center"><button type="button" class="settings-btn" style="${btnSt}" onclick="threadEdit('${ea(t.id)}')">✏️ Edit</button><button type="button" class="settings-btn" style="${btnSt};color:var(--danger)" onclick="threadDelete('${ea(t.id)}')">🗑 Delete</button><span style="flex:1"></span>${impBtn}</div>`:'';
+    return `<div class="th-card" id="thc-${ea(t.id)}"><div class="th-body">${_threadText(t)}</div>${btns}</div>`;
   }).join('');
+}
+function _threadImpMenu(id,btn){
+  const had=document.getElementById('choreMenuPop');_choreMenuClose();
+  if(had&&had.dataset.id==='th'+id)return;
+  const t=_threads.find(x=>x.id===id);if(!t)return;
+  const imp=_choreImp(t);
+  const m=document.createElement('div');m.id='choreMenuPop';m.className='chm-pop';m.dataset.id='th'+id;
+  m.addEventListener('click',e=>e.stopPropagation());
+  m.innerHTML=`<div class="chm-imp open" style="display:flex;flex-wrap:wrap;gap:4px;padding:4px">`+[1,2,3,4,5,6,7,8,9,10].map(i=>`<button type="button" class="chm-n ${_impCls(i)}${imp===i?' on':''}" onclick="_choreMenuClose();threadSetImp('${ea(id)}',${i})">${i}</button>`).join('')+`<button type="button" class="chm-n imp-0${!imp?' on':''}" onclick="_choreMenuClose();threadSetImp('${ea(id)}','')">–</button></div>`;
+  document.body.appendChild(m);
+  const r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+  m.style.left=Math.min(Math.max(8,r.right-w),window.innerWidth-w-8)+'px';
+  let top=r.bottom+4;if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-4);m.style.top=top+'px';
+}
+async function threadSetImp(id,v){
+  const t=_threads.find(x=>x.id===id);if(!t)return;
+  const prev=t.importance;t.importance=v===''?0:Number(v);
+  try{localStorage.setItem(THREADS_CK,JSON.stringify(_threads));}catch(e){}
+  renderThreads();
+  try{
+    const r=await gasPost({action:'updateThread',id,importance:v===''?'':Number(v),level:SESSION&&SESSION.accessLevel,actor:SESSION&&SESSION.email});
+    if(r&&r.ok){showSaveToast('✓ Importance '+(v||'cleared'));return;}
+    throw new Error((r&&r.error)||'failed');
+  }catch(e){t.importance=prev;try{localStorage.setItem(THREADS_CK,JSON.stringify(_threads));}catch(_){}renderThreads();showSaveToast('⚠ Could not save importance');}
+}
+async function threadDelete(id){
+  const t=_threads.find(x=>x.id===id);if(!t)return;
+  if(!confirm('Delete this thread?\n\n'+t.content))return;
+  try{
+    const r=await gasPost({action:'deleteThread',id,level:SESSION&&SESSION.accessLevel,actor:SESSION&&SESSION.email});
+    if(r&&r.ok){_threads=_threads.filter(x=>x.id!==id);try{localStorage.setItem(THREADS_CK,JSON.stringify(_threads));}catch(e){}renderThreads();showSaveToast('✓ Thread deleted');return;}
+    showSaveToast((r&&r.error)||'Could not delete');
+  }catch(e){showSaveToast('Connection error - not deleted');}
 }
 // Levels 1-2 may edit any thread; Level 3 only the ones they added.
 function _threadCanEdit(t){
@@ -10614,6 +10660,17 @@ window.addEventListener('popstate',()=>{
   // else: nothing left in our in-app stack — let the back action proceed
   // normally (this is the one case where leaving the app is expected).
 });
+// A tap on a bottom-menu tab always opens that tab at its home screen (not where it was left) and hides the menu rows for more space.
+function navTap(tab){
+  const ov=document.getElementById('detail-overlay');
+  if(ov&&ov.classList.contains('open')){try{closeDetailImmediate();}catch(e){}}
+  if(tab==='data')_dataCurrentPage='menu';
+  if(tab==='reach')_reachCurrentPage='menu';
+  if(tab==='operations')_opsCurrentPage='home';
+  switchTab(tab,tab==='map');
+  const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
+  _navSetCollapsed(true);
+}
 function switchTab(tab,initMapFlag=false){
   if(tab==='operations'&&SESSION&&SESSION.accessLevel>=3)tab='schools';
   const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
@@ -16507,8 +16564,60 @@ function _itemTypeChips(i){
   return [i.type1,i.type2,i.type3].filter(Boolean).map(t=>`<span style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--mist);color:var(--stone);margin:2px 4px 0 0">${escHtml(t)}</span>`).join('');
 }
 function _itemRid(i){return String(i.id||('row'+i.row));}
+function _itemInfoUrls(i){return [i.info1!==undefined?i.info1:i.infoLink,i.info2,i.info3].map(u=>String(u||''));}
 function _itemInfoLinkHtml(i){
-  return i.infoLink?`<div style="margin-top:4px"><a class="dlink" href="${ea(i.infoLink)}" target="_blank" rel="noopener" style="font-size:13px">📎 Information file</a></div>`:'';
+  const links=_itemInfoUrls(i).map((u,n)=>{
+    if(!u)return '';
+    const f=_infoFileByUrl(u);
+    return `<a class="dlink" href="${ea(u)}" target="_blank" rel="noopener" style="font-size:13px;margin-right:12px">📎 ${escHtml(f?f.name:'Information file '+(n+1))}</a>`;
+  }).join('');
+  const imgs=[i.img1,i.img2].filter(Boolean).length;
+  const ph=imgs?`<a class="dlink" href="#" style="font-size:13px" onclick="event.preventDefault();_itemShowPhotos('${ea(_itemRid(i))}',this)">🖼 Photo${imgs>1?'s':''}</a>`:'';
+  return (links||ph)?`<div style="margin-top:4px">${links}${ph}<div id="itPh-${ea(_itemRid(i))}" style="display:none;gap:8px;flex-wrap:wrap;margin-top:6px"></div></div>`:'';
+}
+// Photos are only fetched when someone taps "Photos" (keeps the list fast).
+function _itemImgSrc(u,w){const m=String(u||'').match(/\/d\/([-\w]{20,})/);return m?'https://lh3.googleusercontent.com/d/'+m[1]+'=w'+(w||480):String(u||'');}
+function _itemShowPhotos(rid,a){
+  const box=document.getElementById('itPh-'+rid),it=_itemByRid(rid);if(!box||!it)return;
+  if(box.style.display==='flex'){box.style.display='none';return;}
+  if(!box.dataset.f){box.innerHTML=[it.img1,it.img2].filter(Boolean).map(u=>`<a href="${ea(u)}" target="_blank" rel="noopener"><img loading="lazy" src="${ea(_itemImgSrc(u,480))}" alt="item photo" style="height:110px;max-width:46vw;object-fit:cover;border-radius:8px;border:1px solid var(--mist)"></a>`).join('');box.dataset.f='1';}
+  box.style.display='flex';
+}
+// Photo slot (Image 1 / Image 2) in the edit panel: thumbnail + upload / replace. Uploads go to the "Item Image Files" Drive folder.
+function _itemImgSlotHtml(rid,pfx,n,url){
+  const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)';
+  return `<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:130px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Image ${n}</label>
+    <div id="${pfx}Img${n}Box">${url?`<img loading="lazy" src="${ea(_itemImgSrc(url,320))}" alt="" style="height:90px;max-width:100%;object-fit:cover;border-radius:8px;border:1px solid var(--mist)">`:'<span class="sub-meta">No photo yet</span>'}</div>
+    <button type="button" style="${bs};text-align:left" onclick="document.getElementById('${pfx}Img${n}In').click()">${url?'🔄 Replace photo':'⬆ Upload photo'}</button>
+    <input type="file" accept="image/*" id="${pfx}Img${n}In" style="display:none" onchange="itemPhotoUpload('${ea(rid)}','${pfx}',${n},this)"></div>`;
+}
+async function itemPhotoUpload(rid,pfx,n,input){
+  const file=input.files&&input.files[0];input.value='';if(!file)return;
+  const it=_itemByRid(rid);if(!it)return;
+  _playUploadStart();
+  const overlay=_showPhotoOverlay('Uploading photo\u2026');
+  _updatePhotoOverlay(2,'Reading photo\u2026','Please keep the app open');
+  try{
+    let uf=file;
+    const heic=!file.type||/heic|heif|octet-stream/i.test(file.type),ios=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+    if(ios||heic||file.size>4*1024*1024){
+      _updatePhotoOverlay(8,'Converting photo\u2026','Optimising for upload\u2026');
+      const rd=await _reencodeToJpeg(file,0.85);
+      if(rd&&rd.startsWith('data:image/jpeg')){
+        const bs=atob(rd.split(',')[1]),by=new Uint8Array(bs.length);
+        for(let k=0;k<bs.length;k++)by[k]=bs.charCodeAt(k);
+        uf=new File([by],(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'});
+      }else if(heic&&rd===null)throw new Error('Could not convert HEIC photo. Please use a JPEG.');
+    }
+    const url=await _uploadPhotoXHR(uf,{action:'uploadItemImage',itemId:it.id,row:it.row,slot:n});
+    it['img'+n]=url;
+    overlay.remove();
+    const box=document.getElementById(pfx+'Img'+n+'Box');
+    if(box)box.innerHTML=`<img src="${ea(_itemImgSrc(url,320))}" alt="" style="height:90px;max-width:100%;object-fit:cover;border-radius:8px;border:1px solid var(--mist)">`;
+    _playUploadSuccess();showSaveToast('\u2713 Photo saved to Image '+n);
+  }catch(err){
+    _playUploadError();overlay.remove();showSaveToast('\u26a0 '+(err.message||'Upload failed'));
+  }
 }
 function _itemRowHtml(i){
   const amount=_dataPriceFmtAmount(i.amount),rid=ea(_itemRid(i));
@@ -16590,13 +16699,17 @@ function onItemTypeSelect(pfx,n){
   txt.style.display=sel.value==='__new__'?'block':'none';
   if(sel.value==='__new__')txt.focus();
 }
+const _INFO_SLOTS=['A','B','C'];
+function _infoWrapsHtml(pfx){return _INFO_SLOTS.map(k=>`<div id="${pfx}${k}InfoWrap"></div>`).join('');}
+function _mountInfoSlots(pfx,vals){_INFO_SLOTS.forEach((k,n)=>_mountInfoField(pfx+k,(vals&&vals[k])||'','Information file '+(n+1)));}
+function _infoSlotValues(pfx){return _INFO_SLOTS.map(k=>_infoFieldValue(pfx+k));}
 async function toggleNewItemForm(){
   const f=document.getElementById('itNewForm');if(!f)return;
   const open=f.style.display==='none';
   if(open){
     if(!_itemsCache&&!(await _loadItems()))return;
     document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
-    _mountInfoField('itNew','');
+    _mountInfoSlots('itNew',{});
   }
   f.style.display=open?'block':'none';
 }
@@ -16613,22 +16726,22 @@ async function submitNewItem(){
   if(!name){statusEl.style.color='var(--danger)';statusEl.textContent='Please enter a name.';return;}
   const amount=amtEl&&amtEl.value!==''?parseFloat(amtEl.value):'';
   const description=descEl?(descEl.value||'').trim():'';
-  const type1=_itemTypeValue('itNew',1),type2=_itemTypeValue('itNew',2),type3=_itemTypeValue('itNew',3),infoLink=_infoFieldValue('itNew');
+  const type1=_itemTypeValue('itNew',1),type2=_itemTypeValue('itNew',2),type3=_itemTypeValue('itNew',3),[info1,info2,info3]=_infoSlotValues('itNew'),infoLink=info1;
   btn.disabled=true;btn.style.opacity='.6';
   statusEl.style.color='var(--sage)';statusEl.textContent='Saving…';
   try{
-    const res=await gasPost({action:'addItem',name,amount,description,type1,type2,type3,infoLink,actor:SESSION?SESSION.email:''});
+    const res=await gasPost({action:'addItem',name,amount,description,type1,type2,type3,info1,info2,info3,infoLink,actor:SESSION?SESSION.email:''});
     if(!res||!res.ok){
       statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not add item.';
       btn.disabled=false;btn.style.opacity='1';return;
     }
-    (_itemsCache=_itemsCache||[]).push({row:res.row||0,id:res.id||'',name,type1,type2,type3,amount,description,infoLink,dateStamp:new Date().toISOString()});
+    (_itemsCache=_itemsCache||[]).push({row:res.row||0,id:res.id||'',name,type1,type2,type3,amount,description,info1,info2,info3,infoLink,img1:'',img2:'',dateStamp:new Date().toISOString()});
     [['type1',type1],['type2',type2],['type3',type3]].forEach(([k,v])=>{if(v&&(_itemOpts[k]||(_itemOpts[k]=[])).indexOf(v)===-1)_itemOpts[k].push(v);});
     _itemOpts.type1.sort();_itemOpts.type2.sort();_itemOpts.type3.sort();
     _prices_invalidateIfNeeded(type3);
     nameEl.value='';if(amtEl)amtEl.value='';if(descEl)descEl.value='';
     document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
-    _mountInfoField('itNew','');
+    _mountInfoSlots('itNew',{});
     _fillItemFilterSelects();
     statusEl.style.color='var(--sage)';statusEl.textContent='Added!';
     renderDataItems();
@@ -16655,14 +16768,15 @@ async function toggleEditItem(rid){
       <input id="${pfx}Amount" class="settings-input" style="flex:1;min-width:100px;margin:0" type="number" step="0.01" inputmode="decimal" placeholder="Amount" value="${ea(it.amount===null||it.amount===undefined?'':it.amount)}">
     </div>
     ${_itemTypeSelectHtml(1,pfx,it.type1)}${_itemTypeSelectHtml(2,pfx,it.type2)}${_itemTypeSelectHtml(3,pfx,it.type3)}
-    <div id="${pfx}InfoWrap"></div>
+    ${_infoWrapsHtml(pfx)}
+    <div style="display:flex;gap:10px;flex-wrap:wrap">${_itemImgSlotHtml(rid,pfx,1,it.img1)}${_itemImgSlotHtml(rid,pfx,2,it.img2)}</div>
     <textarea id="${pfx}Desc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description">${escHtml(it.description||'')}</textarea>
     <div style="display:flex;gap:8px">
       <button type="button" class="settings-btn" style="flex:1" onclick="saveEditItem('${ea(rid)}','${pfx}')">Save</button>
       <button type="button" class="settings-btn" style="flex:1;background:var(--mist);color:var(--stone)" onclick="toggleEditItem('${ea(rid)}')">Cancel</button>
     </div>
     <div id="${pfx}Status" style="font-size:13px;min-height:16px"></div></div>`;
-  _mountInfoField(pfx,it.infoLink||'');
+  _mountInfoSlots(pfx,{A:_itemInfoUrls(it)[0],B:_itemInfoUrls(it)[1],C:_itemInfoUrls(it)[2]});
 }
 async function saveEditItem(rid,pfx){
   const it=_itemByRid(rid);if(!it)return;
@@ -16672,12 +16786,12 @@ async function saveEditItem(rid,pfx){
   const av=document.getElementById(pfx+'Amount').value;
   const amount=av!==''?parseFloat(av):'';
   const description=(document.getElementById(pfx+'Desc').value||'').trim();
-  const type1=_itemTypeValue(pfx,1),type2=_itemTypeValue(pfx,2),type3=_itemTypeValue(pfx,3),infoLink=_infoFieldValue(pfx);
+  const type1=_itemTypeValue(pfx,1),type2=_itemTypeValue(pfx,2),type3=_itemTypeValue(pfx,3),[info1,info2,info3]=_infoSlotValues(pfx),infoLink=info1;
   if(st){st.style.color='var(--sage)';st.textContent='Saving…';}
   try{
-    const res=await gasPost({action:'updateItem',id:it.id,row:it.row,name,amount,description,type1,type2,type3,infoLink,actor:SESSION?SESSION.email:''});
+    const res=await gasPost({action:'updateItem',id:it.id,row:it.row,name,amount,description,type1,type2,type3,info1,info2,info3,infoLink,actor:SESSION?SESSION.email:''});
     if(!res||!res.ok){if(st){st.style.color='var(--danger)';st.textContent=(res&&res.error)||'Could not save.';}return;}
-    Object.assign(it,{name,amount,description,type1,type2,type3,infoLink,dateStamp:new Date().toISOString()});
+    Object.assign(it,{name,amount,description,type1,type2,type3,info1,info2,info3,infoLink,dateStamp:new Date().toISOString()});
     [['type1',type1],['type2',type2],['type3',type3]].forEach(([k,v])=>{if(v&&(_itemOpts[k]||(_itemOpts[k]=[])).indexOf(v)===-1)_itemOpts[k].push(v);});
     _prices_invalidateIfNeeded(type3);
     _fillItemFilterSelects();
@@ -16706,9 +16820,9 @@ function _docsHydrate(){
 }
 function _infoIdFromUrl(u){const m=String(u||'').match(/[-\w]{25,}/);return m?m[0]:'';}
 function _infoFileByUrl(u){const id=_infoIdFromUrl(u);return id?(_infoFilesCache||[]).find(f=>f.id===id):null;}
-function _infoFieldHtml(pfx){
+function _infoFieldHtml(pfx,label){
   const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)';
-  return `<div style="display:flex;flex-direction:column;gap:6px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Information file</label>
+  return `<div style="display:flex;flex-direction:column;gap:6px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">${escHtml(label||'Information file')}</label>
     <select id="${pfx}InfoSel" class="settings-input" style="margin:0" onchange="onInfoSelChange('${pfx}')"><option value="">(none)</option></select>
     <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--stone)"><input type="checkbox" id="${pfx}InfoPub" onchange="onInfoPublicToggle('${pfx}')"> Public (anyone with the link can view)</label>
     <label id="${pfx}InfoDynRow" style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--stone)"><input type="checkbox" id="${pfx}InfoDyn" onchange="onInfoDynamicToggle('${pfx}')"> ⚡ Dynamic — live values from the app <button type="button" style="${bs};margin-left:auto" onclick="event.preventDefault();showTokenHelp()">🧩 Tokens</button></label>
@@ -16724,9 +16838,9 @@ function _infoFieldHtml(pfx){
     <input type="file" id="${pfx}InfoRep" style="display:none" onchange="uploadInfoFromInput('${pfx}','replace',this)">
     <div id="${pfx}InfoStatus" style="font-size:13px;min-height:16px"></div></div>`;
 }
-async function _mountInfoField(pfx,url){
+async function _mountInfoField(pfx,url,label){
   const wrap=document.getElementById(pfx+'InfoWrap');if(!wrap)return;
-  wrap.innerHTML=_infoFieldHtml(pfx);
+  wrap.innerHTML=_infoFieldHtml(pfx,label);
   _fillInfoSelect(pfx,url);
   await _loadInfoFiles();
   _fillInfoSelect(pfx,_infoFieldValue(pfx)||url);
@@ -16837,7 +16951,7 @@ async function uploadInfoFromInput(pfx,mode,input){
     if(!res||!res.ok){_infoStatus(pfx,(res&&res.error)||'Upload failed.',true);return;}
     await _loadInfoFiles(true);
     if(mode==='replace'){
-      (_itemsCache||[]).forEach(i=>{if(_infoIdFromUrl(i.infoLink)===curFile.id)i.infoLink=res.file.url;});
+      (_itemsCache||[]).forEach(i=>{['info1','info2','info3'].forEach(k=>{if(i[k]&&_infoIdFromUrl(i[k])===curFile.id)i[k]=res.file.url;});i.infoLink=i.info1;});
       renderDataItems();
     }
     _fillInfoSelect(pfx,res.file.url);
@@ -16887,7 +17001,7 @@ function setDocKind(v){docKind=v;closeDD('docDD');_paintDocs();}
 function setDocView(v){docView=v;closeDD('docDD');_paintDocs();}
 function _docViewUrl(f){return f.isDoc?'https://docs.google.com/document/d/'+f.id+'/preview':f.url;}
 function _docUsedBy(f){
-  return (_itemsCache||[]).filter(i=>i.infoLink&&(_infoIdFromUrl(i.infoLink)===f.id||_infoIdFromUrl(i.infoLink)===f.templateId));
+  return (_itemsCache||[]).filter(i=>_itemInfoUrls(i).some(u=>{const id=_infoIdFromUrl(u);return id&&(id===f.id||id===f.templateId);}));
 }
 function _docRowHtml(f){
   const t=ea(f.templateId),icon=f.dynamic?'⚡':'📄';
@@ -17048,7 +17162,7 @@ async function docDelete(t){
     const res=await gasPost({action:'deleteInfoFile',fileId:f.templateId,actor:SESSION?SESSION.email:''});
     if(!res||!res.ok)throw new Error((res&&res.error)||'Could not delete');
     _infoFilesCache=(_infoFilesCache||[]).filter(x=>x.templateId!==t);_docsPersist();
-    (_itemsCache||[]).forEach(i=>{const id=_infoIdFromUrl(i.infoLink);if(id&&(id===f.id||id===f.templateId))i.infoLink='';});
+    (_itemsCache||[]).forEach(i=>{['info1','info2','info3'].forEach(k=>{const id=_infoIdFromUrl(i[k]);if(id&&(id===f.id||id===f.templateId))i[k]='';});i.infoLink=i.info1||'';});
     _hideLoadOv();_paintDocs();showToast('Deleted');
   }catch(e){_hideLoadOv();_docMsg(t,e.message,true);}
 }
