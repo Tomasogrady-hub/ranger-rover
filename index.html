@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.86 -->
+<!-- v11.87 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -642,7 +642,27 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .empty h3{font-family:var(--font-d);font-size:28px;font-weight:400;font-style:italic;color:var(--stone);margin-bottom:6px}
 .empty p{font-size:17px;color:var(--silver);line-height:1.5}
 .spinner{position:relative;width:46px;height:46px;border:none;border-radius:0;animation:none;margin:52px auto 44px}
-.spinner::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><g stroke='%231d1d1d' stroke-width='1.6' stroke-linecap='round' fill='none'><path d='M8 14L3 12M8 19L2.5 19M9 25L4 28M24 14L29 12M24 19L29.5 19M23 25L28 28'/><path d='M14 5.5Q12.5 2.5 10 2M18 5.5Q19.5 2.5 22 2'/></g><ellipse cx='16' cy='19' rx='10' ry='11.5' fill='%23e0301e'/><circle cx='16' cy='8' r='4.3' fill='%231d1d1d'/><path d='M16 8.5V30' stroke='%231d1d1d' stroke-width='1.3'/><g fill='%231d1d1d'><circle cx='11' cy='15' r='2.2'/><circle cx='21' cy='15' r='2.2'/><circle cx='10.5' cy='22' r='2'/><circle cx='21.5' cy='22' r='2'/><circle cx='12.5' cy='27' r='1.3'/><circle cx='19.5' cy='27' r='1.3'/></g></svg>") center/contain no-repeat;animation:spin 1.1s linear infinite}
+.spinner::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><g stroke='%231d1d1d' stroke-width='1.6' stroke-linecap='round' fill='none'><path d='M8 14L3 12M8 19L2.5 19M9 25L4 28M24 14L29 12M24 19L29.5 19M23 25L28 28'/><path d='M14 5.5Q12.5 2.5 10 2M18 5.5Q19.5 2.5 22 2'/></g><ellipse cx='16' cy='19' rx='10' ry='11.5' fill='%23e0301e'/><circle cx='16' cy='8' r='4.3' fill='%231d1d1d'/><path d='M16 8.5V30' stroke='%231d1d1d' stroke-width='1.3'/><g fill='%231d1d1d'><circle cx='11' cy='15' r='2.2'/><circle cx='21' cy='15' r='2.2'/><circle cx='10.5' cy='22' r='2'/><circle cx='21.5' cy='22' r='2'/><circle cx='12.5' cy='27' r='1.3'/><circle cx='19.5' cy='27' r='1.3'/></g></svg>") center/contain no-repeat;animation:lbWalk 9s ease-in-out infinite,lbBob .28s ease-in-out infinite alternate}
+.spinner::before{will-change:transform}
+@keyframes lbBob{from{scale:1}to{scale:1.07}}
+@keyframes lbWalk{
+  0%{transform:translate(0,0) rotate(0deg)}
+  8%{transform:translate(0,-10px) rotate(0deg)}
+  13%{transform:translate(0,-10px) rotate(-35deg)}
+  18%{transform:translate(0,-10px) rotate(32deg)}
+  24%{transform:translate(0,-10px) rotate(78deg)}
+  38%{transform:translate(24px,-4px) rotate(84deg)}
+  43%{transform:translate(24px,-4px) rotate(130deg)}
+  48%{transform:translate(24px,-4px) rotate(100deg)}
+  58%{transform:translate(10px,14px) rotate(168deg)}
+  63%{transform:translate(10px,14px) rotate(205deg)}
+  68%{transform:translate(10px,14px) rotate(175deg)}
+  82%{transform:translate(-20px,6px) rotate(262deg)}
+  87%{transform:translate(-20px,6px) rotate(300deg)}
+  92%{transform:translate(-20px,6px) rotate(335deg)}
+  100%{transform:translate(0,0) rotate(360deg)}
+}
+@media (prefers-reduced-motion:reduce){.spinner::before{animation:lbBob .8s ease-in-out infinite alternate}}
 .spinner::after{content:'Fetching… going as fast as I can';position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:8px;font-size:13px;color:var(--silver);white-space:nowrap}
 .mini-spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -2575,10 +2595,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.86';
+const APP_VERSION='v11.87';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 11:45 PT - Summary now reads and saves the Summary for all levels column, Ranger Day of Week on the regular edit card, plain-English filter sentence under every filter bar.';
+const BUILD_STAMP='2026-11-15 12:10 PT - Wandering ladybug loader, Summary on Summary view cards, Bulk Data Schools shows any error on screen instead of spinning.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6147,6 +6167,10 @@ function _dataSchoolSortCompare(a,b,sortKey){
 }
 
 function renderDataSchools(){
+  try{_renderDataSchoolsInner();}
+  catch(e){console.error('renderDataSchools',e);const l=document.getElementById('dataSchoolsList');if(l)l.innerHTML=empty('⚠','Could not draw this list',escHtml((e&&e.message)||String(e)));}
+}
+function _renderDataSchoolsInner(){
   _fillDataSchoolDynamicFilters();
   _updateDsDDLabels();
   const sites=_dataSchoolsFiltered().slice().sort((a,b)=>_dataSchoolSortCompare(a,b,dsSortMode));
@@ -6436,6 +6460,7 @@ function _schoolSummaryCardHtml(s){
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       ${type?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}</div>`:''}
+      ${_summaryLineHtml(s)}
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${canLink?`<button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button>`:`<span style="font-size:15px">${escHtml(r1n)}</span>`}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${day?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(day)}</span>`:''}
