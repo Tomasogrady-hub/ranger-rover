@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.90 -->
+<!-- v11.91 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2433,10 +2433,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.90';
+const APP_VERSION='v11.91';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 13:25 PT - Schools tab: Garden Keeper Placement filter.';
+const BUILD_STAMP='2026-11-15 13:50 PT - Bulk Data Schools: Select all now selects every filtered school, 3 saves at a time with retry, failures reported.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5839,24 +5839,27 @@ function toggleDataSchoolSelect(key,checked){
   if(checked)_dataSchoolsSelected.add(key);else _dataSchoolsSelected.delete(key);
   _updateDataSchoolsSelCount();
 }
+// Select all = EVERY school matching the current filters, not just the cards drawn so far (the list loads as you scroll).
 function toggleDataSchoolsSelectAll(checked){
-  document.querySelectorAll('#dataSchoolsList [data-sitekey]').forEach(row=>{
-    const key=row.dataset.sitekey;
-    const cb=row.querySelector('input[type=checkbox]');
-    if(cb)cb.checked=checked;
-    if(checked)_dataSchoolsSelected.add(key);else _dataSchoolsSelected.delete(key);
-  });
+  _dataSchoolsFiltered().forEach(x=>{const key=sf(x,'Key','key');if(!key)return;if(checked)_dataSchoolsSelected.add(key);else _dataSchoolsSelected.delete(key);});
+  document.querySelectorAll('#dataSchoolsList [data-sitekey] input[type=checkbox]').forEach(cb=>{cb.checked=checked;});
   _updateDataSchoolsSelCount();
+}
+// Selected keys that are still inside the current filter (a filter change never leaves hidden schools selected).
+function _dsSelectedKeys(){
+  const vis=new Set(_dataSchoolsFiltered().map(x=>sf(x,'Key','key')));
+  return Array.from(_dataSchoolsSelected).filter(k=>vis.has(k));
 }
 function _updateDataSchoolsSelCount(){
   const c=document.getElementById('dataSchoolsSelCount');
-  if(c)c.textContent=_dataSchoolsSelected.size+' selected';
+  const selN=_dsSelectedKeys().length;
+  if(c)c.textContent=selN+' selected';
   const all=document.getElementById('dataSchoolsSelectAll');
   if(all){
-    const rows=document.querySelectorAll('#dataSchoolsList [data-sitekey]').length;
-    all.checked = rows>0 && _dataSchoolsSelected.size>=rows;
+    const tot=_dataSchoolsFiltered().length;
+    all.checked = tot>0 && selN>=tot;
   }
-  const hasSel=_dataSchoolsSelected.size>0;
+  const hasSel=selN>0;
   const applyBtn=document.getElementById('dataSchoolsApplyBtn');
   const bulkSel=document.getElementById('dataSchoolsBulkValue');
   if(applyBtn){applyBtn.disabled=!hasSel;applyBtn.style.opacity=hasSel?'1':'.45';applyBtn.style.cursor=hasSel?'pointer':'not-allowed';}
@@ -5866,28 +5869,38 @@ function _updateDataSchoolsSelCount(){
 // generic saveToSheet('Sites', key, updates) path the main Schools edit form
 // uses, keyed by the site's Key column (col A), one row per selected school.
 async function applyDataSchoolsBulkField(){
-  if(!_dataSchoolsSelected.size)return; // button is disabled in this state, but guard anyway
+  const keys=_dsSelectedKeys();
+  if(!keys.length)return; // button is disabled in this state, but guard anyway
   const mode=_dataSchoolsAdjustMode;
   const meta=DATA_SCHOOLS_ADJUST_FIELDS[mode]||DATA_SCHOOLS_ADJUST_FIELDS.program;
   const valSel=document.getElementById('dataSchoolsBulkValue');
   const rawVal=valSel?valSel.value:'';
   const valLabel=valSel&&Array.from(valSel.options).find(o=>o.value===rawVal)?.textContent||'None';
+  if(keys.length>5&&!confirm('Set '+meta.label+' to "'+valLabel+'" on '+keys.length+' schools?'))return;
   const statusEl=document.getElementById('dataSchoolsBulkStatus');
-  const keys=Array.from(_dataSchoolsSelected);
+  const btn=document.getElementById('dataSchoolsApplyBtn');if(btn)btn.disabled=true;
   if(statusEl)statusEl.textContent='Updating… (0/'+keys.length+')';
-  let done=0;
-  for(const key of keys){
+  let done=0,failed=[];
+  const one=async key=>{
     const updates={[meta.sheetField]:rawVal};
     if(meta.companionField)updates[meta.companionField]=rawVal?hn(rawVal):'';
-    try{
-      await saveToSheet('Sites',key,updates);
-    }catch(e){/* keep going — report final count below */}
+    let err=null;
+    for(let t=0;t<3;t++){ // retry twice: a busy script sometimes drops one call
+      try{await saveToSheet('Sites',key,updates);err=null;break;}catch(e){err=e;await new Promise(r=>setTimeout(r,500*(t+1)));}
+    }
+    if(err)failed.push(key);
     done++;
     if(statusEl)statusEl.textContent='Updating… ('+done+'/'+keys.length+')';
+  };
+  const queue=keys.slice();
+  await Promise.all([0,1,2].map(async()=>{while(queue.length){await one(queue.shift());}}));
+  const okN=keys.length-failed.length;
+  keys.forEach(k=>{if(failed.indexOf(k)<0)_dataSchoolsSelected.delete(k);});
+  if(statusEl){
+    statusEl.textContent=failed.length?('⚠ '+okN+' updated, '+failed.length+' FAILED and are still selected. Tap Apply to retry them.'):('✅ '+meta.label+' updated: '+okN+' school'+(okN>1?'s':'')+' set to '+valLabel);
+    if(!failed.length)setTimeout(()=>{statusEl.textContent='';},4500);
   }
-  if(statusEl)statusEl.textContent='✅ '+meta.label+' updated — '+keys.length+' school'+(keys.length>1?'s':'')+' set to '+valLabel;
-  setTimeout(()=>{if(statusEl)statusEl.textContent='';},3500);
-  renderDataSchools();
+  renderDataSchools();_updateDataSchoolsSelCount();
 }
 
 // Pictures: photo grid + name only, hotlinked to the site's detail card —
