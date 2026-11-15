@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.92 -->
+<!-- v11.93 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2433,10 +2433,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.92';
+const APP_VERSION='v11.93';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 14:20 PT - Level 3 Schools tab: Future Schools section under Available Schools.';
+const BUILD_STAMP='2026-11-15 14:45 PT - Other Notes on regular school card, regular edit card and Summary view (Levels 1-2).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6315,6 +6315,11 @@ function _schoolSimpleCardHtml(s){
 }
 // Summary: name + program + assigned ranger + day + PO status — the lighter
 // alternative to the full field card below (mirrors Data > Schools Summary).
+function _otherNotesLineHtml(s){
+  if(!(SESSION&&SESSION.accessLevel<=2))return '';
+  const t=String(sf(s,'Other Notes')||'').trim();if(!t)return '';
+  return `<div style="font-size:13px;color:var(--stone);line-height:1.45;margin-top:4px"><b>Other Notes:</b> ${escHtml(t.length>220?t.slice(0,220)+'…':t)}</div>`;
+}
 function _schoolSummaryCardHtml(s){
   const name=sf(s,'Name','name');
   const siteKey=sf(s,'Key','key')||'';
@@ -6329,6 +6334,7 @@ function _schoolSummaryCardHtml(s){
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       ${type?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}</div>`:''}
       ${_summaryLineHtml(s)}
+      ${_otherNotesLineHtml(s)}
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${canLink?`<button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button>`:`<span style="font-size:15px">${escHtml(r1n)}</span>`}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${day?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(day)}</span>`:''}
@@ -8334,6 +8340,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       </div>`:''}
       ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Summary (visible to ALL levels)</div><textarea class="edit-textarea" id="ef-Summary" maxlength="400" rows="4" placeholder="One or two sentences: availability, best times, anything unique about this school." oninput="document.getElementById('ef-SummaryCt').textContent=this.value.length+' / 400'">${escHtml(_siteSummary(site))}</textarea><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--silver);margin-top:3px"><span>Keep it to about 3 sentences. Everyone in the app can read this, so nothing sensitive.</span><span id="ef-SummaryCt">${_siteSummary(site).length} / 400</span></div></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
+      ${(!opsMode&&SESSION&&SESSION.accessLevel<=2)?`<div class="edit-wrap"><div class="edit-label">Other Notes</div><textarea class="edit-textarea" id="ef-OtherNotes">${ea(sf(site,'Other Notes')||'')}</textarea></div>`:''}
       ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Potential Ranger Vacancy</div><select class="edit-input" id="ef-PotentialRangerVacancy"><option value="No" ${_siteVacancy(site)?'':'selected'}>No</option><option value="Yes" ${_siteVacancy(site)?'selected':''}>Yes</option></select><div style="font-size:12px;color:var(--silver);margin-top:3px">Yes = this school will need a replacement Ranger soon. It then shows as Available to Rangers.</div></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Program Details</div><textarea class="edit-textarea" id="ef-ProgramDetails" placeholder="Details about the program at this school">${ea(progDetails)}</textarea></div>
       ${_siteScheduleUploadRow(site)}
@@ -8518,6 +8525,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
       ${otherContacts.map(t=>crow('Other Contact',t)).join('')}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
+      ${(SESSION&&SESSION.accessLevel<=2&&String(sf(site,'Other Notes')||'').trim())?`<div class="ds"><div class="dl">Other Notes</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65;white-space:pre-wrap">${escHtml(String(sf(site,'Other Notes')).trim())}</div></div>`:''}
       ${progDetails.trim()?`<div class="ds"><div class="dl">Program Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65;white-space:pre-wrap">${escHtml(progDetails)}</div></div>`:''}
       ${openChores.length>0?`<div class="ds"><div class="dl">Open Chores (${openChores.length})</div>${openChores.map(c=>choreCardHtml(c,false)).join('')}</div>`:''}
       <div class="detail-ctas"><a class="dcta filled" href="${maps}" target="_blank">↗ Directions</a>${_askAboutSchoolCta(name)}${_schoolReachCta(site)}</div>
