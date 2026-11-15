@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.81 | 2026-11-14 | Threads delete + importance; Items info files 1-3, Image 1-2 upload; Information Files sheet sync';
+const GAS_BUILD = 'v11.82 | 2026-11-14 | Projects (Project Rover sheet) and Roles admin handlers';
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -87,6 +87,7 @@ const CHORES_IMG_FOLDER = '1f_B10hFEsPg5WUHwpcbS86lq2EcPu_si';
 const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
 const ITEM_IMG_FOLDER   = '1cbPd2FInZJvZY2pDiWBmwDRd4u_H-PlB'; // "Item Image Files" - Items All Image 1 / Image 2
 const INFO_SHEET_ID     = '14Z6I1lPXGlI83NKo1ko7KX1S8GqxDCajv6EbQTyS690'; // "Information Files" tracking sheet (ID, Name, Description, Type)
+const PROJECTS_ID       = '1i0cUEIzd8M_5LXSvc8NgDcUeGPYEuCJYRCSOqhNjYcg'; // Project Rover sheet, tab "Projects"
 const INFO_FILES_FOLDER = '1x8zbWU-t4KJHtNuoj5VqpBtvcJRdMHDI'; // Items All > "Link to information file"
 // Inside it: "Static Documents" and "Dynamic Documents", each with a "Templates" subfolder
 // (templates are for copying and are never listed in the app). The folder a doc sits in
@@ -500,7 +501,7 @@ var LIVE_FILES = [
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
 var LIVE_ACTION_SCOPES = {
-  addHuman: ['humans'], addRole: ['humans'], deleteHuman: ['humans', 'sites'], savePosition: ['humans'],
+  addHuman: ['humans'], addRole: ['humans'], saveRoleRow: ['humans'], addRoleRow: ['humans'], deleteRoleRow: ['humans'], deleteHuman: ['humans', 'sites'], savePosition: ['humans'],
   uploadHumanImage: ['humans'], uploadHumanDoc: ['humans'], removeHumanFile: ['humans'],
   saveComments: ['humans'], publicSmsOptIn: ['humans'], publicApply: ['humans'],
   cascadeEmail: ['humans', 'sites', 'chores'], clearRangerFromSites: ['sites'],
@@ -792,6 +793,14 @@ function _doPostRoute(e) {
       case 'addThread':     return respond(handleAddThread(p));
       case 'updateThread':  return respond(handleUpdateThread(p));
       case 'deleteThread':  return respond(handleDeleteThread(p));
+      case 'getProjects':   return respond(handleGetProjects());
+      case 'addProject':    return respond(handleAddProject(p));
+      case 'updateProject': return respond(handleUpdateProject(p));
+      case 'deleteProject': return respond(handleDeleteProject(p));
+      case 'getRolesAdmin': return respond(handleGetRolesAdmin());
+      case 'saveRoleRow':   return respond(handleSaveRoleRow(p));
+      case 'addRoleRow':    return respond(handleAddRoleRow(p));
+      case 'deleteRoleRow': return respond(handleDeleteRoleRow(p));
       case 'getDocText':    return respond(handleGetDocText(p));
       case 'getItems':      return respond(handleGetItems());
       case 'addItem':       return respond(handleAddItem(p));
@@ -3678,6 +3687,179 @@ function handleDeleteThread(p) {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+// ── PROJECTS (Project Rover sheet > Projects tab → Projects tab in the app) ──────────────
+// Header-driven: ID | Name | Description | Status | Importance | Owner | Start Date | Due Date | Notes | Date added or last edited | Added by
+// Levels 1-2 only. Delete removes the row.
+function _projSheet() {
+  var ss = SpreadsheetApp.openById(PROJECTS_ID);
+  return ss.getSheetByName('Projects') || ss.getSheets()[0];
+}
+function _projCols(headers) {
+  var h = headers.map(function(v) { return String(v).trim().toLowerCase(); });
+  function ix(n) { return h.indexOf(n); }
+  return { id: ix('id'), name: ix('name'), description: ix('description'), status: ix('status'), importance: ix('importance'),
+    owner: ix('owner'), start: ix('start date'), due: ix('due date'), notes: ix('notes'), stamp: ix('date added or last edited'), by: ix('added by') };
+}
+function _projVal(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyy-MM-dd');
+  return String(v === null || v === undefined ? '' : v).trim();
+}
+function _projSafe(v) { v = String(v === null || v === undefined ? '' : v).trim(); return /^[=+\-@]/.test(v) ? "'" + v : v; }
+function _projLevelOk(p) { return Number(p.level) >= 1 && Number(p.level) <= 2; }
+function handleGetProjects() {
+  try {
+    var sh = _projSheet(), data = sh.getDataRange().getValues();
+    if (!data.length) return { ok: true, projects: [] };
+    var c = _projCols(data[0]), out = [];
+    function g(r, i) { return i > -1 ? _projVal(data[r][i]) : ''; }
+    for (var r = 1; r < data.length; r++) {
+      var name = g(r, c.name);
+      if (!name) continue;
+      var imp = Number(g(r, c.importance));
+      out.push({ id: g(r, c.id), name: name, description: g(r, c.description), status: g(r, c.status),
+        importance: imp >= 1 && imp <= 10 ? imp : 0, owner: g(r, c.owner), start: g(r, c.start), due: g(r, c.due),
+        notes: g(r, c.notes), stamp: c.stamp > -1 ? (data[r][c.stamp] instanceof Date ? data[r][c.stamp].toISOString() : g(r, c.stamp)) : '', by: g(r, c.by) });
+    }
+    return { ok: true, projects: out };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function _projWrite(sh, row, c, p, isNew) {
+  function put(i, v) { if (i > -1) sh.getRange(row, i + 1).setValue(v); }
+  if (p.name !== undefined) put(c.name, _projSafe(String(p.name).substring(0, 200)));
+  if (p.description !== undefined) put(c.description, _projSafe(String(p.description).substring(0, 2000)));
+  if (p.status !== undefined) put(c.status, _projSafe(String(p.status).substring(0, 60)));
+  if (p.importance !== undefined) { var iv = Number(p.importance); put(c.importance, iv >= 1 && iv <= 10 ? iv : ''); }
+  if (p.owner !== undefined) put(c.owner, _projSafe(String(p.owner).substring(0, 120)));
+  if (p.start !== undefined) put(c.start, String(p.start).trim());
+  if (p.due !== undefined) put(c.due, String(p.due).trim());
+  if (p.notes !== undefined) put(c.notes, _projSafe(String(p.notes).substring(0, 5000)));
+  put(c.stamp, new Date());
+}
+function handleAddProject(p) {
+  if (!_projLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var name = String(p.name || '').trim();
+  if (!name) return { ok: false, error: 'Name is required.' };
+  var lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    var sh = _projSheet(), headers = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0], c = _projCols(headers);
+    var id = _newItemsAllId(), row = sh.getLastRow() + 1;
+    if (c.id > -1) sh.getRange(row, c.id + 1).setValue(id);
+    if (c.by > -1) sh.getRange(row, c.by + 1).setValue(String(p.actor || ''));
+    _projWrite(sh, row, c, p, true);
+    logActivity(p.actor || '', 'added project', name, 'project', '');
+    return { ok: true, id: id };
+  } finally { lock.releaseLock(); }
+}
+function _projFindRow(sh, c, id) {
+  var data = sh.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) { if (c.id > -1 && String(data[r][c.id]).trim() === id) return r + 1; }
+  return -1;
+}
+function handleUpdateProject(p) {
+  if (!_projLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var id = String(p.id || '').trim();
+  if (!id) return { ok: false, error: 'Missing project.' };
+  if (p.name !== undefined && !String(p.name).trim()) return { ok: false, error: 'Name is required.' };
+  var lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    var sh = _projSheet(), headers = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0], c = _projCols(headers);
+    var row = _projFindRow(sh, c, id);
+    if (row < 0) return { ok: false, error: 'Project not found (it may have been removed).' };
+    _projWrite(sh, row, c, p, false);
+    logActivity(p.actor || '', 'edited project', String(p.name || id), 'project', '');
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+function handleDeleteProject(p) {
+  if (!_projLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var id = String(p.id || '').trim();
+  if (!id) return { ok: false, error: 'Missing project.' };
+  var lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    var sh = _projSheet(), headers = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0], c = _projCols(headers);
+    var row = _projFindRow(sh, c, id);
+    if (row < 0) return { ok: false, error: 'Project not found (it may have been removed).' };
+    var nm = c.name > -1 ? String(sh.getRange(row, c.name + 1).getValue()) : id;
+    sh.deleteRow(row);
+    logActivity(p.actor || '', 'deleted project', nm, 'project', '');
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
+// ── ROLES admin (Humans sheet > Roles tab → Bulk Data > Roles) ───────────────────────────
+// Header-driven, so every column on the Roles tab is shown and editable except "Role" (the name people are
+// assigned, so it is fixed after creation) and "Key". Levels 1-2 only.
+function _rolesSheet() { return SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Roles'); }
+function handleGetRolesAdmin() {
+  try {
+    var sh = _rolesSheet();
+    if (!sh) return { ok: false, error: '"Roles" tab not found.' };
+    var data = sh.getDataRange().getValues(), headers = data[0].map(function(v) { return String(v).trim(); });
+    var ri = headers.indexOf('Role'); if (ri < 0) ri = 0;
+    var rows = [];
+    for (var r = 1; r < data.length; r++) {
+      if (!String(data[r][ri] || '').trim()) continue;
+      rows.push({ row: r + 1, v: headers.map(function(h, i) { return String(data[r][i] === null || data[r][i] === undefined ? '' : data[r][i]).trim(); }) });
+    }
+    return { ok: true, headers: headers, rows: rows };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function _rolesWriteCells(sh, row, headers, values) {
+  headers.forEach(function(h, i) {
+    if (h === 'Role' || h === 'Key' || values[h] === undefined) return;
+    sh.getRange(row, i + 1).setValue(_projSafe(String(values[h]).substring(0, 5000)));
+  });
+}
+function handleSaveRoleRow(p) {
+  if (!_projLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    var sh = _rolesSheet(); if (!sh) return { ok: false, error: '"Roles" tab not found.' };
+    var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function(v) { return String(v).trim(); });
+    var ri = headers.indexOf('Role'); if (ri < 0) ri = 0;
+    var row = Number(p.row);
+    if (!(row > 1) || String(sh.getRange(row, ri + 1).getValue()).trim() !== String(p.role || '').trim()) return { ok: false, error: 'The Roles sheet changed - refresh and try again.' };
+    _rolesWriteCells(sh, row, headers, p.values || {});
+    _bumpDataVer();
+    logActivity(p.actor || '', 'edited role', String(p.role), 'role', '');
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+function handleAddRoleRow(p) {
+  if (!_projLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var name = String(p.role || '').trim();
+  if (!name) return { ok: false, error: 'Role name is required.' };
+  var lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    var sh = _rolesSheet(); if (!sh) return { ok: false, error: '"Roles" tab not found.' };
+    var data = sh.getDataRange().getValues(), headers = data[0].map(function(v) { return String(v).trim(); });
+    var ri = headers.indexOf('Role'); if (ri < 0) ri = 0;
+    for (var r = 1; r < data.length; r++) { if (String(data[r][ri] || '').trim().toLowerCase() === name.toLowerCase()) return { ok: false, error: 'That role already exists.' }; }
+    var row = sh.getLastRow() + 1;
+    sh.getRange(row, ri + 1).setValue(_projSafe(name));
+    _rolesWriteCells(sh, row, headers, p.values || {});
+    _bumpDataVer();
+    logActivity(p.actor || '', 'added role', name, 'role', '');
+    return { ok: true, row: row };
+  } finally { lock.releaseLock(); }
+}
+function handleDeleteRoleRow(p) {
+  if (!_projLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    var sh = _rolesSheet(); if (!sh) return { ok: false, error: '"Roles" tab not found.' };
+    var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function(v) { return String(v).trim(); });
+    var ri = headers.indexOf('Role'); if (ri < 0) ri = 0;
+    var row = Number(p.row);
+    if (!(row > 1) || String(sh.getRange(row, ri + 1).getValue()).trim() !== String(p.role || '').trim()) return { ok: false, error: 'The Roles sheet changed - refresh and try again.' };
+    sh.deleteRow(row);
+    _bumpDataVer();
+    logActivity(p.actor || '', 'deleted role', String(p.role), 'role', '');
+    return { ok: true };
+  } finally { lock.releaseLock(); }
 }
 
 // ── ITEMS (Items All → Data > Items) ─────────────────────────────────────────

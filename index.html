@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.81 -->
+<!-- v11.82 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -113,6 +113,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
 .nav-btn[data-tab="sub"]      {background:#E07A3F;color:#fff}
 .nav-btn[data-tab="threads"]  {background:#C9A227;color:#1e3a1e}
+.nav-btn[data-tab="projects"] {background:#7C9A5E;color:#14281a}
 .rr-load-ov .rr-thread{max-width:320px;font-size:15px;line-height:1.5;color:var(--stone);background:#f4faf6;border:1px solid var(--mist);border-radius:12px;padding:10px 14px;text-align:left}
 .rr-load-ov .rr-thread b{color:var(--ink)}
 .rr-load-ov .rr-thread .rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3B9E8E;margin-bottom:3px}
@@ -1257,6 +1258,28 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   </div>
 
   <!-- THREADS -->
+  <!-- PROJECTS (Project Rover sheet > Projects tab; Levels 1-2) -->
+  <div class="tab-pane" id="tab-projects">
+    <div class="page-header">
+      <span class="page-title">Projects</span>
+      <span class="page-count" id="projectsCount"></span>
+    </div>
+    <div style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
+      <input id="projSearch" type="search" placeholder="Search projects…" autocomplete="off" oninput="renderProjects()"
+        style="flex:1;min-width:0;padding:12px 14px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;color:var(--ink);outline:none">
+      <button type="button" class="settings-btn" style="margin:0;width:auto;padding:12px 16px;white-space:nowrap" onclick="projAddToggle()">＋ Add new</button>
+    </div>
+    <div style="padding:0 16px 10px;display:flex;gap:8px">
+      <select id="projSort" class="settings-input" style="margin:0;flex:1" onchange="renderProjects()">
+        <option value="imp">Sort: Importance (1 first)</option><option value="due">Sort: Due date</option><option value="name">Sort: Name A–Z</option>
+        <option value="status">Sort: Status</option><option value="recent">Sort: Recently edited</option>
+      </select>
+      <select id="projStatusF" class="settings-input" style="margin:0;flex:1" onchange="renderProjects()"><option value="">All statuses</option></select>
+    </div>
+    <div id="projAddBox" style="display:none;padding:0 16px 12px"></div>
+    <div id="projList" style="padding:0 16px 28px"><div class="spinner"></div></div>
+  </div>
+
   <div class="tab-pane" id="tab-threads">
     <div class="page-header">
       <span class="page-title">Threads</span>
@@ -1894,6 +1917,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <button class="reach-menu-btn" onclick="showDataPage('prices')">💲 Prices</button>
         <button class="reach-menu-btn" onclick="showDataPage('items')">📦 Items</button>
         <button class="reach-menu-btn" onclick="showDataPage('documents')">📄 Documents</button>
+        <button class="reach-menu-btn" onclick="showDataPage('roles')">🎭 Roles</button>
       </div>
     </div>
 
@@ -2194,6 +2218,23 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     </div>
 
     <!-- Prices (Items All, Type 3 = "Our Prices") -->
+    <!-- Roles (Humans sheet > Roles tab) -->
+    <div id="data-roles" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Roles</span>
+        <span class="page-count" id="rolesCount"></span>
+      </div>
+      <div style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
+        <input id="roleSearch" type="search" placeholder="Search roles…" autocomplete="off" oninput="renderRoles()" class="settings-input" style="margin:0;flex:1;min-width:0">
+        <button type="button" class="settings-btn" style="margin:0;width:auto;padding:12px 16px;white-space:nowrap" onclick="roleAddToggle()">＋ Add role</button>
+      </div>
+      <div style="padding:0 16px 10px"><select id="roleSort" class="settings-input" style="margin:0;width:100%" onchange="renderRoles()">
+        <option value="name">Sort: Role A–Z</option><option value="name-desc">Sort: Role Z–A</option><option value="cat">Sort: Category</option><option value="people">Sort: Most people</option></select></div>
+      <div id="roleAddBox" style="display:none;padding:0 16px 12px"></div>
+      <div id="rolesList" style="padding:0 16px 28px"><div class="spinner"></div></div>
+    </div>
+
     <!-- Documents -->
     <div id="data-documents" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
@@ -2332,10 +2373,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.81';
+const APP_VERSION='v11.82';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-14 12:00 PT - Threads delete + importance; Items: 3 info files, 2 photos; menu tap resets tab and hides menu.';
+const BUILD_STAMP='2026-11-14 18:40 PT - New Projects tab (Project Rover sheet) and Bulk Data Roles page.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3725,7 +3766,9 @@ function buildNav(lvl){
       r3html += calVisible ? _navBtn('calendar','Calendar') : '';
       const thVisible = _navTabAllowed('threads',lvl);
       r3html += thVisible ? _navBtn('threads','Threads') : '';
-      if(dataVisible || reachVisible || calVisible || thVisible){
+      const pjVisible = _navTabAllowed('projects',lvl);
+      r3html += pjVisible ? _navBtn('projects','Projects') : '';
+      if(dataVisible || reachVisible || calVisible || thVisible || pjVisible){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
@@ -4031,6 +4074,243 @@ async function threadSave(){
     }else showSaveToast((r&&r.error)||'Could not save');
   }catch(e){showSaveToast('Connection error - not saved');}
   if(btn){btn.disabled=false;btn.textContent='Save thread';}
+}
+
+// ═══ PROJECTS (v11.82): Project Rover sheet > Projects tab. Levels 1-2. Sort, filter, add, edit, delete, expand card. ═══
+const PROJ_CK='rr_projects_v1';
+const PROJ_STATUSES=['Idea','Planned','In progress','On hold','Done'];
+let _projects=[];try{_projects=JSON.parse(localStorage.getItem(PROJ_CK)||'[]')||[];}catch(e){_projects=[];}
+let _projLoading=null,_projOpen={};
+function _projCanUse(){return !!(SESSION&&Number(SESSION.accessLevel)<=2);}
+function loadProjects(force){
+  if(!CFG.URL)return Promise.resolve();
+  if(_projLoading)return _projLoading;
+  _projLoading=gasPost({action:'getProjects'}).then(r=>{
+    if(r&&r.ok&&Array.isArray(r.projects)){
+      _projects=r.projects;try{localStorage.setItem(PROJ_CK,JSON.stringify(_projects));}catch(e){}
+    }else if(!_projects.length){const el=document.getElementById('projList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml((r&&r.error)||'Could not load projects.')+'</div>';}
+  }).catch(()=>{}).finally(()=>{_projLoading=null;if(_activeTab==='projects'){_projFillStatusFilter();renderProjects();}});
+  return _projLoading;
+}
+function initProjects(){
+  if(!_projCanUse()){const el=document.getElementById('projList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Projects are for access levels 1-2.</div>';return;}
+  _projFillStatusFilter();renderProjects();loadProjects();
+}
+function _projStatuses(){const set=PROJ_STATUSES.slice();_projects.forEach(p=>{if(p.status&&set.indexOf(p.status)<0)set.push(p.status);});return set;}
+function _projFillStatusFilter(){
+  const el=document.getElementById('projStatusF');if(!el)return;const cur=el.value;
+  el.innerHTML='<option value="">All statuses</option><option value="__open__">Not done</option>'+_projStatuses().map(v=>`<option value="${ea(v)}">${escHtml(v)}</option>`).join('');
+  el.value=cur;
+}
+function _projFmtDate(d){if(!d)return '';const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return escHtml(d);return new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
+function _projOverdue(p){return !!(p.due&&/^\d{4}-\d{2}-\d{2}/.test(p.due)&&p.status!=='Done'&&p.due.slice(0,10)<new Date().toISOString().slice(0,10));}
+function renderProjects(){
+  const el=document.getElementById('projList');if(!el||!_projCanUse())return;
+  const q=((document.getElementById('projSearch')||{}).value||'').trim().toLowerCase();
+  const sort=(document.getElementById('projSort')||{}).value||'imp',sf=(document.getElementById('projStatusF')||{}).value||'';
+  let rows=_projects.filter(p=>(!sf||(sf==='__open__'?p.status!=='Done':p.status===sf))&&(!q||(p.name+' '+p.description+' '+p.owner+' '+p.notes).toLowerCase().indexOf(q)>-1));
+  const nm=(a,b)=>String(a.name).localeCompare(String(b.name));
+  const imp=p=>p.importance||99;
+  const cmp={imp:(a,b)=>(imp(a)-imp(b))||nm(a,b),due:(a,b)=>((a.due||'9999')<(b.due||'9999')?-1:(a.due||'9999')>(b.due||'9999')?1:0)||nm(a,b),name:nm,
+    status:(a,b)=>(_projStatuses().indexOf(a.status)-_projStatuses().indexOf(b.status))||nm(a,b),recent:(a,b)=>(new Date(b.stamp||0)-new Date(a.stamp||0))||nm(a,b)}[sort]||nm;
+  rows.sort(cmp);
+  const cnt=document.getElementById('projectsCount');if(cnt)cnt.textContent=_projects.length?(rows.length===_projects.length?String(rows.length):rows.length+' of '+_projects.length):'';
+  if(!_projects.length){el.innerHTML=_projLoading?'<div class="spinner"></div>':'<div class="sub-meta" style="padding:14px 0;text-align:center">No projects yet. Tap Add new.</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing matches.</div>';return;}
+  el.innerHTML=rows.map(_projCardHtml).join('');
+}
+function _projCardHtml(p){
+  const open=!!_projOpen[p.id],btn='margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)';
+  const imp=p.importance||0;
+  const impBtn=`<button type="button" class="chm-btn ${_impCls(imp)}" title="Importance ${imp||'not set'}" aria-label="Importance" onclick="event.stopPropagation();_projImpMenu('${ea(p.id)}',this)"><span class="chm-num">${imp||'–'}</span><span class="chm-arr">▾</span></button>`;
+  const stat=p.status?`<span class="imp-pill" style="font-size:12px">${escHtml(p.status)}</span>`:'';
+  const due=p.due?`<span style="font-size:12px;color:${_projOverdue(p)?'var(--danger)':'var(--silver)'}">${_projOverdue(p)?'Overdue · ':'Due '}${_projFmtDate(p.due)}</span>`:'';
+  const detail=open?`<div style="margin-top:8px;font-size:14px;line-height:1.5;color:var(--stone)">
+      ${p.description?`<div style="white-space:pre-wrap">${escHtml(p.description)}</div>`:''}
+      ${p.owner?`<div style="margin-top:6px"><b>Owner:</b> ${escHtml(p.owner)}</div>`:''}
+      ${p.start?`<div><b>Start:</b> ${_projFmtDate(p.start)}</div>`:''}
+      ${p.due?`<div><b>Due:</b> ${_projFmtDate(p.due)}</div>`:''}
+      ${p.notes?`<div style="margin-top:6px"><b>Notes:</b><div style="white-space:pre-wrap">${escHtml(p.notes)}</div></div>`:''}
+      <div style="font-size:12px;color:var(--silver);margin-top:8px">ID ${escHtml(p.id)}${p.stamp?' · edited '+escHtml(fmtDate(p.stamp)):''}${p.by?' · by '+escHtml(p.by):''}</div></div>`:'';
+  return `<div class="th-card" id="pjc-${ea(p.id)}"><div style="display:flex;align-items:flex-start;gap:8px">
+      <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink)">${escHtml(p.name)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px">${stat}${due}</div></div>${impBtn}</div>
+    ${detail}
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="${btn}" onclick="projToggle('${ea(p.id)}')">${open?'▴ Collapse':'▾ Expand'}</button><button type="button" class="settings-btn" style="${btn}" onclick="projEdit('${ea(p.id)}')">✏️ Edit</button><button type="button" class="settings-btn" style="${btn};color:var(--danger)" onclick="projDelete('${ea(p.id)}')">🗑 Delete</button></div></div>`;
+}
+function projToggle(id){_projOpen[id]=!_projOpen[id];renderProjects();}
+function _projImpMenu(id,btn){
+  const had=document.getElementById('choreMenuPop');_choreMenuClose();
+  if(had&&had.dataset.id==='pj'+id)return;
+  const p=_projects.find(x=>x.id===id);if(!p)return;const imp=p.importance||0;
+  const m=document.createElement('div');m.id='choreMenuPop';m.className='chm-pop';m.dataset.id='pj'+id;m.addEventListener('click',e=>e.stopPropagation());
+  m.innerHTML=`<div class="chm-imp open" style="display:flex;flex-wrap:wrap;gap:4px;padding:4px">`+[1,2,3,4,5,6,7,8,9,10].map(i=>`<button type="button" class="chm-n ${_impCls(i)}${imp===i?' on':''}" onclick="_choreMenuClose();projSetImp('${ea(id)}',${i})">${i}</button>`).join('')+`<button type="button" class="chm-n imp-0${!imp?' on':''}" onclick="_choreMenuClose();projSetImp('${ea(id)}','')">–</button></div>`;
+  document.body.appendChild(m);
+  const r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+  m.style.left=Math.min(Math.max(8,r.right-w),window.innerWidth-w-8)+'px';
+  let top=r.bottom+4;if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-4);m.style.top=top+'px';
+}
+async function projSetImp(id,v){
+  const p=_projects.find(x=>x.id===id);if(!p)return;
+  const prev=p.importance;p.importance=v===''?0:Number(v);renderProjects();
+  try{
+    const r=await gasPost({action:'updateProject',id,importance:v===''?'':Number(v),level:SESSION.accessLevel,actor:SESSION.email});
+    if(!(r&&r.ok))throw new Error((r&&r.error)||'failed');
+    try{localStorage.setItem(PROJ_CK,JSON.stringify(_projects));}catch(e){}showSaveToast('✓ Importance '+(v||'cleared'));
+  }catch(e){p.importance=prev;renderProjects();showSaveToast('⚠ Could not save importance');}
+}
+function _projFormHtml(pfx,p){
+  p=p||{};
+  const inp='class="edit-input" style="width:100%;margin-bottom:8px"';
+  const sts=_projStatuses();if(p.status&&sts.indexOf(p.status)<0)sts.push(p.status);
+  return `<input id="${pfx}Name" ${inp} maxlength="200" placeholder="Project name" value="${ea(p.name||'')}">
+    <textarea id="${pfx}Desc" ${inp} rows="3" placeholder="Description">${escHtml(p.description||'')}</textarea>
+    <div style="display:flex;gap:8px"><select id="${pfx}Status" ${inp}><option value="">Status…</option>${sts.map(v=>`<option value="${ea(v)}"${v===p.status?' selected':''}>${escHtml(v)}</option>`).join('')}</select>
+    <select id="${pfx}Imp" ${inp} title="Importance (1 = most important)">${_impOpts(p.importance||0)}</select></div>
+    <input id="${pfx}Owner" ${inp} maxlength="120" placeholder="Owner" value="${ea(p.owner||'')}">
+    <div style="display:flex;gap:8px"><label style="flex:1;font-size:12px;color:var(--silver)">Start<input id="${pfx}Start" type="date" ${inp} value="${ea((p.start||'').slice(0,10))}"></label><label style="flex:1;font-size:12px;color:var(--silver)">Due<input id="${pfx}Due" type="date" ${inp} value="${ea((p.due||'').slice(0,10))}"></label></div>
+    <textarea id="${pfx}Notes" ${inp} rows="3" placeholder="Notes">${escHtml(p.notes||'')}</textarea>`;
+}
+function _projFormValues(pfx){
+  const v=id=>((document.getElementById(pfx+id)||{}).value||'').trim();
+  return {name:v('Name'),description:v('Desc'),status:v('Status'),importance:v('Imp')===''?'':Number(v('Imp')),owner:v('Owner'),start:v('Start'),due:v('Due'),notes:v('Notes')};
+}
+function projAddToggle(show){
+  const b=document.getElementById('projAddBox');if(!b)return;
+  const open=(typeof show==='boolean')?show:b.style.display==='none';
+  if(open){b.innerHTML=_projFormHtml('pjN')+`<div style="display:flex;gap:8px"><button type="button" class="settings-btn" style="margin:0" id="projSaveBtn" onclick="projSave()">Save project</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="projAddToggle(false)">Cancel</button></div>`;}
+  b.style.display=open?'block':'none';
+  if(open)setTimeout(()=>{const n=document.getElementById('pjNName');if(n)n.focus();},50);
+}
+async function projSave(){
+  const f=_projFormValues('pjN'),btn=document.getElementById('projSaveBtn');
+  if(!f.name){showSaveToast('Add a project name');return;}
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const r=await gasPost(Object.assign({action:'addProject',level:SESSION.accessLevel,actor:SESSION.email},f));
+    if(r&&r.ok){
+      _projects.push(Object.assign({id:r.id||'',importance:f.importance||0,stamp:new Date().toISOString(),by:SESSION.email},f,{importance:f.importance||0}));
+      try{localStorage.setItem(PROJ_CK,JSON.stringify(_projects));}catch(e){}
+      projAddToggle(false);_projFillStatusFilter();renderProjects();showSaveToast('✓ Project added');return;
+    }
+    showSaveToast((r&&r.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+  if(btn){btn.disabled=false;btn.textContent='Save project';}
+}
+function projEdit(id){
+  const p=_projects.find(x=>x.id===id),card=document.getElementById('pjc-'+id);if(!p||!card)return;
+  card.innerHTML=_projFormHtml('pjE'+id.replace(/\W/g,''),p)+`<div style="display:flex;gap:8px"><button type="button" class="settings-btn" style="margin:0" onclick="projEditSave('${ea(id)}',this)">Save</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="renderProjects()">Cancel</button></div>`;
+}
+async function projEditSave(id,btn){
+  const p=_projects.find(x=>x.id===id);if(!p)return;
+  const f=_projFormValues('pjE'+id.replace(/\W/g,''));
+  if(!f.name){showSaveToast('Add a project name');return;}
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const r=await gasPost(Object.assign({action:'updateProject',id,level:SESSION.accessLevel,actor:SESSION.email},f));
+    if(r&&r.ok){Object.assign(p,f,{importance:f.importance||0,stamp:new Date().toISOString()});try{localStorage.setItem(PROJ_CK,JSON.stringify(_projects));}catch(e){}_projFillStatusFilter();renderProjects();showSaveToast('✓ Project saved');return;}
+    showSaveToast((r&&r.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+  if(btn){btn.disabled=false;btn.textContent='Save';}
+}
+async function projDelete(id){
+  const p=_projects.find(x=>x.id===id);if(!p)return;
+  if(!confirm('Delete project "'+p.name+'"?\n\nThis removes its row from the Projects sheet.'))return;
+  try{
+    const r=await gasPost({action:'deleteProject',id,level:SESSION.accessLevel,actor:SESSION.email});
+    if(r&&r.ok){_projects=_projects.filter(x=>x.id!==id);try{localStorage.setItem(PROJ_CK,JSON.stringify(_projects));}catch(e){}renderProjects();showSaveToast('✓ Project deleted');return;}
+    showSaveToast((r&&r.error)||'Could not delete');
+  }catch(e){showSaveToast('Connection error - not deleted');}
+}
+
+// ═══ ROLES (v11.82): Bulk Data > Roles — every column of the Humans sheet's Roles tab. "Role" (the name) and "Key" are fixed after creation. ═══
+let _rolesAdmin=null,_roleOpen={};
+function _rolePeople(name){const n=String(name||'').trim().toLowerCase();return (DATA.humans||[]).filter(h=>String(h.Role||h.role||'').trim().toLowerCase()===n).length;}
+async function initRoles(force){
+  const el=document.getElementById('rolesList');if(!el)return;
+  if(_rolesAdmin&&!force){renderRoles();return;}
+  el.innerHTML='<div class="spinner"></div>';
+  try{
+    const r=await gasPost({action:'getRolesAdmin'});
+    if(!(r&&r.ok)){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml((r&&r.error)||'Could not load roles.')+'</div>';return;}
+    _rolesAdmin={headers:r.headers,rows:r.rows};renderRoles();
+  }catch(e){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Connection error.</div>';}
+}
+function _roleVal(r,h){const i=_rolesAdmin.headers.indexOf(h);return i>-1?(r.v[i]||''):'';}
+function _roleEditableHeaders(){return _rolesAdmin.headers.filter(h=>h&&h!=='Role'&&h!=='Key');}
+function renderRoles(){
+  const el=document.getElementById('rolesList');if(!el||!_rolesAdmin)return;
+  const q=((document.getElementById('roleSearch')||{}).value||'').trim().toLowerCase(),sort=(document.getElementById('roleSort')||{}).value||'name';
+  let rows=_rolesAdmin.rows.filter(r=>!q||r.v.join(' ').toLowerCase().indexOf(q)>-1);
+  const nm=(a,b)=>_roleVal(a,'Role').localeCompare(_roleVal(b,'Role'));
+  rows.sort({name:nm,'name-desc':(a,b)=>nm(b,a),cat:(a,b)=>_roleVal(a,'Category').localeCompare(_roleVal(b,'Category'))||nm(a,b),people:(a,b)=>(_rolePeople(_roleVal(b,'Role'))-_rolePeople(_roleVal(a,'Role')))||nm(a,b)}[sort]||nm);
+  const cnt=document.getElementById('rolesCount');if(cnt)cnt.textContent=rows.length===_rolesAdmin.rows.length?String(rows.length):rows.length+' of '+_rolesAdmin.rows.length;
+  if(!rows.length){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">No roles match.</div>';return;}
+  el.innerHTML=rows.map(_roleCardHtml).join('');
+}
+function _roleCardHtml(r){
+  const name=_roleVal(r,'Role'),open=!!_roleOpen[r.row],btn='margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)',n=_rolePeople(name);
+  const cat=_roleVal(r,'Category'),desc=_roleVal(r,'Description');
+  const extra=open?_roleEditableHeaders().filter(h=>_roleVal(r,h)).map(h=>`<div style="margin-top:6px"><b>${escHtml(h)}:</b><div style="white-space:pre-wrap">${escHtml(_roleVal(r,h))}</div></div>`).join('')||'<div class="sub-meta" style="margin-top:6px">Nothing else filled in yet.</div>':'';
+  return `<div class="th-card" id="rlc-${r.row}"><div style="display:flex;align-items:flex-start;gap:8px"><div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink)">${escHtml(name)}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${cat?`<span class="imp-pill" style="font-size:12px">${escHtml(cat)}</span>`:''}<span style="font-size:12px;color:var(--silver)">${n} ${n===1?'person':'people'}</span></div></div></div>
+    ${desc&&!open?`<div style="font-size:14px;color:var(--stone);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(desc)}</div>`:''}
+    ${open?`<div style="margin-top:8px;font-size:14px;line-height:1.5;color:var(--stone)">${extra}</div>`:''}
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="${btn}" onclick="roleToggle(${r.row})">${open?'▴ Collapse':'▾ Expand'}</button><button type="button" class="settings-btn" style="${btn}" onclick="roleEdit(${r.row})">✏️ Edit</button><button type="button" class="settings-btn" style="${btn};color:var(--danger)" onclick="roleDelete(${r.row})">🗑 Delete</button></div></div>`;
+}
+function roleToggle(row){_roleOpen[row]=!_roleOpen[row];renderRoles();}
+function _roleFormFields(pfx,r){
+  return _roleEditableHeaders().map((h,i)=>{
+    const v=r?_roleVal(r,h):'',long=/description|requirements/i.test(h);
+    return `<label style="display:block;font-size:12px;color:var(--silver);margin-bottom:2px">${escHtml(h)}</label>`+(long?`<textarea id="${pfx}F${i}" class="edit-input" rows="3" style="width:100%;margin-bottom:8px">${escHtml(v)}</textarea>`:`<input id="${pfx}F${i}" class="edit-input" style="width:100%;margin-bottom:8px" value="${ea(v)}">`);
+  }).join('');
+}
+function _roleFormValues(pfx){const o={};_roleEditableHeaders().forEach((h,i)=>{o[h]=((document.getElementById(pfx+'F'+i)||{}).value||'').trim();});return o;}
+function roleAddToggle(show){
+  const b=document.getElementById('roleAddBox');if(!b||!_rolesAdmin)return;
+  const open=(typeof show==='boolean')?show:b.style.display==='none';
+  if(open)b.innerHTML=`<label style="display:block;font-size:12px;color:var(--silver);margin-bottom:2px">Role name</label><input id="rlNName" class="edit-input" maxlength="120" style="width:100%;margin-bottom:8px">`+_roleFormFields('rlN',null)+`<div style="display:flex;gap:8px"><button type="button" class="settings-btn" style="margin:0" id="roleSaveBtn" onclick="roleSave()">Save role</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="roleAddToggle(false)">Cancel</button></div>`;
+  b.style.display=open?'block':'none';
+}
+function _roleSyncApp(){ // keep the rest of the app's role lists in step
+  if(!_rolesAdmin)return;
+  DATA.roles=_rolesAdmin.rows.map(r=>({name:_roleVal(r,'Role'),description:_roleVal(r,'Description'),category:_roleVal(r,'Category').toLowerCase()}));
+  try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(e){}
+}
+async function roleSave(){
+  const name=((document.getElementById('rlNName')||{}).value||'').trim(),btn=document.getElementById('roleSaveBtn');
+  if(!name){showSaveToast('Add a role name');return;}
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const r=await gasPost({action:'addRoleRow',role:name,values:_roleFormValues('rlN'),level:SESSION.accessLevel,actor:SESSION.email});
+    if(r&&r.ok){roleAddToggle(false);await initRoles(true);_roleSyncApp();showSaveToast('✓ Role added');return;}
+    showSaveToast((r&&r.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+  if(btn){btn.disabled=false;btn.textContent='Save role';}
+}
+function roleEdit(row){
+  const r=_rolesAdmin.rows.find(x=>x.row===row),card=document.getElementById('rlc-'+row);if(!r||!card)return;
+  card.innerHTML=`<div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:8px">${escHtml(_roleVal(r,'Role'))}</div>`+_roleFormFields('rlE'+row,r)+`<div class="sub-meta" style="margin-bottom:8px">The role name is fixed so people already assigned to it keep it.</div><div style="display:flex;gap:8px"><button type="button" class="settings-btn" style="margin:0" onclick="roleEditSave(${row},this)">Save</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="renderRoles()">Cancel</button></div>`;
+}
+async function roleEditSave(row,btn){
+  const r=_rolesAdmin.rows.find(x=>x.row===row);if(!r)return;
+  const vals=_roleFormValues('rlE'+row);
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const res=await gasPost({action:'saveRoleRow',row,role:_roleVal(r,'Role'),values:vals,level:SESSION.accessLevel,actor:SESSION.email});
+    if(res&&res.ok){_rolesAdmin.headers.forEach((h,i)=>{if(vals[h]!==undefined)r.v[i]=vals[h];});_roleSyncApp();renderRoles();showSaveToast('✓ Role saved');return;}
+    showSaveToast((res&&res.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+  if(btn){btn.disabled=false;btn.textContent='Save';}
+}
+async function roleDelete(row){
+  const r=_rolesAdmin.rows.find(x=>x.row===row);if(!r)return;
+  const name=_roleVal(r,'Role'),n=_rolePeople(name);
+  if(!confirm('Delete the role "'+name+'"?'+(n?'\n\n'+n+' '+(n===1?'person has':'people have')+' this role. They keep it, but it will no longer be in the role lists.':'')))return;
+  try{
+    const res=await gasPost({action:'deleteRoleRow',row,role:name,level:SESSION.accessLevel,actor:SESSION.email});
+    if(res&&res.ok){await initRoles(true);_roleSyncApp();showSaveToast('✓ Role deleted');return;}
+    showSaveToast((res&&res.error)||'Could not delete');
+  }catch(e){showSaveToast('Connection error - not deleted');}
 }
 
 // Ladybug loading screen — shown on a cold start (nothing cached yet) until sites, chores and people have all arrived.
@@ -10683,7 +10963,7 @@ function switchTab(tab,initMapFlag=false){
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads')?'none':'block';
+  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads'||tab==='projects')?'none':'block';
   if(tab==='map'||initMapFlag){
     setTimeout(()=>{
       initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();
@@ -10695,6 +10975,7 @@ function switchTab(tab,initMapFlag=false){
   }
   if(tab==='plants')initPlants();
   if(tab==='threads')initThreads();
+  if(tab==='projects')initProjects();
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
@@ -12364,8 +12645,8 @@ function _sanitizeNavVisibility(){
   // Anyone whose per-level array already had 'control' explicitly toggled on/off
   // needs that carried over to 'data' once, so the rename doesn't silently hide
   // the new page for levels that had it customized.
-  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1','calendar_v1','ask_rover_v1','threads_v1'].filter(k=>!v.__migratedKeys.includes(k));
-  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub',calendar_v1:'calendar',ask_rover_v1:'ask_rover',threads_v1:'threads'};
+  const toBackfill=['site_ops_btn_v2','operations','data_v1','sub_v1','calendar_v1','ask_rover_v1','threads_v1','projects_v1'].filter(k=>!v.__migratedKeys.includes(k));
+  const _bfKeyMap={site_ops_btn_v2:'site_ops_btn',data_v1:'data',sub_v1:'sub',calendar_v1:'calendar',ask_rover_v1:'ask_rover',threads_v1:'threads',projects_v1:'projects'};
   if(toBackfill.length){
     Object.keys(v).forEach(k=>{
       if(_metaKeys.includes(k))return;
@@ -16325,6 +16606,7 @@ const NAV_ALL_TABS = [
   {key:'people',   label:'👥 People'},
   {key:'plants',   label:'🪴 Plants'},
   {key:'threads',  label:'🧵 Threads'},
+  {key:'projects', label:'📌 Projects (Levels 1-2 only)'},
   {key:'action',   label:'⚡ Action'},
   {key:'operations', label:'🧭 Operations'},
   {key:'reach',    label:'📡 Reach'},
@@ -16436,7 +16718,7 @@ function _navTabAllowed(tabKey, lvl){
   // _teamEmailSearchAllowed.
   if(Number(lvl)===1)return true;
   // Level 3 (field rangers) never get Operations or its card buttons, whatever the nav settings say
-  if(Number(lvl)>=3&&(tabKey==='operations'||tabKey==='site_ops_btn'))return false;
+  if(Number(lvl)>=3&&(tabKey==='operations'||tabKey==='site_ops_btn'||tabKey==='projects'))return false;
   const vis=_appSettings.navVisibility;
   if(!vis)return true;
   // Keys may be stored as strings ("1") or numbers (1) - check both
@@ -16494,7 +16776,7 @@ let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
 function showDataPage(page){
   _dataCurrentPage = page;
-  ['menu','people','schools','prices','items','documents'].forEach(p=>{
+  ['menu','people','schools','prices','items','documents','roles'].forEach(p=>{
     const el=document.getElementById('data-'+p);
     if(el)el.style.display='none';
   });
@@ -16516,6 +16798,9 @@ function showDataPage(page){
   }
   if(page==='documents'){
     renderDataDocuments(true);
+  }
+  if(page==='roles'){
+    initRoles();
   }
 }
 
