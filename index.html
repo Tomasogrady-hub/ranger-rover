@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.93 -->
+<!-- v11.94 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2433,10 +2433,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.93';
+const APP_VERSION='v11.94';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 14:45 PT - Other Notes on regular school card, regular edit card and Summary view (Levels 1-2).';
+const BUILD_STAMP='2026-11-15 14:55 PT - Level 3 Future Schools no longer require a PO.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6987,13 +6987,12 @@ function _l3AvailableSites(){
     return String(sf(s,'PO Number')||'').trim()!=='';
   });
 }
-// Future Schools (Level 3): Future Ranger Program, PO on file, and no Ranger assigned OR Potential Ranger Vacancy = Yes.
+// Future Schools (Level 3): Future Ranger Program (with or without a PO) and no Ranger assigned OR Potential Ranger Vacancy = Yes.
 function _l3FutureSites(){
   return DATA.sites.filter(s=>{
     const r=_mySiteRoles(s);
     if(r.ranger||r.gk)return false;
     if((sf(s,'Type','type')||'').trim()!=='Future Ranger Program')return false;
-    if(String(sf(s,'PO Number')||'').trim()==='')return false;
     const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
     return _siteVacancy(s)||(!r1&&!r2);
   });
