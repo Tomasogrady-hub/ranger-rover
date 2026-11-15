@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.83 -->
+<!-- v11.84 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1019,6 +1019,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
             <select id="schoolRangerFilter" onchange="setSchoolRangerFilter(this.value)"><option value="all">All Rangers</option></select></label>
           <label class="dd-lab">Ranger Number
             <select id="schoolRangerNumberFilter" onchange="setSchoolRangerNumberFilter(this.value)"><option value="all">All Ranger Numbers</option></select></label>
+          <label class="dd-lab">Garden Keeper
+            <select id="schoolGkFilter" onchange="setSchoolGkFilter(this.value)"><option value="all">All</option></select></label>
           <label class="dd-lab">Day of Week
             <select id="schoolDayFilter" onchange="setSchoolDayFilter(this.value)"><option value="all">All</option><option value="none">None</option><option value="Monday">Monday</option><option value="Tuesday">Tuesday</option><option value="Wednesday">Wednesday</option><option value="Thursday">Thursday</option><option value="Friday">Friday</option><option value="Saturday">Saturday</option><option value="Sunday">Sunday</option></select></label>
           <label class="dd-lab">PO
@@ -2005,6 +2007,194 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <span class="page-title">Schools</span>
         <span class="page-count" id="dataSchoolsCount"></span>
       </div>
+      <div class="ddwrap" id="dsDD">
+        <div class="ddbar">
+          <button type="button" class="dd-btn" data-dd="sort" onclick="toggleDD('dsDD','sort')"><span class="dd-k">Sort</span><span class="dd-v" id="dsDDsortV">Name A-Z</span></button>
+          <button type="button" class="dd-btn" data-dd="filter" id="dsDDfilterBtn" onclick="toggleDD('dsDD','filter')"><span class="dd-k">Filter</span><span class="dd-v" id="dsDDfilterV">All</span></button>
+          <button type="button" class="dd-btn" data-dd="detail" onclick="toggleDD('dsDD','detail')"><span class="dd-k">Detail</span><span class="dd-v" id="dsDDdetailV">Summary</span></button>
+        </div>
+        <div class="dd-panel" data-dd="sort">
+      <div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:4px;max-width:280px;margin:0 auto">
+        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Sort By</label>
+        <select id="dsSortSelect" class="settings-input" style="margin:0" onchange="setDataSchoolSort(this.value);closeDD('dsDD')">
+          <option value="name-asc">Name (A → Z)</option>
+          <option value="name-desc">Name (Z → A)</option>
+          <option value="classstart-asc">Classes Start Date (Earliest First)</option>
+          <option value="classstart-desc">Classes Start Date (Latest First)</option>
+          <option value="classend-asc">Classes End Date (Earliest First)</option>
+          <option value="classend-desc">Classes End Date (Latest First)</option>
+          <option value="lastupdate-desc">Last Update (Newest First)</option>
+          <option value="lastupdate-asc">Last Update (Oldest First)</option>
+          <option value="progstarted-first">Program Started First</option>
+          <option value="ranger-asc">Ranger Name (A → Z)</option>
+          <option value="district-asc">District (A → Z)</option>
+          <option value="program-asc">Program Type (A → Z)</option>
+          <option value="units-desc">Ranger Program Units (High → Low)</option>
+          <option value="units-asc">Ranger Program Units (Low → High)</option>
+          <option value="enrollment-desc">Enrollment (High → Low)</option>
+          <option value="enrollment-asc">Enrollment (Low → High)</option>
+          <option value="po-first">Has PO First</option>
+          <option value="sched-first">Has Schedule First</option>
+        </select>
+      </div>
+      
+        </div>
+        <div class="dd-panel" data-dd="filter">
+      <div id="dataSchoolFilters" style="padding:10px 16px 4px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:680px;margin:0 auto">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program</label>
+          <select id="dsProgramFilter" class="settings-input" style="margin:0" onchange="setDataSchoolProgramFilter(this.value)">
+            <option value="all" selected>All</option>
+            <option value="Active Ranger Program">Active Ranger Program</option>
+            <option value="Future Ranger Program">Future Ranger Program</option>
+            <option value="Inactive Ranger Program">Inactive Ranger Program</option>
+            <option value="Possible Ranger Program">Possible Ranger Program</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Assigned</label>
+          <select id="dsAssignFilter" class="settings-input" style="margin:0" onchange="setDataSchoolAssignFilter(this.value)">
+            <option value="all">All</option>
+            <option value="assigned">Assigned</option>
+            <option value="unassigned">Unassigned</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger</label>
+          <select id="dsRangerFilter" class="settings-input" style="margin:0" onchange="setDataSchoolRangerFilter(this.value)">
+            <option value="all">All Rangers</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Garden Keeper</label>
+          <select id="dsGkFilter" class="settings-input" style="margin:0" onchange="setDataSchoolGkFilter(this.value)"><option value="all">All</option></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Potential Ranger Vacancy</label>
+          <select id="dsVacFilter" class="settings-input" style="margin:0" onchange="setDataSchoolVacFilter(this.value)"><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Day of Week</label>
+          <select id="dsDayFilter" class="settings-input" style="margin:0" onchange="setDataSchoolDayFilter(this.value)">
+            <option value="all">All</option>
+            <option value="none">None</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By PO</label>
+          <select id="dsPoFilter" class="settings-input" style="margin:0" onchange="setDataSchoolPoFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Program Units</label>
+          <select id="dsUnitsFilter" class="settings-input" style="margin:0" onchange="setDataSchoolUnitsFilter(this.value)">
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Schedule</label>
+          <select id="dsSchedFilter" class="settings-input" style="margin:0" onchange="setDataSchoolScheduleFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes Start Date</label>
+          <select id="dsClassStartFilter" class="settings-input" style="margin:0" onchange="setDataSchoolClassStartFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes End Date</label>
+          <select id="dsClassEndFilter" class="settings-input" style="margin:0" onchange="setDataSchoolClassEndFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Started?</label>
+          <select id="dsProgStartedFilter" class="settings-input" style="margin:0" onchange="setDataSchoolProgStartedFilter(this.value)">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+      </div>
+      
+          <button type="button" class="dd-clear" onclick="clearDataSchoolFilters()">Clear filters</button>
+        </div>
+        <div class="dd-panel" data-dd="detail">
+          <div class="dd-opts dd-opts-row">
+            <button type="button" class="dd-opt" id="dsViewSimpleBtn" onclick="setDataSchoolResultsMode('simple');closeDD('dsDD')">Simple</button>
+            <button type="button" class="dd-opt active" id="dsViewSummaryBtn" onclick="setDataSchoolResultsMode('summary');closeDD('dsDD')">Summary</button>
+            <button type="button" class="dd-opt" id="dsViewDetailedBtn" onclick="setDataSchoolResultsMode('detailed');closeDD('dsDD')">Detailed</button>
+            <button type="button" class="dd-opt" id="dsViewPicturesBtn" onclick="setDataSchoolResultsMode('pictures');closeDD('dsDD')">Pictures</button>
+          </div>
+        </div>
+      </div>
+      <div id="dataSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
+      
+      <div class="dl" style="text-align:center;margin:18px 0 0">Adjust</div>
+      <div style="display:flex;justify-content:center;margin:6px 0 8px">
+        <select id="dataPeopleAdjustMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="onDataPeopleAdjustModeChange()">
+          <option value="access">Adjust Access Levels</option>
+          <option value="role">Adjust Roles</option>
+          <option value="roleAdditional">Adjust Role Additional</option>
+          <option value="rangerNumber">Adjust Ranger Number</option>
+          <option value="rangerLiveScan">Adjust Ranger Live Scan</option>
+        </select>
+      </div>
+      <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
+            <input type="checkbox" id="dataPeopleSelectAll" onchange="toggleDataPeopleSelectAll(this.checked)"> Select all
+          </label>
+          <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
+          <select id="dataPeopleBulkValue" class="settings-input" style="margin:0;width:100px;flex:none" disabled>
+            <option value="">None</option>
+            <option value="3">Level 3</option>
+            <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
+            <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
+          </select>
+        </div>
+        <button id="dataPeopleApplyBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkField()" disabled>Apply to Selected</button>
+        <div id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
+      </div>
+      <div class="dl" style="text-align:center;margin:18px 0 0">Action</div>
+      <div style="display:flex;justify-content:center;margin:6px 0 8px">
+        <select id="dataPeopleActionMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em">
+          <option value="sendFormRecord">Send a Form Record</option>
+        </select>
+      </div>
+      <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
+        <div style="font-size:13px;color:var(--stone);margin-bottom:10px">Uses the same people checked above. Choose a form template next, and one filled-in record gets created per person.</div>
+        <button id="dataPeopleActionBtn" class="settings-btn" style="display:block;width:100%;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="runDataPeopleAction()" disabled>Run Action on Selected</button>
+        <div id="dataPeopleActionStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
+      </div>
+      <div id="dataPeopleList" style="padding:0"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Schools -->
+    <div id="data-schools" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Schools</span>
+        <span class="page-count" id="dataSchoolsCount"></span>
+      </div>
       <div class="dl" style="text-align:center;margin:6px 0 0">Filter</div>
       <div id="dataSchoolFilters" style="padding:10px 16px 4px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:680px;margin:0 auto">
         <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
@@ -2129,6 +2319,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <option value="ranger">Adjust Ranger</option>
           <option value="day">Adjust Day of Week</option>
           <option value="units">Adjust Ranger Program Units</option>
+          <option value="vacancy">Adjust Potential Ranger Vacancy</option>
         </select>
       </div>
       <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
@@ -2373,10 +2564,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.83';
+const APP_VERSION='v11.84';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-14 20:55 PT - Level 3: Available Schools on Map and Schools tab, Reach to Master Rangers replaces Ask about this school.';
+const BUILD_STAMP='2026-11-15 10:20 PT - Potential Ranger Vacancy column, Level 3 Ask about this school via Reach, Bulk Data Schools three dropdown bar, Garden Keeper filter.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2626,10 +2817,10 @@ async function _aiRunNow(btn){
 }
 let _programsLoaded=false;
 let SESSION=null;
-let csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='ranger',crauf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csGkF='all',csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='ranger',crauf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
-let dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
+let dsGkF='all',dsVacF='all',dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
 // Bulk-select + Adjust state for the Data > Schools list — same pattern as
 // Data > People's Select all / Adjust / Apply to Selected.
 let _dataSchoolsSelected=new Set(); // Set of site Keys (col A)
@@ -2644,7 +2835,8 @@ const DATA_SCHOOLS_ADJUST_FIELDS = {
   program: {sheetField:'Type',                    label:'Program'},
   ranger:  {sheetField:'Ranger 1',                 label:'Ranger', companionField:'Ranger 1 Name'},
   day:     {sheetField:'Ranger Day Of Week 1',     label:'Day of Week'},
-  units:   {sheetField:'Ranger Program Units',     label:'Ranger Program Units'}
+  units:   {sheetField:'Ranger Program Units',     label:'Ranger Program Units'},
+  vacancy: {sheetField:'Potential Ranger Vacancy', label:'Potential Ranger Vacancy'}
 };
 let mapInited=false;
 let _plantSearchTimer=null;
@@ -5345,6 +5537,15 @@ function _fillSchoolDynamicFilters(){
     rSel.innerHTML='<option value="all">All Rangers</option><option value="none">None</option>'+entries.map(([email,name])=>`<option value="${ea(email)}">${escHtml(name)}</option>`).join('');
     rSel.value=[...rSel.options].some(o=>o.value===current)?current:'all';
   }
+  const gSel=document.getElementById('schoolGkFilter');
+  if(gSel){
+    const seenG={};
+    DATA.sites.forEach(s=>{const g=String(sf(s,'Garden Keeper','GardenKeeper')||'').trim();if(g&&!seenG[g])seenG[g]=hn(g)||g;});
+    const gEntries=Object.entries(seenG).sort((a,b)=>a[1].localeCompare(b[1]));
+    const curG=gSel.value||'all';
+    gSel.innerHTML='<option value="all">All</option><option value="any">Has a Garden Keeper</option><option value="none">No Garden Keeper</option>'+gEntries.map(([e,n])=>`<option value="${ea(e)}">${escHtml(n)}</option>`).join('');
+    gSel.value=[...gSel.options].some(o=>o.value===curG)?curG:'all';
+  }
   const uSel=document.getElementById('schoolUnitsFilter');
   if(uSel){
     const set=new Set();
@@ -5401,6 +5602,15 @@ function _fillDataSchoolDynamicFilters(){
     rSel.innerHTML='<option value="all">All Rangers</option><option value="none">None</option>'+entries.map(([email,name])=>`<option value="${ea(email)}">${escHtml(name)}</option>`).join('');
     rSel.value=[...rSel.options].some(o=>o.value===current)?current:'all';
   }
+  const gSel=document.getElementById('dsGkFilter');
+  if(gSel){
+    const seenG={};
+    DATA.sites.forEach(s=>{const g=String(sf(s,'Garden Keeper','GardenKeeper')||'').trim();if(g&&!seenG[g])seenG[g]=hn(g)||g;});
+    const gEntries=Object.entries(seenG).sort((a,b)=>a[1].localeCompare(b[1]));
+    const curG=gSel.value||'all';
+    gSel.innerHTML='<option value="all">All</option><option value="any">Has a Garden Keeper</option><option value="none">No Garden Keeper</option>'+gEntries.map(([e,n])=>`<option value="${ea(e)}">${escHtml(n)}</option>`).join('');
+    gSel.value=[...gSel.options].some(o=>o.value===curG)?curG:'all';
+  }
   const uSel=document.getElementById('dsUnitsFilter');
   if(uSel){
     const set=new Set();
@@ -5436,6 +5646,22 @@ function setDataSchoolResultsMode(v){
   }
 }
 function setDataSchoolSort(v){dsSortMode=v;renderDataSchools();}
+function setDataSchoolGkFilter(v){dsGkF=v;renderDataSchools();}
+function setDataSchoolVacFilter(v){dsVacF=v;renderDataSchools();}
+function clearDataSchoolFilters(){
+  dsProgF=dsAssignF=dsRangerF=dsGkF=dsVacF=dsDayF=dsPoF=dsUnitsF=dsSchedF=dsClassStartF=dsClassEndF=dsProgStartedF='all';
+  ['dsProgramFilter','dsAssignFilter','dsRangerFilter','dsGkFilter','dsVacFilter','dsDayFilter','dsPoFilter','dsUnitsFilter','dsSchedFilter','dsClassStartFilter','dsClassEndFilter','dsProgStartedFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='all';});
+  closeDD('dsDD');renderDataSchools();
+}
+function _updateDsDDLabels(){
+  const sv=document.getElementById('dsDDsortV'),fv=document.getElementById('dsDDfilterV'),dv=document.getElementById('dsDDdetailV');
+  if(sv)sv.textContent=SCHOOL_SORT_SHORT[dsSortMode]||'Name A-Z';
+  const n=[dsProgF,dsAssignF,dsRangerF,dsGkF,dsVacF,dsDayF,dsPoF,dsUnitsF,dsSchedF,dsClassStartF,dsClassEndF,dsProgStartedF].filter(v=>v!=='all').length;
+  if(fv)fv.textContent=n?n+' on':'All';
+  const fb=document.getElementById('dsDDfilterBtn');if(fb)fb.classList.toggle('on',n>0);
+  const sb=document.querySelector('#dsDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',dsSortMode!=='name-asc');
+  if(dv)dv.textContent=dsResultsMode.charAt(0).toUpperCase()+dsResultsMode.slice(1);
+}
 
 function _dataSchoolsFiltered(){
   return DATA.sites.filter(s=>{
@@ -5444,6 +5670,14 @@ function _dataSchoolsFiltered(){
     if(dsProgF!=='all'&&type.toLowerCase()!==dsProgF.toLowerCase())return false;
     if(dsAssignF==='assigned'&&!(r1e||r2e))return false;
     if(dsAssignF==='unassigned'&&(r1e||r2e))return false;
+    if(dsGkF!=='all'){
+      const gk=String(sf(s,'Garden Keeper','GardenKeeper')||'').trim();
+      if(dsGkF==='none'){if(gk)return false;}
+      else if(dsGkF==='any'){if(!gk)return false;}
+      else if(gk.toLowerCase()!==dsGkF.toLowerCase())return false;
+    }
+    if(dsVacF==='yes'&&!_siteVacancy(s))return false;
+    if(dsVacF==='no'&&_siteVacancy(s))return false;
     if(dsRangerF==='none'){
       if(r1e||r2e)return false;
     } else if(dsRangerF!=='all'&&r1e!==dsRangerF&&r2e!==dsRangerF)return false;
@@ -5501,6 +5735,11 @@ function _dataSchoolsSummaryText(count){
     const opt=rSel&&Array.from(rSel.options).find(o=>o.value===dsRangerF);
     parts.push(`${opt?opt.textContent:'that ranger'} as their Ranger`);
   }
+  if(dsGkF==='none')parts.push('no Garden Keeper');
+  else if(dsGkF==='any')parts.push('a Garden Keeper');
+  else if(dsGkF!=='all'){const gs=document.getElementById('dsGkFilter');const o=gs&&Array.from(gs.options).find(x=>x.value===dsGkF);parts.push(`${o?o.textContent:'that person'} as their Garden Keeper`);}
+  if(dsVacF==='yes')parts.push('a potential Ranger vacancy');
+  if(dsVacF==='no')parts.push('no potential Ranger vacancy');
   if(dsDayF==='none')parts.push('no Day of Week set');
   else if(dsDayF!=='all')parts.push(`${dsDayF} as their Day of Week`);
   if(dsPoF==='yes')parts.push('a PO on file');
@@ -5667,6 +5906,9 @@ function _dataSchoolsAdjustOptionsHtml(mode,currentVal){
     const nums=[...set].sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0));
     return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
       nums.map(n=>`<option value="${ea(n)}" ${currentVal===n?'selected':''}>${escHtml(n)}</option>`).join('');
+  }
+  if(mode==='vacancy'){
+    return `<option value="No" ${currentVal==='No'?'selected':''}>No</option><option value="Yes" ${currentVal==='Yes'?'selected':''}>Yes</option>`;
   }
   return '<option value="">None</option>';
 }
@@ -5869,6 +6111,7 @@ function _dataSchoolSortCompare(a,b,sortKey){
 
 function renderDataSchools(){
   _fillDataSchoolDynamicFilters();
+  _updateDsDDLabels();
   const sites=_dataSchoolsFiltered().slice().sort((a,b)=>_dataSchoolSortCompare(a,b,dsSortMode));
   const countEl=document.getElementById('dataSchoolsCount');
   if(countEl)countEl.textContent=sites.length+' sites';
@@ -5899,6 +6142,12 @@ function renderSchools(){
       }
       if(csPlaceF==='assigned'&&!(r1e||r2e))return false;
       if(csPlaceF==='unassigned'&&(r1e||r2e))return false;
+      if(csGkF!=='all'){
+        const gkx=String(gke||'').trim();
+        if(csGkF==='none'){if(gkx)return false;}
+        else if(csGkF==='any'){if(!gkx)return false;}
+        else if(gkx.toLowerCase()!==csGkF.toLowerCase())return false;
+      }
       if(csRangerF==='none'){
         if(r1e||r2e)return false;
       } else if(csRangerF!=='all'&&r1e!==csRangerF&&r2e!==csRangerF)return false;
@@ -5985,9 +6234,9 @@ function _l3AvailCardHtml(s){
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       ${city?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(city)}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
-        <span class="chore-pill" style="background:var(--warn-bg);color:var(--amber)">Needs a Ranger</span>
+        <span style="font-size:13px;font-weight:600;color:var(--amber)">Needs a Ranger</span>
         ${days?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(days)}</span>`:''}
-        ${_l3MasterRangers().length?`<a class="dcta" style="flex:0 0 auto;min-width:0;padding:6px 12px;font-size:13px" href="javascript:void(0)" data-n="${ea(name)}" onclick="event.stopPropagation();openL3Reach(this.dataset.n)">📡 Reach</a>`:''}
+        ${_l3MasterRangers().length?`<a class="dcta" style="flex:0 0 auto;min-width:0;padding:6px 12px;font-size:13px" href="javascript:void(0)" data-n="${ea(name)}" onclick="event.stopPropagation();openL3Reach(this.dataset.n)">✉ Ask about this school</a>`:''}
       </div>
     </div>
   </div>`;
@@ -6039,15 +6288,15 @@ function _updateSchoolDDLabels(){
   if(sv)sv.textContent=SCHOOL_SORT_SHORT[csSortMode]||'Name A-Z';
   document.querySelectorAll('#schoolSortOpts .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===csSortMode));
   const progLbl={all:'All','Active Ranger Program':'Active','Future Ranger Program':'Future','Inactive Ranger Program':'Inactive','Possible Ranger Program':'Possible'}[csProgF]||'Active';
-  const extra=[csDistF,csPlaceF,csRangerF,csRangerNumF,csDayF,csPoF,csUnitsF,csSchedF,csClassStartF,csClassEndF,csProgStartedF].filter(v=>v!=='all').length;
+  const extra=[csDistF,csPlaceF,csRangerF,csGkF,csRangerNumF,csDayF,csPoF,csUnitsF,csSchedF,csClassStartF,csClassEndF,csProgStartedF].filter(v=>v!=='all').length;
   if(fv)fv.textContent=progLbl+(extra?' +'+extra:'');
   const fb=document.getElementById('scDDfilterBtn');if(fb)fb.classList.toggle('on',extra>0||csProgF!=='Active Ranger Program');
   const sb=document.querySelector('#scDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',csSortMode!=='name-asc');
   if(dv)dv.textContent=csResultsMode.charAt(0).toUpperCase()+csResultsMode.slice(1);
 }
 function clearSchoolFilters(){
-  csProgF='Active Ranger Program';csDistF=csPlaceF=csRangerF=csRangerNumF=csDayF=csPoF=csUnitsF=csSchedF=csClassStartF=csClassEndF=csProgStartedF='all';
-  ['schoolProgramFilter','schoolDistrictFilter','schoolPlacementFilter','schoolRangerFilter','schoolRangerNumberFilter','schoolDayFilter','schoolPoFilter','schoolUnitsFilter','schoolScheduleFilter','schoolClassStartFilter','schoolClassEndFilter','schoolProgStartedFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=(id==='schoolProgramFilter')?'Active Ranger Program':'all';});
+  csProgF='Active Ranger Program';csDistF=csPlaceF=csRangerF=csGkF=csRangerNumF=csDayF=csPoF=csUnitsF=csSchedF=csClassStartF=csClassEndF=csProgStartedF='all';
+  ['schoolProgramFilter','schoolDistrictFilter','schoolPlacementFilter','schoolRangerFilter','schoolGkFilter','schoolRangerNumberFilter','schoolDayFilter','schoolPoFilter','schoolUnitsFilter','schoolScheduleFilter','schoolClassStartFilter','schoolClassEndFilter','schoolProgStartedFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=(id==='schoolProgramFilter')?'Active Ranger Program':'all';});
   closeDD('scDD');renderSchools();
 }
 // Distance needs the precomputed {s,distM} wrapper (siteslatlong vs the
@@ -6717,15 +6966,19 @@ function _l3HasRole(role){return (getMySchools()||[]).some(s=>_mySiteRoles(s)[ro
 // Level 3 "Available Schools": Active Ranger Program, no Ranger 1 AND no Ranger 2,
 // PO Number on file (school has paid, just needs a ranger). Never includes the
 // person's own schools (e.g. one where they are only the Garden Keeper).
+// "Potential Ranger Vacancy" (Sites column, Yes/No): Yes = the school has a Ranger
+// today but will need a replacement soon, so it shows as Available too.
+function _siteVacancy(s){return ['yes','y','true'].includes(String(sf(s,'Potential Ranger Vacancy','PotentialRangerVacancy')||'').trim().toLowerCase());}
 function _l3AvailableSites(){
   return DATA.sites.filter(s=>{
+    const r=_mySiteRoles(s);
+    if(r.ranger||r.gk)return false;
+    if(_siteVacancy(s))return true;
     const t=(sf(s,'Type','type')||'').trim();
     if(t!=='Active Ranger Program')return false;
     const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
     if(r1||r2)return false;
-    if(String(sf(s,'PO Number')||'').trim()==='')return false;
-    const r=_mySiteRoles(s);
-    return !(r.ranger||r.gk);
+    return String(sf(s,'PO Number')||'').trim()!=='';
   });
 }
 // Level 3 map default/validity. Runs whenever the map draws, so if the map
@@ -7622,7 +7875,7 @@ function openL3Reach(name){
   const old=document.getElementById('l3ReachOv');if(old)old.remove();
   const ms=_l3MasterRangers();
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='l3ReachOv';ov.onclick=e=>{if(e.target===ov)ov.remove();};
-  ov.innerHTML='<div class="sub-sheet"><h3>Reach out about '+escHtml(name)+'</h3>'+
+  ov.innerHTML='<div class="sub-sheet"><h3>Ask about '+escHtml(name)+'</h3>'+
     '<div class="sub-meta" style="margin:-6px 0 10px">Choose who to contact. Master Rangers can answer questions and place Rangers.</div>'+
     '<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="sub-btn alt" style="padding:4px 10px;font-size:11px" onclick="document.querySelectorAll(\'#l3ReachOv input[type=checkbox]\').forEach(c=>c.checked=!c.checked)">Toggle all</button></div>'+
     ms.map(p=>'<label class="sub-vol" style="cursor:pointer"><span style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-email="'+ea(p.email)+'" data-nm="'+ea(p.name)+'" style="width:20px;height:20px"> '+escHtml(p.name)+' · Master Ranger</span></label>').join('')+
@@ -7640,42 +7893,51 @@ function _l3ReachStep2(){
   ov.querySelector('.sub-sheet').innerHTML='<h3>Quick message</h3>'+
     '<div class="sub-meta" style="margin:-6px 0 10px">To: '+escHtml(picks.map(p=>p.name).join(', '))+'</div>'+
     '<div class="sub-lbl">What is this about?</div>'+
-    '<select id="l3rTopic" style="'+inp+'" onchange="_l3ReachBuild()"><option value="ranger">I am interested in being the Garden Ranger here</option><option value="keeper">I would like to help as Garden Keeper here</option><option value="question">I have a question about this school</option></select>'+
-    '<div id="l3rDaysWrap"><div class="sub-lbl">Days I can come</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
-      days.map(d=>'<label style="display:flex;gap:5px;align-items:center;padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:15px"><input type="checkbox" class="l3rDay" value="'+d+'" onchange="_l3ReachBuild()" style="width:18px;height:18px"> '+d+'</label>').join('')+'</div></div>'+
+    '<select id="l3rTopic" style="'+inp+'" onchange="_l3ReachBuild()"><option value="ranger">I am interested in being the Garden Ranger here</option><option value="question">I have a question about this school</option></select>'+
+    '<div id="l3rDaysWrap"><div class="sub-lbl">Days I am available</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+      days.map(d=>'<label style="display:flex;gap:5px;align-items:center;padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:15px"><input type="checkbox" class="l3rDay" value="'+d+'" onchange="_l3ReachBuild()" style="width:18px;height:18px"> '+d+'</label>').join('')+'</div>'+
+      '<div class="sub-lbl">Times</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+      ['Mornings','Afternoons'].map(t=>'<label style="display:flex;gap:5px;align-items:center;padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:15px"><input type="checkbox" class="l3rTime" value="'+t.toLowerCase()+'" onchange="_l3ReachBuild()" style="width:18px;height:18px"> '+t+'</label>').join('')+'</div></div>'+
     '<div class="sub-lbl">Anything you want them to know</div>'+
     '<input id="l3rNote" style="'+inp+'" placeholder="Short note (optional)" oninput="_l3ReachBuild()">'+
     '<div class="sub-lbl">Subject</div><input id="l3rSubj" style="'+inp+'">'+
     '<div class="sub-lbl">Message (you can edit)</div><textarea id="l3rBody" rows="9" style="'+inp+'"></textarea>'+
     '<div class="sub-actions" style="justify-content:flex-end;margin-top:6px"><button class="sub-btn alt" onclick="openL3Reach(_l3ReachSite)">← Back</button>'+
-    '<button class="sub-btn hot" onclick="_l3ReachSend()">Open in Gmail ✉</button></div>';
+    '<button class="sub-btn hot" onclick="_l3ReachSend()">Continue to Reach →</button></div>';
   _l3ReachBuild();
 }
 function _l3ReachBuild(){
   const topic=document.getElementById('l3rTopic').value,site=_l3ReachSite;
-  const days=[...document.querySelectorAll('.l3rDay:checked')].map(c=>c.value).join(', ');
+  const dayList=[...document.querySelectorAll('.l3rDay:checked')].map(c=>c.value).join(', ');
+  const timeList=[...document.querySelectorAll('.l3rTime:checked')].map(c=>c.value).join(' and ');
+  const days=dayList?dayList+(timeList?' ('+timeList+')':''):(timeList?timeList:'');
   const note=(document.getElementById('l3rNote').value||'').trim();
   const meH=gh(SESSION.email),me=meH?fullName(meH):SESSION.email;
   const first=(window._l3ReachPicks||[]).length===1?window._l3ReachPicks[0].name.split(' ')[0]:'everyone';
   document.getElementById('l3rDaysWrap').style.display=topic==='question'?'none':'';
   let line,subj;
-  if(topic==='ranger'){subj='Interested in being the Garden Ranger at '+site;line='I am interested in being the Garden Ranger at '+site+'.'+(days?'\n\nDays I can come: '+days+'.':'');}
-  else if(topic==='keeper'){subj='Garden Keeper interest at '+site;line='I would like to help as Garden Keeper at '+site+'.'+(days?'\n\nDays I can help: '+days+'.':'');}
+  if(topic==='ranger'){subj='Interested in being the Garden Ranger at '+site;line='I am interested in being the Garden Ranger at '+site+'.'+(days?'\n\nI am available: '+days+'.':'');}
   else{subj='Question about '+site;line='I have a question about '+site+'.';}
   document.getElementById('l3rSubj').value=subj;
   document.getElementById('l3rBody').value='Hi '+first+',\n\n'+line+(note?'\n\n'+note:'')+'\n\nThank you,\n'+me;
 }
 function _l3ReachSend(){
-  const to=(window._l3ReachPicks||[]).map(p=>p.email).join(',');
-  const url=gmailUrl(to,document.getElementById('l3rSubj').value,document.getElementById('l3rBody').value);
+  const picks=window._l3ReachPicks||[];
+  if(!picks.length)return;
+  const subject=document.getElementById('l3rSubj').value,message=document.getElementById('l3rBody').value;
   const ov=document.getElementById('l3ReachOv');if(ov)ov.remove();
-  window.open(url,'_blank','noopener');
+  // Hand off to the app's normal Reach tool (Email / Text, one thread or each person)
+  _schoolReachSiteName=_l3ReachSite;
+  _reachSelected.clear();picks.forEach(p=>_reachSelected.add(p.email));
+  _reachForwardPrefill={subject,message};
+  switchTab('reach');showReachPage('schoolask');
+  _subAskReachMode(picks.length,picks.length+' selected. How do you want to send it?');
 }
 function _askAboutSchoolCta(name){
   // Level 3: "Reach" - pick Master Rangers, then a quick prompted email
   if(SESSION&&SESSION.accessLevel>=3){
     if(!_l3MasterRangers().length)return '';
-    return `<a class="dcta" href="javascript:void(0)" data-n="${ea(name)}" onclick="openL3Reach(this.dataset.n)">📡 Reach</a>`;
+    return `<a class="dcta" href="javascript:void(0)" data-n="${ea(name)}" onclick="openL3Reach(this.dataset.n)">✉ Ask about this school</a>`;
   }
   const to=_level2Emails();
   if(!to.length)return '';
@@ -7847,7 +8109,7 @@ function renderSchoolBasic(site,showRangerNeedInfo){
     const days=[sf(site,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(site,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(site,'Ranger Day Of Week 3','RangerDayOfWeek3')].filter(Boolean).join(', ');
     const units=sf(site,'Ranger Program Units')||'';
     rangerNeedHtml=`
-    <div class="ds"><div class="dl">Ranger</div><div class="dv" style="color:var(--danger)">Unassigned</div></div>
+    <div class="ds"><div class="dl">Ranger</div><div class="dv" style="color:var(--danger)">Needed</div></div>
     ${days?`<div class="ds"><div class="dl">Day(s) Needed</div><div class="dv">${escHtml(days)}</div></div>`:''}
     ${units?`<div class="ds"><div class="dl">Ranger Program Units</div><div class="dv">${escHtml(String(units))}</div></div>`:''}`;
   }
@@ -8047,6 +8309,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       </div>
       <hr class="section-divider">`:''}
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
+      ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Potential Ranger Vacancy</div><select class="edit-input" id="ef-PotentialRangerVacancy"><option value="No" ${_siteVacancy(site)?'':'selected'}>No</option><option value="Yes" ${_siteVacancy(site)?'selected':''}>Yes</option></select><div style="font-size:12px;color:var(--silver);margin-top:3px">Yes = this school will need a replacement Ranger soon. It then shows as Available to Rangers.</div></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Program Details</div><textarea class="edit-textarea" id="ef-ProgramDetails" placeholder="Details about the program at this school">${ea(progDetails)}</textarea></div>
       ${_siteScheduleUploadRow(site)}
       ${opsMode?(()=>{
@@ -8225,6 +8488,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${(progClassesStart||progClassesEnd)?`<div class="ds"><div class="dl">Program Classes</div><div class="dv">${progClassesStart?fmtDateSafe(progClassesStart):'?'} – ${progClassesEnd?fmtDateSafe(progClassesEnd):'?'}</div></div>`:''}
       ${videoSrc?`<div class="ds"><div class="dl">Video</div><div class="dv">${videoLinkHtml(videoSrc)}</div></div>`:''}
       ${ranger1Html}${ranger2Html}${keeperHtml}
+      ${(SESSION&&SESSION.accessLevel<=2&&_siteVacancy(site))?`<div class="ds"><div class="dl">Potential Ranger Vacancy</div><div class="dv" style="color:var(--danger)">Yes - replacement Ranger needed</div></div>`:''}
       ${crow('Principal',pe)}${crow('SAA',saa)}${crow('Main Contact 1',mc1)}${crow('Main Contact 2',mc2)}${crow('Main Contact 3',mc3)}${crow('Plant Manager',pme)}
       ${otherContacts.map(t=>crow('Other Contact',t)).join('')}
       ${details?`<div class="ds"><div class="dl">Site Details</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${details}</div></div>`:''}
@@ -8292,6 +8556,7 @@ function _collectSiteEditFormValues(){
   const _cs0=window._currentSite||{};
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=_stampEdits(sf(_cs0,'SiteDetails','Site Details','siteDetails'),sdv);
   const pdtV=gv('ef-ProgramDetails');if(pdtV!==null)updates[_progDetailsCol()]=_stampEdits(typeof _progDetailsVal==='function'?_progDetailsVal(_cs0):'',pdtV);
+  const pvV=gv('ef-PotentialRangerVacancy');if(pvV!==null)updates['Potential Ranger Vacancy']=pvV;
   if(document.getElementById('oc-chips'))updates['Other Contacts']=(window._ocList||[]).join(', ');
   // Schedule (the file) uploads and saves itself immediately on file pick
   // (see _siteScheduleUploadRow / handleSiteScheduleFile) — but Schedule
@@ -11099,6 +11364,7 @@ function switchTab(tab,initMapFlag=false){
 function setSchoolProgramFilter(v){csProgF=v;renderSchools();}
 function setSchoolPlacementFilter(v){csPlaceF=v;renderSchools();}
 function setSchoolRangerFilter(v){csRangerF=v;renderSchools();}
+function setSchoolGkFilter(v){csGkF=v;renderSchools();}
 function setSchoolRangerNumberFilter(v){csRangerNumF=v;renderSchools();}
 function setSchoolDayFilter(v){csDayF=v;renderSchools();}
 function setSchoolPoFilter(v){csPoF=v;renderSchools();}
