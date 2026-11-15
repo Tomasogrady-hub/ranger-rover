@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.88 -->
+<!-- v11.89 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2186,6 +2186,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <option value="day">Adjust Day of Week</option>
           <option value="units">Adjust Ranger Program Units</option>
           <option value="vacancy">Adjust Potential Ranger Vacancy</option>
+          <option value="gk">Adjust Garden Keeper</option>
         </select>
       </div>
       <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
@@ -2430,10 +2431,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.88';
+const APP_VERSION='v11.89';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 12:40 PT - Fixed Bulk Data Schools page (duplicated HTML block from v11.84 removed), cleaner filter sentence.';
+const BUILD_STAMP='2026-11-15 13:05 PT - Bulk Data Schools: Adjust Garden Keeper.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2702,7 +2703,8 @@ const DATA_SCHOOLS_ADJUST_FIELDS = {
   ranger:  {sheetField:'Ranger 1',                 label:'Ranger', companionField:'Ranger 1 Name'},
   day:     {sheetField:'Ranger Day Of Week 1',     label:'Day of Week'},
   units:   {sheetField:'Ranger Program Units',     label:'Ranger Program Units'},
-  vacancy: {sheetField:'Potential Ranger Vacancy', label:'Potential Ranger Vacancy'}
+  vacancy: {sheetField:'Potential Ranger Vacancy', label:'Potential Ranger Vacancy'},
+  gk:      {sheetField:'Garden Keeper',            label:'Garden Keeper', companionField:'Garden Keeper Name'}
 };
 let mapInited=false;
 let _plantSearchTimer=null;
@@ -5798,6 +5800,15 @@ function _dataSchoolsAdjustOptionsHtml(mode,currentVal){
     const nums=[...set].sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0));
     return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
       nums.map(n=>`<option value="${ea(n)}" ${currentVal===n?'selected':''}>${escHtml(n)}</option>`).join('');
+  }
+  if(mode==='gk'){
+    // Anyone with the Garden Keeper role, plus anyone already a Garden Keeper at a school
+    const seen={};
+    (humansByCategory('garden_keeper')||[]).forEach(h=>{const e=String(h.Email||h.email||'').trim();if(e&&!seen[e])seen[e]=fullName(h)||e;});
+    DATA.sites.forEach(x=>{const g=String(sf(x,'Garden Keeper','GardenKeeper')||'').trim();if(g&&!seen[g])seen[g]=hn(g)||g;});
+    const entries=Object.entries(seen).sort((a,b)=>a[1].localeCompare(b[1]));
+    return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None (remove)</option>`+
+      entries.map(([email,name])=>`<option value="${ea(email)}" ${currentVal===email?'selected':''}>${escHtml(name)}</option>`).join('');
   }
   if(mode==='vacancy'){
     return `<option value="No" ${currentVal==='No'?'selected':''}>No</option><option value="Yes" ${currentVal==='Yes'?'selected':''}>Yes</option>`;
