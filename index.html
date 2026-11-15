@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.85 -->
+<!-- v11.86 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -541,6 +541,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .map-chip[data-filter="mine-gk"].active{background:#00838f}
 .map-chip[data-filter="unassigned"].active{background:#6a4c93}
 .map-chip[data-filter="all-active"].active{background:#1a5f8a}
+.dd-sentence{padding:0 18px 10px;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4}
 .home-avail{margin:14px 16px 0;border:1px solid var(--mist);border-left:5px solid #6a4c93;border-radius:var(--r-sm);background:#fff;padding:12px 14px}
 .home-avail h4{margin:0 0 6px;font-family:var(--font-b);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--grove)}
 .home-avail .ha-row{padding:9px 2px;border-top:1px solid var(--mist);font-size:16px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
@@ -2574,10 +2575,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.85';
+const APP_VERSION='v11.86';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 11:10 PT - Summary column on all cards and edits, vacancy checkbox in Ranger Placement filter, Level 3 All Active Schools map chip, Level 3 Home panel for Available Schools and Sub opportunities.';
+const BUILD_STAMP='2026-11-15 11:45 PT - Summary now reads and saves the Summary for all levels column, Ranger Day of Week on the regular edit card, plain-English filter sentence under every filter bar.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3820,6 +3821,7 @@ function _updateChoreBar(){
   const fv=document.getElementById('chDDfilterV');if(fv)fv.textContent=n?n+' active':'All';
   const fb=document.querySelector('#chDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',n>0);
   const sb=document.querySelector('#chDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',m!=='newest');
+  _ddSentence('chDD',_choresSentence());
   _renderChoreFilterPanel();
 }
 let _impRerenderTimer=null;
@@ -6319,6 +6321,65 @@ function _scApplyLevel(){
   if(b)b.style.display=l3?'none':'';
   if(l3)closeDD('scDD');
 }
+// ── Plain-English sentence shown under every filter bar ──
+function _ddSentence(wrapId,text){
+  const w=document.getElementById(wrapId);if(!w)return;
+  let e=document.getElementById(wrapId+'Sent');
+  if(!e){e=document.createElement('div');e.id=wrapId+'Sent';e.className='dd-sentence';w.insertAdjacentElement('afterend',e);}
+  e.textContent=text;
+}
+function _selTxt(id){const e=document.getElementById(id);if(!e||e.selectedIndex<0)return '';return String(e.options[e.selectedIndex].textContent||'').replace(/\s*\(\d+\)\s*$/,'').trim();}
+function _joinAnd(a){return a.length<2?(a[0]||''):a.length===2?a.join(' and '):a.slice(0,-1).join(', ')+', and '+a[a.length-1];}
+function _schoolsSentence(){
+  const base=csProgF==='all'?'all schools':(String(csProgF).replace(/ Ranger Program$/i,'').toLowerCase()+' schools');
+  let where='';
+  if(csDistF==='none')where=' with no district set';else if(csDistF!=='all')where=' in '+_selTxt('schoolDistrictFilter');
+  const p=[];
+  if(csPlaceF==='assigned')p.push('an assigned Ranger');
+  if(csPlaceF==='unassigned')p.push(csPlaceVacF?'no assigned Ranger or a potential Ranger vacancy':'no assigned Ranger');
+  if(csRangerF==='none')p.push('no Ranger set');else if(csRangerF!=='all')p.push(_selTxt('schoolRangerFilter')+' as Ranger');
+  if(csGkF==='none')p.push('no Garden Keeper');else if(csGkF==='any')p.push('a Garden Keeper');else if(csGkF!=='all')p.push(_selTxt('schoolGkFilter')+' as Garden Keeper');
+  if(csRangerNumF!=='all')p.push('Ranger Number '+csRangerNumF);
+  if(csDayF==='none')p.push('no Ranger day set');else if(csDayF!=='all')p.push(csDayF+' as the Ranger day');
+  if(csPoF==='yes')p.push('a PO on file');if(csPoF==='no')p.push('no PO on file');
+  if(csUnitsF!=='all')p.push(csUnitsF+' Ranger Program Units');
+  if(csSchedF==='yes')p.push('a schedule on file');if(csSchedF==='no')p.push('no schedule on file');
+  if(csClassStartF==='yes')p.push('a Program Classes Start Date');if(csClassStartF==='no')p.push('no Program Classes Start Date');
+  if(csClassEndF==='yes')p.push('a Program Classes End Date');if(csClassEndF==='no')p.push('no Program Classes End Date');
+  if(csProgStartedF==='yes')p.push('their program started');if(csProgStartedF==='no')p.push('their program not yet started');
+  const q=(sq||'').trim();
+  return 'Showing '+base+where+(p.length?' with '+_joinAnd(p):'')+(q?' matching "'+q+'"':'')+'.';
+}
+function _rangersSentence(){
+  const sel=document.getElementById('rangerFilters');
+  const subj=sel&&sel.selectedIndex>=0?(sel.options[sel.selectedIndex].dataset.label||sel.options[sel.selectedIndex].textContent):'Rangers';
+  const p=[];
+  if(crauf==='yes')p.push('who have signed in to the app');
+  if(crauf==='no')p.push('who have never signed in');
+  const q=[];
+  if(crnf!=='all')q.push('Ranger Number '+crnf);
+  if(crdf!=='all')q.push('Documents / Schools set to "'+_selTxt('rangerDocFilterSelect')+'"');
+  return 'Showing '+(subj==='Rangers'&&crf==='all'?'all people':subj)+(p.length?' '+p.join(' '):'')+(q.length?' with '+_joinAnd(q):'')+'.';
+}
+function _choresSentence(){
+  const F=_choreFlt,p=[];
+  const quick={asap:'ASAP',urgent:'urgent',mine:'assigned to me',asked:'asked by me',fieldwork:'fieldwork',admin:'administrative'}[ccf];
+  if(quick)p.push(quick);
+  if(F.school)p.push('at '+siteNameFromKey(F.school));
+  if(F.assigned==='__none')p.push('unassigned');else if(F.assigned)p.push('assigned to '+(hn(F.assigned)||F.assigned));
+  if(F.asked)p.push('asked by '+(hn(F.asked)||F.asked));
+  if(F.type)p.push(F.type==='field'?'fieldwork':'administrative');
+  if(F.urg)p.push(F.urg+' urgency');
+  if(F.imp)p.push(F.imp==='u'?'not yet rated':F.imp==='1'?'importance 1':'importance up to '+F.imp);
+  return p.length?'Showing chores that are '+_joinAnd(p)+'.':'Showing all open chores.';
+}
+function _itemsSentence(){
+  const p=[];
+  if(itF1!=='all')p.push('Type 1 "'+itF1+'"');if(itF2!=='all')p.push('Type 2 "'+itF2+'"');if(itF3!=='all')p.push('Type 3 "'+itF3+'"');
+  const q=(itQ||'').trim();if(q)p.push('a name matching "'+q+'"');
+  return p.length?'Showing items with '+_joinAnd(p)+'.':'Showing all items.';
+}
+function _docsSentence(){return docKind==='all'?'Showing all documents.':docKind==='dynamic'?'Showing dynamic documents only.':'Showing static documents only.';}
 function _updateSchoolDDLabels(){
   const sv=document.getElementById('scDDsortV'),fv=document.getElementById('scDDfilterV'),dv=document.getElementById('scDDdetailV');
   if(sv)sv.textContent=SCHOOL_SORT_SHORT[csSortMode]||'Name A-Z';
@@ -6329,6 +6390,7 @@ function _updateSchoolDDLabels(){
   const fb=document.getElementById('scDDfilterBtn');if(fb)fb.classList.toggle('on',extra>0||csProgF!=='Active Ranger Program');
   const sb=document.querySelector('#scDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',csSortMode!=='name-asc');
   if(dv)dv.textContent=csResultsMode.charAt(0).toUpperCase()+csResultsMode.slice(1);
+  if(SESSION&&SESSION.accessLevel<=2)_ddSentence('scDD',_schoolsSentence());
 }
 function clearSchoolFilters(){
   csProgF='Active Ranger Program';csDistF=csPlaceF=csRangerF=csGkF=csRangerNumF=csDayF=csPoF=csUnitsF=csSchedF=csClassStartF=csClassEndF=csProgStartedF='all';
@@ -6484,6 +6546,7 @@ function _updateRangerDDLabels(){
   const fb=document.querySelector('#rgDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',extra>0);
   const sb=document.querySelector('#rgDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',crso!=='name-asc');
   if(dv)dv.textContent=_rangerViewMode.charAt(0).toUpperCase()+_rangerViewMode.slice(1);
+  _ddSentence('rgDD',_rangersSentence());
 }
 function clearRangerFilters(){
   crauf='all';crnf='all';crdf='all';
@@ -7007,7 +7070,8 @@ function _l3HasRole(role){return (getMySchools()||[]).some(s=>_mySiteRoles(s)[ro
 // person's own schools (e.g. one where they are only the Garden Keeper).
 // "Potential Ranger Vacancy" (Sites column, Yes/No): Yes = the school has a Ranger
 // today but will need a replacement soon, so it shows as Available too.
-function _siteSummary(s){return String(sf(s,'Summary')||'').trim();}
+const SUMMARY_COL='Summary for all levels';
+function _siteSummary(s){return String(sf(s,SUMMARY_COL,'Summary')||'').trim();}
 function _summaryLineHtml(s){const t=_siteSummary(s);return t?`<div style="font-size:14px;color:var(--stone);line-height:1.5;margin-top:6px">${escHtml(t)}</div>`:'';}
 function _siteVacancy(s){return ['yes','y','true'].includes(String(sf(s,'Potential Ranger Vacancy','PotentialRangerVacancy')||'').trim().toLowerCase());}
 function _l3AvailableSites(){
@@ -8357,6 +8421,11 @@ function renderSchoolDetail(site,editMode,opsMode){
         </div>
       </div>
       <hr class="section-divider">`:''}
+      ${(!opsMode&&SESSION&&SESSION.accessLevel<=2)?`<div class="edit-wrap" style="display:flex;gap:10px">
+        <div style="flex:1"><div class="edit-label">Ranger Day 1</div>${_opsDayDropdown('ef-RangerDay1',_opsRd1)}</div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 2</div>${_opsDayDropdown('ef-RangerDay2',_opsRd2)}</div>
+        <div style="flex:1"><div class="edit-label">Ranger Day 3</div>${_opsDayDropdown('ef-RangerDay3',_opsRd3)}</div>
+      </div>`:''}
       ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Summary (visible to ALL levels)</div><textarea class="edit-textarea" id="ef-Summary" maxlength="400" rows="4" placeholder="One or two sentences: availability, best times, anything unique about this school." oninput="document.getElementById('ef-SummaryCt').textContent=this.value.length+' / 400'">${escHtml(_siteSummary(site))}</textarea><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--silver);margin-top:3px"><span>Keep it to about 3 sentences. Everyone in the app can read this, so nothing sensitive.</span><span id="ef-SummaryCt">${_siteSummary(site).length} / 400</span></div></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
       ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Potential Ranger Vacancy</div><select class="edit-input" id="ef-PotentialRangerVacancy"><option value="No" ${_siteVacancy(site)?'':'selected'}>No</option><option value="Yes" ${_siteVacancy(site)?'selected':''}>Yes</option></select><div style="font-size:12px;color:var(--silver);margin-top:3px">Yes = this school will need a replacement Ranger soon. It then shows as Available to Rangers.</div></div>`:''}
@@ -8607,7 +8676,7 @@ function _collectSiteEditFormValues(){
   const _cs0=window._currentSite||{};
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=_stampEdits(sf(_cs0,'SiteDetails','Site Details','siteDetails'),sdv);
   const pdtV=gv('ef-ProgramDetails');if(pdtV!==null)updates[_progDetailsCol()]=_stampEdits(typeof _progDetailsVal==='function'?_progDetailsVal(_cs0):'',pdtV);
-  const smV=gv('ef-Summary');if(smV!==null)updates['Summary']=String(smV).trim().slice(0,400);
+  const smV=gv('ef-Summary');if(smV!==null)updates[SUMMARY_COL]=String(smV).trim().slice(0,400);
   const pvV=gv('ef-PotentialRangerVacancy');if(pvV!==null)updates['Potential Ranger Vacancy']=pvV;
   if(document.getElementById('oc-chips'))updates['Other Contacts']=(window._ocList||[]).join(', ');
   // Schedule (the file) uploads and saves itself immediately on file pick
@@ -17356,6 +17425,7 @@ function _updateItemDDLabels(){
   const sb=document.querySelector('#itDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',itSort!=='name-asc');
   if(dv)dv.textContent=itView.charAt(0).toUpperCase()+itView.slice(1);
   ['simple','summary','detailed'].forEach(v=>{const b=document.getElementById('itView'+v.charAt(0).toUpperCase()+v.slice(1)+'Btn');if(b)b.classList.toggle('active',v===itView);});
+  _ddSentence('itDD',_itemsSentence());
 }
 async function renderDataItems(){
   const listEl=document.getElementById('dataItemsList');
@@ -17710,6 +17780,7 @@ function _updateDocDDLabels(){
   _docMark('docSortOpts',docSort);_docMark('docFilterOpts',docKind);_docMark('docDetailOpts',docView);
   const fb=document.querySelector('#docDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',docKind!=='all');
   const sb=document.querySelector('#docDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',docSort!=='name-asc');
+  _ddSentence('docDD',_docsSentence());
 }
 function setDocSort(v){docSort=v;closeDD('docDD');_paintDocs();}
 function setDocKind(v){docKind=v;closeDD('docDD');_paintDocs();}
