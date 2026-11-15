@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.94 -->
+<!-- v11.95 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -541,6 +541,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .map-chip[data-filter="mine-gk"].active{background:#00838f}
 .map-chip[data-filter="unassigned"].active{background:#6a4c93}
 .map-chip[data-filter="all-active"].active{background:#1a5f8a}
+.map-chip[data-filter="future-schools"].active{background:#c77d0a}
 .dd-sentence{padding:0 18px 10px;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4}
 .home-avail{margin:14px 16px 0;border:1px solid var(--mist);border-left:5px solid #6a4c93;border-radius:var(--r-sm);background:#fff;padding:12px 14px}
 .home-avail h4{margin:0 0 6px;font-family:var(--font-b);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--grove)}
@@ -2433,10 +2434,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.94';
+const APP_VERSION='v11.95';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 14:55 PT - Level 3 Future Schools no longer require a PO.';
+const BUILD_STAMP='2026-11-15 15:20 PT - Map: Future Schools chip for all levels.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6989,9 +6990,9 @@ function _l3AvailableSites(){
 }
 // Future Schools (Level 3): Future Ranger Program (with or without a PO) and no Ranger assigned OR Potential Ranger Vacancy = Yes.
 function _l3FutureSites(){
+  const l3=!!(SESSION&&SESSION.accessLevel>=3);
   return DATA.sites.filter(s=>{
-    const r=_mySiteRoles(s);
-    if(r.ranger||r.gk)return false;
+    if(l3){const r=_mySiteRoles(s);if(r.ranger||r.gk)return false;}
     if((sf(s,'Type','type')||'').trim()!=='Future Ranger Program')return false;
     const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
     return _siteVacancy(s)||(!r1&&!r2);
@@ -7005,7 +7006,7 @@ let _l3MapPicked=false;
 function _syncL3MapFilter(){
   if(!(SESSION&&SESSION.accessLevel>=3))return false;
   const hasR=_l3HasRole('ranger'),hasG=_l3HasRole('gk');
-  const valid=cmf==='unassigned'||cmf==='all-active'||(cmf==='mine-ranger'&&hasR)||(cmf==='mine-gk'&&hasG);
+  const valid=cmf==='unassigned'||cmf==='future-schools'||cmf==='all-active'||(cmf==='mine-ranger'&&hasR)||(cmf==='mine-gk'&&hasG);
   const want=hasR?'mine-ranger':hasG?'mine-gk':'unassigned';
   const before=cmf+'|'+hasR+hasG;
   if(!valid||!_l3MapPicked)cmf=want;
@@ -7022,7 +7023,8 @@ function _renderMapFilterChips(){
       ${_l3HasRole('ranger')?`<button class="map-chip${cmf==='mine-ranger'?' active':''}" data-filter="mine-ranger" onclick="filterMap('mine-ranger')">🌱 My Garden Ranger Schools</button>`:''}
       ${_l3HasRole('gk')?`<button class="map-chip${cmf==='mine-gk'?' active':''}" data-filter="mine-gk" onclick="filterMap('mine-gk')">🌻 My Garden Keeper Schools</button>`:''}
       <button class="map-chip${cmf==='all-active'?' active':''}" data-filter="all-active" onclick="filterMap('all-active')">🌎 All Active Schools</button>
-      <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">🔎 Available Schools</button>`;
+      <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">🔎 Available Schools</button>
+      <button class="map-chip${cmf==='future-schools'?' active':''}" data-filter="future-schools" onclick="filterMap('future-schools')">🌅 Future Schools</button>`;
   } else {
     wrap.innerHTML=`
       <button class="map-chip${cmf==='all'?' active':''}" data-filter="all" onclick="filterMap('all')">All</button>
@@ -7030,6 +7032,7 @@ function _renderMapFilterChips(){
       <button class="map-chip${cmf==='future'?' active':''}" data-filter="future" onclick="filterMap('future')">🔵 Future</button>
       <button class="map-chip${cmf==='inactive'?' active':''}" data-filter="inactive" onclick="filterMap('inactive')">⚫ Inactive</button>
       <button class="map-chip${cmf==='possible'?' active':''}" data-filter="possible" onclick="filterMap('possible')">🟡 Possible</button>
+      <button class="map-chip${cmf==='future-schools'?' active':''}" data-filter="future-schools" onclick="filterMap('future-schools')">🌅 Future Schools</button>
       <button class="map-chip${cmf==='open-chores'?' active':''}" data-filter="open-chores" onclick="filterMap('open-chores')">⚠ Open Chores</button>`;
   }
 }
@@ -7049,6 +7052,8 @@ function buildMapMarkers(){
       // Unassigned = Active Ranger Program, no Ranger 1 AND no Ranger 2,
       // and a PO Number on file (school has paid, just needs a ranger).
       sites=_l3AvailableSites();
+    } else if(cmf==='future-schools'){
+      sites=_l3FutureSites();
     } else if(cmf==='all-active'){
       sites=DATA.sites.filter(s=>(sf(s,'Type','type')||'').trim()==='Active Ranger Program');
     } else if(cmf==='mine-gk'){
@@ -7057,8 +7062,8 @@ function buildMapMarkers(){
       sites=(getMySchools()||[]).filter(s=>_mySiteRoles(s).ranger);
     }
   } else {
-    sites=DATA.sites;
-    if(cmf!=='all'){
+    sites=cmf==='future-schools'?_l3FutureSites():DATA.sites;
+    if(cmf!=='all'&&cmf!=='future-schools'){
       sites=sites.filter(s=>{
         const t=(sf(s,'Type','type')||'').toLowerCase();
         if(cmf==='open-chores')return openChoresForSite(sf(s,'Key','key')).length>0;
@@ -7110,8 +7115,8 @@ function buildMapMarkers(){
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
     const _mineS=lvl3&&(()=>{const r=_mySiteRoles(s);return r.ranger||r.gk;})();
-    const _basicS=lvl3&&(cmf==='unassigned'||(cmf==='all-active'&&!_mineS));
-    const _needS=lvl3&&(cmf==='unassigned'||(cmf==='all-active'&&_availSet&&_availSet.has(s)));
+    const _basicS=lvl3&&(cmf==='unassigned'||cmf==='future-schools'||(cmf==='all-active'&&!_mineS));
+    const _needS=lvl3&&(cmf==='unassigned'||cmf==='future-schools'||(cmf==='all-active'&&_availSet&&_availSet.has(s)));
     const openHandler=_basicS
       ?()=>{_exitMapFullscreen();showSchoolBasicByKey(siteKeyM,_needS);}
       :()=>{_exitMapFullscreen();showSchoolDetailByKey(siteKeyM);};
