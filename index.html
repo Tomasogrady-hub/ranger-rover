@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.87 -->
+<!-- v11.88 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2178,171 +2178,6 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         </div>
       </div>
       <div id="dataSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
-      
-      <div class="dl" style="text-align:center;margin:18px 0 0">Adjust</div>
-      <div style="display:flex;justify-content:center;margin:6px 0 8px">
-        <select id="dataPeopleAdjustMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="onDataPeopleAdjustModeChange()">
-          <option value="access">Adjust Access Levels</option>
-          <option value="role">Adjust Roles</option>
-          <option value="roleAdditional">Adjust Role Additional</option>
-          <option value="rangerNumber">Adjust Ranger Number</option>
-          <option value="rangerLiveScan">Adjust Ranger Live Scan</option>
-        </select>
-      </div>
-      <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--stone);flex:none;white-space:nowrap">
-            <input type="checkbox" id="dataPeopleSelectAll" onchange="toggleDataPeopleSelectAll(this.checked)"> Select all
-          </label>
-          <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
-          <select id="dataPeopleBulkValue" class="settings-input" style="margin:0;width:100px;flex:none" disabled>
-            <option value="">None</option>
-            <option value="3">Level 3</option>
-            <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
-            <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
-          </select>
-        </div>
-        <button id="dataPeopleApplyBtn" class="settings-btn" style="display:block;width:100%;margin-top:10px;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="applyDataPeopleBulkField()" disabled>Apply to Selected</button>
-        <div id="dataPeopleBulkStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
-      </div>
-      <div class="dl" style="text-align:center;margin:18px 0 0">Action</div>
-      <div style="display:flex;justify-content:center;margin:6px 0 8px">
-        <select id="dataPeopleActionMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em">
-          <option value="sendFormRecord">Send a Form Record</option>
-        </select>
-      </div>
-      <div style="margin:0 16px 14px;border:1px solid var(--mist);border-radius:16px;padding:12px 14px">
-        <div style="font-size:13px;color:var(--stone);margin-bottom:10px">Uses the same people checked above. Choose a form template next, and one filled-in record gets created per person.</div>
-        <button id="dataPeopleActionBtn" class="settings-btn" style="display:block;width:100%;padding:10px 14px;opacity:.45;cursor:not-allowed" onclick="runDataPeopleAction()" disabled>Run Action on Selected</button>
-        <div id="dataPeopleActionStatus" style="font-size:14px;color:var(--sage);margin-top:8px;min-height:18px"></div>
-      </div>
-      <div id="dataPeopleList" style="padding:0"><div class="spinner"></div></div>
-    </div>
-
-    <!-- Schools -->
-    <div id="data-schools" style="display:none">
-      <div class="page-header" style="display:flex;align-items:center;gap:10px">
-        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
-        <span class="page-title">Schools</span>
-        <span class="page-count" id="dataSchoolsCount"></span>
-      </div>
-      <div class="dl" style="text-align:center;margin:6px 0 0">Filter</div>
-      <div id="dataSchoolFilters" style="padding:10px 16px 4px;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:8px;max-width:680px;margin:0 auto">
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program</label>
-          <select id="dsProgramFilter" class="settings-input" style="margin:0" onchange="setDataSchoolProgramFilter(this.value)">
-            <option value="all" selected>All</option>
-            <option value="Active Ranger Program">Active Ranger Program</option>
-            <option value="Future Ranger Program">Future Ranger Program</option>
-            <option value="Inactive Ranger Program">Inactive Ranger Program</option>
-            <option value="Possible Ranger Program">Possible Ranger Program</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Assigned</label>
-          <select id="dsAssignFilter" class="settings-input" style="margin:0" onchange="setDataSchoolAssignFilter(this.value)">
-            <option value="all">All</option>
-            <option value="assigned">Assigned</option>
-            <option value="unassigned">Unassigned</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger</label>
-          <select id="dsRangerFilter" class="settings-input" style="margin:0" onchange="setDataSchoolRangerFilter(this.value)">
-            <option value="all">All Rangers</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Day of Week</label>
-          <select id="dsDayFilter" class="settings-input" style="margin:0" onchange="setDataSchoolDayFilter(this.value)">
-            <option value="all">All</option>
-            <option value="none">None</option>
-            <option value="Monday">Monday</option>
-            <option value="Tuesday">Tuesday</option>
-            <option value="Wednesday">Wednesday</option>
-            <option value="Thursday">Thursday</option>
-            <option value="Friday">Friday</option>
-            <option value="Saturday">Saturday</option>
-            <option value="Sunday">Sunday</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By PO</label>
-          <select id="dsPoFilter" class="settings-input" style="margin:0" onchange="setDataSchoolPoFilter(this.value)">
-            <option value="all">All</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Ranger Program Units</label>
-          <select id="dsUnitsFilter" class="settings-input" style="margin:0" onchange="setDataSchoolUnitsFilter(this.value)">
-            <option value="all">All</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Schedule</label>
-          <select id="dsSchedFilter" class="settings-input" style="margin:0" onchange="setDataSchoolScheduleFilter(this.value)">
-            <option value="all">All</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes Start Date</label>
-          <select id="dsClassStartFilter" class="settings-input" style="margin:0" onchange="setDataSchoolClassStartFilter(this.value)">
-            <option value="all">All</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Classes End Date</label>
-          <select id="dsClassEndFilter" class="settings-input" style="margin:0" onchange="setDataSchoolClassEndFilter(this.value)">
-            <option value="all">All</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">By Program Started?</label>
-          <select id="dsProgStartedFilter" class="settings-input" style="margin:0" onchange="setDataSchoolProgStartedFilter(this.value)">
-            <option value="all">All</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-      </div>
-      <div id="dataSchoolsSummarySentence" style="padding:10px 16px 2px;text-align:center;font-family:var(--font-d);font-style:italic;font-size:15px;color:var(--stone);line-height:1.4"></div>
-      <div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:4px;max-width:280px;margin:0 auto">
-        <label style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver)">Sort By</label>
-        <select id="dsSortSelect" class="settings-input" style="margin:0" onchange="setDataSchoolSort(this.value)">
-          <option value="name-asc">Name (A → Z)</option>
-          <option value="name-desc">Name (Z → A)</option>
-          <option value="classstart-asc">Classes Start Date (Earliest First)</option>
-          <option value="classstart-desc">Classes Start Date (Latest First)</option>
-          <option value="classend-asc">Classes End Date (Earliest First)</option>
-          <option value="classend-desc">Classes End Date (Latest First)</option>
-          <option value="lastupdate-desc">Last Update (Newest First)</option>
-          <option value="lastupdate-asc">Last Update (Oldest First)</option>
-          <option value="progstarted-first">Program Started First</option>
-          <option value="ranger-asc">Ranger Name (A → Z)</option>
-          <option value="district-asc">District (A → Z)</option>
-          <option value="program-asc">Program Type (A → Z)</option>
-          <option value="units-desc">Ranger Program Units (High → Low)</option>
-          <option value="units-asc">Ranger Program Units (Low → High)</option>
-          <option value="enrollment-desc">Enrollment (High → Low)</option>
-          <option value="enrollment-asc">Enrollment (Low → High)</option>
-          <option value="po-first">Has PO First</option>
-          <option value="sched-first">Has Schedule First</option>
-        </select>
-      </div>
-      <div style="display:flex;justify-content:center;gap:8px;padding:0 16px 10px;flex-wrap:wrap">
-        <button class="chip" id="dsViewSimpleBtn" onclick="setDataSchoolResultsMode('simple')">Simple</button>
-        <button class="chip active" id="dsViewSummaryBtn" onclick="setDataSchoolResultsMode('summary')">Summary</button>
-        <button class="chip" id="dsViewDetailedBtn" onclick="setDataSchoolResultsMode('detailed')">Detailed</button>
-        <button class="chip" id="dsViewPicturesBtn" onclick="setDataSchoolResultsMode('pictures')">Pictures</button>
-      </div>
       <div class="dl" style="text-align:center;margin:18px 0 0">Adjust</div>
       <div style="display:flex;justify-content:center;margin:6px 0 8px">
         <select id="dsAdjustMode" class="settings-input" style="margin:0;width:auto;max-width:260px;text-align:center;text-align-last:center;font-family:var(--font-b);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.02em" onchange="onDataSchoolsAdjustModeChange()">
@@ -2595,10 +2430,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.87';
+const APP_VERSION='v11.88';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 12:10 PT - Wandering ladybug loader, Summary on Summary view cards, Bulk Data Schools shows any error on screen instead of spinning.';
+const BUILD_STAMP='2026-11-15 12:40 PT - Fixed Bulk Data Schools page (duplicated HTML block from v11.84 removed), cleaner filter sentence.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5780,9 +5615,9 @@ function _dataSchoolsFiltered(){
 // it always matches what's actually showing in the list below — e.g.
 // "63 schools have an assigned ranger and no PO on file."
 function _dataSchoolsSummaryText(count){
-  const subj=count===1?'1 school':`${count} schools`;
+  const progAdj=dsProgF==='all'?'':String(dsProgF).replace(/ Ranger Program$/i,'').toLowerCase()+' ';
+  const subj=count===1?`1 ${progAdj}school`:`${count} ${progAdj}schools`;
   const parts=[];
-  if(dsProgF!=='all')parts.push(`are in the ${dsProgF} program`);
   if(dsAssignF==='assigned')parts.push('an assigned ranger');
   if(dsAssignF==='unassigned')parts.push('no assigned ranger');
   if(dsRangerF==='none')parts.push('no ranger set');
