@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.84 -->
+<!-- v11.85 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -540,6 +540,14 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .map-chip[data-filter="mine-ranger"].active{background:var(--grove,#1e3a1e)}
 .map-chip[data-filter="mine-gk"].active{background:#00838f}
 .map-chip[data-filter="unassigned"].active{background:#6a4c93}
+.map-chip[data-filter="all-active"].active{background:#1a5f8a}
+.home-avail{margin:14px 16px 0;border:1px solid var(--mist);border-left:5px solid #6a4c93;border-radius:var(--r-sm);background:#fff;padding:12px 14px}
+.home-avail h4{margin:0 0 6px;font-family:var(--font-b);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--grove)}
+.home-avail .ha-row{padding:9px 2px;border-top:1px solid var(--mist);font-size:16px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.home-avail .ha-row:first-of-type{border-top:none}
+.home-avail .ha-sub{color:var(--stone);font-size:14px}
+.home-avail .ha-more{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6a4c93;cursor:pointer;padding-top:6px}
+.home-avail .ha-sec+.ha-sec{margin-top:12px}
 .leaflet-tooltip.map-label{background:white;border:none;box-shadow:0 1px 5px rgba(0,0,0,.2);border-radius:4px;padding:3px 7px;font-size:13px;font-family:'Outfit',sans-serif;font-weight:500;white-space:nowrap;color:#1a1a1a;pointer-events:auto!important;cursor:pointer}
 .leaflet-tooltip.map-label.has-chores{background:#fff3e0;color:#c07000}
 .leaflet-tooltip.map-label.ranger-label{background:#efe7fa;color:#5a3fa0;font-weight:700}
@@ -967,6 +975,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     </div>
     <!-- ── GREETING — shown above My Notes title ── -->
     <div id="notesGreeting" style="padding:20px 20px 0;font-family:var(--font-d);font-size:28px;font-weight:300;font-style:italic;color:var(--stone);line-height:1.3"></div>
+    <div id="homeAvail" class="home-avail" style="display:none"></div>
     <div class="page-header">
       <span class="page-title">My Notes</span>
       <span class="notes-status" id="notesSaveStatus"></span>
@@ -1015,6 +1024,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
             <select id="schoolDistrictFilter" onchange="setSchoolDistrictFilter(this.value)"><option value="all">All Districts</option></select></label>
           <label class="dd-lab">Ranger Placement
             <select id="schoolPlacementFilter" onchange="setSchoolPlacementFilter(this.value)"><option value="all">All</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option></select></label>
+          <label class="dd-lab" id="schoolPlaceVacWrap" style="display:none;flex-direction:row;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:var(--stone)"><input type="checkbox" id="schoolPlaceVac" onchange="setSchoolPlaceVac(this.checked)" style="width:18px;height:18px;flex:none"> Also include Potential Ranger Vacancy = Yes</label>
           <label class="dd-lab">Ranger
             <select id="schoolRangerFilter" onchange="setSchoolRangerFilter(this.value)"><option value="all">All Rangers</option></select></label>
           <label class="dd-lab">Ranger Number
@@ -2564,10 +2574,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.84';
+const APP_VERSION='v11.85';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 10:20 PT - Potential Ranger Vacancy column, Level 3 Ask about this school via Reach, Bulk Data Schools three dropdown bar, Garden Keeper filter.';
+const BUILD_STAMP='2026-11-15 11:10 PT - Summary column on all cards and edits, vacancy checkbox in Ranger Placement filter, Level 3 All Active Schools map chip, Level 3 Home panel for Available Schools and Sub opportunities.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3882,6 +3892,30 @@ async function handleForgotPassword(){
 }
 function startSession(email,name,accessLevel){SESSION={email,name,accessLevel:parseInt(accessLevel)||3};localStorage.setItem(CFG.SK,JSON.stringify(SESSION));showApp();_tryDeepLink(25);}
 function logout(){SESSION=null;localStorage.removeItem(CFG.SK);['header','searchbar','content','nav'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('authScreen').style.display='flex';goToStep('stepEmail');document.getElementById('authEmail').value='';document.getElementById('emailErr').textContent='';}
+function _renderHomeAvail(){
+  const el=document.getElementById('homeAvail');if(!el)return;
+  if(!SESSION||SESSION.accessLevel<3||!DATA.sites||!DATA.sites.length){el.style.display='none';return;}
+  const avail=_l3AvailableSites().sort((a,b)=>String(sf(a,'Name','name')).localeCompare(String(sf(b,'Name','name'))));
+  const me=_subMe(),today=_subToday();
+  const subsReady=_SUB&&_SUB.loaded;
+  const opps=subsReady?_SUB.subs.filter(x=>x.Date>=today&&x.Status==='Open'&&String(x['Requested By']||'').toLowerCase()!==me)
+    .sort((a,b)=>((a.Date||'')+(a.Start||'')).localeCompare((b.Date||'')+(b.Start||''))):[];
+  let h='<div class="ha-sec"><h4>🔎 Available Schools ('+avail.length+')</h4>';
+  if(avail.length){
+    h+=avail.slice(0,4).map(x=>{const k=sf(x,'Key','key')||'';const d=[sf(x,'Ranger Day Of Week 1','RangerDayOfWeek1')].filter(Boolean).join('');
+      return '<div class="ha-row" data-k="'+ea(k)+'" onclick="showSchoolBasicByKey(this.dataset.k,true)"><span>'+escHtml(sf(x,'Name','name'))+'</span><span class="ha-sub">'+escHtml(d)+'</span></div>';}).join('');
+    h+='<div class="ha-more" onclick="switchTab(\'schools\')">'+(avail.length>4?'See all '+avail.length+' →':'Open Schools →')+'</div>';
+  }else h+='<div class="ha-sub">No schools need a Ranger right now.</div>';
+  h+='</div><div class="ha-sec"><h4>🔄 Sub Opportunities'+(subsReady?' ('+opps.length+')':'')+'</h4>';
+  if(!subsReady)h+='<div class="ha-sub">Checking…</div>';
+  else if(opps.length){
+    h+=opps.slice(0,4).map(x=>{const st=_subSiteByKey(x.Site);return '<div class="ha-row" onclick="switchTab(\'sub\');loadSubs(true)"><span>'+escHtml(st?sf(st,'Name','name'):(x.Site||'School'))+'</span><span class="ha-sub">'+escHtml(_subFmtShift(x))+'</span></div>';}).join('');
+    h+='<div class="ha-more" onclick="switchTab(\'sub\');loadSubs(true)">'+(opps.length>4?'See all '+opps.length+' →':'Open Sub →')+'</div>';
+  }else h+='<div class="ha-sub">No sub shifts right now.</div>';
+  h+='</div>';
+  el.innerHTML=h;el.style.display='block';
+  if(!_SUB.loaded&&!_SUB.loading&&typeof loadSubs==='function')loadSubs(false);
+}
 function setGreeting(){
   const el=document.getElementById('notesGreeting');
   if(!el||!SESSION)return;
@@ -5790,6 +5824,7 @@ function _dataSchoolSummaryCardHtml(s){
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       ${type?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(type)}</div>`:''}
       ${_aiCardLine(s)}
+      ${_summaryLineHtml(s)}
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span><button class="contact-tap" style="font-size:15px;font-weight:500" onclick="event.stopPropagation();showPersonDetail('${esc(r1e)}')">${escHtml(r1n)}</button></div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         ${day?`<button class="chore-pill" style="background:var(--mist);color:var(--stone);border:none;cursor:${hasSched?'pointer':'default'}"${hasSched?` onclick="event.stopPropagation();showSchoolDetailByKey('${esc(siteKey)}','schedule')"`:''}>📅 ${escHtml(day)}</button>`:''}
@@ -6141,7 +6176,7 @@ function renderSchools(){
         else if(_d.toLowerCase()!==csDistF.toLowerCase())return false;
       }
       if(csPlaceF==='assigned'&&!(r1e||r2e))return false;
-      if(csPlaceF==='unassigned'&&(r1e||r2e))return false;
+      if(csPlaceF==='unassigned'&&(r1e||r2e)&&!(csPlaceVacF&&_siteVacancy(s)))return false;
       if(csGkF!=='all'){
         const gkx=String(gke||'').trim();
         if(csGkF==='none'){if(gkx)return false;}
@@ -6233,6 +6268,7 @@ function _l3AvailCardHtml(s){
     <div class="school-info">
       <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
       ${city?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(city)}</div>`:''}
+      ${_summaryLineHtml(s)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
         <span style="font-size:13px;font-weight:600;color:var(--amber)">Needs a Ranger</span>
         ${days?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(days)}</span>`:''}
@@ -6297,6 +6333,7 @@ function _updateSchoolDDLabels(){
 function clearSchoolFilters(){
   csProgF='Active Ranger Program';csDistF=csPlaceF=csRangerF=csGkF=csRangerNumF=csDayF=csPoF=csUnitsF=csSchedF=csClassStartF=csClassEndF=csProgStartedF='all';
   ['schoolProgramFilter','schoolDistrictFilter','schoolPlacementFilter','schoolRangerFilter','schoolGkFilter','schoolRangerNumberFilter','schoolDayFilter','schoolPoFilter','schoolUnitsFilter','schoolScheduleFilter','schoolClassStartFilter','schoolClassEndFilter','schoolProgStartedFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=(id==='schoolProgramFilter')?'Active Ranger Program':'all';});
+  csPlaceVacF=false;{const c=document.getElementById('schoolPlaceVac');if(c)c.checked=false;const w=document.getElementById('schoolPlaceVacWrap');if(w)w.style.display='none';}
   closeDD('scDD');renderSchools();
 }
 // Distance needs the precomputed {s,distM} wrapper (siteslatlong vs the
@@ -6375,6 +6412,7 @@ function _schoolCardHtml(s,i){
       ${r1n?`<div class="ranger-link-line"><div class="rdot"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-right:4px">Ranger</span>${rLink(r1e,r1n)}</div>`:''}
       ${gkn?`<div class="ranger-link-line"><div class="rdot" style="background:var(--amber)"></div><span style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-right:4px">Garden Keeper</span>${rLink(gke,gkn)}</div>`:''}
       ${_aiCardLine(s)}
+      ${_summaryLineHtml(s)}
       <div style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
         ${(pcStart||pcEnd)?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📆 ${pcStart?fmtDateSafe(pcStart):'?'} – ${pcEnd?fmtDateSafe(pcEnd):'?'}</span>`:''}
         ${openChores.length>0?`<button class="chore-pill" style="cursor:pointer;border:none;background:var(--warn-bg)" onclick="event.stopPropagation();showSiteChores('${esc(siteKey)}')">⚠ ${openChores.length} open chore${openChores.length>1?'s':''}</button>`:''}
@@ -6892,6 +6930,7 @@ function updateRangerFilterCounts(){
 }
 
 function renderAll(){
+  try{_renderHomeAvail();}catch(e){}
   // Mark all data tabs as needing a refresh
   Object.keys(_tabDirty).forEach(k=>_tabDirty[k]=true);
   // Immediately render only the visible tab — others render on demand when switched to
@@ -6968,6 +7007,8 @@ function _l3HasRole(role){return (getMySchools()||[]).some(s=>_mySiteRoles(s)[ro
 // person's own schools (e.g. one where they are only the Garden Keeper).
 // "Potential Ranger Vacancy" (Sites column, Yes/No): Yes = the school has a Ranger
 // today but will need a replacement soon, so it shows as Available too.
+function _siteSummary(s){return String(sf(s,'Summary')||'').trim();}
+function _summaryLineHtml(s){const t=_siteSummary(s);return t?`<div style="font-size:14px;color:var(--stone);line-height:1.5;margin-top:6px">${escHtml(t)}</div>`:'';}
 function _siteVacancy(s){return ['yes','y','true'].includes(String(sf(s,'Potential Ranger Vacancy','PotentialRangerVacancy')||'').trim().toLowerCase());}
 function _l3AvailableSites(){
   return DATA.sites.filter(s=>{
@@ -6989,7 +7030,7 @@ let _l3MapPicked=false;
 function _syncL3MapFilter(){
   if(!(SESSION&&SESSION.accessLevel>=3))return false;
   const hasR=_l3HasRole('ranger'),hasG=_l3HasRole('gk');
-  const valid=cmf==='unassigned'||(cmf==='mine-ranger'&&hasR)||(cmf==='mine-gk'&&hasG);
+  const valid=cmf==='unassigned'||cmf==='all-active'||(cmf==='mine-ranger'&&hasR)||(cmf==='mine-gk'&&hasG);
   const want=hasR?'mine-ranger':hasG?'mine-gk':'unassigned';
   const before=cmf+'|'+hasR+hasG;
   if(!valid||!_l3MapPicked)cmf=want;
@@ -7005,6 +7046,7 @@ function _renderMapFilterChips(){
     wrap.innerHTML=`
       ${_l3HasRole('ranger')?`<button class="map-chip${cmf==='mine-ranger'?' active':''}" data-filter="mine-ranger" onclick="filterMap('mine-ranger')">🌱 My Garden Ranger Schools</button>`:''}
       ${_l3HasRole('gk')?`<button class="map-chip${cmf==='mine-gk'?' active':''}" data-filter="mine-gk" onclick="filterMap('mine-gk')">🌻 My Garden Keeper Schools</button>`:''}
+      <button class="map-chip${cmf==='all-active'?' active':''}" data-filter="all-active" onclick="filterMap('all-active')">🌎 All Active Schools</button>
       <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">🔎 Available Schools</button>`;
   } else {
     wrap.innerHTML=`
@@ -7032,6 +7074,8 @@ function buildMapMarkers(){
       // Unassigned = Active Ranger Program, no Ranger 1 AND no Ranger 2,
       // and a PO Number on file (school has paid, just needs a ranger).
       sites=_l3AvailableSites();
+    } else if(cmf==='all-active'){
+      sites=DATA.sites.filter(s=>(sf(s,'Type','type')||'').trim()==='Active Ranger Program');
     } else if(cmf==='mine-gk'){
       sites=(getMySchools()||[]).filter(s=>_mySiteRoles(s).gk);
     } else {
@@ -7069,6 +7113,7 @@ function buildMapMarkers(){
     legendEl.innerHTML=hasGk?((hasRg?'<span><i style="background:#1e3a1e;border-radius:50%"></i>Garden Ranger</span>':'')+'<span><i style="background:#00838f;border-radius:2px"></i>Garden Keeper</span>'):'';
   }
   _mapMarkersByKey={};
+  const _availSet=lvl3?new Set(_l3AvailableSites()):null;
   sites.forEach(s=>{
     const ll=sf(s,'Siteslatlong','siteslatlong');if(!ll)return;
     const parts=ll.toString().split(',');if(parts.length<2)return;
@@ -7089,8 +7134,11 @@ function buildMapMarkers(){
       iconSize:[14,14],iconAnchor:[7,7]
     });
     const marker=L.marker([lat,lng],{icon}).addTo(_leafletMap);
-    const openHandler=useBasicCard
-      ?()=>{_exitMapFullscreen();showSchoolBasicByKey(siteKeyM,showRangerNeedInfo);}
+    const _mineS=lvl3&&(()=>{const r=_mySiteRoles(s);return r.ranger||r.gk;})();
+    const _basicS=lvl3&&(cmf==='unassigned'||(cmf==='all-active'&&!_mineS));
+    const _needS=lvl3&&(cmf==='unassigned'||(cmf==='all-active'&&_availSet&&_availSet.has(s)));
+    const openHandler=_basicS
+      ?()=>{_exitMapFullscreen();showSchoolBasicByKey(siteKeyM,_needS);}
       :()=>{_exitMapFullscreen();showSchoolDetailByKey(siteKeyM);};
     marker.on('click',openHandler);
     if(siteKeyM)_mapMarkersByKey[siteKeyM]=marker;
@@ -8120,6 +8168,7 @@ function renderSchoolBasic(site,showRangerNeedInfo){
     </div>
     ${mainImg?`<div style="padding:14px 20px 0"><img data-lazy="${mainImg}" style="width:100%;aspect-ratio:1;object-fit:cover;object-position:top center;border-radius:var(--r-sm);opacity:0;transition:opacity .3s;background:var(--fog)" onerror="this.parentElement.style.display='none'"></div>`:''}
     ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv">${escHtml(addr)}</div></div>`:''}
+    ${_siteSummary(site)?`<div class="ds"><div class="dl">Summary</div><div class="dv" style="font-size:17px;line-height:1.6">${escHtml(_siteSummary(site))}</div></div>`:''}
     ${rangerNeedHtml}
     <div class="detail-ctas">
       <a class="dcta filled" href="${maps}" target="_blank" rel="noopener">🧭 Directions</a>
@@ -8308,6 +8357,7 @@ function renderSchoolDetail(site,editMode,opsMode){
         </div>
       </div>
       <hr class="section-divider">`:''}
+      ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Summary (visible to ALL levels)</div><textarea class="edit-textarea" id="ef-Summary" maxlength="400" rows="4" placeholder="One or two sentences: availability, best times, anything unique about this school." oninput="document.getElementById('ef-SummaryCt').textContent=this.value.length+' / 400'">${escHtml(_siteSummary(site))}</textarea><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--silver);margin-top:3px"><span>Keep it to about 3 sentences. Everyone in the app can read this, so nothing sensitive.</span><span id="ef-SummaryCt">${_siteSummary(site).length} / 400</span></div></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Site Details</div><textarea class="edit-textarea" id="ef-SiteDetails">${ea(details)}</textarea></div>
       ${SESSION&&SESSION.accessLevel<=2?`<div class="edit-wrap"><div class="edit-label">Potential Ranger Vacancy</div><select class="edit-input" id="ef-PotentialRangerVacancy"><option value="No" ${_siteVacancy(site)?'':'selected'}>No</option><option value="Yes" ${_siteVacancy(site)?'selected':''}>Yes</option></select><div style="font-size:12px;color:var(--silver);margin-top:3px">Yes = this school will need a replacement Ranger soon. It then shows as Available to Rangers.</div></div>`:''}
       <div class="edit-wrap"><div class="edit-label">Program Details</div><textarea class="edit-textarea" id="ef-ProgramDetails" placeholder="Details about the program at this school">${ea(progDetails)}</textarea></div>
@@ -8482,6 +8532,7 @@ function renderSchoolDetail(site,editMode,opsMode){
       ${(img2||img3||helpImg1||helpImg2||helpBeforeImg)?`<div style="padding:8px 20px 0"><div class="img-gallery">${siteGalleryThumb(img2,'Image 2',img2Meta)}${siteGalleryThumb(img3,'Image 3',img3Meta)}${siteGalleryThumb(helpImg1,'Helpful Image 1',helpImg1Meta)}${siteGalleryThumb(helpImg2,'Helpful Image 2',helpImg2Meta)}${siteGalleryThumb(helpBeforeImg,'Helpful Before Image',helpBeforeImgMeta)}</div></div>`:''}
       ${addr?`<div class="ds"><div class="dl">Address</div><div class="dv"><a class="dlink" href="${maps}" target="_blank">↗ ${addr.replace(/, USA$/,'')}</a></div></div>`:''}
       <div class="ds"><div class="dl">District · Status</div><div class="dv">${sd(dist)}${type?' · '+type.replace(' Ranger Program','').trim():''}</div></div>
+      ${_siteSummary(site)?`<div class="ds"><div class="dl">Summary</div><div class="dv" style="font-size:17px;color:var(--stone);line-height:1.65">${escHtml(_siteSummary(site))}</div></div>`:''}
       ${_aiDetailBlock(site)}
       ${schedUrl?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule</div><div class="dv"><a class="dlink" href="${ea(schedUrl)}" target="_blank" rel="noopener">📄 View Schedule</a></div></div>`:''}
       ${schedContents?`<div class="ds" data-detail-anchor="schedule"><div class="dl">Schedule Contents</div><div class="dv"><a class="dlink" href="javascript:void(0)" onclick="_toggleScheduleContents(this)">📄 View Schedule Contents</a><div class="sched-contents-text" style="display:none;margin-top:8px;font-size:15px;color:var(--stone);line-height:1.65;white-space:pre-wrap"></div></div></div>`:''}
@@ -8556,6 +8607,7 @@ function _collectSiteEditFormValues(){
   const _cs0=window._currentSite||{};
   const sdv=gv('ef-SiteDetails');if(sdv!==null)updates['Site Details']=_stampEdits(sf(_cs0,'SiteDetails','Site Details','siteDetails'),sdv);
   const pdtV=gv('ef-ProgramDetails');if(pdtV!==null)updates[_progDetailsCol()]=_stampEdits(typeof _progDetailsVal==='function'?_progDetailsVal(_cs0):'',pdtV);
+  const smV=gv('ef-Summary');if(smV!==null)updates['Summary']=String(smV).trim().slice(0,400);
   const pvV=gv('ef-PotentialRangerVacancy');if(pvV!==null)updates['Potential Ranger Vacancy']=pvV;
   if(document.getElementById('oc-chips'))updates['Other Contacts']=(window._ocList||[]).join(', ');
   // Schedule (the file) uploads and saves itself immediately on file pick
@@ -8669,6 +8721,9 @@ async function saveSiteEdit(siteKey){
     const _cs=window._currentSite;
     siteKey=_cs.Key||_cs.key||_cs['']||sf(_cs,'Name','name')||siteKey||'';
   }
+  {const _se=document.getElementById('ef-Summary');
+   if(_se){const nv=_se.value.trim(),ov=_siteSummary(window._currentSite||{});
+     if(nv&&nv!==ov&&!confirm('Reminder: the Summary is visible to ALL levels, including Rangers and Garden Keepers.\n\nPlease make sure it has nothing sensitive in it. Keep it to a sentence or two about availability, times, or anything unique.\n\nOK to save?'))return;}}
   const _saveSiteName=sf(window._currentSite,'Name','name')||siteKey;
   const siteName=sf(window._currentSite,'Name','name')||siteKey;
   // Snapshot all form values immediately
@@ -11362,7 +11417,14 @@ function switchTab(tab,initMapFlag=false){
   _updateNavUtilBar();
 }
 function setSchoolProgramFilter(v){csProgF=v;renderSchools();}
-function setSchoolPlacementFilter(v){csPlaceF=v;renderSchools();}
+let csPlaceVacF=false;
+function setSchoolPlacementFilter(v){
+  csPlaceF=v;
+  if(v!=='unassigned'){csPlaceVacF=false;const c=document.getElementById('schoolPlaceVac');if(c)c.checked=false;}
+  const w=document.getElementById('schoolPlaceVacWrap');if(w)w.style.display=v==='unassigned'?'flex':'none';
+  renderSchools();
+}
+function setSchoolPlaceVac(c){csPlaceVacF=!!c;renderSchools();}
 function setSchoolRangerFilter(v){csRangerF=v;renderSchools();}
 function setSchoolGkFilter(v){csGkF=v;renderSchools();}
 function setSchoolRangerNumberFilter(v){csRangerNumF=v;renderSchools();}
@@ -13612,6 +13674,7 @@ async function loadSubs(force){
   }
   _SUB.loading=false;
   if(_SUB.loaded)renderSubs();
+  try{_renderHomeAvail();}catch(e){}
   if(_activeTab==='calendar')renderCalendar();
   _subBadge();
 }
