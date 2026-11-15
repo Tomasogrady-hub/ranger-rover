@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.82 -->
+<!-- v11.83 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2373,10 +2373,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.82';
+const APP_VERSION='v11.83';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-14 18:40 PT - New Projects tab (Project Rover sheet) and Bulk Data Roles page.';
+const BUILD_STAMP='2026-11-14 20:55 PT - Level 3: Available Schools on Map and Schools tab, Reach to Master Rangers replaces Ask about this school.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -5976,21 +5976,41 @@ function renderSchools(){
   if(!sortedSites.length){listEl.innerHTML=empty('—','No results','Try a different search or filter.');return;}
   _renderSchoolBatch(sortedSites,0,40,cardFn);
 }
+function _l3AvailCardHtml(s){
+  const name=sf(s,'Name','name'),key=sf(s,'Key','key')||'';
+  const city=sf(s,'City','city')||'';
+  const days=[sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(s,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(s,'Ranger Day Of Week 3','RangerDayOfWeek3')].filter(Boolean).join(', ');
+  return `<div class="school-card" data-sitekey="${ea(key)}" onclick="showSchoolBasicByKey(this.dataset.sitekey,true)">
+    <div class="school-info">
+      <div class="school-name-row"><span class="school-name">${escHtml(name)}</span></div>
+      ${city?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(city)}</div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
+        <span class="chore-pill" style="background:var(--warn-bg);color:var(--amber)">Needs a Ranger</span>
+        ${days?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(days)}</span>`:''}
+        ${_l3MasterRangers().length?`<a class="dcta" style="flex:0 0 auto;min-width:0;padding:6px 12px;font-size:13px" href="javascript:void(0)" data-n="${ea(name)}" onclick="event.stopPropagation();openL3Reach(this.dataset.n)">📡 Reach</a>`:''}
+      </div>
+    </div>
+  </div>`;
+}
 function _renderL3SchoolSections(listEl,sortedSites,cardFn){
   const rangerSites=[],gkSites=[];
   sortedSites.forEach(s=>{const r=_mySiteRoles(s);if(r.ranger)rangerSites.push(s);if(r.gk)gkSites.push(s);});
   const hasAnyGk=(getMySchools()||[]).some(s=>_mySiteRoles(s).gk);
   const hasAnyRanger=(getMySchools()||[]).some(s=>_mySiteRoles(s).ranger);
-  if(!rangerSites.length&&!gkSites.length){
-    listEl.innerHTML=(hasAnyGk||hasAnyRanger)&&sq?empty('—','No results','Try a different search.'):empty('—','No schools assigned','Contact your administrator.');
+  const qq=(sq||'').toLowerCase();
+  const availSites=_l3AvailableSites().filter(s=>!qq||(sf(s,'Name','name')+(sf(s,'District','district')||'')+(sf(s,'City','city')||'')).toLowerCase().includes(qq))
+    .sort((a,b)=>String(sf(a,'Name','name')).localeCompare(String(sf(b,'Name','name'))));
+  if(!hasAnyRanger&&!hasAnyGk&&!availSites.length){
+    listEl.innerHTML=qq?empty('—','No results','Try a different search.'):empty('—','No schools assigned','Contact your administrator.');
     return;
   }
   const pics=csResultsMode==='pictures';
-  const section=(title,color,arr)=>`<div class="l3-sec-head" style="border-left-color:${color}"><span>${title}</span><span class="l3-sec-count">${arr.length}</span></div>
-    <div class="${pics?'card-list pictures-grid l3-sec-grid':'l3-sec-list'}">${arr.length?arr.map((s,i)=>cardFn(s,i)).join(''):'<div class="l3-sec-empty">No matches</div>'}</div>`;
+  const section=(title,color,arr,fn)=>`<div class="l3-sec-head" style="border-left-color:${color}"><span>${title}</span><span class="l3-sec-count">${arr.length}</span></div>
+    <div class="${pics&&fn===cardFn?'card-list pictures-grid l3-sec-grid':'l3-sec-list'}">${arr.length?arr.map((s,i)=>fn(s,i)).join(''):'<div class="l3-sec-empty">No matches</div>'}</div>`;
   let html='';
-  if(hasAnyRanger||!hasAnyGk)html+=section('🌱 My Garden Ranger Schools','var(--grove,#1e3a1e)',rangerSites);
-  if(hasAnyGk)html+=section('🌻 My Garden Keeper Schools','#00838f',gkSites);
+  if(hasAnyRanger)html+=section('🌱 My Garden Ranger Schools','var(--grove,#1e3a1e)',rangerSites,cardFn);
+  if(hasAnyGk)html+=section('🌻 My Garden Keeper Schools','#00838f',gkSites,cardFn);
+  if(availSites.length)html+=section('🔎 Available Schools','#6a4c93',availSites,_l3AvailCardHtml);
   listEl.innerHTML=html;
   _initLazyImages();
 }
@@ -6694,6 +6714,20 @@ function initMap(){
 // Level 3 gets exactly two filters — Mine (default) and All Active Schools.
 // Levels 1-2 keep the full type-based filter set used for site management.
 function _l3HasRole(role){return (getMySchools()||[]).some(s=>_mySiteRoles(s)[role]);}
+// Level 3 "Available Schools": Active Ranger Program, no Ranger 1 AND no Ranger 2,
+// PO Number on file (school has paid, just needs a ranger). Never includes the
+// person's own schools (e.g. one where they are only the Garden Keeper).
+function _l3AvailableSites(){
+  return DATA.sites.filter(s=>{
+    const t=(sf(s,'Type','type')||'').trim();
+    if(t!=='Active Ranger Program')return false;
+    const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
+    if(r1||r2)return false;
+    if(String(sf(s,'PO Number')||'').trim()==='')return false;
+    const r=_mySiteRoles(s);
+    return !(r.ranger||r.gk);
+  });
+}
 // Level 3 map default/validity. Runs whenever the map draws, so if the map
 // was opened before site data finished loading, the Ranger / Garden Keeper
 // chips appear and the default switches to their own schools once data lands.
@@ -6718,7 +6752,7 @@ function _renderMapFilterChips(){
     wrap.innerHTML=`
       ${_l3HasRole('ranger')?`<button class="map-chip${cmf==='mine-ranger'?' active':''}" data-filter="mine-ranger" onclick="filterMap('mine-ranger')">🌱 My Garden Ranger Schools</button>`:''}
       ${_l3HasRole('gk')?`<button class="map-chip${cmf==='mine-gk'?' active':''}" data-filter="mine-gk" onclick="filterMap('mine-gk')">🌻 My Garden Keeper Schools</button>`:''}
-      <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">❔ Unassigned Schools</button>`;
+      <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">🔎 Available Schools</button>`;
   } else {
     wrap.innerHTML=`
       <button class="map-chip${cmf==='all'?' active':''}" data-filter="all" onclick="filterMap('all')">All</button>
@@ -6744,13 +6778,7 @@ function buildMapMarkers(){
     if(cmf==='unassigned'){
       // Unassigned = Active Ranger Program, no Ranger 1 AND no Ranger 2,
       // and a PO Number on file (school has paid, just needs a ranger).
-      sites=DATA.sites.filter(s=>{
-        const t=(sf(s,'Type','type')||'').trim();
-        if(t!=='Active Ranger Program')return false;
-        const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
-        if(r1||r2)return false;
-        return String(sf(s,'PO Number')||'').trim()!=='';
-      });
+      sites=_l3AvailableSites();
     } else if(cmf==='mine-gk'){
       sites=(getMySchools()||[]).filter(s=>_mySiteRoles(s).gk);
     } else {
@@ -7575,7 +7603,80 @@ function askAboutSchoolMailto(name){
   const body='I have a question about '+name+'\n\n';
   return gmailUrl(to,subject,body);
 }
+
+/* ═══ LEVEL 3 "Reach" on a school (v11.83): step 1 pick any Master Rangers,
+   step 2 quick prompts (what is this about, days, note) build an editable
+   email, then it opens in Gmail web compose addressed to the chosen people. ═══ */
+function _l3MasterRangers(){
+  const me=(SESSION&&SESSION.email||'').toLowerCase().trim();
+  const seen=new Set(),out=[];
+  (DATA.humans||[]).forEach(h=>{
+    const e=String(h.Email||h.email||'').trim();if(!e||e.toLowerCase()===me||seen.has(e.toLowerCase()))return;
+    if(humanRoleCats(h).includes('master_ranger')){seen.add(e.toLowerCase());out.push({email:e,name:fullName(h)||e});}
+  });
+  return out.sort((a,b)=>a.name.localeCompare(b.name));
+}
+let _l3ReachSite='';
+function openL3Reach(name){
+  _l3ReachSite=name;
+  const old=document.getElementById('l3ReachOv');if(old)old.remove();
+  const ms=_l3MasterRangers();
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='l3ReachOv';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>Reach out about '+escHtml(name)+'</h3>'+
+    '<div class="sub-meta" style="margin:-6px 0 10px">Choose who to contact. Master Rangers can answer questions and place Rangers.</div>'+
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="sub-btn alt" style="padding:4px 10px;font-size:11px" onclick="document.querySelectorAll(\'#l3ReachOv input[type=checkbox]\').forEach(c=>c.checked=!c.checked)">Toggle all</button></div>'+
+    ms.map(p=>'<label class="sub-vol" style="cursor:pointer"><span style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-email="'+ea(p.email)+'" data-nm="'+ea(p.name)+'" style="width:20px;height:20px"> '+escHtml(p.name)+' · Master Ranger</span></label>').join('')+
+    '<div class="sub-actions" style="justify-content:flex-end;margin-top:14px"><button class="sub-btn alt" onclick="document.getElementById(\'l3ReachOv\').remove()">Cancel</button>'+
+    '<button class="sub-btn hot" onclick="_l3ReachStep2()">Continue →</button></div></div>';
+  document.body.appendChild(ov);
+}
+function _l3ReachStep2(){
+  const picks=[...document.querySelectorAll('#l3ReachOv input[type=checkbox]:checked')].map(c=>({email:c.dataset.email,name:c.dataset.nm}));
+  if(!picks.length){alert('Pick at least one Master Ranger.');return;}
+  window._l3ReachPicks=picks;
+  const ov=document.getElementById('l3ReachOv');
+  const days=['Mon','Tue','Wed','Thu','Fri'];
+  const inp='width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:16px;margin-bottom:8px';
+  ov.querySelector('.sub-sheet').innerHTML='<h3>Quick message</h3>'+
+    '<div class="sub-meta" style="margin:-6px 0 10px">To: '+escHtml(picks.map(p=>p.name).join(', '))+'</div>'+
+    '<div class="sub-lbl">What is this about?</div>'+
+    '<select id="l3rTopic" style="'+inp+'" onchange="_l3ReachBuild()"><option value="ranger">I am interested in being the Garden Ranger here</option><option value="keeper">I would like to help as Garden Keeper here</option><option value="question">I have a question about this school</option></select>'+
+    '<div id="l3rDaysWrap"><div class="sub-lbl">Days I can come</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+      days.map(d=>'<label style="display:flex;gap:5px;align-items:center;padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:15px"><input type="checkbox" class="l3rDay" value="'+d+'" onchange="_l3ReachBuild()" style="width:18px;height:18px"> '+d+'</label>').join('')+'</div></div>'+
+    '<div class="sub-lbl">Anything you want them to know</div>'+
+    '<input id="l3rNote" style="'+inp+'" placeholder="Short note (optional)" oninput="_l3ReachBuild()">'+
+    '<div class="sub-lbl">Subject</div><input id="l3rSubj" style="'+inp+'">'+
+    '<div class="sub-lbl">Message (you can edit)</div><textarea id="l3rBody" rows="9" style="'+inp+'"></textarea>'+
+    '<div class="sub-actions" style="justify-content:flex-end;margin-top:6px"><button class="sub-btn alt" onclick="openL3Reach(_l3ReachSite)">← Back</button>'+
+    '<button class="sub-btn hot" onclick="_l3ReachSend()">Open in Gmail ✉</button></div>';
+  _l3ReachBuild();
+}
+function _l3ReachBuild(){
+  const topic=document.getElementById('l3rTopic').value,site=_l3ReachSite;
+  const days=[...document.querySelectorAll('.l3rDay:checked')].map(c=>c.value).join(', ');
+  const note=(document.getElementById('l3rNote').value||'').trim();
+  const meH=gh(SESSION.email),me=meH?fullName(meH):SESSION.email;
+  const first=(window._l3ReachPicks||[]).length===1?window._l3ReachPicks[0].name.split(' ')[0]:'everyone';
+  document.getElementById('l3rDaysWrap').style.display=topic==='question'?'none':'';
+  let line,subj;
+  if(topic==='ranger'){subj='Interested in being the Garden Ranger at '+site;line='I am interested in being the Garden Ranger at '+site+'.'+(days?'\n\nDays I can come: '+days+'.':'');}
+  else if(topic==='keeper'){subj='Garden Keeper interest at '+site;line='I would like to help as Garden Keeper at '+site+'.'+(days?'\n\nDays I can help: '+days+'.':'');}
+  else{subj='Question about '+site;line='I have a question about '+site+'.';}
+  document.getElementById('l3rSubj').value=subj;
+  document.getElementById('l3rBody').value='Hi '+first+',\n\n'+line+(note?'\n\n'+note:'')+'\n\nThank you,\n'+me;
+}
+function _l3ReachSend(){
+  const to=(window._l3ReachPicks||[]).map(p=>p.email).join(',');
+  const url=gmailUrl(to,document.getElementById('l3rSubj').value,document.getElementById('l3rBody').value);
+  const ov=document.getElementById('l3ReachOv');if(ov)ov.remove();
+  window.open(url,'_blank','noopener');
+}
 function _askAboutSchoolCta(name){
+  // Level 3: "Reach" - pick Master Rangers, then a quick prompted email
+  if(SESSION&&SESSION.accessLevel>=3){
+    if(!_l3MasterRangers().length)return '';
+    return `<a class="dcta" href="javascript:void(0)" data-n="${ea(name)}" onclick="openL3Reach(this.dataset.n)">📡 Reach</a>`;
+  }
   const to=_level2Emails();
   if(!to.length)return '';
   return `<a class="dcta" href="${askAboutSchoolMailto(name)}" target="_blank" rel="noopener">✉ Ask about this school</a>`;
