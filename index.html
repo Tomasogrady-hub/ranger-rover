@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.89 -->
+<!-- v11.90 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1046,6 +1046,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <label class="dd-lab">Ranger Placement
             <select id="schoolPlacementFilter" onchange="setSchoolPlacementFilter(this.value)"><option value="all">All</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option></select></label>
           <label class="dd-lab" id="schoolPlaceVacWrap" style="display:none;flex-direction:row;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:var(--stone)"><input type="checkbox" id="schoolPlaceVac" onchange="setSchoolPlaceVac(this.checked)" style="width:18px;height:18px;flex:none"> Also include Potential Ranger Vacancy = Yes</label>
+          <label class="dd-lab">Garden Keeper Placement
+            <select id="schoolGkPlacementFilter" onchange="setSchoolGkPlacementFilter(this.value)"><option value="all">All</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option></select></label>
           <label class="dd-lab">Ranger
             <select id="schoolRangerFilter" onchange="setSchoolRangerFilter(this.value)"><option value="all">All Rangers</option></select></label>
           <label class="dd-lab">Ranger Number
@@ -2431,10 +2433,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.89';
+const APP_VERSION='v11.90';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 13:05 PT - Bulk Data Schools: Adjust Garden Keeper.';
+const BUILD_STAMP='2026-11-15 13:25 PT - Schools tab: Garden Keeper Placement filter.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2684,7 +2686,7 @@ async function _aiRunNow(btn){
 }
 let _programsLoaded=false;
 let SESSION=null;
-let csGkF='all',csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='ranger',crauf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
+let csGkPlaceF='all',csGkF='all',csProgF='Active Ranger Program',csDistF='all',csPlaceF='all',csRangerF='all',csRangerNumF='all',csDayF='all',csPoF='all',csUnitsF='all',csSchedF='all',csClassStartF='all',csClassEndF='all',csProgStartedF='all',csResultsMode='summary',csSortMode='name-asc',crf='ranger',crauf='all',crnf='all',crdf='all',crso='name-asc',cpf='all',ccf='all',cmf='all',sq='';
 // Data > Schools tab — independent filter state from the main Schools tab (csXxx above)
 // so switching between them never cross-contaminates the other's selections.
 let dsGkF='all',dsVacF='all',dsProgF='all',dsAssignF='all',dsRangerF='all',dsDayF='all',dsPoF='all',dsUnitsF='all',dsSchedF='all',dsClassStartF='all',dsClassEndF='all',dsProgStartedF='all',dsResultsMode='summary',dsSortMode='name-asc';
@@ -6049,6 +6051,8 @@ function renderSchools(){
       }
       if(csPlaceF==='assigned'&&!(r1e||r2e))return false;
       if(csPlaceF==='unassigned'&&(r1e||r2e)&&!(csPlaceVacF&&_siteVacancy(s)))return false;
+      if(csGkPlaceF==='assigned'&&!String(gke||'').trim())return false;
+      if(csGkPlaceF==='unassigned'&&String(gke||'').trim())return false;
       if(csGkF!=='all'){
         const gkx=String(gke||'').trim();
         if(csGkF==='none'){if(gkx)return false;}
@@ -6207,6 +6211,8 @@ function _schoolsSentence(){
   const p=[];
   if(csPlaceF==='assigned')p.push('an assigned Ranger');
   if(csPlaceF==='unassigned')p.push(csPlaceVacF?'no assigned Ranger or a potential Ranger vacancy':'no assigned Ranger');
+  if(csGkPlaceF==='assigned')p.push('an assigned Garden Keeper');
+  if(csGkPlaceF==='unassigned')p.push('no assigned Garden Keeper');
   if(csRangerF==='none')p.push('no Ranger set');else if(csRangerF!=='all')p.push(_selTxt('schoolRangerFilter')+' as Ranger');
   if(csGkF==='none')p.push('no Garden Keeper');else if(csGkF==='any')p.push('a Garden Keeper');else if(csGkF!=='all')p.push(_selTxt('schoolGkFilter')+' as Garden Keeper');
   if(csRangerNumF!=='all')p.push('Ranger Number '+csRangerNumF);
@@ -6255,7 +6261,7 @@ function _updateSchoolDDLabels(){
   if(sv)sv.textContent=SCHOOL_SORT_SHORT[csSortMode]||'Name A-Z';
   document.querySelectorAll('#schoolSortOpts .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===csSortMode));
   const progLbl={all:'All','Active Ranger Program':'Active','Future Ranger Program':'Future','Inactive Ranger Program':'Inactive','Possible Ranger Program':'Possible'}[csProgF]||'Active';
-  const extra=[csDistF,csPlaceF,csRangerF,csGkF,csRangerNumF,csDayF,csPoF,csUnitsF,csSchedF,csClassStartF,csClassEndF,csProgStartedF].filter(v=>v!=='all').length;
+  const extra=[csDistF,csPlaceF,csGkPlaceF,csRangerF,csGkF,csRangerNumF,csDayF,csPoF,csUnitsF,csSchedF,csClassStartF,csClassEndF,csProgStartedF].filter(v=>v!=='all').length;
   if(fv)fv.textContent=progLbl+(extra?' +'+extra:'');
   const fb=document.getElementById('scDDfilterBtn');if(fb)fb.classList.toggle('on',extra>0||csProgF!=='Active Ranger Program');
   const sb=document.querySelector('#scDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',csSortMode!=='name-asc');
@@ -6263,8 +6269,8 @@ function _updateSchoolDDLabels(){
   if(SESSION&&SESSION.accessLevel<=2)_ddSentence('scDD',_schoolsSentence());
 }
 function clearSchoolFilters(){
-  csProgF='Active Ranger Program';csDistF=csPlaceF=csRangerF=csGkF=csRangerNumF=csDayF=csPoF=csUnitsF=csSchedF=csClassStartF=csClassEndF=csProgStartedF='all';
-  ['schoolProgramFilter','schoolDistrictFilter','schoolPlacementFilter','schoolRangerFilter','schoolGkFilter','schoolRangerNumberFilter','schoolDayFilter','schoolPoFilter','schoolUnitsFilter','schoolScheduleFilter','schoolClassStartFilter','schoolClassEndFilter','schoolProgStartedFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=(id==='schoolProgramFilter')?'Active Ranger Program':'all';});
+  csProgF='Active Ranger Program';csDistF=csPlaceF=csGkPlaceF=csRangerF=csGkF=csRangerNumF=csDayF=csPoF=csUnitsF=csSchedF=csClassStartF=csClassEndF=csProgStartedF='all';
+  ['schoolProgramFilter','schoolDistrictFilter','schoolPlacementFilter','schoolGkPlacementFilter','schoolRangerFilter','schoolGkFilter','schoolRangerNumberFilter','schoolDayFilter','schoolPoFilter','schoolUnitsFilter','schoolScheduleFilter','schoolClassStartFilter','schoolClassEndFilter','schoolProgStartedFilter'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=(id==='schoolProgramFilter')?'Active Ranger Program':'all';});
   csPlaceVacF=false;{const c=document.getElementById('schoolPlaceVac');if(c)c.checked=false;const w=document.getElementById('schoolPlaceVacWrap');if(w)w.style.display='none';}
   closeDD('scDD');renderSchools();
 }
@@ -11367,6 +11373,7 @@ function setSchoolPlacementFilter(v){
 function setSchoolPlaceVac(c){csPlaceVacF=!!c;renderSchools();}
 function setSchoolRangerFilter(v){csRangerF=v;renderSchools();}
 function setSchoolGkFilter(v){csGkF=v;renderSchools();}
+function setSchoolGkPlacementFilter(v){csGkPlaceF=v;renderSchools();}
 function setSchoolRangerNumberFilter(v){csRangerNumF=v;renderSchools();}
 function setSchoolDayFilter(v){csDayF=v;renderSchools();}
 function setSchoolPoFilter(v){csPoF=v;renderSchools();}
