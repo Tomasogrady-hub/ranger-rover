@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.91 -->
+<!-- v11.92 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2433,10 +2433,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.91';
+const APP_VERSION='v11.92';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 13:50 PT - Bulk Data Schools: Select all now selects every filtered school, 3 saves at a time with retry, failures reported.';
+const BUILD_STAMP='2026-11-15 14:20 PT - Level 3 Schools tab: Future Schools section under Available Schools.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6149,7 +6149,7 @@ function renderSchools(){
   if(!sortedSites.length){listEl.innerHTML=empty('—','No results','Try a different search or filter.');return;}
   _renderSchoolBatch(sortedSites,0,40,cardFn);
 }
-function _l3AvailCardHtml(s){
+function _l3AvailCardHtml(s,i,future){
   const name=sf(s,'Name','name'),key=sf(s,'Key','key')||'';
   const city=sf(s,'City','city')||'';
   const days=[sf(s,'Ranger Day Of Week 1','RangerDayOfWeek1'),sf(s,'Ranger Day Of Week 2','RangerDayOfWeek2'),sf(s,'Ranger Day Of Week 3','RangerDayOfWeek3')].filter(Boolean).join(', ');
@@ -6159,7 +6159,7 @@ function _l3AvailCardHtml(s){
       ${city?`<div style="font-size:12px;color:var(--stone);margin-top:2px">${escHtml(city)}</div>`:''}
       ${_summaryLineHtml(s)}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
-        <span style="font-size:13px;font-weight:600;color:var(--amber)">Needs a Ranger</span>
+        <span style="font-size:13px;font-weight:600;color:var(--amber)">${future===true?'Future school: needs a Ranger':'Needs a Ranger'}</span>
         ${days?`<span class="chore-pill" style="background:var(--mist);color:var(--stone)">📅 ${escHtml(days)}</span>`:''}
         ${_l3MasterRangers().length?`<a class="dcta" style="flex:0 0 auto;min-width:0;padding:6px 12px;font-size:13px" href="javascript:void(0)" data-n="${ea(name)}" onclick="event.stopPropagation();openL3Reach(this.dataset.n)">✉ Ask about this school</a>`:''}
       </div>
@@ -6174,7 +6174,9 @@ function _renderL3SchoolSections(listEl,sortedSites,cardFn){
   const qq=(sq||'').toLowerCase();
   const availSites=_l3AvailableSites().filter(s=>!qq||(sf(s,'Name','name')+(sf(s,'District','district')||'')+(sf(s,'City','city')||'')).toLowerCase().includes(qq))
     .sort((a,b)=>String(sf(a,'Name','name')).localeCompare(String(sf(b,'Name','name'))));
-  if(!hasAnyRanger&&!hasAnyGk&&!availSites.length){
+  const futureSites=_l3FutureSites().filter(s=>!qq||(sf(s,'Name','name')+(sf(s,'District','district')||'')+(sf(s,'City','city')||'')).toLowerCase().includes(qq))
+    .sort((a,b)=>String(sf(a,'Name','name')).localeCompare(String(sf(b,'Name','name'))));
+  if(!hasAnyRanger&&!hasAnyGk&&!availSites.length&&!futureSites.length){
     listEl.innerHTML=qq?empty('—','No results','Try a different search.'):empty('—','No schools assigned','Contact your administrator.');
     return;
   }
@@ -6185,6 +6187,7 @@ function _renderL3SchoolSections(listEl,sortedSites,cardFn){
   if(hasAnyRanger)html+=section('🌱 My Garden Ranger Schools','var(--grove,#1e3a1e)',rangerSites,cardFn);
   if(hasAnyGk)html+=section('🌻 My Garden Keeper Schools','#00838f',gkSites,cardFn);
   if(availSites.length)html+=section('🔎 Available Schools','#6a4c93',availSites,_l3AvailCardHtml);
+  if(futureSites.length)html+=section('🌅 Future Schools','#c77d0a',futureSites,(x,i)=>_l3AvailCardHtml(x,i,true));
   listEl.innerHTML=html;
   _initLazyImages();
 }
@@ -6965,15 +6968,28 @@ function _siteSummary(s){return String(sf(s,SUMMARY_COL,'Summary')||'').trim();}
 function _summaryLineHtml(s){const t=_siteSummary(s);return t?`<div style="font-size:14px;color:var(--stone);line-height:1.5;margin-top:6px">${escHtml(t)}</div>`:'';}
 function _siteVacancy(s){return ['yes','y','true'].includes(String(sf(s,'Potential Ranger Vacancy','PotentialRangerVacancy')||'').trim().toLowerCase());}
 function _l3AvailableSites(){
+  const fut=new Set(_l3FutureSites().map(x=>sf(x,'Key','key')));
   return DATA.sites.filter(s=>{
     const r=_mySiteRoles(s);
     if(r.ranger||r.gk)return false;
+    if(fut.has(sf(s,'Key','key')))return false; // shown under Future Schools instead
     if(_siteVacancy(s))return true;
     const t=(sf(s,'Type','type')||'').trim();
     if(t!=='Active Ranger Program')return false;
     const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
     if(r1||r2)return false;
     return String(sf(s,'PO Number')||'').trim()!=='';
+  });
+}
+// Future Schools (Level 3): Future Ranger Program, PO on file, and no Ranger assigned OR Potential Ranger Vacancy = Yes.
+function _l3FutureSites(){
+  return DATA.sites.filter(s=>{
+    const r=_mySiteRoles(s);
+    if(r.ranger||r.gk)return false;
+    if((sf(s,'Type','type')||'').trim()!=='Future Ranger Program')return false;
+    if(String(sf(s,'PO Number')||'').trim()==='')return false;
+    const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim(),r2=String(sf(s,'Ranger 2','Ranger2')||'').trim();
+    return _siteVacancy(s)||(!r1&&!r2);
   });
 }
 // Level 3 map default/validity. Runs whenever the map draws, so if the map
