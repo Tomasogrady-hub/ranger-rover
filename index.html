@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.95 -->
+<!-- v11.98 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -787,6 +787,12 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .hr-btns button,.hr-btns a{padding:8px 12px;border:1px solid var(--mist);border-radius:8px;background:var(--fog);font-family:var(--font-b);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;text-decoration:none}
 .hr-app{display:flex;align-items:center;gap:10px;padding:8px 4px;border-top:1px solid var(--mist);cursor:pointer}
 .hr-app img,.hr-app .hr-av{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--fog);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--stone)}
+.iv-card{border:1px solid var(--mist);border-radius:12px;padding:12px;margin:8px 0;background:#fff}
+.iv-st{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--fog);white-space:nowrap}
+.iv-sug{margin-top:8px;padding:8px 10px;background:#fdf0e7;border-radius:8px;font-size:14px}
+.iv-q{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.iv-q button{padding:8px 12px;border:1.5px solid var(--mist);border-radius:99px;background:#fff;font-family:var(--font-b);font-size:14px;font-weight:600;cursor:pointer;color:var(--ink)}
+.iv-q button.on{background:var(--grove);border-color:var(--grove);color:#fff}
 .hr-f label{display:block;font-size:13px;font-weight:700;color:var(--stone);margin:14px 0 5px;letter-spacing:.02em}
 .hr-f input,.hr-f select,.hr-f textarea{width:100%;padding:10px 12px;background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);font-family:var(--font-b);font-size:15px;color:var(--ink);box-sizing:border-box}
 .hr-f textarea{min-height:110px;resize:vertical;line-height:1.45}
@@ -2445,10 +2451,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.97';
+const APP_VERSION='v11.98';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 18:20 PT - Person card Reach button, Documents folders in Reach attach, job posting photos, applicant deep link.';
+const BUILD_STAMP='2026-11-15 18:25 PT - Interview scheduler (Doodle-style) for Ranger applicants: pick times, applicant confirms by link, calendar + emails.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3931,7 +3937,7 @@ function showApp(){
 
 /* ═══ API ═══ */
 // Background polls that should never pop the garden thread card
-const _BUSY_SILENT=new Set(['logActivity','getActivity','getAppSettings','getThreads','getAiSummaries','aiSummaryStatus','getMyLocation']);
+const _BUSY_SILENT=new Set(['getInterviews','logActivity','getActivity','getAppSettings','getThreads','getAiSummaries','aiSummaryStatus','getMyLocation']);
 async function gasPost(payload){
   const quiet=_BUSY_SILENT.has(payload&&payload.action);
   if(!quiet)rrBusyStart();
@@ -9028,15 +9034,18 @@ function renderPD(h,edit){
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
         ${email?(SESSION&&SESSION.accessLevel<=2?`<button class="dcta" onclick="reachPerson('${ea(email)}')">📡 Reach</button>`:`<a class="dcta" href="${gmailUrl(email)}" target="_blank" rel="noopener">✉ Email</a>`):''}
+        ${email&&_ivIsStaff()&&_ivApplicantish(h)?`<button class="dcta" onclick="ivOpen('${ea(email)}')">📅 Interview</button>`:''}
         <button class="dcta" id="pd-forward-btn" onclick="forwardContactCard('${ea(email||name)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>
       </div>
       ${_personActionsHtml(email)}
+      ${email&&_ivIsStaff()&&_ivApplicantish(h)?`<div id="pd-iv" data-email="${ea(email)}" style="padding:0 20px"></div>`:''}
       ${_rangerActivityShell(h,email)}
       ${assignedChores.length>0?`<div class="ds"><div class="dl">Chores Assigned (${assignedChores.length})</div>${assignedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${askedChores.length>0?`<div class="ds"><div class="dl">Chores Requested (${askedChores.length})</div>${askedChores.map(c=>choreCardHtml(c,true)).join('')}</div>`:''}
       ${(SESSION&&(SESSION.accessLevel<=2||(email&&email.toLowerCase()===String(SESSION.email||'').toLowerCase())))?`<button class="btn-edit" onclick="editPerson('${ea(email||name)}')">✏ Edit</button>`:''}
       ${canEdit()?`<button class="btn-danger" onclick="deleteContact('${ea(email||name)}','${ea(name)}')">🗑 Delete Contact</button>`:''}
       <button class="btn-exit" onclick="closeDetailBtnChime()">✕ Close</button>`;
+    _ivPdFill();
   }
 }
 
@@ -10378,6 +10387,237 @@ let _opsFilterType='type_active'; // default: All Active Sites
 let _opsFilterStatus=''; // default: no status sub-filter
 let _opsFilterRanger=''; // default: no ranger-assignment sub-filter
 let _opsFilterSchedule=''; // default: no schedule sub-filter
+// ── Interview scheduler (v11.98, Levels 1-2) ────────────────────────────────
+// Doodle-style: pick several times, the applicant gets one tap-to-choose link
+// per time (interview.html), first confirmation wins, calendar + emails are
+// handled by GAS. Interviews load only when Operations > Humans or an applicant
+// card opens (never at startup).
+const _iv={list:[],loaded:false,loading:null,err:'',form:null,open:{},showClosed:false};
+const _IV_ST={'Waiting for Applicant':['⏳ Waiting for them to pick','#b5740f'],'Confirmed':['✅ Confirmed','#1e6b34'],'Applicant Suggested Other':['💬 They suggested a time','#a3332b'],'Cancelled':['Cancelled','#777'],'Completed':['Done','#777'],'Applicant Withdrew':['Withdrew','#777']};
+const _IV_KINDS=['Interview','Phone screen','Garden visit / trial day','Orientation'];
+const _IV_FORMATS=['In person','Phone call','Video call'];
+function _ivIsStaff(){return !!(SESSION&&SESSION.accessLevel<=2);}
+function _ivApplicantish(h){return humanRoleCats(h).some(c=>c==='ranger_applicant'||c==='ranger_onboarding'||c==='ranger_offered')||!!sf(h,'Applied Date','AppliedDate');}
+function _ivClosed(i){return i.status==='Cancelled'||i.status==='Completed'||i.status==='Applicant Withdrew';}
+async function _ivLoad(force){
+  if(!_ivIsStaff())return;
+  if(_iv.loading)return _iv.loading;
+  if(_iv.loaded&&!force)return;
+  _iv.loading=(async()=>{
+    try{
+      const r=await gasPost({action:'getInterviews',actor:SESSION.email});
+      if(r&&r.ok){_iv.list=r.interviews||[];_iv.loaded=true;_iv.err='';}
+      else _iv.err=(r&&r.error)||'Backend not updated yet - deploy GAS v11.98';
+    }catch(e){_iv.err='Could not load interviews';}
+    _iv.loading=null;
+  })();
+  return _iv.loading;
+}
+function _ivFor(email){const k=String(email||'').toLowerCase();return _iv.list.filter(i=>String(i.email).toLowerCase()===k);}
+function _ivBadge(email){
+  if(!_iv.loaded)return '';
+  const l=_ivFor(email).filter(i=>!_ivClosed(i))[0];if(!l)return '';
+  const st=_IV_ST[l.status]||['',''];
+  return '<div style="font-size:12px;font-weight:700;color:'+st[1]+';margin-top:2px">'+escHtml(l.status==='Confirmed'&&l.chosen?'✅ '+l.kind+' '+l.chosen.label:st[0])+'</div>';
+}
+function _ivCardHtml(i){
+  const st=_IV_ST[i.status]||[i.status,'#777'];
+  const meta=[i.kind,i.position,[i.format,i.location].filter(Boolean).join(': ')].filter(Boolean).join(' · ');
+  let h='<div class="iv-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
+    '<a style="font-weight:700;font-size:16px;cursor:pointer;color:var(--ink)" onclick="showPersonDetail(\''+ea(i.email)+'\')">'+escHtml(i.name||i.email)+'</a>'+
+    '<span class="iv-st" style="color:'+st[1]+'">'+escHtml(st[0])+'</span></div>'+
+    '<div class="hr-m">'+escHtml(meta)+'</div>';
+  if(i.status==='Confirmed'&&i.chosen)h+='<div style="margin-top:8px;font-weight:700;font-size:16px">'+escHtml(i.chosen.label)+(i.calendar?' <span style="font-weight:400;font-size:12px;color:var(--stone)">· on Google Calendar</span>':' <span style="font-weight:400;font-size:12px;color:var(--danger)">· not on calendar</span>')+'</div>';
+  if(i.status==='Waiting for Applicant'||i.status==='Applicant Suggested Other'){
+    const off=(i.slots||[]).filter(s=>s.status==='Offered');
+    if(off.length)h+='<div class="hr-m" style="margin-top:6px">Offered: '+escHtml(off.map(s=>s.label).join('  |  '))+'</div>';
+  }
+  if(i.suggestion)h+='<div class="iv-sug"><b>They said:</b> '+escHtml(i.suggestion)+'</div>';
+  const id=ea(i.id),em=ea(i.email);
+  let b='';
+  if(i.suggested&&!_ivClosed(i))b+='<button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="_ivAccept(\''+id+'\')">✔ Accept '+escHtml(i.suggested.label)+'</button>';
+  if(!_ivClosed(i)){
+    b+='<button onclick="ivOpen(\''+em+'\',\''+id+'\')">➕ Offer other times</button>';
+    b+='<button data-link="'+ea(i.page)+'" onclick="_hrCopy(this.dataset.link,\'Interview link copied\')">🔗 Copy link</button>';
+    if(i.status==='Confirmed')b+='<button onclick="_ivAct(\'completeInterview\',\''+id+'\',{},\'Marked done\')">✅ Mark done</button>';
+    b+='<button style="color:var(--danger)" onclick="_ivCancel(\''+id+'\',\''+ea(i.name||'')+'\')">✕ Cancel</button>';
+  }else b+='<button onclick="ivOpen(\''+em+'\')">📅 Schedule another</button>';
+  return h+'<div class="hr-btns">'+b+'</div></div>';
+}
+async function _ivAct(action,id,extra,okMsg){
+  try{
+    showToast('Working…');
+    const r=await gasPost(Object.assign({action,actor:SESSION.email,id},extra||{}));
+    if(!r||!r.ok){alert((r&&r.error)||'Something went wrong');return false;}
+    showToast(okMsg||'Done');
+    await _ivLoad(true);_ivRefresh();return true;
+  }catch(e){alert('Connection problem - please try again');return false;}
+}
+function _ivAccept(id){_ivAct('acceptInterviewSuggestion',id,{},'Confirmed - calendar and emails sent');}
+function _ivCancel(id,name){
+  if(!confirm('Cancel the interview with '+(name||'this applicant')+'? They will be emailed, and any calendar event is removed.'))return;
+  _ivAct('cancelInterview',id,{notify:true},'Cancelled');
+}
+function _ivRefresh(){
+  if(_hr.loaded&&_hr.editId===null&&document.getElementById('hrBody'))_hrRender();
+  _ivPdFill();
+}
+// Operations > Humans: Interviews card
+function _ivHrCard(){
+  if(!_ivIsStaff())return '';
+  if(!_iv.loaded)return '<div class="hr-card"><div class="hr-t">📅 Interviews</div><div class="hr-m">'+escHtml(_iv.err||'Loading…')+'</div></div>';
+  const act=_iv.list.filter(i=>!_ivClosed(i)),closed=_iv.list.filter(_ivClosed);
+  const rank=i=>i.status==='Applicant Suggested Other'?0:i.status==='Confirmed'?1:2;
+  act.sort((a,b)=>rank(a)-rank(b)||String(a.chosen?a.chosen.date+a.chosen.start:'9').localeCompare(String(b.chosen?b.chosen.date+b.chosen.start:'9')));
+  const need=act.filter(i=>i.status==='Applicant Suggested Other').length,conf=act.filter(i=>i.status==='Confirmed').length,wait=act.filter(i=>i.status==='Waiting for Applicant').length;
+  const open=!!_iv.open.hr;
+  let h='<div class="hr-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer" onclick="_iv.open.hr=!_iv.open.hr;_hrRender()">'+
+    '<div><div class="hr-t">📅 Interviews</div><div class="hr-m">'+(act.length?[need?need+' need you':'',conf?conf+' confirmed':'',wait?wait+' waiting for a reply':''].filter(Boolean).join(' · '):'None scheduled yet - open an applicant and tap 📅')+'</div></div>'+
+    '<span style="color:var(--stone)">'+(open?'▲':'▼')+'</span></div>';
+  if(open){
+    h+=act.map(_ivCardHtml).join('');
+    if(closed.length)h+='<div class="hr-btns"><button onclick="_iv.showClosed=!_iv.showClosed;_hrRender()">'+(_iv.showClosed?'Hide':'Show')+' finished ('+closed.length+')</button></div>'+(_iv.showClosed?closed.map(_ivCardHtml).join(''):'');
+  }
+  return h+'</div>';
+}
+// Applicant card: list that person's interviews
+function _ivPdFill(){
+  const box=document.getElementById('pd-iv');if(!box)return;
+  const email=box.dataset.email||'';
+  if(!_iv.loaded){
+    _ivLoad().then(()=>{const b=document.getElementById('pd-iv');if(_iv.loaded&&b&&b.dataset.email===email)_ivPdFill();});
+    return;
+  }
+  const mine=_ivFor(email);
+  box.innerHTML=mine.length?'<div class="dl" style="margin-top:10px">Interviews</div>'+mine.map(_ivCardHtml).join(''):'';
+}
+// ── Scheduling sheet ──
+function _ivStaffList(){
+  return (DATA.humans||[]).filter(x=>{const l=parseFloat(x['Access Level']||x.accessLevel||x.AccessLevel);return l===1||l===2;})
+    .map(x=>({em:String(x.Email||x.email||'').trim().toLowerCase(),nm:fullName(x)||x.Email||''})).filter(x=>x.em).sort((a,b)=>a.nm.localeCompare(b.nm));
+}
+function _ivGuessPosition(h){
+  const id=String(sf(h,'Position Applied','PositionApplied')||'').trim().toLowerCase();if(!id)return '';
+  const p=(_hr.positions||[]).find(x=>String(x.id).toLowerCase()===id);
+  return p?String((p.values||{})['Public Title']||(p.values||{})['Name of Position Internal']||''):'';
+}
+function ivOpen(email,existingId){
+  if(!_ivIsStaff())return;
+  const h=gh(email);if(!h){alert('Person not found');return;}
+  const ex=existingId?_iv.list.find(x=>x.id===existingId):null;
+  const meE=String(SESSION.email||'').toLowerCase();
+  const sms=String(sf(h,'SMS Consent','SMSConsent')||'').trim().toUpperCase()==='TRUE'&&!!(h.Mobile||h.mobile);
+  _iv.form={email,first:(h['First Name']||h.FirstName||fullName(h)||'').split(' ')[0],name:fullName(h),existingId:existingId||'',slots:[],sel:new Set(),half:false,conf:{},qdate:'',sms,
+    interviewers:new Set(ex?ex.interviewers:[meE])};
+  _iv.form.interviewers.add(meE);
+  const f=_iv.form;
+  const staff=_ivStaffList();
+  const kind=ex?ex.kind:'Interview',fmt=ex?ex.format:'In person',dur=ex?String(ex.duration||30):'30';
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='ivOverlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>'+(ex?'Offer other times':'Schedule an interview')+'</h3>'+
+    '<div class="sub-meta" style="margin:-6px 0 8px">With <b>'+escHtml(f.name)+'</b> · '+escHtml(email)+'. They get a link with your times, pick one, and you both get a calendar invitation. First to confirm a time wins it.</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="sub-lbl">Type</div><select class="sub-in" id="ivKind" onchange="_ivDraft()">'+_IV_KINDS.map(k=>'<option'+(k===kind?' selected':'')+'>'+escHtml(k)+'</option>').join('')+'</select></div>'+
+    '<div><div class="sub-lbl">How</div><select class="sub-in" id="ivFmt" onchange="_ivDraft()">'+_IV_FORMATS.map(k=>'<option'+(k===fmt?' selected':'')+'>'+escHtml(k)+'</option>').join('')+'</select></div></div>'+
+    '<div class="sub-lbl">Where, or video / phone details</div><input class="sub-in" id="ivLoc" placeholder="Address, Zoom or Meet link, or phone number" value="'+ea(ex?ex.location:'')+'">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="sub-lbl">Length</div><select class="sub-in" id="ivDur" onchange="_ivDurChanged()">'+[15,20,30,45,60,90].map(n=>'<option value="'+n+'"'+(String(n)===dur?' selected':'')+'>'+n+' minutes</option>').join('')+'</select></div>'+
+    '<div><div class="sub-lbl">Position</div><input class="sub-in" id="ivPos" value="'+ea(ex?ex.position:_ivGuessPosition(h))+'" placeholder="optional" oninput="_ivDraft()"></div></div>'+
+    '<div class="sub-lbl">Times to offer</div>'+
+    '<div class="sub-meta" style="margin:0 0 6px">Pick a day, tap the start times that work, then Add. Repeat for other days.</div>'+
+    '<input type="date" class="sub-in" id="ivQd" min="'+_subToday()+'" onchange="_iv.form.qdate=this.value">'+
+    '<div class="iv-q" id="ivChips"></div>'+
+    '<div class="sub-actions" style="margin-top:2px"><button class="sub-btn alt" onclick="_ivAddSlots()">+ Add these times</button><button class="sub-btn alt" onclick="_iv.form.half=!_iv.form.half;_ivChips()">½ hours</button></div>'+
+    '<div id="ivRows" style="margin-top:10px"></div>'+
+    '<div class="sub-actions" style="margin-top:0"><button class="sub-btn alt" onclick="_ivCheckCal()">🔍 Check my calendar</button></div>'+
+    '<div class="sub-lbl">Who will interview</div><div style="background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:4px 10px">'+
+      staff.map(x=>'<label style="display:flex;align-items:center;gap:10px;margin:0;padding:7px 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;flex-shrink:0" value="'+ea(x.em)+'"'+(f.interviewers.has(x.em)?' checked':'')+(x.em===meE?' disabled':'')+' onchange="_ivWho(this)"><span>'+escHtml(x.nm)+(x.em===meE?' (you)':'')+'</span></label>').join('')+'</div>'+
+    '<div class="sub-lbl">Details shown on their page <span style="text-transform:none;font-weight:400">(optional)</span></div><textarea class="sub-in" id="ivNote" rows="2" placeholder="Parking, what to bring, who to ask for…">'+escHtml(ex?ex.note:'')+'</textarea>'+
+    '<div class="sub-lbl">Email subject</div><input class="sub-in" id="ivSubj" placeholder="Enrich LA - let us set up your interview">'+
+    '<div class="sub-lbl">Message</div><textarea class="sub-in" id="ivMsg" rows="9" oninput="this.dataset.edited=\'1\'"></textarea>'+
+    '<div class="sub-meta">[[SLOTS]] becomes your list of times, each with its own tap-to-choose link.</div>'+
+    '<label style="display:flex;align-items:center;gap:10px;margin:10px 0 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none"><input type="checkbox" id="ivSms" style="width:20px;height:20px"'+(sms?'':' disabled')+'><span>Also send a text'+(sms?'':' <span style="color:var(--stone)">(no text consent on file - email only)</span>')+'</span></label>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'ivOverlay\').remove()">Cancel</button><button class="sub-btn hot" id="ivSend" onclick="_ivSend()">Send invitation</button></div></div>';
+  document.body.appendChild(ov);
+  _ivChips();_ivRows();_ivDraft();
+}
+function _ivWho(cb){const f=_iv.form;if(!f)return;if(cb.checked)f.interviewers.add(cb.value);else f.interviewers.delete(cb.value);}
+function _ivDur(){return parseInt((document.getElementById('ivDur')||{}).value,10)||30;}
+function _ivAddMin(t,n){const m=/^(\d{1,2}):(\d{2})/.exec(t||'');if(!m)return '';const v=Math.min(23*60+59,+m[1]*60+ +m[2]+n);return String(Math.floor(v/60)).padStart(2,'0')+':'+String(v%60).padStart(2,'0');}
+function _ivChips(){
+  const box=document.getElementById('ivChips');if(!box||!_iv.form)return;
+  const f=_iv.form,out=[];
+  for(let m=8*60;m<=17*60+30;m+=f.half?30:60){
+    const t=String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+    out.push('<button type="button" class="'+(f.sel.has(t)?'on':'')+'" onclick="_ivToggleChip(\''+t+'\')">'+_subFmtTime(t)+'</button>');
+  }
+  box.innerHTML=out.join('');
+}
+function _ivToggleChip(t){const f=_iv.form;if(f.sel.has(t))f.sel.delete(t);else f.sel.add(t);_ivChips();}
+function _ivAddSlots(){
+  const f=_iv.form,qd=(document.getElementById('ivQd')||{}).value;
+  if(!qd){alert('Pick a day first.');return;}
+  if(!f.sel.size){alert('Tap at least one start time.');return;}
+  f.sel.forEach(t=>{if(!f.slots.some(s=>s.date===qd&&s.start===t))f.slots.push({date:qd,start:t,end:_ivAddMin(t,_ivDur()),auto:true});});
+  f.sel.clear();f.conf={};_ivSort();_ivChips();_ivRows();
+}
+function _ivSort(){_iv.form.slots.sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));}
+function _ivRows(){
+  const box=document.getElementById('ivRows'),f=_iv.form;if(!box||!f)return;
+  if(!f.slots.length){box.innerHTML='<div class="sub-meta">No times yet.</div>';return;}
+  box.innerHTML=f.slots.map((s,i)=>'<div class="sub-shift"><input type="date" class="sub-in" min="'+_subToday()+'" value="'+ea(s.date)+'" onchange="_ivRowSet('+i+',\'date\',this.value)">'+
+    '<input type="time" class="sub-in" value="'+ea(s.start)+'" onchange="_ivRowSet('+i+',\'start\',this.value)"><input type="time" class="sub-in" value="'+ea(s.end)+'" onchange="_ivRowSet('+i+',\'end\',this.value)">'+
+    '<button class="sub-x" onclick="_ivRowDel('+i+')">✕</button></div>'+(f.conf[i]?'<div class="sub-meta" style="color:var(--danger);margin:-3px 0 6px">⚠ Clashes with: '+escHtml(f.conf[i])+'</div>':'')).join('');
+}
+function _ivRowSet(i,k,v){
+  const s=_iv.form.slots[i];if(!s)return;
+  s[k]=v;
+  if(k==='start'&&s.auto)s.end=_ivAddMin(v,_ivDur());
+  if(k==='end')s.auto=false;
+  _iv.form.conf={};
+  if(k==='start'||k==='date')_ivSort();
+  _ivRows();
+}
+function _ivRowDel(i){_iv.form.slots.splice(i,1);_iv.form.conf={};_ivRows();}
+function _ivDurChanged(){const f=_iv.form;if(!f)return;f.slots.forEach(s=>{if(s.auto)s.end=_ivAddMin(s.start,_ivDur());});f.conf={};_ivRows();_ivDraft();}
+function _ivDraft(){
+  const f=_iv.form,ta=document.getElementById('ivMsg');if(!f||!ta||ta.dataset.edited==='1')return;
+  const v=id=>((document.getElementById(id)||{}).value||'').trim();
+  const kind=v('ivKind').toLowerCase()||'interview',fmt=v('ivFmt'),pos=v('ivPos');
+  const how=fmt==='Phone call'?'a phone call':fmt==='Video call'?'a video call':'an in-person meeting';
+  const meH=gh(SESSION.email),meName=meH?fullName(meH):SESSION.email;
+  ta.value='Hi '+f.first+',\n\nThank you for your interest in Enrich LA'+(pos?' and the '+pos+' position':'')+'! We would love to set up '+how+' for your '+kind+' (about '+_ivDur()+' minutes).\n\nPlease choose the time that works best for you:\n\n[[SLOTS]]\n\nLooking forward to meeting you,\n'+meName+'\nEnrich LA';
+}
+async function _ivCheckCal(){
+  const f=_iv.form;if(!f)return;
+  if(!f.slots.length){alert('Add some times first.');return;}
+  showToast('Checking your calendar…');
+  try{
+    const r=await gasPost({action:'checkInterviewConflicts',actor:SESSION.email,duration:_ivDur(),slots:f.slots.map(s=>({date:s.date,start:s.start,end:s.end}))});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not check the calendar');return;}
+    f.conf={};(r.conflicts||[]).forEach(c=>{f.conf[c.i]=c.title;});
+    _ivRows();showToast(r.conflicts&&r.conflicts.length?'⚠ '+r.conflicts.length+' time(s) clash':'✓ No clashes');
+  }catch(e){alert('Connection problem - please try again');}
+}
+async function _ivSend(){
+  const f=_iv.form;if(!f)return;
+  const v=id=>((document.getElementById(id)||{}).value||'').trim();
+  if(!f.slots.length){alert('Add at least one time.');return;}
+  for(const s of f.slots){
+    if(!s.date||!s.start){alert('Every time needs a day and a start time.');return;}
+    if(s.end&&s.end<=s.start){alert('An end time is before its start time.');return;}
+  }
+  const btn=document.getElementById('ivSend');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  try{
+    const r=await gasPost({action:'createInterview',actor:SESSION.email,email:f.email,interviewId:f.existingId,position:v('ivPos'),kind:v('ivKind'),format:v('ivFmt'),location:v('ivLoc'),
+      duration:_ivDur(),note:v('ivNote'),subject:v('ivSubj'),message:(document.getElementById('ivMsg')||{}).value||'',
+      slots:f.slots.map(s=>({date:s.date,start:s.start,end:s.end})),interviewers:[...f.interviewers],sendText:!!(document.getElementById('ivSms')||{}).checked});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not send - Apps Script may need a new deployment (v11.98).');if(btn){btn.disabled=false;btn.textContent='Send invitation';}return;}
+    const ov=document.getElementById('ivOverlay');if(ov)ov.remove();
+    showToast('📅 Invitation sent to '+f.first);
+    _iv.form=null;await _ivLoad(true);_ivRefresh();
+  }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Send invitation';}}
+}
+
 // ── Operations > Humans: Human Resources job postings (v11.51, Levels 1-2) ──
 // Postings = rows in the HR "Human Resources" sheet, tab Positions. Loaded only
 // when this page opens (never at startup). Every sheet column shows up in the
@@ -10416,6 +10656,7 @@ async function _hrOpen(force){
   }catch(e){body.innerHTML='<div class="settings-note" style="color:var(--danger);padding:20px 0">'+escHtml(e.message)+'</div>';_hr.loading=false;return;}
   _hr.loading=false;
   _hrRender();
+  _ivLoad().then(()=>{if(_hr.loaded&&_hr.editId===null&&document.getElementById('hrBody'))_hrRender();});
 }
 function _hrSetFilter(f){_hr.filter=f;_hrRender();}
 function _hrRender(){
@@ -10434,7 +10675,7 @@ function _hrRender(){
       '<a target="_blank" href="'+HR_JOBS_URL+'" style="font-size:13px;color:var(--leaf,#2f6b35);word-break:break-all">'+HR_JOBS_URL.replace('https://','')+' ↗</a>'+
       '<div class="hr-m">All Open postings on one page - share this link.</div></div>'+
       '<div class="hr-btns" style="margin-top:0;flex-direction:column"><a target="_blank" href="'+HR_JOBS_URL+'">Open ↗</a><button onclick="_hrCopy(\''+HR_JOBS_URL+'\',\'Job page link copied\')">🔗 Copy</button></div></div>'+
-    '<div style="display:flex;gap:6px;margin:12px 0 2px;flex-wrap:wrap">'+chip('open','Open',all.filter(p=>p.open).length)+chip('closed','Closed / paused',all.filter(p=>!p.open).length)+chip('all','All',all.length)+'</div>';
+    _ivHrCard()+'<div style="display:flex;gap:6px;margin:12px 0 2px;flex-wrap:wrap">'+chip('open','Open',all.filter(p=>p.open).length)+chip('closed','Closed / paused',all.filter(p=>!p.open).length)+chip('all','All',all.length)+'</div>';
   if(!list.length)h+='<div class="settings-note" style="padding:16px 0">'+(all.length?'Nothing here.':'No job postings yet - tap ➕ New Job Posting.')+'</div>';
   const humansReady=(DATA.humans||[]).length>0;
   list.forEach(p=>{
@@ -10475,7 +10716,7 @@ function _hrAppsHtml(apps){
     const ini=(nm.match(/\b\w/g)||['?']).slice(0,2).join('').toUpperCase();
     return '<div class="hr-app" onclick="showPersonDetail(\''+ea(em)+'\')">'+
       (img&&/^https?:/.test(img)?'<img data-lazy="'+ea(img)+'" alt="" style="opacity:0;transition:opacity .2s">':'<span class="hr-av">'+escHtml(ini)+'</span>')+
-      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(nm)+'</div><div class="hr-m" style="font-size:12px;color:var(--stone)">'+escHtml([a.Role||a.role,ds,a.Mobile||a.mobile].filter(Boolean).join(' · '))+'</div></div><span style="color:var(--stone)">›</span></div>';
+      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(nm)+'</div><div class="hr-m" style="font-size:12px;color:var(--stone)">'+escHtml([a.Role||a.role,ds,a.Mobile||a.mobile].filter(Boolean).join(' · '))+'</div>'+_ivBadge(em)+'</div>'+(_ivIsStaff()?'<button title="Schedule interview" onclick="event.stopPropagation();ivOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">📅</button>':'')+'<span style="color:var(--stone)">›</span></div>';
   }).join('')+'</div>';
 }
 function _hrToggleApps(id){_hr.openApps[id]=!_hr.openApps[id];_hrRender();}

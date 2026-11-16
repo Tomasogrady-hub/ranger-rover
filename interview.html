@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pick a time | Enrich LA</title>
+<meta name="robots" content="noindex">
+<meta property="og:title" content="Pick a time to meet - Enrich LA">
+<meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
+<!-- interview.html v1.0 - 2026-11-15 - Doodle-style interview time picker for Ranger applicants. Reads/writes via GAS publicInterviewInfo / Choose / Suggest / Decline. -->
+<style>
+  :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b;--ok:#1e6b34;--okbg:#e4f3e7}
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--fog);line-height:1.5}
+  .wrap{max-width:560px;margin:0 auto;padding:0 16px 70px}
+  header{padding:24px 16px 8px;text-align:center}
+  header img{height:58px;width:auto;max-width:90%;display:block;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
+  h1{font-size:23px;margin:6px 0 2px;color:var(--grove)}
+  h2{font-size:17px;margin:0 0 6px;color:var(--grove)}
+  .muted{color:var(--muted);font-size:14px}
+  .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:15px;margin-top:10px}
+  .facts b{color:var(--muted);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.05em;padding-top:2px}
+  .note{background:var(--fog);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:15px;white-space:pre-wrap}
+  .day{margin-top:16px}
+  .day .dl{font-weight:700;color:var(--grove);font-size:15px;margin-bottom:6px}
+  .pills{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{border:2px solid var(--line);background:#fff;border-radius:11px;padding:11px 14px;font-size:16px;font-weight:600;color:var(--ink);cursor:pointer;min-width:92px;text-align:center;-webkit-tap-highlight-color:transparent}
+  .pill.sel{border-color:var(--orange);background:#fdf0e7;color:#8a3d10}
+  .pill small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+  button.go{width:100%;margin-top:18px;padding:15px;border:none;border-radius:11px;background:var(--orange);color:#fff;font-size:17px;font-weight:700;cursor:pointer}
+  button.go:disabled{background:#b9b6aa;cursor:not-allowed}
+  button.alt{width:100%;margin-top:10px;padding:13px;border:2px solid var(--grove);border-radius:11px;background:#fff;color:var(--grove);font-size:16px;font-weight:700;cursor:pointer}
+  button.link{background:none;border:none;color:var(--leaf);text-decoration:underline;font-size:15px;padding:10px 0;cursor:pointer}
+  a.alt{display:block;text-align:center;text-decoration:none;margin-top:10px;padding:13px;border:2px solid var(--grove);border-radius:11px;background:#fff;color:var(--grove);font-size:16px;font-weight:700}
+  label{display:block;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:14px 0 5px}
+  input[type=date],input[type=time],textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+  textarea{min-height:84px;resize:vertical}
+  .row{display:flex;gap:8px;align-items:center}
+  .ok{background:var(--okbg);color:var(--ok);border-radius:12px;padding:16px;text-align:center}
+  .ok .big{font-size:44px;line-height:1}
+  .ok .when{font-size:20px;font-weight:700;margin:6px 0 2px}
+  .error{color:var(--err);font-size:14px;margin-top:12px}
+  .center{text-align:center}
+  footer{text-align:center;margin-top:26px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><img src="enrich-logo.png" alt="Enrich LA"></header>
+<div class="wrap" id="app"><div class="card center muted">Loading…</div></div>
+<script>
+(function(){
+  var FALLBACK_URL='https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
+  var GAS_URL=FALLBACK_URL;
+  try{GAS_URL=localStorage.getItem('rr_gas_url')||FALLBACK_URL;}catch(e){}
+  var q=new URLSearchParams(location.search);
+  var iid=(q.get('i')||'').trim(), picked=(q.get('o')||'').trim();
+  var app=document.getElementById('app');
+  var view=null, mode='pick', changing=false, F={date:'',start:'',end:'',text:''};
+
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function raw(url,action,extra){
+    return fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action:action},extra||{}))}).then(function(r){return r.json();});
+  }
+  // Ask the live deployment where the newest backend is (old deployments keep old code)
+  function resolve(){return raw(GAS_URL,'getAppSettings').then(function(r){if(r&&r.gasUrl&&r.gasUrl!==GAS_URL){GAS_URL=r.gasUrl;try{localStorage.setItem('rr_gas_url',GAS_URL);}catch(e){}}}).catch(function(){});}
+  function post(a,x){return raw(GAS_URL,a,x);}
+
+  function fmtTime(t){var m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return '';var h=+m[1],ap=h>=12?'pm':'am';h=h%12||12;return h+(m[2]==='00'?'':':'+m[2])+ap;}
+  function parseD(ds){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ds||''));return m?new Date(+m[1],+m[2]-1,+m[3],12):null;}
+  function fmtDay(ds){var d=parseD(ds);return d?d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}):ds;}
+  function fmtRange(s,e){return fmtTime(s)+(e?' - '+fmtTime(e):'');}
+  function todayYmd(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+  // ── add to calendar ──
+  function stamp(ds,t){return ds.replace(/-/g,'')+'T'+String(t).replace(':','').padStart(4,'0')+'00';}
+  function details(v){return (v.kind||'Interview')+' with Enrich LA'+(v.position?' - '+v.position:'')+(v.interviewers&&v.interviewers.length?'\nWith: '+v.interviewers.join(', '):'');}
+  function googleUrl(v){
+    var c=v.chosen;
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent('Enrich LA '+(v.kind||'interview').toLowerCase())+
+      '&dates='+stamp(c.date,c.start)+'/'+stamp(c.date,c.end||c.start)+'&ctz=America%2FLos_Angeles&details='+encodeURIComponent(details(v))+'&location='+encodeURIComponent(v.location||'');
+  }
+  function icsUrl(v){
+    var c=v.chosen;
+    var L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Enrich LA//Interview//EN','BEGIN:VEVENT','UID:'+v.id+'@enrichla.org','DTSTAMP:'+new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,''),
+      'DTSTART:'+stamp(c.date,c.start),'DTEND:'+stamp(c.date,c.end||c.start),'SUMMARY:Enrich LA '+(v.kind||'interview').toLowerCase(),
+      'DESCRIPTION:'+details(v).replace(/\n/g,'\\n'),'LOCATION:'+String(v.location||'').replace(/[,;]/g,' '),'END:VEVENT','END:VCALENDAR'];
+    return 'data:text/calendar;charset=utf-8,'+encodeURIComponent(L.join('\r\n'));
+  }
+
+  function capture(){
+    var g=function(id){var el=document.getElementById(id);return el?el.value:null;};
+    if(g('sgd')!==null){F.date=g('sgd');F.start=g('sgs');F.end=g('sge');F.text=g('sgt');}
+  }
+  function infoCard(v){
+    var f='';
+    if(v.position)f+='<b>Position</b><span>'+esc(v.position)+'</span>';
+    f+='<b>What</b><span>'+esc(v.kind)+' - about '+esc(v.duration)+' minutes</span>';
+    if(v.format||v.location)f+='<b>Where</b><span>'+esc([v.format,v.location].filter(Boolean).join(': '))+'</span>';
+    if(v.interviewers&&v.interviewers.length)f+='<b>With</b><span>'+esc(v.interviewers.join(', '))+'</span>';
+    return '<div class="card"><h1>Hi '+esc(v.first||'there')+'!</h1><div class="muted">Let\u2019s find a time to meet.</div><div class="facts">'+f+'</div>'+
+      (v.note?'<div class="note">'+esc(v.note)+'</div>':'')+'</div>';
+  }
+  function contactLine(v){
+    return v.contact&&v.contact.email?'<footer>Questions? Email <a href="mailto:'+esc(v.contact.email)+'">'+esc(v.contact.name||v.contact.email)+'</a></footer>':'<footer>Enrich LA - growing school gardens across Los Angeles</footer>';
+  }
+
+  function render(err){
+    var v=view;
+    if(!v){app.innerHTML='<div class="card">'+esc(err||'This link is not valid.')+'</div>';return;}
+    var h=infoCard(v);
+    if(v.status==='Cancelled'){app.innerHTML=h+'<div class="card">This interview was cancelled by Enrich LA. We will be in touch if anything changes.</div>'+contactLine(v);return;}
+    if(v.status==='Applicant Withdrew'){app.innerHTML='<div class="card"><h1>Thank you for letting us know</h1><div class="muted">We have noted that you can no longer do this '+esc(v.kind.toLowerCase())+'. Good luck, and thank you for your interest in Enrich LA.</div></div>'+contactLine(v);return;}
+
+    if(v.status==='Confirmed'&&v.chosen&&!changing&&mode!=='suggest'&&mode!=='withdraw'){
+      var c=v.chosen;
+      h+='<div class="card"><div class="ok"><div class="big">\u2705</div><div class="when">'+esc(fmtDay(c.date))+'</div><div>'+esc(fmtRange(c.start,c.end))+' Pacific Time</div></div>'+
+        '<a class="alt" href="'+esc(googleUrl(v))+'" target="_blank" rel="noopener">\uD83D\uDCC5 Add to Google Calendar</a>'+
+        '<a class="alt" href="'+icsUrl(v)+'" download="Enrich-LA-interview.ics">\u2B07 Download for Apple / Outlook</a>'+
+        (v.options.length?'<button class="alt" id="chg">Change the time</button>':'')+
+        '<div class="center"><button class="link" id="sug">I need a different day</button><br><button class="link" id="wd" style="color:var(--err)">I can\u2019t do this anymore</button></div></div>'+contactLine(v);
+      app.innerHTML=h;
+      bind();return;
+    }
+    if(mode==='withdraw'){
+      h+='<div class="card"><h2>Withdraw</h2><div class="muted">Sorry to hear that. Add a note if you like - we will let the team know.</div><label for="wt">Note (optional)</label><textarea id="wt" placeholder="e.g. I accepted another job"></textarea>'+
+        '<button class="go" id="wdgo" style="background:var(--err)">Yes, withdraw</button><div class="center"><button class="link" id="back">Go back</button></div>'+(err?'<div class="error">'+esc(err)+'</div>':'')+'</div>'+contactLine(v);
+      app.innerHTML=h;bind();return;
+    }
+    var opts=v.options||[];
+    if(mode==='suggest'||(!opts.length&&v.status!=='Confirmed')||(!opts.length&&mode!=='pick')){
+      h+='<div class="card"><h2>'+(opts.length||v.status==='Confirmed'?'Suggest another time':'Let us know what works')+'</h2>'+
+        (!opts.length&&v.status!=='Confirmed'?'<div class="muted">None of the offered times are still open. Tell us a day and time that works for you and we will confirm it.</div>':'<div class="muted">Tell us a day and time that works for you and we will confirm it.</div>')+
+        '<label for="sgd">Day</label><input type="date" id="sgd" min="'+todayYmd()+'" value="'+esc(F.date)+'">'+
+        '<label>Time</label><div class="row"><input type="time" id="sgs" value="'+esc(F.start)+'"><span>to</span><input type="time" id="sge" value="'+esc(F.end)+'"></div>'+
+        '<label for="sgt">Note (optional)</label><textarea id="sgt" placeholder="e.g. Any weekday after 3pm works for me">'+esc(F.text)+'</textarea>'+
+        '<button class="go" id="send">Send to Enrich LA</button>'+
+        (opts.length||v.status==='Confirmed'?'<div class="center"><button class="link" id="back">Back to the times</button></div>':'')+
+        (v.suggestion&&v.status!=='Confirmed'?'<div class="note"><b>Already sent:</b> '+esc(v.suggestion)+'</div>':'')+
+        (err?'<div class="error">'+esc(err)+'</div>':'')+'</div>'+contactLine(v);
+      app.innerHTML=h;bind();return;
+    }
+    // pick a time - grouped by day (Doodle style)
+    if(picked&&!opts.some(function(o){return o.id===picked;}))picked='';
+    var days={},order=[];
+    opts.forEach(function(o){if(!days[o.date]){days[o.date]=[];order.push(o.date);}days[o.date].push(o);});
+    h+='<div class="card"><h2>'+(changing?'Pick a different time':'Pick the time that works best')+'</h2><div class="muted">All times are Pacific Time (Los Angeles).</div>'+
+      order.map(function(d){
+        return '<div class="day"><div class="dl">'+esc(fmtDay(d))+'</div><div class="pills">'+days[d].map(function(o){
+          return '<button type="button" class="pill'+(o.id===picked?' sel':'')+'" data-id="'+esc(o.id)+'">'+esc(fmtTime(o.start))+'<small>to '+esc(fmtTime(o.end))+'</small></button>';
+        }).join('')+'</div></div>';
+      }).join('');
+    var po=opts.filter(function(o){return o.id===picked;})[0];
+    h+='<button class="go" id="go"'+(po?'':' disabled')+'>'+(po?'Confirm '+esc(fmtDay(po.date))+' at '+esc(fmtTime(po.start)):'Tap a time above')+'</button>'+
+      '<div class="center"><button class="link" id="none">None of these work</button>'+(changing?'<br><button class="link" id="keep">Keep my current time</button>':'')+'</div>'+
+      (err?'<div class="error">'+esc(err)+'</div>':'')+'</div>'+contactLine(v);
+    app.innerHTML=h;bind();
+  }
+  function $(id){return document.getElementById(id);}
+  function bind(){
+    Array.prototype.forEach.call(document.querySelectorAll('.pill'),function(b){b.onclick=function(){capture();picked=b.getAttribute('data-id');render();};});
+    if($('go'))$('go').onclick=choose;
+    if($('none'))$('none').onclick=function(){capture();mode='suggest';render();};
+    if($('sug'))$('sug').onclick=function(){mode='suggest';render();};
+    if($('back'))$('back').onclick=function(){capture();mode='pick';changing=false;render();};
+    if($('chg'))$('chg').onclick=function(){changing=true;picked='';mode='pick';render();};
+    if($('keep'))$('keep').onclick=function(){changing=false;mode='pick';render();};
+    if($('send'))$('send').onclick=suggest;
+    if($('wd'))$('wd').onclick=function(){mode='withdraw';render();};
+    if($('wdgo'))$('wdgo').onclick=withdraw;
+  }
+  function busy(id,t){var b=$(id);if(b){b.disabled=true;b.textContent=t;}}
+  function reload(msg){
+    return post('publicInterviewInfo',{i:iid}).then(function(r){if(r&&r.ok){view=r;}render(msg);}).catch(function(){render(msg);});
+  }
+  function choose(){
+    if(!picked)return;
+    busy('go','Confirming\u2026');
+    post('publicInterviewChoose',{i:iid,o:picked}).then(function(r){
+      if(r&&r.ok){view=r;changing=false;mode='pick';picked='';render();window.scrollTo(0,0);}
+      else{picked='';reload((r&&r.error)||'Something went wrong - please try again.');}
+    }).catch(function(){render('Connection problem - please try again.');});
+  }
+  function suggest(){
+    capture();
+    var t=(F.text||'').trim();
+    if(!F.date&&!t){render('Please pick a day (and time), or write a note.');return;}
+    if(F.start&&F.end&&F.end<=F.start){render('The end time must be after the start time.');return;}
+    busy('send','Sending\u2026');
+    post('publicInterviewSuggest',{i:iid,text:t,date:F.date,start:F.start,end:F.end}).then(function(r){
+      if(r&&r.ok){
+        view=r;
+        app.innerHTML='<div class="card center"><div class="ok"><div class="big">\uD83D\uDCE8</div><div class="when">Thank you!</div><div>Your message was sent to the Enrich LA team. They will confirm a time with you.</div></div></div>'+contactLine(r);
+        F={date:'',start:'',end:'',text:''};mode='pick';
+      }else render((r&&r.error)||'Something went wrong - please try again.');
+    }).catch(function(){render('Connection problem - please try again.');});
+  }
+  function withdraw(){
+    var t=($('wt')||{}).value||'';
+    busy('wdgo','Sending\u2026');
+    post('publicInterviewDecline',{i:iid,text:t}).then(function(r){
+      if(r&&r.ok){view=r;mode='pick';render();}else render((r&&r.error)||'Something went wrong - please try again.');
+    }).catch(function(){render('Connection problem - please try again.');});
+  }
+
+  if(!iid){app.innerHTML='<div class="card">This link is missing information. Please use the link from your email or text.</div>';return;}
+  resolve().then(function(){return post('publicInterviewInfo',{i:iid});}).then(function(r){
+    if(r&&r.ok){view=r;render();}else{view=null;render((r&&r.error)||'This link is not valid.');}
+  }).catch(function(){view=null;render('Could not load - please check your connection and try again.');});
+})();
+</script>
+</body>
+</html>

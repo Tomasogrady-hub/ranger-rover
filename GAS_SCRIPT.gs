@@ -496,7 +496,7 @@ function handleGetMyLocation(p) {
 var LIVE_SCOPES = ['sites', 'humans', 'chores', 'subs'];
 var LIVE_FILES = [
   { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'] } },
-  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability', 'Calendar'] } },
+  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability', 'Calendar', 'Interviews', 'Interview Slots'] } },
   { key: 'humans', id: HUMANS_ID, scopes: { humans: ['Humans', 'Roles'] } },
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
@@ -511,7 +511,9 @@ var LIVE_ACTION_SCOPES = {
   createSite: ['sites'], deleteSite: ['sites'],
   requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs'], createReschedule: ['subs'], cancelReschedule: ['subs'],
   publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
-  acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs']
+  acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs'],
+  createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], acceptInterviewSuggestion: ['subs'],
+  publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs']
 };
 
 // Online now (v11.47): each open app's heartbeat records "seen at" in the
@@ -864,6 +866,18 @@ function _doPostRoute(e) {
       case 'publicRescheduleInfo':    return respond(handlePublicRescheduleInfo(p));
       case 'publicRescheduleChoose':  return respond(handlePublicRescheduleChoose(p));
       case 'publicRescheduleSuggest': return respond(handlePublicRescheduleSuggest(p));
+
+      // ── INTERVIEW SCHEDULER (v11.98) - staff actions need Level 1-2; public ones are token-based ──
+      case 'getInterviews':             return respond(handleGetInterviews(p));
+      case 'createInterview':           return respond(handleCreateInterview(p));
+      case 'cancelInterview':           return respond(handleCancelInterview(p));
+      case 'completeInterview':         return respond(handleCompleteInterview(p));
+      case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
+      case 'checkInterviewConflicts':   return respond(handleCheckInterviewConflicts(p));
+      case 'publicInterviewInfo':       return respond(handlePublicInterviewInfo(p));
+      case 'publicInterviewChoose':     return respond(handlePublicInterviewChoose(p));
+      case 'publicInterviewSuggest':    return respond(handlePublicInterviewSuggest(p));
+      case 'publicInterviewDecline':    return respond(handlePublicInterviewDecline(p));
 
       // ── HR / HIRING (public job postings + application form, no login) ─────
       case 'publicGetPositions': return respond(handlePublicGetPositions(p));
@@ -5558,7 +5572,9 @@ function _subGetSheet(name, headers) {
     sh.setFrozenRows(1);
     // Date / Start / End as plain text so Sheets never converts them
     var textCols = { 'Subs': ['Date','Start','End'], 'Reschedule Options': ['Date','Start','End'], 'Calendar': ['Original Date','Date','Start','End'],
-                     'Reschedules': ['Chosen Date','Chosen Start','Chosen End'] }[name];
+                     'Reschedules': ['Chosen Date','Chosen Start','Chosen End'],
+                     'Interview Slots': ['Date','Start','End'],
+                     'Interviews': ['Chosen Date','Chosen Start','Chosen End','Suggested Date','Suggested Start','Suggested End'] }[name];
     if (textCols) {
       textCols.forEach(function(c){
         sh.getRange(1, headers.indexOf(c) + 1, sh.getMaxRows(), 1).setNumberFormat('@');
@@ -8265,4 +8281,446 @@ function dedupePlants() {
 
   try { CacheService.getScriptCache().removeAll(['plants']); } catch (e) {}
   Logger.log('Done. Kept ' + out.length + ' rows, removed ' + removed + '. Backup: ' + backup.getUrl());
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── INTERVIEW SCHEDULER (v11.98) ────────────────────────────────────────────
+// A Doodle-style way to set up interviews with Ranger applicants. Level 1-2
+// picks several times (and who will interview), the applicant gets an email
+// (and optionally a text) with one tap-to-choose link per time, opens
+// interview.html, and confirms ONE. The first person to confirm a time wins it:
+// the same time then disappears from other applicants who share an
+// interviewer. On confirm: the interviewer(s) are notified, the applicant gets
+// a confirmation and a Google Calendar invitation is created.
+// The applicant can also suggest another time, or withdraw.
+// Data lives in the Sub spreadsheet: tabs "Interviews" and "Interview Slots"
+// (created automatically). Public actions need no login; the link carries the
+// random Interview ID (opening a link never changes anything - the applicant
+// presses Confirm, so email scanners cannot book by accident).
+//
+// ONE-TIME: run authorizeInterviewCalendar() once from the Apps Script editor
+// to grant Calendar access (then Deploy > New Deployment as usual).
+// ════════════════════════════════════════════════════════════════════════════
+var IV_TAB = 'Interviews';
+var IV_SLOT_TAB = 'Interview Slots';
+var IV_HEADERS = ['ID','Created','Created By','Applicant Email','Applicant Name','Position','Kind','Format','Location','Duration','Note','Status','Interviewers',
+  'Chosen Slot','Chosen Date','Chosen Start','Chosen End','Chosen At','Applicant Suggestion','Suggested Date','Suggested Start','Suggested End','Calendar Event','Updated'];
+var IV_SLOT_HEADERS = ['Slot ID','Interview ID','Date','Start','End','Status'];
+var IV_PAGE_URL = 'https://tomasogrady-hub.github.io/ranger-rover/interview.html';
+var IV_DEFAULT_MIN = 30;
+
+function authorizeInterviewCalendar() {
+  var c = CalendarApp.getDefaultCalendar();
+  Logger.log('Calendar access OK: ' + c.getName());
+}
+
+function _ivLink(id, slotId) { return IV_PAGE_URL + '?i=' + encodeURIComponent(id) + (slotId ? '&o=' + encodeURIComponent(slotId) : ''); }
+function _ivMin(t) { var m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : -1; }
+function _ivFmtMin(n) { var h = Math.floor(n / 60), m = n % 60; return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; }
+function _ivEnd(start, end, dur) {
+  if (_ivMin(end) > -1 && _ivMin(end) > _ivMin(start)) return String(end);
+  var s = _ivMin(start); if (s < 0) return '';
+  return _ivFmtMin(Math.min(23 * 60 + 59, s + (parseInt(dur, 10) || IV_DEFAULT_MIN)));
+}
+function _ivDt(date, time) {
+  var d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || '')), t = /^(\d{1,2}):(\d{2})/.exec(String(time || ''));
+  if (!d || !t) return null;
+  return new Date(+d[1], +d[2] - 1, +d[3], +t[1], +t[2]);
+}
+function _ivLower(list) {
+  return (Array.isArray(list) ? list : String(list || '').split(',')).map(function(e){ return String(e || '').trim().toLowerCase(); }).filter(String);
+}
+// Access level as a number (2.5 stays 2.5, so Level 2.5 is NOT treated as staff)
+function _ivStaffLevel(email) {
+  try {
+    var d = humansData(), ei = d.h.indexOf('Email'), ai = d.h.indexOf('Access Level');
+    var want = String(email || '').trim().toLowerCase();
+    for (var r = 1; r < d.data.length; r++) {
+      if (String(d.data[r][ei] || '').trim().toLowerCase() === want) {
+        var v = parseFloat(d.data[r][ai]); return isNaN(v) ? 99 : v;
+      }
+    }
+  } catch (e) {}
+  return 99;
+}
+function _ivAdmin(p, people) {
+  var me = _subActor(p, people);
+  if (_ivStaffLevel(me.email) > 2) throw new Error('Interviews can be managed by Access Level 1-2 only.');
+  return me;
+}
+function _ivLoad(id) {
+  var it = _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS));
+  var r = it.rows.filter(function(x){ return x.ID === String(id || '').trim(); })[0];
+  if (!r) return null;
+  var st = _subReadAll(_subGetSheet(IV_SLOT_TAB, IV_SLOT_HEADERS));
+  return { it: it, st: st, r: r, slots: st.rows.filter(function(s){ return s['Interview ID'] === r.ID; }) };
+}
+function _ivPeopleOf(r) {
+  var s = {}; var out = [];
+  [r['Created By']].concat(_ivLower(r.Interviewers)).forEach(function(e){ e = String(e || '').trim().toLowerCase(); if (e && !s[e]) { s[e] = 1; out.push(e); } });
+  return out;
+}
+// Slots of this interview that overlap a CONFIRMED interview of someone who shares an interviewer
+function _ivTaken(L) {
+  var taken = {};
+  var mine = _ivPeopleOf(L.r);
+  var others = L.it.rows.filter(function(x){ return x.Status === 'Confirmed' && x.ID !== L.r.ID && x['Chosen Date']; });
+  if (!others.length) return taken;
+  others = others.filter(function(o){ var ps = _ivPeopleOf(o); return ps.some(function(e){ return mine.indexOf(e) !== -1; }); });
+  L.slots.forEach(function(s){
+    var a0 = _ivMin(s.Start), a1 = _ivMin(_ivEnd(s.Start, s.End, L.r.Duration));
+    others.forEach(function(o){
+      if (o['Chosen Date'] !== s.Date) return;
+      var b0 = _ivMin(o['Chosen Start']), b1 = _ivMin(_ivEnd(o['Chosen Start'], o['Chosen End'], o.Duration));
+      if (a0 < b1 && a1 > b0) taken[s['Slot ID']] = true;
+    });
+  });
+  return taken;
+}
+function _ivIsFuture(s) {
+  var today = _subToday();
+  if (s.Date > today) return true;
+  if (s.Date < today) return false;
+  return _ivMin(s.Start) > _ivMin(Utilities.formatDate(new Date(), _subTz(), 'HH:mm'));
+}
+function _ivWhen(o) { return _subFmtShift({ Date: o.date || o.Date, Start: o.start || o.Start, End: o.end || o.End }); }
+
+// ── Google Calendar (best effort - never blocks booking) ────────────────────
+function _ivCalCreate(r, date, start, end, people) {
+  try {
+    var cal = CalendarApp.getDefaultCalendar();
+    var s = _ivDt(date, start), e = _ivDt(date, _ivEnd(start, end, r.Duration));
+    if (!s || !e) return '';
+    var owner = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+    var guests = [String(r['Applicant Email']).toLowerCase()].concat(_ivPeopleOf(r)).filter(function(x, i, a){ return x && x !== owner && a.indexOf(x) === i; });
+    var title = (r.Kind || 'Interview') + ': ' + r['Applicant Name'] + (r.Position ? ' (' + r.Position + ')' : '');
+    var desc = 'Enrich LA ' + (r.Kind || 'interview').toLowerCase() + ' with ' + r['Applicant Name'] + (r.Position ? ' for ' + r.Position : '') +
+      '\nFormat: ' + (r.Format || '') + (r.Location ? '\nWhere / link: ' + r.Location : '') + (r.Note ? '\n\n' + r.Note : '') +
+      '\n\nScheduled in Ranger Rover.';
+    var ev = cal.createEvent(title, s, e, { description: desc, location: r.Location || '', guests: guests.join(','), sendInvites: true });
+    return ev.getId();
+  } catch (err) { Logger.log('ivCal create: ' + err.message); return ''; }
+}
+function _ivCalDelete(eventId) {
+  if (!eventId) return;
+  try { var ev = CalendarApp.getEventById(eventId); if (ev) ev.deleteEvent(); } catch (err) { Logger.log('ivCal delete: ' + err.message); }
+}
+
+// Tells the person building the invitation which times clash with their calendar
+function handleCheckInterviewConflicts(p) {
+  try {
+    var people = _subPeople();
+    _ivAdmin(p, people);
+    var cal = CalendarApp.getDefaultCalendar();
+    var dur = parseInt(p.duration, 10) || IV_DEFAULT_MIN;
+    var out = [];
+    (p.slots || []).forEach(function(s, i){
+      var a = _ivDt(s.date, s.start), b = _ivDt(s.date, _ivEnd(s.start, s.end, dur));
+      if (!a || !b) return;
+      var hits = cal.getEvents(a, b).filter(function(ev){ return !ev.isAllDayEvent() && ev.getMyStatus() !== CalendarApp.GuestStatus.NO; });
+      if (hits.length) out.push({ i: i, title: hits.slice(0, 2).map(function(ev){ return ev.getTitle(); }).join(', ') });
+    });
+    return { ok: true, conflicts: out };
+  } catch (e) {
+    return { ok: false, error: 'Could not read the calendar (' + e.message + '). Run authorizeInterviewCalendar once in Apps Script.' };
+  }
+}
+
+// ── Views ───────────────────────────────────────────────────────────────────
+function _ivAdminRow(r, slots) {
+  var sug = r['Suggested Date'] ? { date: r['Suggested Date'], start: r['Suggested Start'], end: r['Suggested End'], label: _subFmtShift({ Date: r['Suggested Date'], Start: r['Suggested Start'], End: r['Suggested End'] }) } : null;
+  return {
+    id: r.ID, email: r['Applicant Email'], name: r['Applicant Name'], position: r.Position, kind: r.Kind, format: r.Format,
+    location: r.Location, duration: r.Duration, note: r.Note, status: r.Status, createdBy: r['Created By'],
+    interviewers: _ivLower(r.Interviewers), created: r.Created, updated: r.Updated,
+    chosen: r['Chosen Date'] ? { slot: r['Chosen Slot'], date: r['Chosen Date'], start: r['Chosen Start'], end: r['Chosen End'],
+      label: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) } : null,
+    suggestion: r['Applicant Suggestion'] || '', suggested: sug, calendar: !!r['Calendar Event'], page: _ivLink(r.ID),
+    slots: slots.map(function(s){ return { id: s['Slot ID'], date: s.Date, start: s.Start, end: s.End, status: s.Status, label: _subFmtShift(s), url: _ivLink(r.ID, s['Slot ID']) }; })
+  };
+}
+function handleGetInterviews(p) {
+  try {
+    var people = _subPeople();
+    _ivAdmin(p, people);
+    var it = _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS));
+    var st = _subReadAll(_subGetSheet(IV_SLOT_TAB, IV_SLOT_HEADERS));
+    var by = {};
+    st.rows.forEach(function(s){ (by[s['Interview ID']] = by[s['Interview ID']] || []).push(s); });
+    var cutoff = _subAddDays(-30);
+    var rows = it.rows.filter(function(r){
+      if (['Cancelled', 'Completed', 'Applicant Withdrew'].indexOf(r.Status) === -1) return true;
+      var u = r.Updated ? String(r.Updated).slice(0, 10) : '';
+      return !u || u >= cutoff;
+    });
+    rows.sort(function(a, b){ return String(b.Created).localeCompare(String(a.Created)); });
+    return { ok: true, interviews: rows.map(function(r){ return _ivAdminRow(r, by[r.ID] || []); }) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function _ivPublicView(L, people) {
+  var taken = _ivTaken(L), r = L.r;
+  var confirmed = r.Status === 'Confirmed';
+  var opts = L.slots.filter(function(s){
+    if (taken[s['Slot ID']] || !_ivIsFuture(s)) return false;
+    return s.Status === 'Offered' || (confirmed && s.Status === 'Not Chosen');
+  }).sort(function(a, b){ return (a.Date + a.Start).localeCompare(b.Date + b.Start); });
+  var creator = people[String(r['Created By']).toLowerCase()];
+  return {
+    ok: true, id: r.ID, status: r.Status, first: String(r['Applicant Name'] || '').split(' ')[0],
+    position: r.Position || '', kind: r.Kind || 'Interview', format: r.Format || '', location: r.Location || '',
+    duration: parseInt(r.Duration, 10) || IV_DEFAULT_MIN, note: r.Note || '',
+    interviewers: _ivPeopleOf(r).map(function(e){ var x = people[e]; return x ? x.name : e.split('@')[0]; }),
+    contact: creator ? { name: creator.name, email: creator.email } : null,
+    options: opts.map(function(s){ return { id: s['Slot ID'], date: s.Date, start: s.Start, end: _ivEnd(s.Start, s.End, r.Duration), label: _subFmtShift(s) }; }),
+    chosen: r['Chosen Date'] ? { date: r['Chosen Date'], start: r['Chosen Start'], end: _ivEnd(r['Chosen Start'], r['Chosen End'], r.Duration),
+      label: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) } : null,
+    suggestion: r['Applicant Suggestion'] || ''
+  };
+}
+function _ivNotifyStaff(r, people, subject, body, sms) {
+  _ivPeopleOf(r).forEach(function(e, i){
+    var x = people[e]; if (!x) return;
+    _subNotify(x, subject, 'Hi ' + x.first + ',\n\n' + body, i === 0 ? sms : '', i === 0 ? {} : { noSms: true });
+  });
+}
+
+// ── Create (or offer new times for an existing interview) ───────────────────
+function handleCreateInterview(p) {
+  try {
+    var people = _subPeople();
+    var me = _ivAdmin(p, people);
+    var today = _subToday();
+    var dur = parseInt(p.duration, 10) || IV_DEFAULT_MIN;
+    var slots = (p.slots || []).filter(function(s){ return s && /^\d{4}-\d{2}-\d{2}$/.test(String(s.date || '')) && _ivMin(s.start) > -1 && String(s.date) >= today; });
+    if (!slots.length) return { ok: false, error: 'Add at least one date and start time (today or later).' };
+    var appEmail = String(p.email || '').trim().toLowerCase();
+    var applicant = people[appEmail];
+    if (!applicant) return { ok: false, error: 'Applicant not found in Humans.' };
+    var ivs = _ivLower(p.interviewers).filter(function(e){ return _ivStaffLevel(e) <= 2; });
+    if (ivs.indexOf(me.email) === -1) ivs.unshift(me.email);
+    var it = _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS));
+    var ih = it.h, now = new Date();
+    var existing = p.interviewId ? it.rows.filter(function(x){ return x.ID === String(p.interviewId).trim(); })[0] : null;
+    if (p.interviewId && !existing) return { ok: false, error: 'That interview was not found.' };
+    var id, fields = {
+      'Applicant Email': appEmail, 'Applicant Name': applicant.name, 'Position': String(p.position || '').slice(0, 120),
+      'Kind': String(p.kind || 'Interview').slice(0, 40), 'Format': String(p.format || '').slice(0, 40),
+      'Location': String(p.location || '').slice(0, 400), 'Duration': dur, 'Note': String(p.note || '').slice(0, 2000),
+      'Status': 'Waiting for Applicant', 'Interviewers': ivs.join(', ')
+    };
+    var reoffer = false;
+    if (existing) {
+      id = existing.ID; reoffer = true;
+      if (existing['Calendar Event']) _ivCalDelete(existing['Calendar Event']);
+      var oldSlots = _subReadAll(_subGetSheet(IV_SLOT_TAB, IV_SLOT_HEADERS));
+      oldSlots.rows.filter(function(s){ return s['Interview ID'] === id && (s.Status === 'Offered' || s.Status === 'Chosen' || s.Status === 'Not Chosen'); })
+        .forEach(function(s){ _subSet(oldSlots, s, { 'Status': 'Withdrawn' }); });
+      fields['Chosen Slot'] = ''; fields['Chosen Date'] = ''; fields['Chosen Start'] = ''; fields['Chosen End'] = ''; fields['Chosen At'] = '';
+      fields['Applicant Suggestion'] = ''; fields['Suggested Date'] = ''; fields['Suggested Start'] = ''; fields['Suggested End'] = ''; fields['Calendar Event'] = '';
+      _subSet(it, existing, fields);
+    } else {
+      id = _resId('I');
+      fields['ID'] = id; fields['Created'] = now; fields['Created By'] = me.email; fields['Updated'] = now;
+      it.sheet.appendRow(ih.map(function(k){ return fields[k] !== undefined ? fields[k] : ''; }));
+    }
+    var osh = _subGetSheet(IV_SLOT_TAB, IV_SLOT_HEADERS);
+    var oh = osh.getRange(1, 1, 1, osh.getLastColumn()).getValues()[0].map(String);
+    var seen = {};
+    var rows = slots.filter(function(s){ var k = s.date + ' ' + s.start; if (seen[k]) return false; seen[k] = 1; return true; })
+      .sort(function(a, b){ return (a.date + a.start).localeCompare(b.date + b.start); })
+      .map(function(s){ return { 'Slot ID': _resId('S'), 'Interview ID': id, 'Date': s.date, 'Start': s.start, 'End': _ivEnd(s.start, s.end, dur), 'Status': 'Offered' }; });
+    var first = osh.getLastRow() + 1;
+    ['Date', 'Start', 'End'].forEach(function(c){ osh.getRange(first, oh.indexOf(c) + 1, rows.length, 1).setNumberFormat('@'); });
+    osh.getRange(first, 1, rows.length, oh.length).setValues(rows.map(function(o){ return oh.map(function(k){ return o[k] !== undefined ? o[k] : ''; }); }));
+    // message
+    var kind = fields.Kind;
+    var lines = rows.map(function(s){ return '- ' + _subFmtShift({ Date: s.Date, Start: s.Start, End: s.End }) + '\n  Tap to choose: ' + _ivLink(id, s['Slot ID']); }).join('\n\n');
+    var msg = String(p.message || '').replace(new RegExp('\\r', 'g'), '');
+    if (msg.indexOf('[[SLOTS]]') === -1) msg += '\n\n[[SLOTS]]';
+    msg = msg.split('[[SLOTS]]').join(lines + '\n\nNone of these work? Open any link above and tap "None of these work" to suggest another time.\n(All times are Pacific Time.)');
+    var subject = String(p.subject || '').trim() || ('Enrich LA - ' + (reoffer ? 'new times for your ' : 'let us set up your ') + kind.toLowerCase());
+    _subNotify(applicant, subject, msg,
+      'Enrich LA: Hi ' + applicant.first + ', please pick a time for your ' + kind.toLowerCase() + ': ' + _ivLink(id),
+      { fromName: me.name, replyTo: me.email, noSms: !(p.sendText === true || p.sendText === 'true') });
+    _subFlushSms();
+    _subHist('Interview', id, '', '', reoffer ? 'Offered new times' : 'Invited', me.email, 'Waiting for Applicant',
+      applicant.name + ' - ' + kind + (fields.Position ? ' (' + fields.Position + ')' : '') + ' - ' + rows.map(function(s){ return _subFmtShift(s); }).join('; '));
+    try { logActivity(me.email, 'interviewInvite', appEmail, 'person', rows.length + ' time(s)'); } catch (e) {}
+    return { ok: true, id: id, page: _ivLink(id) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── Confirm one time (shared by the applicant and by "accept their suggestion") ──
+function _ivConfirm(L, people, date, start, end, slotId, byLabel, actorEmail) {
+  var r = L.r, now = new Date();
+  var old = r['Calendar Event'];
+  if (old) _ivCalDelete(old);
+  var ev = _ivCalCreate(r, date, start, end, people);
+  _subSet(L.it, r, { 'Status': 'Confirmed', 'Chosen Slot': slotId, 'Chosen Date': date, 'Chosen Start': start, 'Chosen End': end, 'Chosen At': now,
+    'Applicant Suggestion': '', 'Suggested Date': '', 'Suggested Start': '', 'Suggested End': '', 'Calendar Event': ev });
+  var when = _subFmtShift({ Date: date, Start: start, End: end });
+  var applicant = people[String(r['Applicant Email']).toLowerCase()] || { email: r['Applicant Email'], first: String(r['Applicant Name']).split(' ')[0], sms: false };
+  var creator = people[String(r['Created By']).toLowerCase()];
+  var names = _ivPeopleOf(r).map(function(e){ var x = people[e]; return x ? x.name : e; }).join(', ');
+  var kind = r.Kind || 'Interview';
+  _subNotify(applicant, 'Confirmed: your Enrich LA ' + kind.toLowerCase() + ' - ' + _subFmtDate(date),
+    'Hi ' + applicant.first + ',\n\nYou are all set. Your ' + kind.toLowerCase() + (r.Position ? ' for ' + r.Position : '') + ' with Enrich LA:\n\n' + when + ' (Pacific Time)\n' +
+    (r.Format ? r.Format + (r.Location ? ': ' + r.Location : '') + '\n' : (r.Location ? r.Location + '\n' : '')) +
+    (names ? 'With: ' + names + '\n' : '') +
+    (ev ? '\nA calendar invitation was sent to ' + r['Applicant Email'] + ' as well.\n' : '') +
+    '\nNeed a different time? Use the same link from our earlier message: ' + _ivLink(r.ID) +
+    '\n\nWe look forward to meeting you!\nEnrich LA',
+    'Enrich LA: confirmed - your ' + kind.toLowerCase() + ' is ' + when + (r.Location ? ' (' + r.Location + ')' : '') + '. See you then!',
+    { fromName: creator ? creator.name : '', replyTo: creator ? creator.email : '' });
+  _ivNotifyStaff(r, people, byLabel + ': ' + kind + ' with ' + r['Applicant Name'] + ' - ' + _subFmtDate(date),
+    byLabel + '. ' + kind + ' with ' + r['Applicant Name'] + (r.Position ? ' (' + r.Position + ')' : '') + ':\n\n' + when + '\n' + (r.Format || '') + (r.Location ? ': ' + r.Location : '') +
+    '\n\n' + (ev ? 'It is on the Google Calendar and the applicant has been sent an invitation.' : 'It could NOT be added to Google Calendar automatically (run authorizeInterviewCalendar once in Apps Script) - please add it yourself.') +
+    '\n\nRanger Rover > Operations > Humans > Interviews shows everything.',
+    'Enrich LA - ' + r['Applicant Name'] + ' confirmed ' + kind.toLowerCase() + ': ' + when);
+  _subHist('Interview', r.ID, slotId, '', byLabel, actorEmail || r['Applicant Email'], 'Confirmed', r['Applicant Name'] + ' - ' + when + (ev ? ' (calendar)' : ' (no calendar)'));
+  _subFlushSms();
+  return when;
+}
+
+// ── Public (applicant, no login) ────────────────────────────────────────────
+function handlePublicInterviewInfo(p) {
+  try {
+    var L = _ivLoad(p.i);
+    if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
+    return _ivPublicView(L, _subPeople());
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handlePublicInterviewChoose(p) {
+  var lock = LockService.getScriptLock(), locked = false;
+  try {
+    lock.waitLock(20000); locked = true;
+    var L = _ivLoad(p.i);
+    if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
+    var people = _subPeople(), r = L.r;
+    if (r.Status === 'Cancelled') return { ok: false, error: 'This interview was cancelled. Please contact Enrich LA.' };
+    if (r.Status === 'Applicant Withdrew') return { ok: false, error: 'You withdrew from this interview. Please contact Enrich LA if that was a mistake.' };
+    var slot = L.slots.filter(function(s){ return s['Slot ID'] === String(p.o || '').trim(); })[0];
+    if (!slot) return { ok: false, error: 'That time was not found - please pick one of the times listed.' };
+    var changing = r.Status === 'Confirmed';
+    if (changing && r['Chosen Slot'] === slot['Slot ID']) { var v0 = _ivPublicView(L, people); v0.already = true; return v0; }
+    var allowed = slot.Status === 'Offered' || (changing && slot.Status === 'Not Chosen');
+    if (!allowed || !_ivIsFuture(slot)) return { ok: false, error: 'Sorry - that time is no longer available. Please pick another.' };
+    if (_ivTaken(L)[slot['Slot ID']]) return { ok: false, error: 'Sorry - someone just took that time. Please pick another.' };
+    L.slots.forEach(function(s){
+      if (s['Slot ID'] === slot['Slot ID']) _subSet(L.st, s, { 'Status': 'Chosen' });
+      else if (s.Status === 'Offered' || s.Status === 'Chosen') _subSet(L.st, s, { 'Status': 'Not Chosen' });
+    });
+    var end = _ivEnd(slot.Start, slot.End, r.Duration);
+    var by = r['Applicant Name'] + (changing ? ' changed the time' : ' confirmed');
+    _ivConfirm(L, people, slot.Date, slot.Start, end, slot['Slot ID'], by, '');
+    try { logActivity(String(r['Created By']), 'interviewConfirmed', r['Applicant Email'], 'person', slot.Date); } catch (e) {}
+    lock.releaseLock(); locked = false;
+    return _ivPublicView(_ivLoad(p.i), people);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  } finally { if (locked) { try { lock.releaseLock(); } catch (x) {} } }
+}
+function handlePublicInterviewSuggest(p) {
+  try {
+    var L = _ivLoad(p.i);
+    if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
+    var r = L.r;
+    if (r.Status === 'Cancelled' || r.Status === 'Applicant Withdrew') return { ok: false, error: 'This interview is closed. Please contact Enrich LA.' };
+    var text = String(p.text || '').trim().slice(0, 1000);
+    var sd = /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) ? String(p.date) : '';
+    var ok = function(t){ return /^\d{1,2}:\d{2}$/.test(String(t || '')); };
+    var ss = ok(p.start) ? String(p.start) : '', se = ok(p.end) ? String(p.end) : '';
+    if (!text && !sd) return { ok: false, error: 'Please pick a day (and time), or write a note.' };
+    if (sd && sd < _subToday()) return { ok: false, error: 'Please pick a day from today on.' };
+    if (ss && se && se <= ss) return { ok: false, error: 'The end time must be after the start time.' };
+    var people = _subPeople();
+    var when = sd ? _subFmtShift({ Date: sd, Start: ss, End: se }) : '';
+    var line = (when ? 'Suggests ' + when : '') + (when && text ? ' - ' : '') + text;
+    var upd = { 'Applicant Suggestion': line };
+    if (r.Status !== 'Confirmed') upd['Status'] = 'Applicant Suggested Other';
+    if (sd) { upd['Suggested Date'] = sd; upd['Suggested Start'] = ss; upd['Suggested End'] = se; } else { upd['Suggested Date'] = ''; upd['Suggested Start'] = ''; upd['Suggested End'] = ''; }
+    _subSet(L.it, r, upd);
+    _subHist('Interview', r.ID, '', '', 'Applicant suggested other', r['Applicant Email'], upd['Status'] || r.Status, line);
+    _ivNotifyStaff(r, people, r['Applicant Name'] + ' suggested another time for the ' + String(r.Kind || 'interview').toLowerCase(),
+      r['Applicant Name'] + ' replied about the ' + String(r.Kind || 'interview').toLowerCase() + ':\n\n' + (when ? 'Suggested time: ' + when + '\n' : '') + (text ? 'Note: "' + text + '"\n' : '') +
+      '\nOpen Ranger Rover > Operations > Humans > Interviews to accept it with one tap, or offer other times. ' + SUB_APP_URL,
+      'Enrich LA - ' + r['Applicant Name'] + ' suggested ' + (when || 'another time') + ' for the ' + String(r.Kind || 'interview').toLowerCase() + '. Open Ranger Rover > Interviews.');
+    _subFlushSms();
+    return _ivPublicView(_ivLoad(p.i), people);
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handlePublicInterviewDecline(p) {
+  try {
+    var L = _ivLoad(p.i);
+    if (!L) return { ok: false, error: 'This link is not valid or has expired.' };
+    var r = L.r, people = _subPeople();
+    if (r.Status === 'Cancelled' || r.Status === 'Applicant Withdrew') return _ivPublicView(L, people);
+    if (r['Calendar Event']) _ivCalDelete(r['Calendar Event']);
+    L.slots.forEach(function(s){ if (s.Status === 'Offered' || s.Status === 'Chosen' || s.Status === 'Not Chosen') _subSet(L.st, s, { 'Status': 'Withdrawn' }); });
+    _subSet(L.it, r, { 'Status': 'Applicant Withdrew', 'Calendar Event': '', 'Applicant Suggestion': String(p.text || '').trim().slice(0, 500) });
+    _subHist('Interview', r.ID, '', '', 'Applicant withdrew', r['Applicant Email'], 'Applicant Withdrew', String(p.text || '').slice(0, 300));
+    _ivNotifyStaff(r, people, r['Applicant Name'] + ' withdrew from the ' + String(r.Kind || 'interview').toLowerCase(),
+      r['Applicant Name'] + ' said they can no longer do the ' + String(r.Kind || 'interview').toLowerCase() + (r.Position ? ' for ' + r.Position : '') + '.' +
+      (p.text ? '\n\nTheir note: "' + String(p.text).trim().slice(0, 500) + '"' : '') + '\n\nAny calendar event was removed.', '');
+    return _ivPublicView(_ivLoad(p.i), people);
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── Staff actions ───────────────────────────────────────────────────────────
+function handleAcceptInterviewSuggestion(p) {
+  var lock = LockService.getScriptLock(), locked = false;
+  try {
+    var people = _subPeople();
+    var me = _ivAdmin(p, people);
+    lock.waitLock(20000); locked = true;
+    var L = _ivLoad(p.id);
+    if (!L) return { ok: false, error: 'Not found.' };
+    var r = L.r;
+    if (!r['Suggested Date']) return { ok: false, error: 'The applicant has not suggested a day.' };
+    var start = r['Suggested Start'] || '09:00', end = _ivEnd(start, r['Suggested End'], r.Duration);
+    var sid = _resId('S');
+    L.slots.forEach(function(s){ if (s.Status === 'Offered' || s.Status === 'Chosen') _subSet(L.st, s, { 'Status': 'Not Chosen' }); });
+    var osh = L.st.sheet, oh = L.st.h;
+    var row = { 'Slot ID': sid, 'Interview ID': r.ID, 'Date': r['Suggested Date'], 'Start': start, 'End': end, 'Status': 'Chosen' };
+    var rowNum = osh.getLastRow() + 1;
+    ['Date', 'Start', 'End'].forEach(function(c){ osh.getRange(rowNum, oh.indexOf(c) + 1).setNumberFormat('@'); });
+    osh.getRange(rowNum, 1, 1, oh.length).setValues([oh.map(function(k){ return row[k] !== undefined ? row[k] : ''; })]);
+    var when = _ivConfirm(L, people, r['Suggested Date'], start, end, sid, me.name + ' accepted the time ' + r['Applicant Name'] + ' suggested', me.email);
+    return { ok: true, when: when };
+  } catch (e) { return { ok: false, error: e.message }; }
+  finally { if (locked) { try { lock.releaseLock(); } catch (x) {} } }
+}
+function handleCancelInterview(p) {
+  try {
+    var people = _subPeople();
+    var me = _ivAdmin(p, people);
+    var L = _ivLoad(p.id);
+    if (!L) return { ok: false, error: 'Not found.' };
+    var r = L.r, wasConfirmed = r.Status === 'Confirmed';
+    var when = r['Chosen Date'] ? _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) : '';
+    if (r['Calendar Event']) _ivCalDelete(r['Calendar Event']);
+    L.slots.forEach(function(s){ if (s.Status === 'Offered' || s.Status === 'Chosen' || s.Status === 'Not Chosen') _subSet(L.st, s, { 'Status': 'Withdrawn' }); });
+    _subSet(L.it, r, { 'Status': 'Cancelled', 'Calendar Event': '' });
+    _subHist('Interview', r.ID, '', '', 'Cancelled', me.email, 'Cancelled', r['Applicant Name'] + (when ? ' - was ' + when : ''));
+    if (p.notify !== false && p.notify !== 'false') {
+      var ap = people[String(r['Applicant Email']).toLowerCase()];
+      if (ap) _subNotify(ap, 'Enrich LA - your ' + String(r.Kind || 'interview').toLowerCase() + ' has been cancelled',
+        'Hi ' + ap.first + ',\n\n' + (wasConfirmed && when ? 'We need to cancel your ' + String(r.Kind || 'interview').toLowerCase() + ' on ' + when + '.' : 'We are withdrawing the times we offered for your ' + String(r.Kind || 'interview').toLowerCase() + '.') +
+        ' ' + (String(p.reason || '').trim() ? String(p.reason).trim() + ' ' : '') + 'We will be in touch. Sorry for any inconvenience.\n\n' + me.name + '\nEnrich LA',
+        '', { fromName: me.name, replyTo: me.email, noSms: true });
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleCompleteInterview(p) {
+  try {
+    var people = _subPeople();
+    var me = _ivAdmin(p, people);
+    var L = _ivLoad(p.id);
+    if (!L) return { ok: false, error: 'Not found.' };
+    _subSet(L.it, L.r, { 'Status': 'Completed' });
+    _subHist('Interview', L.r.ID, '', '', 'Marked done', me.email, 'Completed', L.r['Applicant Name']);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
