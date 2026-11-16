@@ -12,7 +12,7 @@
 <meta property="og:title" content="Join the Enrich LA team">
 <meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- job.html v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
+<!-- job.html v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
   *{box-sizing:border-box}
@@ -32,6 +32,7 @@
   .mt img{width:100%;height:100%;object-fit:cover;display:block}
   .mt.vid img{object-fit:contain}
   .mt .play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;border:none;background:rgba(0,0,0,.62);color:#fff;font-size:26px;cursor:pointer}
+  .mt .alt{position:absolute;left:8px;bottom:8px;z-index:3;background:rgba(0,0,0,.7);color:#fff;font:12px sans-serif;padding:5px 9px;border-radius:12px;text-decoration:none}
   .mt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
   @media(max-width:640px){.mrow.two{grid-template-columns:minmax(0,1fr)}}
   .ph{display:grid;gap:10px;margin:14px 0 4px}
@@ -145,7 +146,7 @@
   document.addEventListener('click', function(e){
     var t = e.target.closest ? e.target.closest('.mt.vid') : null;
     if (t && t.dataset.src && !t.querySelector('iframe')) {
-      t.innerHTML = '<iframe src="' + t.dataset.src + '" allow="autoplay; fullscreen" allowfullscreen></iframe>';
+      t.innerHTML = '<iframe src="' + t.dataset.src + '" allow="autoplay; fullscreen" allowfullscreen></iframe><a class="alt" target="_blank" rel="noopener" href="' + t.dataset.src.replace('/preview','/view') + '">Trouble playing? Open video</a>';
     }
   });
   function postingHtml(p, highlight){
