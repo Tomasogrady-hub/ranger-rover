@@ -12,7 +12,7 @@
 <meta property="og:title" content="Join the Enrich LA team">
 <meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- job.html v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
+<!-- job.html v2.5 - 2026-11-16 - direct video player first, Drive player as fallback. v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
   *{box-sizing:border-box}
@@ -145,8 +145,18 @@
   }
   document.addEventListener('click', function(e){
     var t = e.target.closest ? e.target.closest('.mt.vid') : null;
-    if (t && t.dataset.src && !t.querySelector('iframe')) {
-      t.innerHTML = '<iframe src="' + t.dataset.src + '" allow="autoplay; fullscreen" allowfullscreen></iframe><a class="alt" target="_blank" rel="noopener" href="' + t.dataset.src.replace('/preview','/view') + '">Trouble playing? Open video</a>';
+    if (t && t.dataset.src && !t.querySelector('iframe') && !t.querySelector('video')) {
+      var src = t.dataset.src, m = src.match(/\/d\/([^\/?]+)/), id = m ? m[1] : '';
+      var view = src.replace('/preview', '/view');
+      var alt = '<a class="alt" target="_blank" rel="noopener" href="' + view + '">Trouble playing? Open video</a>';
+      var frame = function(){ t.innerHTML = '<iframe src="' + src + '" allow="autoplay; fullscreen" allowfullscreen></iframe>' + alt; };
+      if (!id) { frame(); return; }
+      // Direct player first (works for visitors without a Drive sign-in); Drive's own player if that fails.
+      t.innerHTML = '<video controls autoplay playsinline preload="metadata" style="position:absolute;inset:0;width:100%;height:100%;background:#000" src="https://drive.usercontent.google.com/download?id=' + id + '&export=download"></video>';
+      var v = t.querySelector('video'), done = false;
+      v.addEventListener('error', function(){ if (!done) { done = true; frame(); } });
+      setTimeout(function(){ if (!done && v.readyState < 2) { done = true; frame(); } }, 8000);
+      v.addEventListener('loadeddata', function(){ done = true; });
     }
   });
   function postingHtml(p, highlight){
