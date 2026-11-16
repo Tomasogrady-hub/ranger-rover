@@ -3292,6 +3292,8 @@ function getRoles() {
     var pubDescIdx = _rolesCol(headers, 'Public Description');
     var reqIdx     = _rolesCol(headers, 'Requirements');
     var infoIdx    = _rolesCol(headers, 'Information File');
+    var info1Idx   = _rolesCol(headers, 'Information File 1');
+    var info2Idx   = _rolesCol(headers, 'Information File 2');
     // Description filled in but Public Description blank -> copy it across once.
     if (pubDescIdx > -1 && descIdx > -1) {
       for (var r = 1; r < data.length; r++) {
@@ -3311,7 +3313,9 @@ function getRoles() {
           publicName:  pubNameIdx >= 0 ? String(row[pubNameIdx] || '').trim() : '',
           publicDescription: pubDescIdx >= 0 ? String(row[pubDescIdx] || '').trim() : '',
           requirements: reqIdx >= 0 ? String(row[reqIdx] || '').trim() : '',
-          infoFile: infoIdx >= 0 ? String(row[infoIdx] || '').trim() : ''
+          infoFile: infoIdx >= 0 ? String(row[infoIdx] || '').trim() : '',
+          infoFile1: info1Idx >= 0 ? String(row[info1Idx] || '').trim() : '',
+          infoFile2: info2Idx >= 0 ? String(row[info2Idx] || '').trim() : ''
         };
       });
   } catch(e) { return []; }
@@ -8814,11 +8818,12 @@ function _apHuman(email) {
   }
   return { role: '', applied: '' };
 }
-function _apRoleFile(role) {
+function _apRoleFile(role, stage) {
   var want = String(role || '').trim().toLowerCase();
   if (!want) return null;
   var found = getRoles().filter(function(r) { return String(r.name || '').trim().toLowerCase() === want; })[0];
-  var url = found ? String(found.infoFile || '').trim() : '';
+  // Send info uses 'Information File 1' (falls back to the original 'Information File'); the training invite uses 'Information File 2'.
+  var url = !found ? '' : (stage === 'training' ? String(found.infoFile2 || '').trim() : String(found.infoFile1 || found.infoFile || '').trim());
   if (!url) return null;
   var m = url.match(/[-\w]{25,}/);
   return { url: url, id: m ? m[0] : '' };
@@ -8851,7 +8856,8 @@ function handleSendApplicantInfo(p) {
     if (!msg) return { ok: false, error: 'Write a message first.' };
     var hu = _apHuman(email);
     var wantAttach = !(p.attach === false || p.attach === 'false');
-    var info = wantAttach ? _apRoleFile(hu.role) : null;
+    var training = p.stage === 'training';
+    var info = wantAttach ? _apRoleFile(hu.role, p.stage) : null;
     var att = [], fname = '', attached = false;
     if (info && info.id) {
       var b = _apBlob(info.id);
@@ -8860,17 +8866,18 @@ function handleSendApplicantInfo(p) {
     // Could not attach it (too big / no access): put the link in the message instead.
     if (info && !attached) msg += '\n\nThe information is here: ' + info.url;
     if (!(p.replyLinks === false || p.replyLinks === 'false')) {
+      var st = training ? 'training' : '';
       msg += '\n\nWhen you have read it, please tap one of these (it lets ' + me.first + ' know right away):\n\n' +
-        'I have read the documentation and I would love to be considered for this position:\n' + _apReplyLink(email, me.email, 'yes') + '\n\n' +
-        'I have read the documentation and I am no longer interested:\n' + _apReplyLink(email, me.email, 'no');
+        (training ? 'I have read the information and I would love to begin training:\n' : 'I have read the documentation and I would love to be considered for this position:\n') + _apReplyLink(email, me.email, 'yes', st) + '\n\n' +
+        (training ? 'I appreciate your consideration, but at this time I am unable to move forward:\n' : 'I have read the documentation and I am no longer interested:\n') + _apReplyLink(email, me.email, 'no', st);
     }
-    var smsMsg = String(p.smsMessage || '').trim() || ('Hi ' + ap.first + ', ' + me.first + ' from Enrich LA here. I just emailed you information about the Ranger position. Please have a read and let me know if you are still interested.');
-    _subNotify(ap, String(p.subject || '').trim() || 'Information about the Enrich LA Ranger position', msg, smsMsg,
+    var smsMsg = String(p.smsMessage || '').trim() || ('Hi ' + ap.first + ', ' + me.first + ' from Enrich LA here. ' + (training ? 'I just emailed you information about starting Ranger training. Please have a read and let me know.' : 'I just emailed you information about the Ranger position. Please have a read and let me know if you are still interested.'));
+    _subNotify(ap, String(p.subject || '').trim() || (training ? 'Next step: Garden Ranger training - Enrich LA' : 'Information about the Enrich LA Ranger position'), msg, smsMsg,
       { fromName: me.name, replyTo: me.email, noSms: !(p.sendText === true || p.sendText === 'true'), attachments: att });
     _subFlushSms();
-    _apLog(email, ap.name, 'Information sent', me.email, (attached ? 'Attached: ' + fname : (info ? 'Link only (could not attach)' : 'No file')) +
+    _apLog(email, ap.name, training ? 'Training invitation sent' : 'Information sent', me.email, (attached ? 'Attached: ' + fname : (info ? 'Link only (could not attach)' : 'No file')) +
       ((p.sendText === true || p.sendText === 'true') && ap.sms ? ' + text' : ''));
-    logActivity(me.email, 'sent applicant information', ap.name, 'human', email);
+    logActivity(me.email, training ? 'sent training invitation' : 'sent applicant information', ap.name, 'human', email);
     return { ok: true, attached: attached, fileName: fname, hadFile: !!info };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -8884,21 +8891,23 @@ function _apSecret() {
   if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); pr.setProperty('ap_reply_secret', s); }
   return s;
 }
-function _apSign(email, leader) {
-  var raw = Utilities.computeHmacSha256Signature(String(email).toLowerCase() + '|' + String(leader).toLowerCase(), _apSecret());
+function _apSign(email, leader, stage) {
+  var raw = Utilities.computeHmacSha256Signature(String(email).toLowerCase() + '|' + String(leader).toLowerCase() + (stage ? '|' + stage : ''), _apSecret());
   return Utilities.base64EncodeWebSafe(raw).replace(new RegExp('=+$'), '').slice(0, 24);
 }
-function _apReplyLink(email, leader, ans) {
-  return AP_REPLY_PAGE + '?e=' + encodeURIComponent(email) + '&l=' + encodeURIComponent(leader) + '&a=' + ans + '&t=' + _apSign(email, leader);
+function _apReplyLink(email, leader, ans, stage) {
+  return AP_REPLY_PAGE + '?e=' + encodeURIComponent(email) + '&l=' + encodeURIComponent(leader) + '&a=' + ans + (stage ? '&s=' + stage : '') + '&t=' + _apSign(email, leader, stage);
 }
 function handlePublicApplicantReply(p) {
   try {
     var email = String(p.e || '').trim().toLowerCase(), leader = String(p.l || '').trim().toLowerCase();
     var ans = p.a === 'no' ? 'no' : 'yes';
-    if (!email || !leader || String(p.t || '') !== _apSign(email, leader)) return { ok: false, error: 'This link is not valid.' };
+    var stg = p.s === 'training' ? 'training' : '';
+    if (!email || !leader || String(p.t || '') !== _apSign(email, leader, stg)) return { ok: false, error: 'This link is not valid.' };
     var people = _subPeople(), ap = people[email], ld = people[leader];
     if (!ap) return { ok: false, error: 'This link is not valid.' };
-    var ev = ans === 'yes' ? 'Replied: would love to be considered' : 'Replied: no longer interested';
+    var ev = stg ? (ans === 'yes' ? 'Replied to training: would love to begin' : 'Replied to training: unable to move forward')
+                 : (ans === 'yes' ? 'Replied: would love to be considered' : 'Replied: no longer interested');
     var dup = _subReadAll(_subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS)).rows.some(function(r) {
       return String(r['Applicant Email']).toLowerCase() === email && r.Event === ev;
     });
@@ -8906,15 +8915,25 @@ function handlePublicApplicantReply(p) {
       _apLog(email, ap.name, ev, '', 'From the email link');
       if (ld) {
         var prof = HR_APP_URL + '#person=' + encodeURIComponent(email);
-        var body = ans === 'yes'
-          ? ap.name + ' has read the information about the Ranger position and would love to be considered.\n\nNext step: open their profile and tap "Interview" to send them times.\n' + prof
-          : ap.name + ' has read the information about the Ranger position and is no longer interested.\n\nTheir profile (no action needed): ' + prof;
-        _subNotify(ld, ap.name + (ans === 'yes' ? ' would love to be considered' : ' is no longer interested'), 'Hi ' + ld.first + ',\n\n' + body,
-          ap.name + (ans === 'yes' ? ' would love to be considered for the Ranger position. Open their profile to send interview times: ' + prof : ' is no longer interested in the Ranger position.'));
+        var body, subj, sms;
+        if (stg) {
+          subj = ap.name + (ans === 'yes' ? ' would love to begin training' : ' is unable to move forward with training');
+          body = ans === 'yes'
+            ? ap.name + ' has read the training information and would love to begin training.\n\nNext step: open their profile and tap "Set up training" to choose the school, trainer and times.\n' + prof
+            : ap.name + ' appreciates the consideration but is unable to move forward with training at this time.\n\nTheir profile (no action needed): ' + prof;
+          sms = subj + '. ' + prof;
+        } else {
+          subj = ap.name + (ans === 'yes' ? ' would love to be considered' : ' is no longer interested');
+          body = ans === 'yes'
+            ? ap.name + ' has read the information about the Ranger position and would love to be considered.\n\nNext step: open their profile and tap "Interview" to send them times.\n' + prof
+            : ap.name + ' has read the information about the Ranger position and is no longer interested.\n\nTheir profile (no action needed): ' + prof;
+          sms = ap.name + (ans === 'yes' ? ' would love to be considered for the Ranger position. Open their profile to send interview times: ' + prof : ' is no longer interested in the Ranger position.');
+        }
+        _subNotify(ld, subj, 'Hi ' + ld.first + ',\n\n' + body, sms);
         _subFlushSms();
       }
     }
-    return { ok: true, answer: ans, first: ap.first, leader: ld ? ld.first : 'us' };
+    return { ok: true, answer: ans, stage: stg, first: ap.first, leader: ld ? ld.first : 'us' };
   } catch (e) { return { ok: false, error: 'Sorry - something went wrong. Please reply to the email instead.' }; }
 }
 function _apT(v) {
@@ -8944,8 +8963,8 @@ function handleGetApplicantLog(p) {
         detail: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) });
       if (r['Applicant Suggestion'] || r['Suggested Date']) ev.push({ t: _apT(r.Updated), type: 'suggest', what: 'Suggested other times', by: '', detail: String(r['Applicant Suggestion'] || '') });
       if (r['Details Sent']) ev.push({ t: _apT(r['Details Sent']), type: 'details', what: 'Meeting details sent', by: '', detail: '' });
-      if (r.Status === 'Completed') ev.push({ t: _apT(r.Updated), type: 'done', what: 'Interview done', by: '', detail: '' });
-      if (r.Status === 'Cancelled') ev.push({ t: _apT(r.Updated), type: 'cancel', what: 'Interview cancelled', by: '', detail: '' });
+      if (r.Status === 'Completed') ev.push({ t: _apT(r.Updated), type: 'done', what: String(r.Kind || 'Interview') + ' done', by: '', detail: '' });
+      if (r.Status === 'Cancelled') ev.push({ t: _apT(r.Updated), type: 'cancel', what: String(r.Kind || 'Interview') + ' cancelled', by: '', detail: '' });
       if (r.Status === 'Applicant Withdrew') ev.push({ t: _apT(r.Updated), type: 'cancel', what: 'Applicant withdrew', by: '', detail: '' });
     });
     ev.sort(function(a, b) { return a.t - b.t; });

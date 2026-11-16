@@ -70,11 +70,12 @@
   function raw(url,action,extra){return fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action:action},extra||{}))}).then(function(r){return r.json();});}
   function show(h){app.innerHTML='<div class="card">'+h+'</div>';}
   raw(GAS_URL,'getAppSettings').then(function(r){if(r&&r.gasUrl&&r.gasUrl!==GAS_URL){GAS_URL=r.gasUrl;try{localStorage.setItem('rr_gas_url',GAS_URL);}catch(e){}}}).catch(function(){})
-  .then(function(){return raw(GAS_URL,'publicApplicantReply',{e:q.get('e'),l:q.get('l'),a:q.get('a'),t:q.get('t')});})
+  .then(function(){return raw(GAS_URL,'publicApplicantReply',{e:q.get('e'),l:q.get('l'),a:q.get('a'),s:q.get('s'),t:q.get('t')});})
   .then(function(r){
     if(!r||!r.ok){show('<div class="error">'+esc((r&&r.error)||'Sorry, something went wrong. Please reply to the email instead.')+'</div>');return;}
-    if(r.answer==='yes')show('<div class="ok"><div class="big">&#127793;</div><h1>Thank you, '+esc(r.first)+'!</h1><div>We are so glad you are interested. '+esc(r.leader)+' has been told and will be in touch soon with times for an interview.</div></div>');
-    else show('<div class="ok"><h1>Thank you, '+esc(r.first)+'</h1><div>We appreciate you taking the time to read about the position and wish you all the best. '+esc(r.leader)+' has been told.</div></div>');
+    var tr=r.stage==='training';
+    if(r.answer==='yes')show('<div class="ok"><div class="big">&#127793;</div><h1>Thank you, '+esc(r.first)+'!</h1><div>'+(tr?'Wonderful - we cannot wait to get you started! ':'We are so glad you are interested. ')+esc(r.leader)+' has been told and will be in touch soon with '+(tr?'your training details and times.':'times for an interview.')+'</div></div>');
+    else show('<div class="ok"><h1>Thank you, '+esc(r.first)+'</h1><div>'+(tr?'We appreciate you considering it and understand. ':'We appreciate you taking the time to read about the position and wish you all the best. ')+esc(r.leader)+' has been told.</div></div>');
   }).catch(function(){show('<div class="error">Sorry, something went wrong. Please reply to the email instead.</div>');});
 })();
 </script>
