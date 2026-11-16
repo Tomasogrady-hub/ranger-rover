@@ -9124,3 +9124,35 @@ function _pmForPosting(o) {
   };
   return { top: pick(['Media Top 1', 'Media Top 2']), bottom: pick(['Media Bottom 1', 'Media Bottom 2']) };
 }
+
+// ── DELETE A PERSON (Humans sheet) ── v12.03
+// Restores the missing handler: the app's "Delete Contact" button sends action 'deleteHuman' with p.key
+// (the person's email, or their full name when they have no email). Level 1-2 only; you can not delete yourself.
+function handleDeleteHuman(p) {
+  try {
+    var actor = String(p.actor || '').trim().toLowerCase();
+    if (_ivStaffLevel(actor) > 2) return { ok: false, error: 'Only Access Level 1-2 can delete people.' };
+    var key = String(p.key || '').trim();
+    if (!key) return { ok: false, error: 'No person provided.' };
+    var d = humansData(), h = d.h;
+    var ei = h.indexOf('Email'), fi = h.indexOf('First Name'), li = h.indexOf('Last Name'), ni = h.indexOf('Name');
+    var want = key.toLowerCase(), hits = [];
+    for (var r = 1; r < d.data.length; r++) {
+      var row = d.data[r];
+      var em = ei > -1 ? String(row[ei] || '').trim().toLowerCase() : '';
+      if (key.indexOf('@') > -1) { if (em === want) hits.push(r); continue; }
+      var full = ((fi > -1 ? String(row[fi] || '') : '') + ' ' + (li > -1 ? String(row[li] || '') : '')).trim().toLowerCase();
+      var nm = ni > -1 ? String(row[ni] || '').trim().toLowerCase() : '';
+      if (!em && (full === want || nm === want)) hits.push(r);
+    }
+    if (!hits.length) return { ok: false, error: 'Person not found - they may already be deleted.' };
+    if (hits.length > 1) return { ok: false, error: 'More than one person matches "' + key + '". Please delete the extra row in the Humans sheet.' };
+    var tr = hits[0], victim = ei > -1 ? String(d.data[tr][ei] || '').trim().toLowerCase() : '';
+    if (victim && victim === actor) return { ok: false, error: 'You can not delete your own account.' };
+    var label = ((fi > -1 ? String(d.data[tr][fi] || '') : '') + ' ' + (li > -1 ? String(d.data[tr][li] || '') : '')).trim() || victim || key;
+    d.sheet.deleteRow(tr + 1);
+    try { _bumpDataVer(); } catch (e1) {}
+    logActivity(p.actor || '', 'deleted person', label, 'person', victim);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}

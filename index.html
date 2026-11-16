@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.02 -->
+<!-- v12.03 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2478,10 +2478,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.02';
+const APP_VERSION='v12.03';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 14:30 PT - Public Videos and Pictures library under Bulk Data, picture/video banner (2 top, 2 bottom) in the job posting editor and public job page.';
+const BUILD_STAMP='2026-11-16 15:05 PT - Fix Delete Contact (restores the missing delete handler in Apps Script); a failed delete now brings the person back right away.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -9162,7 +9162,7 @@ async function deleteContact(key,displayName){
     const j=await gasPost({action:'deleteHuman',key,actor:SESSION?SESSION.email:''});
     if(!j.ok)throw new Error(j.error||'Delete failed');
     showSaveToast('✓ '+displayName+' deleted');
-  }catch(e){showSaveToast('⚠ Delete failed: '+e.message);}
+  }catch(e){showSaveToast('⚠ Delete failed: '+e.message);try{loadData(true);}catch(e2){}}
 }
 function selectRoleItem(el,btnId,panelId){const btn=document.getElementById(btnId);btn.textContent=el.dataset.name;btn.dataset.value=el.dataset.name;document.getElementById(panelId).classList.remove('open');}
 function selectRoleAddItem(el,btnId,panelId){
