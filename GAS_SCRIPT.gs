@@ -512,7 +512,7 @@ var LIVE_ACTION_SCOPES = {
   requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs'], createReschedule: ['subs'], cancelReschedule: ['subs'],
   publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
   acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs'],
-  createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], acceptInterviewSuggestion: ['subs'],
+  createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], sendInterviewDetails: ['subs'], acceptInterviewSuggestion: ['subs'],
   publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs']
 };
 
@@ -872,6 +872,7 @@ function _doPostRoute(e) {
       case 'createInterview':           return respond(handleCreateInterview(p));
       case 'cancelInterview':           return respond(handleCancelInterview(p));
       case 'completeInterview':         return respond(handleCompleteInterview(p));
+      case 'sendInterviewDetails':      return respond(handleSendInterviewDetails(p));
       case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
       case 'checkInterviewConflicts':   return respond(handleCheckInterviewConflicts(p));
       case 'publicInterviewInfo':       return respond(handlePublicInterviewInfo(p));
@@ -8020,6 +8021,7 @@ function handlePublicApply(p) {
   var mobile = _hrClean(p.mobile, 30);
   var pitch = _hrClean(p.pitch, 4000).replace(new RegExp('\\r', 'g'), '').replace(new RegExp('\\n\\s*\\n+', 'g'), '\n');
   var posId = _hrClean(p.positionId, 40);
+  var smsOk = (p.smsConsent === true || p.smsConsent === 'true');
   if (!first || !last) return { ok: false, hr: 2, error: 'Please enter your first and last name.' };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, hr: 2, error: 'Please enter a valid email address.' };
   if (mobile.replace(/\D/g, '').length < 10) return { ok: false, hr: 2, error: 'Please enter a mobile number we can reach you at.' };
@@ -8101,7 +8103,7 @@ function handlePublicApply(p) {
     var sheet = getHumansSheet();
     var lastCol = sheet.getLastColumn();
     var h = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(x) { return String(x).trim(); });
-    ['Resume', 'Position Applied', 'Applied Date'].forEach(function(c) {
+    ['Resume', 'Position Applied', 'Applied Date', 'SMS Consent', 'SMS Consent Date'].forEach(function(c) {
       if (h.indexOf(c) === -1) { h.push(c); sheet.getRange(1, h.length).setValue(c); }
     });
     var col = function(n) { return h.indexOf(n); };
@@ -8122,6 +8124,7 @@ function handlePublicApply(p) {
       set('State', _hrClean(p.state, 30) || 'CA'); set('Zip Code', _hrClean(p.zip, 15));
       set('Comments', block); set('Resume', resumeUrl); set('Main Image', photoUrl);
       set('Position Applied', posKey); set('Applied Date', new Date());
+      if (smsOk) { set('SMS Consent', 'TRUE'); set('SMS Consent Date', new Date()); }
       sheet.appendRow(rowVals);
     } else {
       // Email already in Humans (re-applying, or an existing contact). Never
@@ -8142,6 +8145,7 @@ function handlePublicApply(p) {
       upd('Street Address', _hrClean(p.street, 150), true); upd('City', _hrClean(p.city, 80), true);
       upd('State', _hrClean(p.state, 30), true); upd('Zip Code', _hrClean(p.zip, 15), true);
       upd('Main Image', photoUrl, true);
+      if (smsOk) { upd('SMS Consent', 'TRUE'); upd('SMS Consent Date', new Date()); }
       var ci = col('Comments');
       var prev = String(cur[ci] || '').trim();
       sheet.getRange(rowIdx, ci + 1).setValue(prev ? prev + '\n\n' + block : block);
@@ -8305,7 +8309,7 @@ function dedupePlants() {
 var IV_TAB = 'Interviews';
 var IV_SLOT_TAB = 'Interview Slots';
 var IV_HEADERS = ['ID','Created','Created By','Applicant Email','Applicant Name','Position','Kind','Format','Location','Duration','Note','Status','Interviewers',
-  'Chosen Slot','Chosen Date','Chosen Start','Chosen End','Chosen At','Applicant Suggestion','Suggested Date','Suggested Start','Suggested End','Calendar Event','Updated'];
+  'Chosen Slot','Chosen Date','Chosen Start','Chosen End','Chosen At','Applicant Suggestion','Suggested Date','Suggested Start','Suggested End','Calendar Event','Updated','Details Sent'];
 var IV_SLOT_HEADERS = ['Slot ID','Interview ID','Date','Start','End','Status'];
 var IV_PAGE_URL = 'https://tomasogrady-hub.github.io/ranger-rover/interview.html';
 var IV_DEFAULT_MIN = 30;
@@ -8437,6 +8441,7 @@ function _ivAdminRow(r, slots) {
     chosen: r['Chosen Date'] ? { slot: r['Chosen Slot'], date: r['Chosen Date'], start: r['Chosen Start'], end: r['Chosen End'],
       label: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) } : null,
     suggestion: r['Applicant Suggestion'] || '', suggested: sug, calendar: !!r['Calendar Event'], page: _ivLink(r.ID),
+    detailsSent: r['Details Sent'] || '',
     slots: slots.map(function(s){ return { id: s['Slot ID'], date: s.Date, start: s.Start, end: s.End, status: s.Status, label: _subFmtShift(s), url: _ivLink(r.ID, s['Slot ID']) }; })
   };
 }
@@ -8558,7 +8563,7 @@ function _ivConfirm(L, people, date, start, end, slotId, byLabel, actorEmail) {
   if (old) _ivCalDelete(old);
   var ev = _ivCalCreate(r, date, start, end, people);
   _subSet(L.it, r, { 'Status': 'Confirmed', 'Chosen Slot': slotId, 'Chosen Date': date, 'Chosen Start': start, 'Chosen End': end, 'Chosen At': now,
-    'Applicant Suggestion': '', 'Suggested Date': '', 'Suggested Start': '', 'Suggested End': '', 'Calendar Event': ev });
+    'Applicant Suggestion': '', 'Suggested Date': '', 'Suggested Start': '', 'Suggested End': '', 'Calendar Event': ev, 'Details Sent': '' });
   var when = _subFmtShift({ Date: date, Start: start, End: end });
   var applicant = people[String(r['Applicant Email']).toLowerCase()] || { email: r['Applicant Email'], first: String(r['Applicant Name']).split(' ')[0], sms: false };
   var creator = people[String(r['Created By']).toLowerCase()];
@@ -8576,8 +8581,8 @@ function _ivConfirm(L, people, date, start, end, slotId, byLabel, actorEmail) {
   _ivNotifyStaff(r, people, byLabel + ': ' + kind + ' with ' + r['Applicant Name'] + ' - ' + _subFmtDate(date),
     byLabel + '. ' + kind + ' with ' + r['Applicant Name'] + (r.Position ? ' (' + r.Position + ')' : '') + ':\n\n' + when + '\n' + (r.Format || '') + (r.Location ? ': ' + r.Location : '') +
     '\n\n' + (ev ? 'It is on the Google Calendar and the applicant has been sent an invitation.' : 'It could NOT be added to Google Calendar automatically (run authorizeInterviewCalendar once in Apps Script) - please add it yourself.') +
-    '\n\nRanger Rover > Operations > Humans > Interviews shows everything.',
-    'Enrich LA - ' + r['Applicant Name'] + ' confirmed ' + kind.toLowerCase() + ': ' + when);
+    '\n\nNEXT: share the meeting details (Zoom or Meet link, phone number or address). Open Ranger Rover > Operations > Humans > Interviews and tap "Send details" - it is a one-tap message to ' + r['Applicant Name'] + '. ' + SUB_APP_URL,
+    'Enrich LA - ' + r['Applicant Name'] + ' confirmed ' + kind.toLowerCase() + ': ' + when + '. Open Ranger Rover > Interviews and tap Send details to share the Zoom link.');
   _subHist('Interview', r.ID, slotId, '', byLabel, actorEmail || r['Applicant Email'], 'Confirmed', r['Applicant Name'] + ' - ' + when + (ev ? ' (calendar)' : ' (no calendar)'));
   _subFlushSms();
   return when;
@@ -8721,6 +8726,34 @@ function handleCompleteInterview(p) {
     if (!L) return { ok: false, error: 'Not found.' };
     _subSet(L.it, L.r, { 'Status': 'Completed' });
     _subHist('Interview', L.r.ID, '', '', 'Marked done', me.email, 'Completed', L.r['Applicant Name']);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// One-tap "here is the Zoom link / phone / address" message from the interviewer to the applicant
+function handleSendInterviewDetails(p) {
+  try {
+    var people = _subPeople();
+    var me = _ivAdmin(p, people);
+    var L = _ivLoad(p.id);
+    if (!L) return { ok: false, error: 'Not found.' };
+    var r = L.r;
+    var msg = String(p.message || '').replace(new RegExp('\\r', 'g'), '').trim();
+    if (!msg) return { ok: false, error: 'Write a message first.' };
+    var ap = people[String(r['Applicant Email']).toLowerCase()];
+    if (!ap) return { ok: false, error: 'Applicant not found in Humans.' };
+    var loc = String(p.location || '').trim().slice(0, 400);
+    var upd = { 'Details Sent': new Date() };
+    if (loc && loc !== r.Location) upd['Location'] = loc;
+    _subSet(L.it, r, upd);
+    if (loc && r['Calendar Event']) {
+      try { var ev = CalendarApp.getEventById(r['Calendar Event']); if (ev) ev.setLocation(loc); } catch (x) { Logger.log('ivCal setLocation: ' + x.message); }
+    }
+    var kind = String(r.Kind || 'interview').toLowerCase();
+    _subNotify(ap, String(p.subject || '').trim() || ('Details for your Enrich LA ' + kind), msg, msg,
+      { fromName: me.name, replyTo: me.email, noSms: !(p.sendText === true || p.sendText === 'true') });
+    _subFlushSms();
+    _subHist('Interview', r.ID, '', '', 'Sent meeting details', me.email, r.Status, r['Applicant Name'] + (loc ? ' - ' + loc : ''));
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }

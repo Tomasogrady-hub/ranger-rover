@@ -3,19 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
 <title>Pick a time | Enrich LA</title>
 <meta name="robots" content="noindex">
 <meta property="og:title" content="Pick a time to meet - Enrich LA">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- interview.html v1.0 - 2026-11-15 - Doodle-style interview time picker for Ranger applicants. Reads/writes via GAS publicInterviewInfo / Choose / Suggest / Decline. -->
+<!-- interview.html v1.1 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v1.0 - 2026-11-15 - Doodle-style interview time picker for Ranger applicants. Reads/writes via GAS publicInterviewInfo / Choose / Suggest / Decline. -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b;--ok:#1e6b34;--okbg:#e4f3e7}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--fog);line-height:1.5}
-  .wrap{max-width:560px;margin:0 auto;padding:0 16px 70px}
+  body{margin:0;font-family:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#fff;line-height:1.5}
+  .wrap{max-width:none;margin:0;padding:0 clamp(16px,5vw,96px) 70px}
   header{padding:24px 16px 8px;text-align:center}
-  header img{height:58px;width:auto;max-width:90%;display:block;margin:0 auto}
+  header img{height:96px;width:auto;max-width:90%;display:block;margin:0 auto}
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
   h1{font-size:23px;margin:6px 0 2px;color:var(--grove)}
   h2{font-size:17px;margin:0 0 6px;color:var(--grove)}
@@ -44,6 +48,15 @@
   .error{color:var(--err);font-size:14px;margin-top:12px}
   .center{text-align:center}
   footer{text-align:center;margin-top:26px;font-size:13px;color:var(--muted)}
+
+  /* v2.3 look: same fonts as the app, white page, fluid width */
+  body{font-size:17px}
+  h1,h2,.pos .t,.list .t{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600}
+  h1{font-size:30px} h2{font-size:26px}
+  header img{height:96px !important}
+  @media(max-width:480px){header img{height:80px !important}}
+  footer{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:21px;color:var(--grove);padding:8px 16px}
+  footer .q{font-family:'Outfit',system-ui,sans-serif;font-style:normal;font-size:14px;color:var(--muted);margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -103,7 +116,7 @@
       (v.note?'<div class="note">'+esc(v.note)+'</div>':'')+'</div>';
   }
   function contactLine(v){
-    return v.contact&&v.contact.email?'<footer>Questions? Email <a href="mailto:'+esc(v.contact.email)+'">'+esc(v.contact.name||v.contact.email)+'</a></footer>':'<footer>Enrich LA - growing school gardens across Los Angeles</footer>';
+    return '<footer>'+(v.contact&&v.contact.email?'<div class="q">Questions? Email <a href="mailto:'+esc(v.contact.email)+'">'+esc(v.contact.name||v.contact.email)+'</a></div>':'')+'An organic regenerative garden in every Los Angeles schoolyard</footer>';
   }
 
   function render(err){

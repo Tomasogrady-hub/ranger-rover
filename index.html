@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.98 -->
+<!-- v11.99 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2451,10 +2451,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.98';
+const APP_VERSION='v11.99';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 18:25 PT - Interview scheduler (Doodle-style) for Ranger applicants: pick times, applicant confirms by link, calendar + emails.';
+const BUILD_STAMP='2026-11-16 11:25 PT - Interview status refreshes live, Send details quick reply, SMS consent on application form, new public page look and caption.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10406,7 +10406,7 @@ async function _ivLoad(force){
   _iv.loading=(async()=>{
     try{
       const r=await gasPost({action:'getInterviews',actor:SESSION.email});
-      if(r&&r.ok){_iv.list=r.interviews||[];_iv.loaded=true;_iv.err='';}
+      if(r&&r.ok){_iv.list=r.interviews||[];_iv.loaded=true;_iv.err='';_iv.at=Date.now();}
       else _iv.err=(r&&r.error)||'Backend not updated yet - deploy GAS v11.98';
     }catch(e){_iv.err='Could not load interviews';}
     _iv.loading=null;
@@ -10432,6 +10432,7 @@ function _ivCardHtml(i){
     const off=(i.slots||[]).filter(s=>s.status==='Offered');
     if(off.length)h+='<div class="hr-m" style="margin-top:6px">Offered: '+escHtml(off.map(s=>s.label).join('  |  '))+'</div>';
   }
+  if(i.status==='Confirmed')h+=i.detailsSent?'<div class="hr-m" style="margin-top:4px;color:var(--leaf,#2f6b35)">📨 Meeting details sent</div>':'<div class="iv-sug" style="background:#fff4e5">📨 <b>Next:</b> send '+escHtml((i.name||'them').split(' ')[0])+' the Zoom link, phone number or address.</div>';
   if(i.suggestion)h+='<div class="iv-sug"><b>They said:</b> '+escHtml(i.suggestion)+'</div>';
   const id=ea(i.id),em=ea(i.email);
   let b='';
@@ -10439,6 +10440,7 @@ function _ivCardHtml(i){
   if(!_ivClosed(i)){
     b+='<button onclick="ivOpen(\''+em+'\',\''+id+'\')">➕ Offer other times</button>';
     b+='<button data-link="'+ea(i.page)+'" onclick="_hrCopy(this.dataset.link,\'Interview link copied\')">🔗 Copy link</button>';
+    if(i.status==='Confirmed')b=(i.detailsSent?'<button onclick="ivDetails(\''+id+'\')">📨 Send details again</button>':'<button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="ivDetails(\''+id+'\')">📨 Send details</button>')+b;
     if(i.status==='Confirmed')b+='<button onclick="_ivAct(\'completeInterview\',\''+id+'\',{},\'Marked done\')">✅ Mark done</button>';
     b+='<button style="color:var(--danger)" onclick="_ivCancel(\''+id+'\',\''+ea(i.name||'')+'\')">✕ Cancel</button>';
   }else b+='<button onclick="ivOpen(\''+em+'\')">📅 Schedule another</button>';
@@ -10471,9 +10473,9 @@ function _ivHrCard(){
   act.sort((a,b)=>rank(a)-rank(b)||String(a.chosen?a.chosen.date+a.chosen.start:'9').localeCompare(String(b.chosen?b.chosen.date+b.chosen.start:'9')));
   const need=act.filter(i=>i.status==='Applicant Suggested Other').length,conf=act.filter(i=>i.status==='Confirmed').length,wait=act.filter(i=>i.status==='Waiting for Applicant').length;
   const open=!!_iv.open.hr;
-  let h='<div class="hr-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer" onclick="_iv.open.hr=!_iv.open.hr;_hrRender()">'+
-    '<div><div class="hr-t">📅 Interviews</div><div class="hr-m">'+(act.length?[need?need+' need you':'',conf?conf+' confirmed':'',wait?wait+' waiting for a reply':''].filter(Boolean).join(' · '):'None scheduled yet - open an applicant and tap 📅')+'</div></div>'+
-    '<span style="color:var(--stone)">'+(open?'▲':'▼')+'</span></div>';
+  let h='<div class="hr-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer" onclick="_ivToggleHr()">'+
+    '<div><div class="hr-t">📅 Interviews</div><div class="hr-m">'+(act.length?[need?need+' need you':'',conf?conf+' confirmed'+(act.filter(i=>i.status==='Confirmed'&&!i.detailsSent).length?' ('+act.filter(i=>i.status==='Confirmed'&&!i.detailsSent).length+' need details sent)':''):'',wait?wait+' waiting for a reply':''].filter(Boolean).join(' · '):'None scheduled yet - open an applicant and tap 📅')+'</div></div>'+
+    '<span style="display:flex;gap:10px;align-items:center"><button onclick="event.stopPropagation();_ivRefreshNow()" title="Refresh" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:5px 10px;cursor:pointer">↻</button><span style="color:var(--stone)">'+(open?'▲':'▼')+'</span></span></div>';
   if(open){
     h+=act.map(_ivCardHtml).join('');
     if(closed.length)h+='<div class="hr-btns"><button onclick="_iv.showClosed=!_iv.showClosed;_hrRender()">'+(_iv.showClosed?'Hide':'Show')+' finished ('+closed.length+')</button></div>'+(_iv.showClosed?closed.map(_ivCardHtml).join(''):'');
@@ -10481,15 +10483,75 @@ function _ivHrCard(){
   return h+'</div>';
 }
 // Applicant card: list that person's interviews
-function _ivPdFill(){
+function _ivPdFill(noRefresh){
   const box=document.getElementById('pd-iv');if(!box)return;
   const email=box.dataset.email||'';
   if(!_iv.loaded){
-    _ivLoad().then(()=>{const b=document.getElementById('pd-iv');if(_iv.loaded&&b&&b.dataset.email===email)_ivPdFill();});
+    _ivLoad().then(()=>{const b=document.getElementById('pd-iv');if(_iv.loaded&&b&&b.dataset.email===email)_ivPdFill(true);});
     return;
   }
   const mine=_ivFor(email);
   box.innerHTML=mine.length?'<div class="dl" style="margin-top:10px">Interviews</div>'+mine.map(_ivCardHtml).join(''):'';
+  // always show fresh status: re-read quietly if the list is more than 15 seconds old
+  if(!noRefresh&&!_iv.loading&&Date.now()-(_iv.at||0)>15000)_ivLoad(true).then(()=>{const b=document.getElementById('pd-iv');if(b&&b.dataset.email===email)_ivPdFill(true);});
+}
+function _ivToggleHr(){
+  _iv.open.hr=!_iv.open.hr;_hrRender();
+  if(_iv.open.hr)_ivLoad(true).then(()=>{if(_hr.loaded&&_hr.editId===null)_hrRender();});
+}
+function _ivRefreshNow(){showToast('Refreshing interviews…');_ivLoad(true).then(()=>{_ivRefresh();showToast('Interviews up to date');});}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&_ivIsStaff()&&_iv.loaded&&Date.now()-(_iv.at||0)>20000)_ivLoad(true).then(_ivRefresh);});
+// ── Quick response after they confirm: share the Zoom link / phone / address ──
+function ivDetails(id){
+  const i=_iv.list.find(x=>x.id===id);if(!i)return;
+  const h=gh(i.email)||{};
+  const sms=String(sf(h,'SMS Consent','SMSConsent')||'').trim().toUpperCase()==='TRUE'&&!!(h.Mobile||h.mobile);
+  const mode=i.format==='Phone call'?'call':i.format==='In person'?'person':'link';
+  _iv.det={id,mode,first:(i.name||'').split(' ')[0],mobile:String(h.Mobile||h.mobile||''),when:i.chosen?i.chosen.label:'',kind:(i.kind||'interview').toLowerCase()};
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='ivdOverlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const chip=(m,l)=>'<button type="button" data-m="'+m+'" onclick="_ivdMode(\''+m+'\')" class="'+(m===mode?'on':'')+'">'+l+'</button>';
+  ov.innerHTML='<div class="sub-sheet"><h3>Send meeting details</h3><div class="sub-meta" style="margin:-6px 0 8px">To <b>'+escHtml(i.name||i.email)+'</b>'+(i.chosen?' · '+escHtml(i.chosen.label):'')+'</div>'+
+    '<div class="iv-q" id="ivdModes">'+chip('link','🎥 Zoom / Meet link')+chip('call','📞 I will call')+chip('person','📍 In person')+'</div>'+
+    '<div class="sub-lbl" id="ivdLocLbl">Link, phone number or address</div><input class="sub-in" id="ivdLoc" value="'+ea(i.location||'')+'" placeholder="Paste the Zoom or Meet link here" oninput="_ivdDraft()">'+
+    '<div class="sub-lbl">Message</div><textarea class="sub-in" id="ivdMsg" rows="8" oninput="this.dataset.edited=\'1\'"></textarea>'+
+    '<label style="display:flex;align-items:center;gap:10px;margin:10px 0 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none"><input type="checkbox" id="ivdSms" style="width:20px;height:20px"'+(sms?' checked':' disabled')+'><span>Also send as a text'+(sms?'':' <span style="color:var(--stone)">(no text consent on file - email only)</span>')+'</span></label>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'ivdOverlay\').remove()">Cancel</button><button class="sub-btn hot" id="ivdSend" onclick="_ivdSend()">Send</button></div></div>';
+  document.body.appendChild(ov);_ivdDraft();
+}
+function _ivdMode(m){
+  if(!_iv.det)return;_iv.det.mode=m;
+  document.querySelectorAll('#ivdModes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  const ta=document.getElementById('ivdMsg');if(ta)ta.dataset.edited='';
+  const lbl=document.getElementById('ivdLocLbl'),loc=document.getElementById('ivdLoc');
+  if(lbl)lbl.textContent=m==='link'?'Zoom or Meet link':m==='call'?'Phone number you will call from (optional)':'Address and parking';
+  if(loc)loc.placeholder=m==='link'?'Paste the Zoom or Meet link here':m==='call'?'e.g. (323) 555-0100':'Street address, where to park, who to ask for';
+  _ivdDraft();
+}
+function _ivdDraft(){
+  const d=_iv.det,ta=document.getElementById('ivdMsg');if(!d||!ta||ta.dataset.edited==='1')return;
+  const loc=((document.getElementById('ivdLoc')||{}).value||'').trim();
+  const meH=gh(SESSION.email),me=meH?fullName(meH):SESSION.email;
+  const w=d.when||'the time we agreed';
+  let body;
+  if(d.mode==='call')body='I will call you on '+w+(d.mobile?' at '+d.mobile:'')+(loc?' (it may show as '+loc+')':'')+'. Please keep your phone nearby.';
+  else if(d.mode==='person')body='We will meet on '+w+' at:\n\n'+(loc||'[address]')+'\n\nPlease arrive a few minutes early.';
+  else body='Here is how to join on '+w+':\n\n'+(loc||'[paste the Zoom or Meet link]')+'\n\nPlease join a couple of minutes early.';
+  ta.value='Hi '+d.first+',\n\nLooking forward to our '+d.kind+'! '+body+'\n\nIf anything comes up, just reply to this message.\n\n'+me+'\nEnrich LA';
+}
+async function _ivdSend(){
+  const d=_iv.det;if(!d)return;
+  const msg=((document.getElementById('ivdMsg')||{}).value||'').trim();
+  if(!msg){alert('Write a message first.');return;}
+  if(/\[(paste|address)/.test(msg)&&!confirm('The message still has a [placeholder] in it. Send anyway?'))return;
+  const btn=document.getElementById('ivdSend');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  try{
+    const r=await gasPost({action:'sendInterviewDetails',actor:SESSION.email,id:d.id,message:msg,
+      location:d.mode==='call'?'':((document.getElementById('ivdLoc')||{}).value||'').trim(),sendText:!!(document.getElementById('ivdSms')||{}).checked});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not send - Apps Script may need a new deployment (v11.99).');if(btn){btn.disabled=false;btn.textContent='Send';}return;}
+    const ov=document.getElementById('ivdOverlay');if(ov)ov.remove();
+    showToast('📨 Details sent to '+d.first);_iv.det=null;await _ivLoad(true);_ivRefresh();
+  }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Send';}}
 }
 // ── Scheduling sheet ──
 function _ivStaffList(){
@@ -10656,7 +10718,7 @@ async function _hrOpen(force){
   }catch(e){body.innerHTML='<div class="settings-note" style="color:var(--danger);padding:20px 0">'+escHtml(e.message)+'</div>';_hr.loading=false;return;}
   _hr.loading=false;
   _hrRender();
-  _ivLoad().then(()=>{if(_hr.loaded&&_hr.editId===null&&document.getElementById('hrBody'))_hrRender();});
+  _ivLoad(true).then(()=>{if(_hr.loaded&&_hr.editId===null&&document.getElementById('hrBody'))_hrRender();});
 }
 function _hrSetFilter(f){_hr.filter=f;_hrRender();}
 function _hrRender(){
