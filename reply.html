@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<title>Thank you | Enrich LA</title>
+<meta name="robots" content="noindex">
+<!-- reply.html v1.0 - 2026-11-16 - applicant answers from the Send info email. Calls GAS publicApplicantReply. -->
+<style>
+  :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b;--ok:#1e6b34;--okbg:#e4f3e7}
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#fff;line-height:1.5}
+  .wrap{max-width:none;margin:0;padding:0 clamp(16px,5vw,96px) 70px}
+  header{padding:24px 16px 8px;text-align:center}
+  header img{height:96px;width:auto;max-width:90%;display:block;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
+  h1{font-size:23px;margin:6px 0 2px;color:var(--grove)}
+  h2{font-size:17px;margin:0 0 6px;color:var(--grove)}
+  .muted{color:var(--muted);font-size:14px}
+  .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:15px;margin-top:10px}
+  .facts b{color:var(--muted);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.05em;padding-top:2px}
+  .note{background:var(--fog);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:15px;white-space:pre-wrap}
+  .day{margin-top:16px}
+  .day .dl{font-weight:700;color:var(--grove);font-size:15px;margin-bottom:6px}
+  .pills{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{border:2px solid var(--line);background:#fff;border-radius:11px;padding:11px 14px;font-size:16px;font-weight:600;color:var(--ink);cursor:pointer;min-width:92px;text-align:center;-webkit-tap-highlight-color:transparent}
+  .pill.sel{border-color:var(--orange);background:#fdf0e7;color:#8a3d10}
+  .pill small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+  button.go{width:100%;margin-top:18px;padding:15px;border:none;border-radius:11px;background:var(--orange);color:#fff;font-size:17px;font-weight:700;cursor:pointer}
+  button.go:disabled{background:#b9b6aa;cursor:not-allowed}
+  button.alt{width:100%;margin-top:10px;padding:13px;border:2px solid var(--grove);border-radius:11px;background:#fff;color:var(--grove);font-size:16px;font-weight:700;cursor:pointer}
+  button.link{background:none;border:none;color:var(--leaf);text-decoration:underline;font-size:15px;padding:10px 0;cursor:pointer}
+  a.alt{display:block;text-align:center;text-decoration:none;margin-top:10px;padding:13px;border:2px solid var(--grove);border-radius:11px;background:#fff;color:var(--grove);font-size:16px;font-weight:700}
+  label{display:block;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:14px 0 5px}
+  input[type=date],input[type=time],textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+  textarea{min-height:84px;resize:vertical}
+  .row{display:flex;gap:8px;align-items:center}
+  .ok{background:var(--okbg);color:var(--ok);border-radius:12px;padding:16px;text-align:center}
+  .ok .big{font-size:44px;line-height:1}
+  .ok .when{font-size:20px;font-weight:700;margin:6px 0 2px}
+  .error{color:var(--err);font-size:14px;margin-top:12px}
+  .center{text-align:center}
+  footer{text-align:center;margin-top:26px;font-size:13px;color:var(--muted)}
+
+  /* v2.3 look: same fonts as the app, white page, fluid width */
+  body{font-size:17px}
+  h1,h2,.pos .t,.list .t{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600}
+  h1{font-size:30px} h2{font-size:26px}
+  header img{height:96px !important}
+  @media(max-width:480px){header img{height:80px !important}}
+  footer{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:21px;color:var(--grove);padding:8px 16px}
+  footer .q{font-family:'Outfit',system-ui,sans-serif;font-style:normal;font-size:14px;color:var(--muted);margin-bottom:6px}
+</style>
+</head>
+<body>
+<header><img src="enrich-logo.png" alt="Enrich LA"></header>
+<div class="wrap" id="app"><div class="card center muted">One moment...</div></div>
+<script>
+(function(){
+  var FALLBACK_URL='https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
+  var GAS_URL=FALLBACK_URL;
+  try{GAS_URL=localStorage.getItem('rr_gas_url')||FALLBACK_URL;}catch(e){}
+  var q=new URLSearchParams(location.search), app=document.getElementById('app');
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function raw(url,action,extra){return fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action:action},extra||{}))}).then(function(r){return r.json();});}
+  function show(h){app.innerHTML='<div class="card">'+h+'</div>';}
+  raw(GAS_URL,'getAppSettings').then(function(r){if(r&&r.gasUrl&&r.gasUrl!==GAS_URL){GAS_URL=r.gasUrl;try{localStorage.setItem('rr_gas_url',GAS_URL);}catch(e){}}}).catch(function(){})
+  .then(function(){return raw(GAS_URL,'publicApplicantReply',{e:q.get('e'),l:q.get('l'),a:q.get('a'),t:q.get('t')});})
+  .then(function(r){
+    if(!r||!r.ok){show('<div class="error">'+esc((r&&r.error)||'Sorry, something went wrong. Please reply to the email instead.')+'</div>');return;}
+    if(r.answer==='yes')show('<div class="ok"><div class="big">&#127793;</div><h1>Thank you, '+esc(r.first)+'!</h1><div>We are so glad you are interested. '+esc(r.leader)+' has been told and will be in touch soon with times for an interview.</div></div>');
+    else show('<div class="ok"><h1>Thank you, '+esc(r.first)+'</h1><div>We appreciate you taking the time to read about the position and wish you all the best. '+esc(r.leader)+' has been told.</div></div>');
+  }).catch(function(){show('<div class="error">Sorry, something went wrong. Please reply to the email instead.</div>');});
+})();
+</script>
+</body>
+</html>

@@ -513,7 +513,7 @@ var LIVE_ACTION_SCOPES = {
   publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
   acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs'],
   createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], sendInterviewDetails: ['subs'], sendApplicantInfo: ['subs'], shiftToReschedule: ['subs'], acceptInterviewSuggestion: ['subs'],
-  publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs']
+  publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs'], publicApplicantReply: ['subs']
 };
 
 // Online now (v11.47): each open app's heartbeat records "seen at" in the
@@ -884,6 +884,7 @@ function _doPostRoute(e) {
       case 'getApplicantLog':           return respond(handleGetApplicantLog(p));
       case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
       case 'checkInterviewConflicts':   return respond(handleCheckInterviewConflicts(p));
+      case 'publicApplicantReply':      return respond(handlePublicApplicantReply(p));
       case 'publicInterviewInfo':       return respond(handlePublicInterviewInfo(p));
       case 'publicInterviewChoose':     return respond(handlePublicInterviewChoose(p));
       case 'publicInterviewSuggest':    return respond(handlePublicInterviewSuggest(p));
@@ -8844,6 +8845,11 @@ function handleSendApplicantInfo(p) {
     }
     // Could not attach it (too big / no access): put the link in the message instead.
     if (info && !attached) msg += '\n\nThe information is here: ' + info.url;
+    if (!(p.replyLinks === false || p.replyLinks === 'false')) {
+      msg += '\n\nWhen you have read it, please tap one of these (it lets ' + me.first + ' know right away):\n\n' +
+        'I have read the documentation and I would love to be considered for this position:\n' + _apReplyLink(email, me.email, 'yes') + '\n\n' +
+        'I have read the documentation and I am no longer interested:\n' + _apReplyLink(email, me.email, 'no');
+    }
     var smsMsg = String(p.smsMessage || '').trim() || ('Hi ' + ap.first + ', ' + me.first + ' from Enrich LA here. I just emailed you information about the Ranger position. Please have a read and let me know if you are still interested.');
     _subNotify(ap, String(p.subject || '').trim() || 'Information about the Enrich LA Ranger position', msg, smsMsg,
       { fromName: me.name, replyTo: me.email, noSms: !(p.sendText === true || p.sendText === 'true'), attachments: att });
@@ -8855,6 +8861,48 @@ function handleSendApplicantInfo(p) {
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
+// ── APPLICANT REPLY LINKS (v12.05) ───────────────────────────────────────────────────────
+// Two links in the Send-info email. A signed token (HMAC with a secret kept in Script Properties) proves the
+// link was made by us, so the public page needs no login and nobody can answer for someone else.
+var AP_REPLY_PAGE = 'https://tomasogrady-hub.github.io/ranger-rover/reply.html';
+function _apSecret() {
+  var pr = PropertiesService.getScriptProperties(), s = pr.getProperty('ap_reply_secret');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); pr.setProperty('ap_reply_secret', s); }
+  return s;
+}
+function _apSign(email, leader) {
+  var raw = Utilities.computeHmacSha256Signature(String(email).toLowerCase() + '|' + String(leader).toLowerCase(), _apSecret());
+  return Utilities.base64EncodeWebSafe(raw).replace(new RegExp('=+$'), '').slice(0, 24);
+}
+function _apReplyLink(email, leader, ans) {
+  return AP_REPLY_PAGE + '?e=' + encodeURIComponent(email) + '&l=' + encodeURIComponent(leader) + '&a=' + ans + '&t=' + _apSign(email, leader);
+}
+function handlePublicApplicantReply(p) {
+  try {
+    var email = String(p.e || '').trim().toLowerCase(), leader = String(p.l || '').trim().toLowerCase();
+    var ans = p.a === 'no' ? 'no' : 'yes';
+    if (!email || !leader || String(p.t || '') !== _apSign(email, leader)) return { ok: false, error: 'This link is not valid.' };
+    var people = _subPeople(), ap = people[email], ld = people[leader];
+    if (!ap) return { ok: false, error: 'This link is not valid.' };
+    var ev = ans === 'yes' ? 'Replied: would love to be considered' : 'Replied: no longer interested';
+    var dup = _subReadAll(_subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS)).rows.some(function(r) {
+      return String(r['Applicant Email']).toLowerCase() === email && r.Event === ev;
+    });
+    if (!dup) {
+      _apLog(email, ap.name, ev, '', 'From the email link');
+      if (ld) {
+        var prof = HR_APP_URL + '#person=' + encodeURIComponent(email);
+        var body = ans === 'yes'
+          ? ap.name + ' has read the information about the Ranger position and would love to be considered.\n\nNext step: open their profile and tap "Interview" to send them times.\n' + prof
+          : ap.name + ' has read the information about the Ranger position and is no longer interested.\n\nTheir profile (no action needed): ' + prof;
+        _subNotify(ld, ap.name + (ans === 'yes' ? ' would love to be considered' : ' is no longer interested'), 'Hi ' + ld.first + ',\n\n' + body,
+          ap.name + (ans === 'yes' ? ' would love to be considered for the Ranger position. Open their profile to send interview times: ' + prof : ' is no longer interested in the Ranger position.'));
+        _subFlushSms();
+      }
+    }
+    return { ok: true, answer: ans, first: ap.first, leader: ld ? ld.first : 'us' };
+  } catch (e) { return { ok: false, error: 'Sorry - something went wrong. Please reply to the email instead.' }; }
+}
 function _apT(v) {
   if (v instanceof Date) return v.getTime();
   var t = v ? new Date(v).getTime() : 0;
