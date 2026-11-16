@@ -12,7 +12,7 @@
 <meta property="og:title" content="Join the Enrich LA team">
 <meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- job.html v2.5 - 2026-11-16 - direct video player first, Drive player as fallback. v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
+<!-- job.html v2.6 - 2026-11-16 - videos autoplay muted + loop (sound button). v2.5 - 2026-11-16 - direct video player first, Drive player as fallback. v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
   *{box-sizing:border-box}
@@ -33,6 +33,7 @@
   .mt.vid img{object-fit:contain}
   .mt .play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;border:none;background:rgba(0,0,0,.62);color:#fff;font-size:26px;cursor:pointer}
   .mt .alt{position:absolute;left:8px;bottom:8px;z-index:3;background:rgba(0,0,0,.7);color:#fff;font:12px sans-serif;padding:5px 9px;border-radius:12px;text-decoration:none}
+  .mt .snd{position:absolute;right:8px;bottom:8px;z-index:3;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:16px;line-height:1;padding:7px 9px;border-radius:16px;cursor:pointer}
   .mt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
   @media(max-width:640px){.mrow.two{grid-template-columns:minmax(0,1fr)}}
   .ph{display:grid;gap:10px;margin:14px 0 4px}
@@ -159,6 +160,33 @@
       v.addEventListener('loadeddata', function(){ done = true; });
     }
   });
+  // Silent looping autoplay: each video starts by itself (muted, as phones require) once it scrolls near the screen.
+  var _vio = ('IntersectionObserver' in window) ? new IntersectionObserver(function(es){
+    es.forEach(function(en){ if (en.isIntersecting) { _vio.unobserve(en.target); startVid(en.target); } });
+  }, { rootMargin: '300px' }) : null;
+  function startVid(t){
+    var m = (t.dataset.src || '').match(/\/d\/([^\/?]+)/);
+    if (!m || t.querySelector('video') || t.querySelector('iframe')) return;
+    var v = document.createElement('video');
+    v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
+    v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:#000;object-fit:contain';
+    v.addEventListener('playing', function(){
+      var i = t.querySelector('img'), b = t.querySelector('.play');
+      if (i) i.style.visibility = 'hidden'; if (b) b.style.display = 'none';
+      if (!t.querySelector('.snd')) {
+        var s = document.createElement('button'); s.type = 'button'; s.className = 'snd'; s.textContent = '\uD83D\uDD07';
+        s.setAttribute('aria-label', 'Sound on/off');
+        s.onclick = function(ev){ ev.stopPropagation(); v.muted = !v.muted; s.textContent = v.muted ? '\uD83D\uDD07' : '\uD83D\uDD0A'; };
+        t.appendChild(s);
+      }
+    });
+    v.addEventListener('error', function(){ v.remove(); }); // falls back to tap-to-play
+    v.src = 'https://drive.usercontent.google.com/download?id=' + m[1] + '&export=download';
+    t.insertBefore(v, t.firstChild);
+    var pr = v.play(); if (pr && pr.catch) pr.catch(function(){});
+  }
+  function scanVids(){ document.querySelectorAll('.mt.vid:not([data-seen])').forEach(function(t){ t.setAttribute('data-seen', '1'); if (_vio) _vio.observe(t); else startVid(t); }); }
+  new MutationObserver(scanVids).observe(document.documentElement, { childList: true, subtree: true });
   function postingHtml(p, highlight){
     var applyUrl = p.formUrl || ('apply.html?p=' + encodeURIComponent(p.id));
     return '<div class="card post" id="' + esc(p.id) + '"' + (highlight ? ' style="outline:3px solid var(--sun)"' : '') + '>' +
