@@ -1538,7 +1538,7 @@ function handleSetPassword(p) {
       return { ok: false, error: 'Password already set' };
     d.sheet.getRange(r + 1, pi + 1).setValue(p.passwordHash);
     var _spName = (String(d.data[r][fi]) + ' ' + String(d.data[r][li])).trim();
-    var _spLvl  = parseInt(d.data[r][ai]) || 3;
+    var _spLvl  = parseFloat(d.data[r][ai]) || 3; // 2.5 = Garden Maker
     logActivity(p.email, 'first sign-in', _spName, 'person', 'Level ' + _spLvl);
     return { ok: true, name: _spName, accessLevel: _spLvl };
   }
@@ -1556,7 +1556,7 @@ function handleAuth(p) {
       return { ok: false, error: 'Incorrect password' };
     return { ok: true,
              name: (String(d.data[r][fi]) + ' ' + String(d.data[r][li])).trim(),
-             accessLevel: parseInt(d.data[r][ai]) || 3 };
+             accessLevel: parseFloat(d.data[r][ai]) || 3 }; // 2.5 = Garden Maker
   }
   return { ok: false, error: 'Email not found' };
 }

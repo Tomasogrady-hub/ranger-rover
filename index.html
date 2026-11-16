@@ -833,8 +833,18 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   /* Card details: a centred panel instead of a full-width bottom sheet */
   html:not(.rr-narrow) #detail-overlay{align-items:center;justify-content:center}
   html:not(.rr-narrow) #detail-sheet{max-width:820px;border-radius:var(--r-xl);max-height:88dvh;padding-bottom:28px;box-shadow:0 24px 70px rgba(0,0,0,.25)}
-  /* Nav: shorter rows so the content gets more of the screen */
+  /* Nav (v11.96): on a big screen the bottom menu becomes a left-hand sidebar —
+     every tab stacked on top of each other, always showing (no hide/show). */
   html:not(.rr-narrow) .nav-btn{height:44px;font-size:13px}
+  html:not(.rr-narrow) #app:has(#nav:not([style*="none"])){display:grid;grid-template-columns:200px minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+  html:not(.rr-narrow) #app:has(#nav:not([style*="none"])) > #header,
+  html:not(.rr-narrow) #app:has(#nav:not([style*="none"])) > #searchbar{grid-column:1/-1}
+  html:not(.rr-narrow) #app:has(#nav:not([style*="none"])) > #content{grid-column:2;grid-row:3;min-height:0}
+  html:not(.rr-narrow) #app:has(#nav:not([style*="none"])) > #nav{grid-column:1;grid-row:3;overflow-y:auto;padding-bottom:0}
+  html:not(.rr-narrow) #nav .nav-row{flex-direction:column}
+  html:not(.rr-narrow) #nav .nav-btn{flex:none;width:100%;justify-content:flex-start;padding:0 20px;height:46px;font-size:13px}
+  html:not(.rr-narrow) #nav .rr-util-bar{margin-top:auto;position:sticky;bottom:0;background:var(--enrich-dark)}
+  html:not(.rr-narrow) #rrMenuToggle{display:none}
   /* Ask Rover: keep the conversation a readable width */
   html:not(.rr-narrow) .ar-msgs,html:not(.rr-narrow) .ar-inputrow{padding-left:max(14px,calc(50% - 440px));padding-right:max(14px,calc(50% - 440px))}
 }
@@ -1109,7 +1119,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <div class="dd-panel" data-dd="filter">
         <div class="dd-grid">
           <label class="dd-lab">Role
-            <select id="rangerFilters" onchange="filterRangers(this.value);closeDD('rgDD')"><option value="all" data-label="Rangers">All</option><option value="ranger" data-label="Rangers" selected>Ranger</option><option value="master_ranger" data-label="Master Rangers">Master Ranger</option><option value="garden_keeper" data-label="Garden Keepers">Garden Keeper</option><option value="ranger_applicant" data-label="Ranger Applicants">Ranger Applicant</option><option value="ranger_past" data-label="Ranger Past">Ranger Past</option><option value="ranger_applicant_did_not_work_out" data-label="Did Not Work Out">Did Not Work Out</option><option value="ranger_onboarding" data-label="Ranger Onboarding">Ranger Onboarding</option><option value="ranger_offered" data-label="Ranger Offered">Ranger Offered</option></select></label>
+            <select id="rangerFilters" onchange="filterRangers(this.value);closeDD('rgDD')"><option value="all" data-label="Rangers">All</option><option value="ranger" data-label="Rangers" selected>Ranger</option><option value="master_ranger" data-label="Master Rangers">Master Ranger</option><option value="garden_keeper" data-label="Garden Keepers">Garden Keeper</option><option value="garden_maker" data-label="Garden Makers">Garden Maker</option><option value="ranger_applicant" data-label="Ranger Applicants">Ranger Applicant</option><option value="ranger_past" data-label="Ranger Past">Ranger Past</option><option value="ranger_applicant_did_not_work_out" data-label="Did Not Work Out">Did Not Work Out</option><option value="ranger_onboarding" data-label="Ranger Onboarding">Ranger Onboarding</option><option value="ranger_offered" data-label="Ranger Offered">Ranger Offered</option></select></label>
           <label class="dd-lab">Uses this app
             <select id="rangerAppUserSelect" onchange="crauf=this.value;renderRangers();_initLazyImages();closeDD('rgDD')">
               <option value="all">All</option><option value="yes">Yes - has signed in</option><option value="no">No - never signed in</option>
@@ -1980,7 +1990,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
               <option value="__inactive__">All Non App Users</option>
               <option value="__inactiveGranted__">Non App Users w/ Granted Access</option>
               <option value="__none__">No Access Level</option>
-              <option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option>
+              <option value="1">Level 1</option><option value="2">Level 2</option><option value="2.5">Level 2.5</option><option value="3">Level 3</option>
               <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
               <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
               <optgroup label="Ranger Number" id="dataPeopleAccessFilterRateGroup"></optgroup>
@@ -2012,6 +2022,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <span id="dataPeopleSelCount" style="font-size:14px;color:var(--silver);flex:none;white-space:nowrap">0 selected</span>
           <select id="dataPeopleBulkValue" class="settings-input" style="margin:0;width:100px;flex:none" disabled>
             <option value="">None</option>
+            <option value="2.5">Level 2.5</option>
             <option value="3">Level 3</option>
             <option value="4">Level 4</option><option value="5">Level 5</option><option value="6">Level 6</option>
             <option value="7">Level 7</option><option value="8">Level 8</option><option value="9">Level 9</option>
@@ -2434,10 +2445,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.95';
+const APP_VERSION='v11.96';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 15:20 PT - Map: Future Schools chip for all levels.';
+const BUILD_STAMP='2026-11-15 17:25 PT - Level 2.5 (Garden Maker), desktop left sidebar, Garden Maker filter, day/time picker on Ask about school.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2766,6 +2777,7 @@ const CANONICAL_ROLE_CATS={
   'ranger':'ranger',
   'master_ranger':'master_ranger',
   'garden_keeper':'garden_keeper',
+  'garden_maker':'garden_maker',
   'ranger_applicant':'ranger_applicant',
   'ranger_past':'ranger_past',
   'ranger_applicant_did_not_work_out':'ranger_applicant_did_not_work_out',
@@ -2793,7 +2805,7 @@ function humanRoleCats(h){
   return cats.filter(Boolean);
 }
 function humanRoleCat(h){return humanRoleCats(h)[0]||'';}
-const RANGER_CATS=['ranger','master_ranger','garden_keeper','ranger_applicant','ranger_past','ranger_applicant_did_not_work_out','ranger_onboarding','ranger_offered'];
+const RANGER_CATS=['ranger','master_ranger','garden_keeper','garden_maker','ranger_applicant','ranger_past','ranger_applicant_did_not_work_out','ranger_onboarding','ranger_offered'];
 
 // Roles that get the Ranger Documents / mailing address section on the Humans
 // card (W-9, TB Test, Ranger Contract, Ranger Live Scan, Street Address/City/
@@ -3752,11 +3764,16 @@ async function handleForgotPassword(){
   try{const res=await gasPost({action:'forgotPassword',email});if(res.ok){ok.textContent='Done! Check your email — sign in and set a new password.';setTimeout(()=>goToStep('stepEmail'),3000);}else err.textContent=res.error||'Could not send reset email.';}
   catch(e){err.textContent='Connection error.';}
 }
-function startSession(email,name,accessLevel){SESSION={email,name,accessLevel:parseInt(accessLevel)||3};localStorage.setItem(CFG.SK,JSON.stringify(SESSION));showApp();_tryDeepLink(25);}
+// Access Level 2.5 (Garden Maker): the sheet value 2.5 is kept as accessLevel 3
+// (so every field-ranger restriction — no Operations, no contact edits, etc. —
+// applies) plus SESSION.l25=true, which unlocks ALL schools and removes Sub.
+function _normAccess(raw){const f=parseFloat(raw);if(f>2&&f<3)return{lvl:3,l25:true};return{lvl:parseInt(raw)||3,l25:false};}
+function _isL25(){return !!(SESSION&&SESSION.l25);}
+function startSession(email,name,accessLevel){const _n=_normAccess(accessLevel);SESSION={email,name,accessLevel:_n.lvl,l25:_n.l25};localStorage.setItem(CFG.SK,JSON.stringify(SESSION));showApp();_tryDeepLink(25);}
 function logout(){SESSION=null;localStorage.removeItem(CFG.SK);['header','searchbar','content','nav'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('authScreen').style.display='flex';goToStep('stepEmail');document.getElementById('authEmail').value='';document.getElementById('emailErr').textContent='';}
 function _renderHomeAvail(){
   const el=document.getElementById('homeAvail');if(!el)return;
-  if(!SESSION||SESSION.accessLevel<3||!DATA.sites||!DATA.sites.length){el.style.display='none';return;}
+  if(!SESSION||SESSION.accessLevel<3||SESSION.l25||!DATA.sites||!DATA.sites.length){el.style.display='none';return;}
   const avail=_l3AvailableSites().sort((a,b)=>String(sf(a,'Name','name')).localeCompare(String(sf(b,'Name','name'))));
   const me=_subMe(),today=_subToday();
   const subsReady=_SUB&&_SUB.loaded;
@@ -3797,7 +3814,14 @@ function buildNav(lvl){
   // Helper: only emit nav button if allowed by navVisibility setting
   const _nb=(tab,label,extraId='')=>_navTabAllowed(tab,lvl)?_navBtn(tab,label,extraId):'';
   // Level 3: two rows — Latest/Schools/Map/Chores on row1, Notes(+Plants if allowed) on row2
-  if(lvl>=3){
+  if(lvl>=3&&SESSION&&SESSION.l25){
+    // Level 2.5 (Garden Maker): Schools, Map, Chores, Notes — no Sub, no Operations
+    row1.innerHTML=[_navBtn('schools','Schools'),_navBtn('map','Map'),_navBtn('chores','Chores'),_navBtn('notes','Notes')].join('');
+    row2.innerHTML='';row2.style.display='none';
+    const row3m=document.getElementById('navRow3');
+    if(row3m){row3m.innerHTML='';row3m.style.display='none';}
+    document.documentElement.style.setProperty('--nav-h','52px');
+  } else if(lvl>=3){
     row1.innerHTML=[
       _nb('latest','Latest'),
       _nb('schools','Schools'),
@@ -3899,7 +3923,7 @@ function showApp(){
   loadNotes();
   loadData();
   loadAppSettings(); // load plants-on/off + broadcast message
-  setTimeout(()=>loadSubs(false),4000); // Sub badge — background, never blocks startup
+  if(!SESSION.l25)setTimeout(()=>loadSubs(false),4000); // Sub badge — background, never blocks startup
   if(lvl<=2)setTimeout(_aiLoadSummaries,3000); // AI summaries — background, cached locally
   try{_askRoverApplyVis();}catch(e){}
   if(lvl===1)setTimeout(_aiSettingsStatus,6000);
@@ -4511,9 +4535,11 @@ function _resyncOwnAccessLevel(){
   if(!SESSION||!DATA.humans||!DATA.humans.length)return;
   const meRec=DATA.humans.find(h=>String(h.Email||h.email||'').toLowerCase()===SESSION.email.toLowerCase());
   if(!meRec)return;
-  const fresh=parseInt(meRec['Access Level'])||SESSION.accessLevel;
-  if(fresh===SESSION.accessLevel)return;
-  SESSION.accessLevel=fresh;
+  const _rawLvl=String(meRec['Access Level']==null?'':meRec['Access Level']).trim();
+  const _fn=_rawLvl?_normAccess(_rawLvl):{lvl:SESSION.accessLevel,l25:!!SESSION.l25};
+  const fresh=_fn.lvl;
+  if(fresh===SESSION.accessLevel&&_fn.l25===!!SESSION.l25)return;
+  SESSION.accessLevel=fresh;SESSION.l25=_fn.l25;
   localStorage.setItem(CFG.SK,JSON.stringify(SESSION));
   buildNav(fresh);
   const acb=document.getElementById('addContactBar');if(acb)acb.style.display=fresh<=2?'flex':'none';
@@ -5361,6 +5387,7 @@ async function _execSaveNewChore(choreData,photos,vidPromise,vidInputVal){
 /* ═══ RENDER SCHOOLS ═══ */
 function getMySchools(){
   if(!SESSION||SESSION.accessLevel<=2)return null;
+  if(SESSION.l25)return DATA.sites.slice(); // Level 2.5: every school counts as theirs
   const e=SESSION.email.toLowerCase().trim();
   return DATA.sites.filter(s=>{
     const r1=(sf(s,'Ranger 1','Ranger1')||'').toLowerCase().trim();
@@ -5372,6 +5399,7 @@ function getMySchools(){
 // Level 3: which role(s) the signed-in person holds at a site.
 // ranger = Ranger 1 or Ranger 2 (cols M/O); gk = Garden Keeper (col AU).
 function _mySiteRoles(s){
+  if(SESSION&&SESSION.l25)return {ranger:true,gk:false};
   const e=(SESSION&&SESSION.email||'').toLowerCase().trim();
   const r1=(sf(s,'Ranger 1','Ranger1')||'').toLowerCase().trim();
   const r2=(sf(s,'Ranger 2','Ranger2')||'').toLowerCase().trim();
@@ -6185,7 +6213,7 @@ function _renderL3SchoolSections(listEl,sortedSites,cardFn){
   const section=(title,color,arr,fn)=>`<div class="l3-sec-head" style="border-left-color:${color}"><span>${title}</span><span class="l3-sec-count">${arr.length}</span></div>
     <div class="${pics&&fn===cardFn?'card-list pictures-grid l3-sec-grid':'l3-sec-list'}">${arr.length?arr.map((s,i)=>fn(s,i)).join(''):'<div class="l3-sec-empty">No matches</div>'}</div>`;
   let html='';
-  if(hasAnyRanger)html+=section('🌱 My Garden Ranger Schools','var(--grove,#1e3a1e)',rangerSites,cardFn);
+  if(hasAnyRanger)html+=section(SESSION.l25?'🌱 All Schools':'🌱 My Garden Ranger Schools','var(--grove,#1e3a1e)',rangerSites,cardFn);
   if(hasAnyGk)html+=section('🌻 My Garden Keeper Schools','#00838f',gkSites,cardFn);
   if(availSites.length)html+=section('🔎 Available Schools','#6a4c93',availSites,_l3AvailCardHtml);
   if(futureSites.length)html+=section('🌅 Future Schools','#c77d0a',futureSites,(x,i)=>_l3AvailCardHtml(x,i,true));
@@ -6441,7 +6469,7 @@ function _updateRangerDDLabels(){
   if(sv)sv.textContent=RANGER_SORT_SHORT[crso]||'Name A-Z';
   document.querySelectorAll('#rangerSortOpts .dd-opt').forEach(b=>b.classList.toggle('active',b.dataset.v===crso));
   const extra=(crauf!=='all')+(crnf!=='all')+(crdf!=='all');
-  const roleLbl={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Applicant',ranger_past:'Past',ranger_applicant_did_not_work_out:'Did Not Work Out',ranger_onboarding:'Onboarding',ranger_offered:'Offered'}[crf]||'Ranger';
+  const roleLbl={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',garden_maker:'Garden Maker',ranger_applicant:'Applicant',ranger_past:'Past',ranger_applicant_did_not_work_out:'Did Not Work Out',ranger_onboarding:'Onboarding',ranger_offered:'Offered'}[crf]||'Ranger';
   if(fv)fv.textContent=roleLbl+(extra?` +${extra}`:'');
   const fb=document.querySelector('#rgDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',extra>0);
   const sb=document.querySelector('#rgDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',crso!=='name-asc');
@@ -6546,7 +6574,7 @@ function _rangerSortCompare(a,b,sortKey){
 // (mirrors the data-label text on the Rangers tab filter chips).
 const RANGER_ROLE_SENTENCE_LABELS={
   all:'Rangers', ranger:'Rangers', master_ranger:'Master Rangers',
-  garden_keeper:'Garden Keepers', ranger_applicant:'Ranger Applicants',
+  garden_keeper:'Garden Keepers', garden_maker:'Garden Makers', ranger_applicant:'Ranger Applicants',
   ranger_past:'Ranger Past', ranger_applicant_did_not_work_out:'Did Not Work Out',
   ranger_onboarding:'Ranger Onboarding', ranger_offered:'Ranger Offered'
 };
@@ -6876,7 +6904,7 @@ function updateMapFilterCounts(){
 
 function updateRangerFilterCounts(){
   if(SESSION&&SESSION.accessLevel>=3)return;
-  const counts={all:0,ranger:0,master_ranger:0,garden_keeper:0,ranger_applicant:0,ranger_past:0,ranger_applicant_did_not_work_out:0,ranger_onboarding:0,ranger_offered:0};
+  const counts={all:0,ranger:0,master_ranger:0,garden_keeper:0,garden_maker:0,ranger_applicant:0,ranger_past:0,ranger_applicant_did_not_work_out:0,ranger_onboarding:0,ranger_offered:0};
   DATA.humans.forEach(h=>{
     const cats=humanRoleCats(h);
     const rangerCats=cats.filter(c=>RANGER_CATS.includes(c));
@@ -6885,7 +6913,7 @@ function updateRangerFilterCounts(){
       rangerCats.forEach(c=>{if(counts[c]!==undefined)counts[c]++;});
     }
   });
-  const labels={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',ranger_applicant:'Ranger Applicant',ranger_past:'Ranger Past',ranger_applicant_did_not_work_out:'Did Not Work Out',ranger_onboarding:'Ranger Onboarding',ranger_offered:'Ranger Offered'};
+  const labels={all:'All',ranger:'Ranger',master_ranger:'Master Ranger',garden_keeper:'Garden Keeper',garden_maker:'Garden Maker',ranger_applicant:'Ranger Applicant',ranger_past:'Ranger Past',ranger_applicant_did_not_work_out:'Did Not Work Out',ranger_onboarding:'Ranger Onboarding',ranger_offered:'Ranger Offered'};
   document.querySelectorAll('#rangerFilters option').forEach(o=>{
     const f=o.value,n=counts[f]!==undefined?counts[f]:0;
     o.textContent=`${labels[f]||f} (${n})`;
@@ -7020,7 +7048,7 @@ function _renderMapFilterChips(){
   if(!wrap)return;
   if(SESSION&&SESSION.accessLevel>=3){
     wrap.innerHTML=`
-      ${_l3HasRole('ranger')?`<button class="map-chip${cmf==='mine-ranger'?' active':''}" data-filter="mine-ranger" onclick="filterMap('mine-ranger')">🌱 My Garden Ranger Schools</button>`:''}
+      ${_l3HasRole('ranger')?`<button class="map-chip${cmf==='mine-ranger'?' active':''}" data-filter="mine-ranger" onclick="filterMap('mine-ranger')">${SESSION.l25?'🌱 All Schools':'🌱 My Garden Ranger Schools'}</button>`:''}
       ${_l3HasRole('gk')?`<button class="map-chip${cmf==='mine-gk'?' active':''}" data-filter="mine-gk" onclick="filterMap('mine-gk')">🌻 My Garden Keeper Schools</button>`:''}
       <button class="map-chip${cmf==='all-active'?' active':''}" data-filter="all-active" onclick="filterMap('all-active')">🌎 All Active Schools</button>
       <button class="map-chip${cmf==='unassigned'?' active':''}" data-filter="unassigned" onclick="filterMap('unassigned')">🔎 Available Schools</button>
@@ -7922,10 +7950,9 @@ function _l3ReachStep2(){
     '<div class="sub-meta" style="margin:-6px 0 10px">To: '+escHtml(picks.map(p=>p.name).join(', '))+'</div>'+
     '<div class="sub-lbl">What is this about?</div>'+
     '<select id="l3rTopic" style="'+inp+'" onchange="_l3ReachBuild()"><option value="ranger">I am interested in being the Garden Ranger here</option><option value="question">I have a question about this school</option></select>'+
-    '<div id="l3rDaysWrap"><div class="sub-lbl">Days I am available</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
-      days.map(d=>'<label style="display:flex;gap:5px;align-items:center;padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:15px"><input type="checkbox" class="l3rDay" value="'+d+'" onchange="_l3ReachBuild()" style="width:18px;height:18px"> '+d+'</label>').join('')+'</div>'+
-      '<div class="sub-lbl">Times</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
-      ['Mornings','Afternoons'].map(t=>'<label style="display:flex;gap:5px;align-items:center;padding:8px 10px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:15px"><input type="checkbox" class="l3rTime" value="'+t.toLowerCase()+'" onchange="_l3ReachBuild()" style="width:18px;height:18px"> '+t+'</label>').join('')+'</div></div>'+
+    '<div id="l3rDaysWrap"><div class="sub-lbl">When I am available (tap each that works)</div>'+
+      days.map(d=>'<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><div style="width:44px;font-weight:700;font-size:15px">'+d+'</div>'+
+        ['Mornings','Afternoons'].map(t=>'<label style="flex:1;display:flex;gap:6px;align-items:center;justify-content:center;padding:9px 8px;border:1px solid var(--mist);border-radius:var(--r-sm);background:#fff;font-size:15px"><input type="checkbox" class="l3rSlot" data-d="'+d+'" value="'+t+'" onchange="_l3ReachBuild()" style="width:18px;height:18px"> '+t+'</label>').join('')+'</div>').join('')+'</div>'+
     '<div class="sub-lbl">Anything you want them to know</div>'+
     '<input id="l3rNote" style="'+inp+'" placeholder="Short note (optional)" oninput="_l3ReachBuild()">'+
     '<div class="sub-lbl">Subject</div><input id="l3rSubj" style="'+inp+'">'+
@@ -7936,9 +7963,10 @@ function _l3ReachStep2(){
 }
 function _l3ReachBuild(){
   const topic=document.getElementById('l3rTopic').value,site=_l3ReachSite;
-  const dayList=[...document.querySelectorAll('.l3rDay:checked')].map(c=>c.value).join(', ');
-  const timeList=[...document.querySelectorAll('.l3rTime:checked')].map(c=>c.value).join(' and ');
-  const days=dayList?dayList+(timeList?' ('+timeList+')':''):(timeList?timeList:'');
+  const fullDay={Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday'};
+  const bySlot={};
+  document.querySelectorAll('.l3rSlot:checked').forEach(c=>{(bySlot[c.dataset.d]=bySlot[c.dataset.d]||[]).push(c.value.toLowerCase());});
+  const days=['Mon','Tue','Wed','Thu','Fri'].filter(d=>bySlot[d]).map(d=>fullDay[d]+' '+bySlot[d].join(' and ')).join(', ');
   const note=(document.getElementById('l3rNote').value||'').trim();
   const meH=gh(SESSION.email),me=meH?fullName(meH):SESSION.email;
   const first=(window._l3ReachPicks||[]).length===1?window._l3ReachPicks[0].name.split(' ')[0]:'everyone';
@@ -7959,7 +7987,7 @@ function _l3ReachSend(){
   _reachSelected.clear();picks.forEach(p=>_reachSelected.add(p.email));
   _reachForwardPrefill={subject,message};
   switchTab('reach');showReachPage('schoolask');
-  _subAskReachMode(picks.length,picks.length+' selected. How do you want to send it?');
+  _subAskReachMode(picks.length,picks.length+' selected. How do you want to send it?',true);
 }
 function _askAboutSchoolCta(name){
   // Level 3: "Reach" - pick Master Rangers, then a quick prompted email
@@ -8208,7 +8236,7 @@ function _acfsUseExisting(email,returnBtnId){
   showSaveToast('✓ '+nm+' selected — tap Save to keep');
 }
 
-function _l3NotMine(site){if(!SESSION||SESSION.accessLevel<3||!site)return false;const r=_mySiteRoles(site);return !(r.ranger||r.gk);}
+function _l3NotMine(site){if(!SESSION||SESSION.accessLevel<3||SESSION.l25||!site)return false;const r=_mySiteRoles(site);return !(r.ranger||r.gk);}
 function renderSchoolDetail(site,editMode,opsMode){
   // Level 3 opening a school that is not theirs: photo, address, directions only
   if(_l3NotMine(site)){renderSchoolBasic(site,false);return;}
@@ -11300,8 +11328,11 @@ let _tabHistory=[];
 let _navigatingBack=false;
 // Bottom menu collapse: the Calendar tab hides the tab rows to show more of
 // the list; the button in the bottom bar brings them back (and back again).
+function _navIsSidebar(){return window.matchMedia&&window.matchMedia('(min-width:1000px)').matches&&!document.documentElement.classList.contains('rr-narrow');}
+window.addEventListener('resize',()=>{if(_navIsSidebar())_navSetCollapsed(false);});
 function _navSetCollapsed(on){
   const n=document.getElementById('nav');if(!n)return;
+  if(_navIsSidebar())on=false; // big screen: sidebar is always open
   n.classList.toggle('nav-collapsed',!!on);
   const b=document.getElementById('rrMenuToggle');if(b)b.textContent=on?'⌃ Menu':'⌄ Hide menu';
 }
@@ -11361,6 +11392,7 @@ function navTap(tab){
 }
 function switchTab(tab,initMapFlag=false){
   if(tab==='operations'&&SESSION&&SESSION.accessLevel>=3)tab='schools';
+  if(SESSION&&SESSION.l25&&!['schools','map','chores','notes'].includes(tab))tab='schools';
   const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   if(tab!=='operations')_exitSmartMapFullscreen();
   if(tab!=='map')_exitMapFullscreen();
@@ -13955,7 +13987,7 @@ function subReachFromShift(id){
   _subPickRecipients('Reach about this shift',groups,{subject,message:msg},name+' - sub shift',{expand:_subIsAdmin()});
 }
 // Pops up right away: email or text, together or one by one
-function _subAskReachMode(n,lead){
+function _subAskReachMode(n,lead,groupOnly){
   const old=document.getElementById('subReachAsk');if(old)old.remove();
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='subReachAsk';ov.style.alignItems='center';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
@@ -13964,7 +13996,7 @@ function _subAskReachMode(n,lead){
     '<h3 style="font-size:26px">Reach '+n+' '+(n===1?'person':'people')+'</h3>'+
     '<div class="sub-meta" style="margin-bottom:8px">'+escHtml(lead||'Senior Leadership and the Ranger are selected. How do you want to reach them?')+'</div>'+
     b('email_together','✉ Email - one thread',true)+b('text_together','💬 Text - group',false)+
-    b('email_individual','✉ Email each person',false)+b('text_individual','💬 Text each person',false)+
+    (groupOnly?'':b('email_individual','✉ Email each person',false)+b('text_individual','💬 Text each person',false))+
     '<button class="sub-btn alt" style="width:100%;margin-top:10px;background:none;border:none" onclick="document.getElementById(\'subReachAsk\').remove()">Change who’s selected first</button></div>';
   document.body.appendChild(ov);
 }
@@ -18170,7 +18202,7 @@ function _dataFieldOptionsHtml(mode,currentVal){
     // Levels 1 & 2 are intentionally excluded here — those are handled
     // elsewhere, not through this bulk/per-row Adjust control.
     return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
-      [3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(currentVal)===String(n)?'selected':''}>Level ${n}</option>`).join('');
+      [2.5,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(currentVal)===String(n)?'selected':''}>Level ${n}</option>`).join('');
   }
   const opts=_dataPeopleFieldOptionsList(mode);
   return `<option value="" ${String(currentVal||'').trim()===''?'selected':''}>None</option>`+
@@ -18414,7 +18446,7 @@ function _updateDataPeopleSelCount(){
 
 // Individual field change (Access Level, Role, or Role Additional depending on the
 // active Adjust mode) — saves immediately via the generic Humans-sheet edit handler.
-function _dataFieldValue(mode,value){ return mode==='access'?(String(value||'').trim()===''?'':parseInt(value)):(value||''); }
+function _dataFieldValue(mode,value){ return mode==='access'?(String(value||'').trim()===''?'':parseFloat(value)):(value||''); }
 function _dataFieldLabel(mode,value){
   if(mode==='access')return String(value||'').trim()===''?'None':'Level '+value;
   return value?value:'None';
