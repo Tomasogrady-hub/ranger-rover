@@ -12,7 +12,7 @@
 <meta property="og:title" content="Join the Enrich LA team">
 <meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- job.html v2.6 - 2026-11-16 - videos autoplay muted + loop (sound button). v2.5 - 2026-11-16 - direct video player first, Drive player as fallback. v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
+<!-- job.html v2.7 - 2026-11-16 - videos in a row play in sequence. v2.6 - 2026-11-16 - videos autoplay muted + loop (sound button). v2.5 - 2026-11-16 - direct video player first, Drive player as fallback. v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
   *{box-sizing:border-box}
@@ -164,11 +164,17 @@
   var _vio = ('IntersectionObserver' in window) ? new IntersectionObserver(function(es){
     es.forEach(function(en){ if (en.isIntersecting) { _vio.unobserve(en.target); startVid(en.target); } });
   }, { rootMargin: '300px' }) : null;
-  function startVid(t){
+  function rowVids(t){ var r = t.parentNode; return r ? Array.prototype.slice.call(r.querySelectorAll('.mt.vid')) : [t]; }
+  // Videos in one banner row play one after another (first, then second, then back to the first).
+  function startVid(t, force){
+    var list = rowVids(t), solo = list.length < 2;
+    if (!solo && !force && list[0] !== t) return;           // only the first of a row starts by itself
+    var ex = t.querySelector('video');
+    if (ex) { try { ex.currentTime = 0; var q = ex.play(); if (q && q.catch) q.catch(function(){}); } catch (e) {} return; }
     var m = (t.dataset.src || '').match(/\/d\/([^\/?]+)/);
-    if (!m || t.querySelector('video') || t.querySelector('iframe')) return;
+    if (!m || t.querySelector('iframe')) return;
     var v = document.createElement('video');
-    v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
+    v.muted = true; v.loop = solo; v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
     v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:#000;object-fit:contain';
     v.addEventListener('playing', function(){
       var i = t.querySelector('img'), b = t.querySelector('.play');
@@ -180,7 +186,12 @@
         t.appendChild(s);
       }
     });
-    v.addEventListener('error', function(){ v.remove(); }); // falls back to tap-to-play
+    v.addEventListener('ended', function(){
+      if (solo) return;
+      var L = rowVids(t), n = L[(L.indexOf(t) + 1) % L.length];
+      startVid(n, true);
+    });
+    v.addEventListener('error', function(){ v.remove(); if (!solo) { var L = rowVids(t), n = L[(L.indexOf(t) + 1) % L.length]; if (n !== t && !n.querySelector('video')) startVid(n, true); } });
     v.src = 'https://drive.usercontent.google.com/download?id=' + m[1] + '&export=download';
     t.insertBefore(v, t.firstChild);
     var pr = v.play(); if (pr && pr.catch) pr.catch(function(){});
