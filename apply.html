@@ -7,19 +7,18 @@
 <meta name="description" content="Apply to join Enrich LA - teach and grow school gardens across Los Angeles.">
 <meta property="og:title" content="Apply to Enrich LA">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- apply.html v2.1 - 2026-11-10 - pitch + experience merged into one box; ONE application form for every posting; ?p=ID pre-selects the position. Writes to Humans via GAS publicApply. -->
+<!-- apply.html v2.2 - 2026-11-15 - plain logo header; photo + resume required. v2.1 - 2026-11-10 - pitch + experience merged into one box; ONE application form for every posting; ?p=ID pre-selects the position. Writes to Humans via GAS publicApply. -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--fog);line-height:1.55}
   .wrap{max-width:640px;margin:0 auto;padding:0 16px 64px}
-  header{background:var(--grove);color:#fff;padding:22px 16px 26px}
-  header .in{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:14px}
-  header img{width:52px;height:52px;border-radius:50%;flex-shrink:0;background:#fff}
-  header .kick{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
-  header h1{margin:2px 0 0;font-size:24px;line-height:1.2}
-  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 18px;margin-top:-12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
+  header{padding:26px 16px 14px;text-align:center}
+  header .in{max-width:640px;margin:0 auto}
+  header img{height:64px;width:auto;max-width:90%;display:block;margin:0 auto}
+  header .kick,header h1{display:none}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 18px;margin-top:12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
   .pos{background:var(--fog);border-radius:10px;padding:12px 14px;margin:4px 0 2px}
   .pos .t{font-weight:700;color:var(--grove);font-size:17px}
   .pos .m{font-size:13px;color:var(--muted)}
@@ -56,8 +55,8 @@
 </head>
 <body>
 <header><div class="in">
-  <img src="la-logo.png" alt="Enrich LA" width="52" height="52">
-  <div><div class="kick">Enrich LA · Application</div><h1 id="hTitle">Apply to join our team</h1></div>
+  <img src="enrich-logo.png" alt="Enrich LA">
+  <div><div class="kick">Enrich LA</div><h1 id="hTitle">Apply to join our team</h1></div>
 </div></header>
 
 <div class="wrap">
@@ -83,7 +82,7 @@
         <div><label for="state">State</label><input type="text" id="state" value="CA" autocomplete="address-level1"></div>
         <div><label for="zip">Zip</label><input type="text" id="zip" autocomplete="postal-code" inputmode="numeric"></div>
       </div>
-      <label>Your photo <span class="opt">(optional - a clear, friendly headshot)</span></label>
+      <label>Your photo <span class="req">*</span> <span class="opt">(a clear, friendly headshot)</span></label>
       <label class="file" id="photoBox">
         <input type="file" id="photo" accept="image/*">
         <span class="pv" id="photoPv">🙂</span><span id="photoTxt">Tap to add a photo</span>
@@ -93,7 +92,7 @@
       <label for="pitch">Tell us about yourself and your experience <span class="req">*</span></label>
       <div class="hint">Why do you want this job? Any gardening, teaching or working-with-kids experience? What would you bring to our students and gardens?</div>
       <textarea id="pitch" required style="min-height:170px"></textarea>
-      <label>Resume <span class="opt">(optional - PDF, Word or photo, up to 6 MB)</span></label>
+      <label>Resume <span class="req">*</span> <span class="opt">(PDF, Word or photo, up to 6 MB)</span></label>
       <label class="file" id="fileBox">
         <input type="file" id="resume" accept=".pdf,.doc,.docx,.rtf,.txt,.odt,.pages,image/*,application/pdf">
         <span class="pv">📎</span><span id="fileTxt">Tap to attach your resume</span>
@@ -239,6 +238,8 @@
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val('email'))) { err.textContent = 'Please check your email address.'; $('email').focus(); return; }
     if (val('mobile').replace(/\D/g,'').length < 10) { err.textContent = 'Please enter a 10-digit mobile number.'; $('mobile').focus(); return; }
     if (val('pitch').length < 20) { err.textContent = 'Please tell us a little more about yourself.'; $('pitch').focus(); return; }
+    if (!photoB64) { err.textContent = 'Please add a photo of yourself.'; $('photoBox').scrollIntoView({behavior:'smooth', block:'center'}); return; }
+    if (!resumeFile) { err.textContent = 'Please attach your resume.'; $('fileBox').scrollIntoView({behavior:'smooth', block:'center'}); return; }
 
     var btn = $('go'); btn.disabled = true; btn.textContent = (resumeFile || photoB64) ? 'Uploading…' : 'Sending…';
     var pid = val('position') === '_general' ? '' : val('position');

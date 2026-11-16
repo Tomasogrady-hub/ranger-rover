@@ -2445,10 +2445,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.96';
+const APP_VERSION='v11.97';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-15 17:25 PT - Level 2.5 (Garden Maker), desktop left sidebar, Garden Maker filter, day/time picker on Ask about school.';
+const BUILD_STAMP='2026-11-15 18:20 PT - Person card Reach button, Documents folders in Reach attach, job posting photos, applicant deep link.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -8827,6 +8827,16 @@ async function saveSiteEdit(siteKey){
 }
 
 /* ═══ PERSON DETAIL ═══ */
+// Person card "Reach": opens the normal Reach screen (Email/Text, individually or together) with this person selected.
+function reachPerson(email){
+  const h=(DATA.humans||[]).find(p=>(p.Email||p.email||'')===email);
+  if(!h||!SESSION||SESSION.accessLevel>2)return;
+  _schoolReachSiteName=fullName(h)||email;
+  _reachSelected.clear();_reachSelected.add(email);
+  _reachForwardPrefill=null;
+  closeDetail();
+  switchTab('reach');showReachPage('schoolask');
+}
 function showPersonDetail(k){const h=DATA.humans.find(p=>(p.Email||p.email||'')===k||fullName(p)===k||(p.Name||p.name||'')===k);if(!h)return;renderPD(h,false);openDetail();}
 async function fetchPersonComments(email){
   const btn=document.getElementById('pd-comments-btn');
@@ -9017,7 +9027,7 @@ function renderPD(h,edit){
       <div class="detail-ctas">
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
-        ${email?`<a class="dcta" href="${gmailUrl(email)}" target="_blank" rel="noopener">✉ Email</a>`:''}
+        ${email?(SESSION&&SESSION.accessLevel<=2?`<button class="dcta" onclick="reachPerson('${ea(email)}')">📡 Reach</button>`:`<a class="dcta" href="${gmailUrl(email)}" target="_blank" rel="noopener">✉ Email</a>`):''}
         <button class="dcta" id="pd-forward-btn" onclick="forwardContactCard('${ea(email||name)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>
       </div>
       ${_personActionsHtml(email)}
@@ -10483,9 +10493,20 @@ function _hrEdit(id,copyFrom){
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><button class="btn-cancel" style="padding:8px 12px" onclick="_hrCancel()">‹ Back</button>'+
     '<div style="font-weight:700;font-size:18px">'+(isNew?(copyFrom?'Duplicate posting':'New job posting'):'Edit '+escHtml(id))+'</div></div>';
   const heads=_hr.headers.length?_hr.headers:['ID','Name of Position Internal','Date','Public Title','Public Description','Status','Location','Schedule','When','Pay','Requirements','Position Description','FAQ','Notify Email','Form Location','Applications','Apply Link'];
+  if(!heads.includes('Photos'))heads.push('Photos');
+  _hr.photos=String(v['Photos']||'').split(/[\n,\s]+/).filter(u=>/^https?:/i.test(u)).slice(0,2);
   heads.forEach(c=>{
     const val=v[c]==null?'':String(v[c]);
     const fid='hrf-'+c.replace(/[^A-Za-z0-9]/g,'_');
+    if(c==='Photos'){
+      h+='<label>Photos for the ad <span style="font-weight:400;color:var(--silver)">(one or two)</span></label>'+
+        '<div id="hrPhotoBox" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px"></div>'+
+        '<input type="hidden" id="hrf-Photos" data-col="Photos" value="">'+
+        '<div style="display:flex;gap:8px"><button type="button" class="reach-token-chip" style="flex:1;text-align:center;padding:9px 12px" onclick="document.getElementById(\'hrPhotoFile\').click()">📷 Upload a photo</button>'+
+        '<button type="button" class="reach-token-chip" style="flex:1;text-align:center;padding:9px 12px" onclick="_hrPhotoFromApp()">🗂 From the app</button></div>'+
+        '<input type="file" id="hrPhotoFile" accept="image/*" style="display:none" onchange="_hrPhotoUpload(this)">'+
+        '<div class="hr-hint">Shown at the top of the public job posting. From the app = any school, people or plant photo.</div>';return;
+    }
     if(c==='ID'){
       if(!isNew)h+='<label>ID</label><div class="hr-ro">'+escHtml(val)+'</div>';return;
     }
@@ -10533,8 +10554,43 @@ function _hrEdit(id,copyFrom){
      '<button class="btn-cancel" style="width:100%;margin-top:8px;text-align:center" onclick="_hrCancel()">Cancel</button>'+
      (isNew?'':'<button class="btn-cancel" style="width:100%;margin-top:18px;text-align:center;color:var(--danger);border-color:var(--danger)" onclick="_hrDelete(\''+ea(id)+'\')">🗑 Delete this posting</button>')+'</div>';
   body.innerHTML=h;
+  _hrPhotosRender();
   body.scrollIntoView({block:'start'});
   ['hrf-Public_Title','hrf-Public_Description','hrf-Requirements'].forEach(fid=>{const el=document.getElementById(fid);if(el){el.dataset.auto=el.value.trim()?'':'1';el.addEventListener('input',()=>{el.dataset.auto='';});}});
+}
+// ── Job posting photos (max 2): upload or pick from the app ──
+function _hrPhotosRender(){
+  const box=document.getElementById('hrPhotoBox'),inp=document.getElementById('hrf-Photos');if(!box)return;
+  const ph=_hr.photos||[];
+  if(inp)inp.value=ph.join('\n');
+  box.innerHTML=ph.length?ph.map((u,i)=>'<div style="position:relative;width:120px;height:90px;border-radius:8px;overflow:hidden;background:var(--mist)"><img src="'+ea(_rlibThumb(u))+'" style="width:100%;height:100%;object-fit:cover" alt="">'+
+    '<button type="button" onclick="_hrPhotoRemove('+i+')" aria-label="Remove" style="position:absolute;top:3px;right:3px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:14px;cursor:pointer">✕</button></div>').join(''):'<div class="sub-meta">No photos yet.</div>';
+}
+function _hrPhotosAdd(urls){
+  const cur=_hr.photos||[];
+  urls.forEach(u=>{if(u&&!cur.includes(u))cur.push(u);});
+  if(cur.length>2){showToast('Only two photos fit - kept the first two');}
+  _hr.photos=cur.slice(0,2);_hrPhotosRender();
+}
+function _hrPhotoRemove(i){(_hr.photos||[]).splice(i,1);_hrPhotosRender();}
+function _hrPhotoFromApp(){
+  if((_hr.photos||[]).length>=2){showToast('Remove a photo first (two max)');return;}
+  _reachLibOpen('posting');
+}
+async function _hrPhotoUpload(inp){
+  const f=inp.files&&inp.files[0];inp.value='';if(!f)return;
+  if((_hr.photos||[]).length>=2){showToast('Remove a photo first (two max)');return;}
+  try{
+    showToast('Uploading photo…');
+    const url=URL.createObjectURL(f);
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('Could not read that photo'));i.src=url;});
+    const m=1600,sc=Math.min(1,m/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+    const out=await _uploadImageToCloudinaryXHR(blob);
+    _hrPhotosAdd([out]);showToast('Photo added');
+  }catch(e){showToast(e.message||'Upload failed');}
 }
 function _hrRoleObj(name){const n=String(name||'').trim().toLowerCase();return (DATA.roles||[]).find(r=>String(r.name||'').trim().toLowerCase()===n)||null;}
 // Put a Role default into a posting field: always if blank or untouched, ask if someone typed their own.
@@ -15295,6 +15351,24 @@ function _tryDeepLink(retries){
     }else if(retries>0){setTimeout(()=>_tryDeepLink(retries-1),400);}
     return;
   }
+  // Deep link: .../ranger-rover/#person=email (from the "new application" email) -> that person's profile.
+  const mp=/[#&]person=([^&]+)/.exec(location.hash);
+  if(mp){
+    if(!SESSION)return;
+    const em=decodeURIComponent(mp[1]).trim().toLowerCase();
+    const hh=(DATA.humans||[]).find(x=>String(x.Email||x.email||'').trim().toLowerCase()===em);
+    if(hh&&SESSION.accessLevel<=2){
+      switchTab('rangers');
+      showPersonDetail(hh.Email||hh.email);
+      try{history.replaceState(null,'',location.pathname);}catch(e){}
+    }else if(retries>0){
+      setTimeout(()=>_tryDeepLink(retries-1),400);
+    }else{
+      try{history.replaceState(null,'',location.pathname);}catch(e){}
+      showToast(SESSION.accessLevel<=2?'That person is not loaded yet - pull to refresh and try the link again':'Not available at your access level');
+    }
+    return;
+  }
   const ms=/[#&]school=([^&]+)/.exec(location.hash);
   if(ms){
     const key=decodeURIComponent(ms[1]);
@@ -18647,7 +18721,7 @@ function _reachRichMount(){
       <button type="button" class="reach-token-chip" style="flex:1;text-align:center;padding:9px 12px" onclick="_reachLibOpen('attach')">🗂 From the app</button>
     </div>
     <input type="file" id="rrAttachInput" multiple accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" style="display:none" onchange="_reachAttachPicked(this)">
-    <div style="font-size:11px;color:var(--silver);line-height:1.5;margin-top:4px">From the app = any school, people, chore or plant photo, plus school schedules and Ranger documents. Device files upload as soon as you pick them, so Send is quick. Up to 20 MB each.</div>`;
+    <div style="font-size:11px;color:var(--silver);line-height:1.5;margin-top:4px">From the app = any school, people, chore or plant photo, school schedules, Ranger documents, and the Documents folders (browse subfolders). Device files upload as soon as you pick them, so Send is quick. Up to 20 MB each.</div>`;
   group.after(att);
 
   if (_reachPendingAttach && _reachPendingAttach.length) {
@@ -18854,12 +18928,12 @@ function _rlibBuild(){
   return items;
 }
 function _reachLibOpen(mode){
-  _rlib = { mode, items: _rlibBuild(), src: 'all', q: '', sel: new Map(), show: 60, plants: [], plantsQ: '' };
+  _rlib = { mode, items: _rlibBuild(), src: 'all', q: '', sel: new Map(), show: 60, plants: [], plantsQ: '', path: [] };
   let ov = document.getElementById('rlibSheet');
   if (!ov) { ov = document.createElement('div'); ov.className = 'sub-ov'; ov.id = 'rlibSheet'; ov.onclick = e => { if (e.target === ov) ov.remove(); }; document.body.appendChild(ov); }
-  const srcs = [['all','All'],['schools','Schools'],['people','People'],['chores','Chores']].concat(mode === 'attach' ? [['docs','📄 PDFs']] : []).concat([['plants','🌱 Plants']]);
+  const srcs = [['all','All'],['schools','Schools'],['people','People'],['chores','Chores']].concat(mode === 'attach' ? [['folders','📁 Documents'],['docs','📄 PDFs']] : []).concat([['plants','🌱 Plants']]);
   ov.innerHTML = `<div class="sub-sheet rlib-sheet">
-    <h3>${mode === 'inline' ? 'Insert a photo from the app' : 'Attach from the app'}</h3>
+    <h3>${mode === 'inline' ? 'Insert a photo from the app' : mode === 'posting' ? 'Pick photos for the job posting' : 'Attach from the app'}</h3>
     <input id="rlibSearch" class="memo-input" type="search" placeholder="Search school, person, chore${mode === 'attach' ? ', document' : ''}…" oninput="_rlibSearch(this.value)">
     <div class="rlib-chips">${srcs.map(([k, l]) => `<button type="button" class="reach-token-chip rlib-chip${k === 'all' ? ' on' : ''}" data-src="${k}" onclick="_rlibSetSrc('${k}')">${l}</button>`).join('')}</div>
     <div id="rlibCount" class="sub-meta" style="margin:4px 0"></div>
@@ -18867,7 +18941,7 @@ function _reachLibOpen(mode){
     <div class="sub-actions" style="justify-content:space-between;align-items:center;margin-top:12px">
       <span id="rlibSelCount" class="sub-meta">0 chosen</span>
       <span style="display:flex;gap:8px"><button class="sub-btn alt" onclick="document.getElementById('rlibSheet').remove()">Cancel</button>
-      <button class="sub-btn hot" onclick="_rlibDone()">${mode === 'inline' ? 'Insert' : 'Attach'}</button></span></div></div>`;
+      <button class="sub-btn hot" onclick="_rlibDone()">${mode === 'inline' ? 'Insert' : mode === 'posting' ? 'Use' : 'Attach'}</button></span></div></div>`;
   _rlibRender();
 }
 let _rlibTimer = null;
@@ -18879,7 +18953,7 @@ function _rlibSearch(v){
 function _rlibSetSrc(k){
   _rlib.src = k; _rlib.show = 60;
   document.querySelectorAll('#rlibSheet .rlib-chip').forEach(b => b.classList.toggle('on', b.dataset.src === k));
-  if (k === 'plants') _rlibPlants(); else _rlibRender();
+  if (k === 'plants') _rlibPlants(); else if (k === 'folders') _rlibFoldersOpen(); else _rlibRender();
 }
 async function _rlibPlants(){
   const q = String(_rlib.q || '').trim();
@@ -18899,6 +18973,7 @@ async function _rlibPlants(){
 }
 function _rlibFiltered(){
   if (_rlib.src === 'plants') return _rlib.plants;
+  if (_rlib.src === 'folders') return _rlib.folderItems || [];
   const q = String(_rlib.q || '').trim().toLowerCase();
   const words = q ? q.split(/\s+/) : [];
   return _rlib.items.filter(it =>
@@ -18910,7 +18985,52 @@ function _rlibThumb(url){
   const id = _driveFileIdFromUrl(url);
   return id ? 'https://lh3.googleusercontent.com/d/' + id + '=w240' : url;
 }
+// ── Documents: browse the Information Files folder and its subfolders ──
+function _rlibDocFolder(f){ return String(f.folder || (f.kind === 'dynamic' ? 'Dynamic Documents' : 'Static Documents')).replace(/^\/+|\/+$/g, ''); }
+async function _rlibFoldersOpen(){
+  _rlib.path = [];
+  if (!_docsHydrate()) { const l = document.getElementById('rlibList'); if (l) l.innerHTML = '<div class="spinner"></div>'; }
+  _rlibRender();
+  await _loadInfoFiles(true); // refresh in the background, repaint when it lands
+  if (_rlib && _rlib.src === 'folders') _rlibRender();
+}
+function _rlibFolderGo(i){ _rlib.path = i < 0 ? [] : _rlib.path.slice(0, i + 1); _rlib.q = ''; const q = document.getElementById('rlibSearch'); if (q) q.value = ''; _rlibRender(); }
+function _rlibFolderEnter(name){ _rlib.path.push(name); _rlibRender(); }
+function _rlibFolderRender(){
+  const list = document.getElementById('rlibList'); if (!list) return;
+  const files = (_infoFilesCache || []).filter(f => f && f.id);
+  const q = String(_rlib.q || '').trim().toLowerCase();
+  const cur = _rlib.path.join('/');
+  let subs = [], here = [];
+  const mk = f => ({ key: f.id, src: 'folders', kind: 'pdf', title: f.name, sub: '', url: f.url, fileId: f.id, hay: '',
+    attName: f.isDoc ? (f.name.replace(/\.pdf$/i, '') + '.pdf') : f.name, folder: _rlibDocFolder(f), isDoc: !!f.isDoc });
+  if (q) {
+    here = files.filter(f => { const hay = (f.name + ' ' + _rlibDocFolder(f)).toLowerCase(); return q.split(/\s+/).every(w => hay.includes(w)); }).map(mk);
+  } else {
+    const seen = new Set();
+    files.forEach(f => {
+      const fo = _rlibDocFolder(f);
+      if (fo === cur) here.push(mk(f));
+      else if (!cur || fo.indexOf(cur + '/') === 0) {
+        const nxt = fo.slice(cur ? cur.length + 1 : 0).split('/')[0];
+        if (nxt && !seen.has(nxt)) { seen.add(nxt); subs.push(nxt); }
+      }
+    });
+    subs.sort((a, b) => a.localeCompare(b));
+    here.sort((a, b) => a.title.localeCompare(b.title));
+  }
+  _rlib.folderItems = here;
+  const crumbs = '<div class="rlib-chips" style="margin:2px 0 8px"><button type="button" class="reach-token-chip" onclick="_rlibFolderGo(-1)">📁 Documents</button>' +
+    _rlib.path.map((n, i) => '<button type="button" class="reach-token-chip" onclick="_rlibFolderGo(' + i + ')">› ' + escHtml(n) + '</button>').join('') + '</div>';
+  const c = document.getElementById('rlibCount'); if (c) c.textContent = q ? here.length + ' found' : subs.length + ' folder' + (subs.length === 1 ? '' : 's') + ', ' + here.length + ' file' + (here.length === 1 ? '' : 's');
+  list.innerHTML = (q ? '' : crumbs) +
+    (subs.length ? '<div class="rlib-docs">' + subs.map(n => '<button type="button" class="rlib-doc" onclick="_rlibFolderEnter(this.dataset.n)" data-n="' + ea(n) + '"><span style="font-size:20px">📁</span><span style="flex:1;min-width:0;text-align:left"><b>' + escHtml(n) + '</b></span><span>›</span></button>').join('') + '</div>' : '') +
+    (here.length ? '<div class="rlib-docs">' + here.map(it => '<button type="button" class="rlib-doc' + (_rlib.sel.has(it.key) ? ' on' : '') + '" data-key="' + ea(it.key) + '" onclick="_rlibToggle(this)"><span style="font-size:20px">📄</span><span style="flex:1;min-width:0;text-align:left"><b>' + escHtml(it.title) + '</b>' + (q ? '<br><span class="sub-meta">' + escHtml(it.folder) + '</span>' : '') + '</span><span class="rlib-tick">✓</span></button>').join('') + '</div>' : '') +
+    (!subs.length && !here.length ? '<div class="sub-meta" style="padding:14px 0;text-align:center">' + (_infoFilesCache ? 'Nothing here.' : 'Loading…') + '</div>' : '');
+  const sc = document.getElementById('rlibSelCount'); if (sc) sc.textContent = _rlib.sel.size + ' chosen';
+}
 function _rlibRender(){
+  if (_rlib.src === 'folders') { _rlibFolderRender(); return; }
   const list = document.getElementById('rlibList'); if (!list) return;
   const all = _rlibFiltered(), shown = all.slice(0, _rlib.show);
   const c = document.getElementById('rlibCount'); if (c) c.textContent = all.length + ' found' + (all.length > shown.length ? ' - showing ' + shown.length : '');
@@ -18935,6 +19055,11 @@ function _rlibDone(){
   const picked = [..._rlib.sel.values()];
   if (!picked.length) { alert('Tap at least one item.'); return; }
   const safe = t => String(t || '').replace(/[^a-z0-9 _-]+/gi, '').trim().slice(0, 60) || 'file';
+  if (_rlib.mode === 'posting') {
+    _hrPhotosAdd(picked.map(it => it.fileId ? 'https://lh3.googleusercontent.com/d/' + it.fileId : it.url));
+    document.getElementById('rlibSheet').remove();
+    return;
+  }
   if (_rlib.mode === 'inline') {
     const ed = _reachRichFocus();
     if (ed) {
@@ -18944,7 +19069,7 @@ function _rlibDone(){
         : `<img src="${ea(it.url)}" alt="photo" style="max-width:100%;height:auto;border-radius:6px"><br>`).join(''));
     }
   } else {
-    picked.forEach(it => _reachAttach.push({ lid: ++_reachLid, name: safe(it.title) + ' ' + safe(it.sub) + (it.kind === 'photo' ? '.jpg' : '.pdf'),
+    picked.forEach(it => _reachAttach.push({ lid: ++_reachLid, name: it.attName || (safe(it.title) + ' ' + safe(it.sub) + (it.kind === 'photo' ? '.jpg' : '.pdf')),
       fileId: it.fileId || '', url: it.fileId ? '' : it.url, status: 'ready', kind: it.kind }));
     _reachAttachRender();
   }

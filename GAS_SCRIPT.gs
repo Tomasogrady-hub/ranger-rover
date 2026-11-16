@@ -4015,18 +4015,18 @@ function _isDynamicTemplate(f) {
 // Visits every file under the Information Files folder, skipping any folder named "Templates".
 // cb(file, kind): kind = 'dynamic' (under Dynamic Documents), 'static' (under Static Documents) or 'other'.
 function _eachInfoFile(cb) {
-  function walk(folder, kind) {
+  function walk(folder, kind, path) {
     var fi = folder.getFiles();
-    while (fi.hasNext()) cb(fi.next(), kind);
+    while (fi.hasNext()) cb(fi.next(), kind, path);
     var sf = folder.getFolders();
     while (sf.hasNext()) {
       var sub = sf.next();
       if (String(sub.getName()).trim().toLowerCase() === 'templates') continue;
       var k = sub.getId() === INFO_DYNAMIC_FOLDER ? 'dynamic' : (sub.getId() === INFO_STATIC_FOLDER ? 'static' : kind);
-      walk(sub, k);
+      walk(sub, k, (path ? path + '/' : '') + sub.getName());
     }
   }
-  walk(DriveApp.getFolderById(INFO_FILES_FOLDER), 'other');
+  walk(DriveApp.getFolderById(INFO_FILES_FOLDER), 'other', '');
 }
 // Live copies are kept in a subfolder beside the template so nobody edits one by mistake
 // (anything typed into a live copy is overwritten on the next refresh).
@@ -4079,7 +4079,7 @@ function handleGetInfoFiles() {
   try {
     var out = [];
     // Only files inside the Static / Dynamic subfolders are offered (loose files elsewhere are ignored).
-    _eachInfoFile(function(f0, kind) { if (kind === 'other' || _isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; out.push(j); });
+    _eachInfoFile(function(f0, kind, path) { if (kind === 'other' || _isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; j.folder = path || ''; out.push(j); });
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
     try { _syncInfoFilesSheet(out); } catch (e2) { Logger.log('info sheet sync: ' + e2.message); }
     return { ok: true, files: out, dataVer: _dataVer() };
@@ -7702,7 +7702,7 @@ const HR_DEFAULT_NOTIFY = 'tomasogrady@enrichla.org';
 const HR_APPLICANT_ROLE = 'Ranger Applicant';
 const HR_POS_COLS = ['ID', 'Name of Position Internal', 'Date', 'Public Title', 'Public Description',
                      'Status', 'Location', 'Schedule', 'Pay', 'Requirements', 'Notify Email',
-                     'Applications', 'Apply Link', 'FAQ', 'Position Description', 'When', 'Form Location'];
+                     'Applications', 'Apply Link', 'FAQ', 'Position Description', 'When', 'Form Location', 'Photos'];
 // Columns the app never lets people type into (system-maintained).
 const HR_POS_SYSTEM = ['Applications', 'Apply Link'];
 const HR_MAX_RESUME_BYTES = 6 * 1024 * 1024;
@@ -7767,6 +7767,7 @@ function _hrPublicPos(o) {
     schedule:     String(o['Schedule'] || ''),
     pay:          String(o['Pay'] || ''),
     requirements: String(o['Requirements'] || ''),
+    photos:       String(o['Photos'] || '').split(/[\s,]+/).filter(function(u) { return /^https?:/i.test(u); }).slice(0, 2),
     date:         _hrFmtDate(o['Date']),
     open:         _hrIsOpen(o['Status']),
     postingUrl:   _hrPostingUrl(id),
@@ -7774,6 +7775,21 @@ function _hrPublicPos(o) {
   };
 }
 
+// Photos on a public job posting must be viewable by anyone: Drive images are switched to
+// "anyone with the link" and written as lh3 URLs; other URLs (Cloudinary uploads) pass through.
+function _hrPublicPhotos(v) {
+  var out = [];
+  String(v || '').split(/[\s,]+/).forEach(function(u) {
+    if (!/^https?:/i.test(u) || out.length >= 2) return;
+    var m = u.match(/(?:lh3\.googleusercontent\.com\/d\/|drive\.google\.com\/file\/d\/|[?&]id=)([-\w]{20,})/);
+    if (m) {
+      try { DriveApp.getFileById(m[1]).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { Logger.log('photo share: ' + e.message); }
+      u = 'https://lh3.googleusercontent.com/d/' + m[1];
+    }
+    if (out.indexOf(u) === -1) out.push(u);
+  });
+  return out.join('\n');
+}
 function _hrClearPosCache() {
   try {
     var c = CacheService.getScriptCache();
@@ -7864,6 +7880,7 @@ function handleSavePosition(p) {
         if (c === 'Form Location') return String(vals[c] || '').trim() || _hrFormUrl(newId);
         if (c === 'Status') return String(vals[c] || '').trim() || 'Open';
         if (c === 'Notify Email') return String(vals[c] || '').trim() || HR_DEFAULT_NOTIFY;
+        if (c === 'Photos') return _hrPublicPhotos(vals[c]);
         return vals.hasOwnProperty(c) ? vals[c] : '';
       });
       sheet.appendRow(row);
@@ -7879,6 +7896,7 @@ function handleSavePosition(p) {
       if (!c || skip.indexOf(c) > -1 || !vals.hasOwnProperty(c)) return;
       var v = vals[c];
       if (c === 'Form Location' && !String(v || '').trim()) v = _hrFormUrl(editId);
+      if (c === 'Photos') v = _hrPublicPhotos(v);
       cur[i] = v;
     });
     sheet.getRange(o._row, 1, 1, h.length).setValues([cur]);
@@ -7990,6 +8008,8 @@ function handlePublicApply(p) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, hr: 2, error: 'Please enter a valid email address.' };
   if (mobile.replace(/\D/g, '').length < 10) return { ok: false, hr: 2, error: 'Please enter a mobile number we can reach you at.' };
   if (pitch.length < 20) return { ok: false, hr: 2, error: 'Please tell us a little more about yourself (a few sentences).' };
+  if (!(p.resume && p.resume.base64)) return { ok: false, hr: 2, error: 'Please attach your resume.' };
+  if (!(p.photo && p.photo.base64)) return { ok: false, hr: 2, error: 'Please add a photo of yourself.' };
 
   // Throttle repeat submits from the same email (double-taps, retries).
   var cache = CacheService.getScriptCache();
@@ -8139,7 +8159,7 @@ function handlePublicApply(p) {
       '<p style="white-space:pre-wrap;border-left:3px solid #E07A3F;padding-left:10px">' + esc(pitch) + '</p>' +
       '<p style="white-space:pre-wrap;color:#444">' + esc(det.join('\n')) + '</p>' +
       (resumeUrl ? '<p><a href="' + resumeUrl + '">Open resume</a></p>' : '<p style="color:#999">No resume uploaded.</p>') +
-      '<p><a href="' + HR_APP_URL + '">Open Ranger Rover</a></p></div>';
+      '<p><a href="' + HR_APP_URL + '#person=' + encodeURIComponent(email) + '">Open Ranger Rover</a> (goes straight to ' + esc(first) + '\'s profile)</p></div>';
     MailApp.sendEmail({ to: notifyTo, subject: 'Application: ' + fullName + ' - ' + posTitle,
       htmlBody: html, replyTo: email, name: 'Ranger Rover' });
   } catch (me) { Logger.log('HR notify failed: ' + me.message); }
