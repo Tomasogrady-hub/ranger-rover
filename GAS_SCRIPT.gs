@@ -496,7 +496,7 @@ function handleGetMyLocation(p) {
 var LIVE_SCOPES = ['sites', 'humans', 'chores', 'subs'];
 var LIVE_FILES = [
   { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'] } },
-  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability', 'Calendar', 'Interviews', 'Interview Slots'] } },
+  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability', 'Calendar', 'Interviews', 'Interview Slots', 'Applicant Log'] } },
   { key: 'humans', id: HUMANS_ID, scopes: { humans: ['Humans', 'Roles'] } },
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
@@ -512,7 +512,7 @@ var LIVE_ACTION_SCOPES = {
   requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs'], createReschedule: ['subs'], cancelReschedule: ['subs'],
   publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
   acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs'],
-  createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], sendInterviewDetails: ['subs'], acceptInterviewSuggestion: ['subs'],
+  createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], sendInterviewDetails: ['subs'], sendApplicantInfo: ['subs'], acceptInterviewSuggestion: ['subs'],
   publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs']
 };
 
@@ -873,6 +873,8 @@ function _doPostRoute(e) {
       case 'cancelInterview':           return respond(handleCancelInterview(p));
       case 'completeInterview':         return respond(handleCompleteInterview(p));
       case 'sendInterviewDetails':      return respond(handleSendInterviewDetails(p));
+      case 'sendApplicantInfo':         return respond(handleSendApplicantInfo(p));
+      case 'getApplicantLog':           return respond(handleGetApplicantLog(p));
       case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
       case 'checkInterviewConflicts':   return respond(handleCheckInterviewConflicts(p));
       case 'publicInterviewInfo':       return respond(handlePublicInterviewInfo(p));
@@ -3281,6 +3283,7 @@ function getRoles() {
     var pubNameIdx = _rolesCol(headers, 'Role Name Public');
     var pubDescIdx = _rolesCol(headers, 'Public Description');
     var reqIdx     = _rolesCol(headers, 'Requirements');
+    var infoIdx    = _rolesCol(headers, 'Information File');
     // Description filled in but Public Description blank -> copy it across once.
     if (pubDescIdx > -1 && descIdx > -1) {
       for (var r = 1; r < data.length; r++) {
@@ -3299,7 +3302,8 @@ function getRoles() {
           category:    catIdx  >= 0 ? String(row[catIdx]  || '').trim().toLowerCase() : '',
           publicName:  pubNameIdx >= 0 ? String(row[pubNameIdx] || '').trim() : '',
           publicDescription: pubDescIdx >= 0 ? String(row[pubDescIdx] || '').trim() : '',
-          requirements: reqIdx >= 0 ? String(row[reqIdx] || '').trim() : ''
+          requirements: reqIdx >= 0 ? String(row[reqIdx] || '').trim() : '',
+          infoFile: infoIdx >= 0 ? String(row[infoIdx] || '').trim() : ''
         };
       });
   } catch(e) { return []; }
@@ -5749,6 +5753,7 @@ function _subNotify(person, subject, emailBody, smsBody, opts) {
     try {
       var mo = { name: opts.fromName ? opts.fromName + ' (Enrich LA)' : 'Enrich LA Ranger Rover' };
       if (opts.replyTo) mo.replyTo = opts.replyTo;
+      if (opts.attachments && opts.attachments.length) mo.attachments = opts.attachments;
       GmailApp.sendEmail(person.email, subject, emailBody, mo);
     } catch(e) { Logger.log('sub email fail ' + person.email + ': ' + e.message); }
   }
@@ -8755,5 +8760,120 @@ function handleSendInterviewDetails(p) {
     _subFlushSms();
     _subHist('Interview', r.ID, '', '', 'Sent meeting details', me.email, r.Status, r['Applicant Name'] + (loc ? ' - ' + loc : ''));
     return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── APPLICANT INFORMATION EMAIL + ACTIVITY TALLY (v12.00) ─────────────────────────────────
+// "Send information" mails an applicant the Information File saved on their Role (Humans > Roles tab,
+// column "Information File"), attached as a file. Every send is logged on the Applicant Log tab of the
+// sub-book; the tally shown under Confidential Notes merges that log with the Humans row (Applied Date)
+// and the Interviews tab (offered / picked / suggested / details sent / done).
+var AP_LOG_TAB = 'Applicant Log';
+var AP_LOG_HEADERS = ['Time', 'Applicant Email', 'Applicant Name', 'Event', 'By', 'Detail'];
+
+function _apLog(email, name, ev, by, detail) {
+  try {
+    _subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS).appendRow([new Date(), String(email || '').toLowerCase(), name || '', ev || '', by || '', String(detail || '').slice(0, 500)]);
+  } catch (e) { Logger.log('apLog: ' + e.message); }
+}
+function _apHuman(email) {
+  var d = humansData(), want = String(email || '').trim().toLowerCase();
+  var ei = d.h.indexOf('Email'), ri = d.h.indexOf('Role'), ai = d.h.indexOf('Applied Date');
+  for (var r = 1; r < d.data.length; r++) {
+    if (String(d.data[r][ei] || '').trim().toLowerCase() === want) {
+      return { role: ri > -1 ? String(d.data[r][ri] || '').trim() : '', applied: ai > -1 ? d.data[r][ai] : '' };
+    }
+  }
+  return { role: '', applied: '' };
+}
+function _apRoleFile(role) {
+  var want = String(role || '').trim().toLowerCase();
+  if (!want) return null;
+  var found = getRoles().filter(function(r) { return String(r.name || '').trim().toLowerCase() === want; })[0];
+  var url = found ? String(found.infoFile || '').trim() : '';
+  if (!url) return null;
+  var m = url.match(/[-\w]{25,}/);
+  return { url: url, id: m ? m[0] : '' };
+}
+// Returns { blob, name } for the attachment, or null when it can not be attached (missing / too big).
+function _apBlob(id) {
+  try {
+    var f = DriveApp.getFileById(id);
+    var name = f.getName(), mt = f.getMimeType(), blob;
+    if (String(mt).indexOf('application/vnd.google-apps') === 0) {
+      blob = f.getAs(MimeType.PDF);
+      if (!new RegExp('\\.pdf$', 'i').test(name)) name += '.pdf';
+    } else {
+      blob = f.getBlob();
+    }
+    if (blob.getBytes().length > 20 * 1024 * 1024) return null;
+    blob.setName(name);
+    return { blob: blob, name: name };
+  } catch (e) { Logger.log('apBlob: ' + e.message); return null; }
+}
+
+function handleSendApplicantInfo(p) {
+  try {
+    var people = _subPeople();
+    var me = _ivAdmin(p, people);
+    var email = String(p.email || '').trim().toLowerCase();
+    var ap = people[email];
+    if (!ap) return { ok: false, error: 'Applicant not found in Humans.' };
+    var msg = String(p.message || '').replace(new RegExp('\\r', 'g'), '').trim();
+    if (!msg) return { ok: false, error: 'Write a message first.' };
+    var hu = _apHuman(email);
+    var wantAttach = !(p.attach === false || p.attach === 'false');
+    var info = wantAttach ? _apRoleFile(hu.role) : null;
+    var att = [], fname = '', attached = false;
+    if (info && info.id) {
+      var b = _apBlob(info.id);
+      if (b) { att.push(b.blob); fname = b.name; attached = true; }
+    }
+    // Could not attach it (too big / no access): put the link in the message instead.
+    if (info && !attached) msg += '\n\nThe information is here: ' + info.url;
+    var smsMsg = String(p.smsMessage || '').trim() || ('Hi ' + ap.first + ', ' + me.first + ' from Enrich LA here. I just emailed you information about the Ranger position. Please have a read and let me know if you are still interested.');
+    _subNotify(ap, String(p.subject || '').trim() || 'Information about the Enrich LA Ranger position', msg, smsMsg,
+      { fromName: me.name, replyTo: me.email, noSms: !(p.sendText === true || p.sendText === 'true'), attachments: att });
+    _subFlushSms();
+    _apLog(email, ap.name, 'Information sent', me.email, (attached ? 'Attached: ' + fname : (info ? 'Link only (could not attach)' : 'No file')) +
+      ((p.sendText === true || p.sendText === 'true') && ap.sms ? ' + text' : ''));
+    logActivity(me.email, 'sent applicant information', ap.name, 'human', email);
+    return { ok: true, attached: attached, fileName: fname, hadFile: !!info };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function _apT(v) {
+  if (v instanceof Date) return v.getTime();
+  var t = v ? new Date(v).getTime() : 0;
+  return isNaN(t) ? 0 : t;
+}
+function handleGetApplicantLog(p) {
+  try {
+    var people = _subPeople();
+    _ivAdmin(p, people);
+    var email = String(p.email || '').trim().toLowerCase();
+    if (!email) return { ok: false, error: 'No email.' };
+    var nm = function(e) { var x = people[String(e || '').trim().toLowerCase()]; return x ? x.name : String(e || ''); };
+    var ev = [];
+    var hu = _apHuman(email);
+    if (hu.applied) ev.push({ t: _apT(hu.applied), type: 'applied', what: 'Applied', by: '', detail: hu.role || '' });
+    _subReadAll(_subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS)).rows.forEach(function(r) {
+      if (String(r['Applicant Email']).toLowerCase() !== email) return;
+      ev.push({ t: _apT(r.Time), type: 'info', what: r.Event, by: nm(r.By), detail: r.Detail });
+    });
+    _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS)).rows.forEach(function(r) {
+      if (String(r['Applicant Email']).toLowerCase() !== email) return;
+      var kind = String(r.Kind || 'interview').toLowerCase();
+      ev.push({ t: _apT(r.Created), type: 'offer', what: 'Offered ' + kind + ' times', by: nm(r['Created By']), detail: '' });
+      if (r['Chosen At']) ev.push({ t: _apT(r['Chosen At']), type: 'pick', what: 'Confirmed ' + kind, by: '',
+        detail: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) });
+      if (r['Applicant Suggestion'] || r['Suggested Date']) ev.push({ t: _apT(r.Updated), type: 'suggest', what: 'Suggested other times', by: '', detail: String(r['Applicant Suggestion'] || '') });
+      if (r['Details Sent']) ev.push({ t: _apT(r['Details Sent']), type: 'details', what: 'Meeting details sent', by: '', detail: '' });
+      if (r.Status === 'Completed') ev.push({ t: _apT(r.Updated), type: 'done', what: 'Interview done', by: '', detail: '' });
+      if (r.Status === 'Cancelled') ev.push({ t: _apT(r.Updated), type: 'cancel', what: 'Interview cancelled', by: '', detail: '' });
+      if (r.Status === 'Applicant Withdrew') ev.push({ t: _apT(r.Updated), type: 'cancel', what: 'Applicant withdrew', by: '', detail: '' });
+    });
+    ev.sort(function(a, b) { return a.t - b.t; });
+    return { ok: true, events: ev };
   } catch (e) { return { ok: false, error: e.message }; }
 }

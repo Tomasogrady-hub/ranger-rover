@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v11.99 -->
+<!-- v12.00 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2451,10 +2451,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v11.99';
+const APP_VERSION='v12.00';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 11:25 PT - Interview status refreshes live, Send details quick reply, SMS consent on application form, new public page look and caption.';
+const BUILD_STAMP='2026-11-16 12:20 PT - Send information button (emails the role information file), Information File picker on Roles, activity tally under Confidential Notes.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4368,7 +4368,7 @@ function renderRoles(){
 function _roleCardHtml(r){
   const name=_roleVal(r,'Role'),open=!!_roleOpen[r.row],btn='margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)',n=_rolePeople(name);
   const cat=_roleVal(r,'Category'),desc=_roleVal(r,'Description');
-  const extra=open?_roleEditableHeaders().filter(h=>_roleVal(r,h)).map(h=>`<div style="margin-top:6px"><b>${escHtml(h)}:</b><div style="white-space:pre-wrap">${escHtml(_roleVal(r,h))}</div></div>`).join('')||'<div class="sub-meta" style="margin-top:6px">Nothing else filled in yet.</div>':'';
+  const extra=open?_roleEditableHeaders().filter(h=>_roleVal(r,h)).map(h=>h==='Information File'?`<div style="margin-top:6px"><b>${escHtml(h)}:</b> <a class="dlink" href="${ea(_roleVal(r,h))}" target="_blank" rel="noopener">📎 ${escHtml((_infoFileByUrl(_roleVal(r,h))||{}).name||'Open file')}</a></div>`:`<div style="margin-top:6px"><b>${escHtml(h)}:</b><div style="white-space:pre-wrap">${escHtml(_roleVal(r,h))}</div></div>`).join('')||'<div class="sub-meta" style="margin-top:6px">Nothing else filled in yet.</div>':'';
   return `<div class="th-card" id="rlc-${r.row}"><div style="display:flex;align-items:flex-start;gap:8px"><div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink)">${escHtml(name)}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${cat?`<span class="imp-pill" style="font-size:12px">${escHtml(cat)}</span>`:''}<span style="font-size:12px;color:var(--silver)">${n} ${n===1?'person':'people'}</span></div></div></div>
     ${desc&&!open?`<div style="font-size:14px;color:var(--stone);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(desc)}</div>`:''}
@@ -4379,19 +4379,24 @@ function roleToggle(row){_roleOpen[row]=!_roleOpen[row];renderRoles();}
 function _roleFormFields(pfx,r){
   return _roleEditableHeaders().map((h,i)=>{
     const v=r?_roleVal(r,h):'',long=/description|requirements/i.test(h);
+    if(h==='Information File')return `<div id="${pfx}InfoWrap" style="margin:4px 0 12px"></div>`;
     return `<label style="display:block;font-size:12px;color:var(--silver);margin-bottom:2px">${escHtml(h)}</label>`+(long?`<textarea id="${pfx}F${i}" class="edit-input" rows="3" style="width:100%;margin-bottom:8px">${escHtml(v)}</textarea>`:`<input id="${pfx}F${i}" class="edit-input" style="width:100%;margin-bottom:8px" value="${ea(v)}">`);
   }).join('');
 }
-function _roleFormValues(pfx){const o={};_roleEditableHeaders().forEach((h,i)=>{o[h]=((document.getElementById(pfx+'F'+i)||{}).value||'').trim();});return o;}
+function _roleFormValues(pfx){const o={};_roleEditableHeaders().forEach((h,i)=>{
+  if(h==='Information File'){const s=document.getElementById(pfx+'InfoSel');if(s)o[h]=s.value;return;}
+  o[h]=((document.getElementById(pfx+'F'+i)||{}).value||'').trim();});return o;}
+function _roleMountInfo(pfx,r){if(_rolesAdmin&&_rolesAdmin.headers.indexOf('Information File')>-1)_mountInfoField(pfx,r?_roleVal(r,'Information File'):'','Information file (emailed to applicants with Send information)');}
 function roleAddToggle(show){
   const b=document.getElementById('roleAddBox');if(!b||!_rolesAdmin)return;
   const open=(typeof show==='boolean')?show:b.style.display==='none';
   if(open)b.innerHTML=`<label style="display:block;font-size:12px;color:var(--silver);margin-bottom:2px">Role name</label><input id="rlNName" class="edit-input" maxlength="120" style="width:100%;margin-bottom:8px">`+_roleFormFields('rlN',null)+`<div style="display:flex;gap:8px"><button type="button" class="settings-btn" style="margin:0" id="roleSaveBtn" onclick="roleSave()">Save role</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="roleAddToggle(false)">Cancel</button></div>`;
   b.style.display=open?'block':'none';
+  if(open)_roleMountInfo('rlN',null);
 }
 function _roleSyncApp(){ // keep the rest of the app's role lists in step
   if(!_rolesAdmin)return;
-  DATA.roles=_rolesAdmin.rows.map(r=>({name:_roleVal(r,'Role'),description:_roleVal(r,'Description'),category:_roleVal(r,'Category').toLowerCase()}));
+  DATA.roles=_rolesAdmin.rows.map(r=>({name:_roleVal(r,'Role'),description:_roleVal(r,'Description'),category:_roleVal(r,'Category').toLowerCase(),publicName:_roleVal(r,'Role name public'),publicDescription:_roleVal(r,'Public Description'),requirements:_roleVal(r,'Requirements'),infoFile:_roleVal(r,'Information File')}));
   try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(e){}
 }
 async function roleSave(){
@@ -4408,6 +4413,7 @@ async function roleSave(){
 function roleEdit(row){
   const r=_rolesAdmin.rows.find(x=>x.row===row),card=document.getElementById('rlc-'+row);if(!r||!card)return;
   card.innerHTML=`<div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:8px">${escHtml(_roleVal(r,'Role'))}</div>`+_roleFormFields('rlE'+row,r)+`<div class="sub-meta" style="margin-bottom:8px">The role name is fixed so people already assigned to it keep it.</div><div style="display:flex;gap:8px"><button type="button" class="settings-btn" style="margin:0" onclick="roleEditSave(${row},this)">Save</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="renderRoles()">Cancel</button></div>`;
+  _roleMountInfo('rlE'+row,r);
 }
 async function roleEditSave(row,btn){
   const r=_rolesAdmin.rows.find(x=>x.row===row);if(!r)return;
@@ -8857,6 +8863,7 @@ async function fetchPersonComments(email){
     window._pdCommentsRaw=res.comments||'';
     // Show comments text + Edit / Hide controls
     body.innerHTML=`
+      <div id="pd-tally"></div>
       <div id="pd-c-view">
         <div style="font-size:14px;color:var(--silver);margin:10px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Comments</div>
         <div id="pd-c-text" style="font-size:15px;color:var(--stone);line-height:1.6;white-space:pre-wrap;background:var(--fog);border-radius:var(--r-sm);padding:12px"></div>
@@ -8872,6 +8879,7 @@ async function fetchPersonComments(email){
     }
     body.style.display='block';
     btn.style.display='none';
+    _apTallyFill(email);
   }catch(e){btn.disabled=false;btn.textContent='🔒 Retrieve Confidential Notes';showSaveToast('⚠ Could not load comments');}
 }
 
@@ -9034,7 +9042,7 @@ function renderPD(h,edit){
         ${mobile?`<a class="dcta filled" href="tel:${cleanPhone(mobile)}">📞 Call</a>`:''}
         ${mobile?`<a class="dcta blue" href="sms:${cleanPhone(mobile)}">💬 Text</a>`:''}
         ${email?(SESSION&&SESSION.accessLevel<=2?`<button class="dcta" onclick="reachPerson('${ea(email)}')">📡 Reach</button>`:`<a class="dcta" href="${gmailUrl(email)}" target="_blank" rel="noopener">✉ Email</a>`):''}
-        ${email&&_ivIsStaff()&&_ivApplicantish(h)?`<button class="dcta" onclick="ivOpen('${ea(email)}')">📅 Interview</button>`:''}
+        ${email&&_ivIsStaff()&&_ivBtnRole(h)?`<button class="dcta" onclick="infoOpen('${ea(email)}')">✉ Send info</button><button class="dcta" onclick="ivOpen('${ea(email)}')">📅 Interview</button>`:''}
         <button class="dcta" id="pd-forward-btn" onclick="forwardContactCard('${ea(email||name)}')" style="border-color:var(--enrich-dark);color:var(--enrich-dark)">📤 Forward</button>
       </div>
       ${_personActionsHtml(email)}
@@ -10397,6 +10405,7 @@ const _IV_ST={'Waiting for Applicant':['⏳ Waiting for them to pick','#b5740f']
 const _IV_KINDS=['Interview','Phone screen','Garden visit / trial day','Orientation'];
 const _IV_FORMATS=['In person','Phone call','Video call'];
 function _ivIsStaff(){return !!(SESSION&&SESSION.accessLevel<=2);}
+function _ivBtnRole(h){return humanRoleCats(h).some(c=>c==='ranger_applicant'||c==='ranger_onboarding');}
 function _ivApplicantish(h){return humanRoleCats(h).some(c=>c==='ranger_applicant'||c==='ranger_onboarding'||c==='ranger_offered')||!!sf(h,'Applied Date','AppliedDate');}
 function _ivClosed(i){return i.status==='Cancelled'||i.status==='Completed'||i.status==='Applicant Withdrew';}
 async function _ivLoad(force){
@@ -10552,6 +10561,67 @@ async function _ivdSend(){
     const ov=document.getElementById('ivdOverlay');if(ov)ov.remove();
     showToast('📨 Details sent to '+d.first);_iv.det=null;await _ivLoad(true);_ivRefresh();
   }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Send';}}
+}
+
+// ── Send information (v12.00): email the applicant the Information File saved on their Role, then log it ──
+const _inf={email:'',first:'',url:'',fileName:''};
+function infoOpen(email){
+  const h=gh(email);if(!h)return;
+  const role=h.Role||h.role||'',ro=_hrRoleObj(role)||{};
+  _docsHydrate();
+  const url=String(ro.infoFile||'').trim(),f=url?_infoFileByUrl(url):null;
+  const first=(h['First Name']||h.FirstName||fullName(h)||'').split(' ')[0]||'there';
+  const sms=String(sf(h,'SMS Consent','SMSConsent')||'').trim().toUpperCase()==='TRUE'&&!!(h.Mobile||h.mobile);
+  Object.assign(_inf,{email,first,url,fileName:f?f.name:(url?'Information file':'')});
+  const meH=gh(SESSION.email),me=meH?fullName(meH):SESSION.email;
+  const body='Hi '+first+',\n\nThank you for applying to be a Garden Ranger with Enrich LA! '+(url?'I have attached some information about the position. Please have a read through, and if you are still interested, just reply to this email and let us know so we can set up an interview.':'Please reply to this email if you are still interested, so we can set up an interview.')+'\n\nIf you have any questions, just reply to this message.\n\n'+me+'\nEnrich LA';
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='infOverlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const lbl='display:flex;align-items:center;gap:10px;margin:10px 0 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none';
+  ov.innerHTML='<div class="sub-sheet"><h3>Send information</h3><div class="sub-meta" style="margin:-6px 0 8px">To <b>'+escHtml(fullName(h)||email)+'</b> · '+escHtml(role)+'</div>'+
+    '<div class="sub-lbl">Subject</div><input class="sub-in" id="infSubj" value="Information about the Garden Ranger position - Enrich LA">'+
+    '<div class="sub-lbl">Message</div><textarea class="sub-in" id="infMsg" rows="9"></textarea>'+
+    (url?'<label style="'+lbl+'"><input type="checkbox" id="infAtt" style="width:20px;height:20px" checked><span>📎 Attach <b id="infFile">'+escHtml(_inf.fileName)+'</b></span></label>'
+        :'<div class="sub-meta" style="margin-top:10px;color:var(--danger)">No information file is saved for the role <b>'+escHtml(role||'(none)')+'</b> yet. Add one in Bulk Data > Roles > '+escHtml(role||'the role')+' > Edit > Information file. You can still send this message without an attachment.</div>')+
+    '<label style="'+lbl+'"><input type="checkbox" id="infSms" style="width:20px;height:20px"'+(sms?'':' disabled')+'><span>Also send a short text'+(sms?'':' <span style="color:var(--stone)">(no text consent on file - email only)</span>')+'</span></label>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'infOverlay\').remove()">Cancel</button><button class="sub-btn hot" id="infSend" onclick="_infSend()">Send</button></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('infMsg').value=body;
+  if(url&&!f)_loadInfoFiles().then(()=>{const ff=_infoFileByUrl(url),el=document.getElementById('infFile');if(ff){_inf.fileName=ff.name;if(el)el.textContent=ff.name;}});
+}
+async function _infSend(){
+  const msg=((document.getElementById('infMsg')||{}).value||'').trim();
+  if(!msg){alert('Write a message first.');return;}
+  const btn=document.getElementById('infSend');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  const att=document.getElementById('infAtt');
+  try{
+    const r=await gasPost({action:'sendApplicantInfo',actor:SESSION.email,email:_inf.email,subject:((document.getElementById('infSubj')||{}).value||'').trim(),message:msg,
+      attach:att?att.checked:false,sendText:!!(document.getElementById('infSms')||{}).checked});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not send - Apps Script may need a new deployment (v12.00).');if(btn){btn.disabled=false;btn.textContent='Send';}return;}
+    const ov=document.getElementById('infOverlay');if(ov)ov.remove();
+    showToast(r.hadFile&&!r.attached?'✉ Sent to '+_inf.first+' (file too large to attach - link included)':'✉ Information sent to '+_inf.first);
+    _apTallyFill(_inf.email);
+  }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Send';}}
+}
+// Running tally under Confidential Notes: who emailed, who interviewed, etc.
+const _AP_ICON={applied:'📝',info:'✉',offer:'📅',pick:'✅',suggest:'💬',details:'📨',done:'🏁',cancel:'✖'};
+async function _apTallyFill(email){
+  const box=document.getElementById('pd-tally');if(!box)return;
+  const h=gh(email);if(!h||!_ivApplicantish(h)){box.innerHTML='';return;}
+  box.innerHTML='<div class="sub-meta" style="margin:10px 0 4px">Loading activity…</div>';
+  try{
+    const r=await gasPost({action:'getApplicantLog',actor:SESSION.email,email});
+    const b=document.getElementById('pd-tally');if(!b)return;
+    if(!r||!r.ok){b.innerHTML='';return;}
+    const ev=r.events||[];if(!ev.length){b.innerHTML='';return;}
+    const n=t=>ev.filter(e=>e.type===t).length;
+    const chips=[['✉ Info sent',n('info')],['📅 Offered',n('offer')],['✅ Confirmed',n('pick')],['🏁 Done',n('done')]].filter(c=>c[1]).map(c=>'<span class="imp-pill" style="font-size:12px">'+c[0]+' '+c[1]+'</span>').join(' ');
+    const fd=t=>{if(!t)return '';const d=new Date(t);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});};
+    b.innerHTML='<div style="font-size:14px;color:var(--silver);margin:10px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Activity</div>'+
+      (chips?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+chips+'</div>':'')+
+      '<div style="background:var(--fog);border-radius:var(--r-sm);padding:8px 12px;font-size:14px;line-height:1.5;color:var(--stone)">'+
+      ev.slice().reverse().map(e=>'<div style="padding:3px 0"><span style="display:inline-block;width:22px">'+(_AP_ICON[e.type]||'•')+'</span><b style="color:var(--ink)">'+escHtml(e.what)+'</b>'+(e.by?' by '+escHtml(e.by):'')+(e.detail?' - '+escHtml(e.detail):'')+' <span style="color:var(--silver);font-size:12px">'+escHtml(fd(e.t))+'</span></div>').join('')+'</div>';
+  }catch(err){const b=document.getElementById('pd-tally');if(b)b.innerHTML='';}
 }
 // ── Scheduling sheet ──
 function _ivStaffList(){
@@ -10778,7 +10848,7 @@ function _hrAppsHtml(apps){
     const ini=(nm.match(/\b\w/g)||['?']).slice(0,2).join('').toUpperCase();
     return '<div class="hr-app" onclick="showPersonDetail(\''+ea(em)+'\')">'+
       (img&&/^https?:/.test(img)?'<img data-lazy="'+ea(img)+'" alt="" style="opacity:0;transition:opacity .2s">':'<span class="hr-av">'+escHtml(ini)+'</span>')+
-      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(nm)+'</div><div class="hr-m" style="font-size:12px;color:var(--stone)">'+escHtml([a.Role||a.role,ds,a.Mobile||a.mobile].filter(Boolean).join(' · '))+'</div>'+_ivBadge(em)+'</div>'+(_ivIsStaff()?'<button title="Schedule interview" onclick="event.stopPropagation();ivOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">📅</button>':'')+'<span style="color:var(--stone)">›</span></div>';
+      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(nm)+'</div><div class="hr-m" style="font-size:12px;color:var(--stone)">'+escHtml([a.Role||a.role,ds,a.Mobile||a.mobile].filter(Boolean).join(' · '))+'</div>'+_ivBadge(em)+'</div>'+(_ivIsStaff()?'<button title="Send information" onclick="event.stopPropagation();infoOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">✉</button><button title="Schedule interview" onclick="event.stopPropagation();ivOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">📅</button>':'')+'<span style="color:var(--stone)">›</span></div>';
   }).join('')+'</div>';
 }
 function _hrToggleApps(id){_hr.openApps[id]=!_hr.openApps[id];_hrRender();}
