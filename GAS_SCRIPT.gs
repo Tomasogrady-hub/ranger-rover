@@ -512,7 +512,7 @@ var LIVE_ACTION_SCOPES = {
   requestSub: ['subs'], approveSub: ['subs'], volunteerSub: ['subs'], assignSub: ['subs'], cancelSub: ['subs'], deleteSubs: ['subs'], createReschedule: ['subs'], cancelReschedule: ['subs'],
   publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
   acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs'],
-  createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], sendInterviewDetails: ['subs'], sendApplicantInfo: ['subs'], acceptInterviewSuggestion: ['subs'],
+  createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], sendInterviewDetails: ['subs'], sendApplicantInfo: ['subs'], shiftToReschedule: ['subs'], acceptInterviewSuggestion: ['subs'],
   publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs']
 };
 
@@ -874,6 +874,7 @@ function _doPostRoute(e) {
       case 'completeInterview':         return respond(handleCompleteInterview(p));
       case 'sendInterviewDetails':      return respond(handleSendInterviewDetails(p));
       case 'sendApplicantInfo':         return respond(handleSendApplicantInfo(p));
+      case 'shiftToReschedule':         return respond(handleShiftToReschedule(p));
       case 'getApplicantLog':           return respond(handleGetApplicantLog(p));
       case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
       case 'checkInterviewConflicts':   return respond(handleCheckInterviewConflicts(p));
@@ -6174,7 +6175,8 @@ function handleCancelSub(p) {
     var rq = people[String(rows[0]['Requested By']).toLowerCase()];
     if (rq && rq.email !== me.email) _subNotify(rq, 'Your sub request was cancelled - ' + site0.name,
       me.name + ' cancelled your sub request at ' + site0.name + ':\n' + rows.map(function(s){ return '- ' + _subFmtShift(s); }).join('\n') +
-      '\n\nYou are expected at the school as originally scheduled unless you hear otherwise.', '', { noSms: true });
+      (p.resched ? '\n\nInstead, we have asked the school to reschedule your visit and copied you on the email. Please do not go on the original date unless you hear otherwise - you will be told as soon as the school picks a day.'
+                 : '\n\nYou are expected at the school as originally scheduled unless you hear otherwise.'), '', { noSms: true });
     return { ok: true, count: rows.length };
   } catch(e) { return { ok: false, error: e.message }; }
   finally { _SUB_SILENT = false; }
@@ -6298,6 +6300,9 @@ function handleCreateReschedule(p) {
     if (!site.key) return { ok: false, error: 'School not found.' };
     if (me.level > 2 && site.rangers.indexOf(me.email) === -1)
       return { ok: false, error: 'You can only reschedule your own schools.' };
+    // Level 1-2 may log it on behalf of the Ranger (used by Shift to reschedule)
+    var reqBy = me;
+    if (p.requestedBy && me.level <= 2) { var rb = people[String(p.requestedBy).trim().toLowerCase()]; if (rb) reqBy = rb; }
     var ok = function(d){ return d && /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || '')); };
     var missed = (p.missed || []).filter(ok), alts = (p.alts || []).filter(ok);
     if (!missed.length) return { ok: false, error: 'Add the day you cannot make.' };
@@ -6305,7 +6310,7 @@ function handleCreateReschedule(p) {
     var recips = (p.recipients || []).map(function(e){ return String(e || '').trim().toLowerCase(); }).filter(String);
     var rsh = _subGetSheet(RESCHED_TAB, RESCHED_HEADERS);
     var rh = rsh.getRange(1, 1, 1, rsh.getLastColumn()).getValues()[0].map(String);
-    var row = { 'ID': rid, 'Created': now, 'Requested By': me.email, 'Site': site.key,
+    var row = { 'ID': rid, 'Created': now, 'Requested By': reqBy.email, 'Site': site.key,
       'Missed Dates': missed.map(_resShiftText).join('; '), 'Note': String(p.note || '').slice(0, 2000),
       'Status': alts.length ? 'Waiting for School' : 'Asked School for a Date', 'Recipients': recips.join(', '), 'Updated': now };
     rsh.appendRow(rh.map(function(k){ return row[k] !== undefined ? row[k] : ''; }));
@@ -8875,5 +8880,60 @@ function handleGetApplicantLog(p) {
     });
     ev.sort(function(a, b) { return a.t - b.t; });
     return { ok: true, events: ev };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── SHIFT TO RESCHEDULE (v12.01) ─────────────────────────────────────────────────────────
+// Level 1-2 turn a sub call into a reschedule: logs the reschedule (tap-to-confirm date links), emails the
+// school from the chosen Level 1-2 leader (Ranger and leadership copied, replies go to that leader), then
+// cancels the sub shift (volunteers / a confirmed sub / the Ranger are told).
+function handleShiftToReschedule(p) {
+  try {
+    var people = _subPeople();
+    var me = _subActor(p, people);
+    if (_ivStaffLevel(me.email) > 2) return { ok: false, error: 'Only Access Level 1-2 can do this.' };
+    var sender = people[String(p.from || me.email).trim().toLowerCase()];
+    if (!sender || _ivStaffLevel(sender.email) > 2) return { ok: false, error: 'Choose a Level 1-2 person to send it from.' };
+    var tbl = _subReadAll(_subGetSheet(SUBS_TAB, SUBS_HEADERS));
+    var s = tbl.rows.filter(function(x){ return x.ID === String(p.subId || '').trim() && ['Pending Approval', 'Open', 'Filled'].indexOf(x.Status) !== -1; })[0];
+    if (!s) return { ok: false, error: 'That sub shift is no longer open - refresh and try again.' };
+    var mailRe = new RegExp('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
+    var clean = function(a) {
+      var seen = {};
+      return (a || []).map(function(e){ return String(e || '').trim().toLowerCase(); }).filter(function(e){
+        if (!e || seen[e] || !mailRe.test(e)) return false; seen[e] = 1; return true;
+      });
+    };
+    var to = clean(p.to), cc = clean(p.cc).filter(function(e){ return to.indexOf(e) === -1; });
+    if (!to.length) return { ok: false, error: 'Choose at least one school contact.' };
+    if (to.length + cc.length > 40) return { ok: false, error: 'Too many recipients (40 max).' };
+    var site = _subSite(_subSites(), s.Site);
+    var cr = handleCreateReschedule({ actor: me.email, requestedBy: s['Requested By'], siteKey: s.Site,
+      missed: [{ date: s.Date, start: s.Start, end: s.End }], alts: p.alts || [], note: String(p.note || ''), recipients: to });
+    if (!cr.ok) return cr;
+    var block;
+    if (cr.options && cr.options.length) {
+      block = 'Could we reschedule? Please tap the date that works best for your school - it confirms it right away:\n\n' +
+        cr.options.map(function(o){ return '- ' + _subFmtShift({ Date: o.date, Start: o.start, End: o.end }) + '\n  Tap to choose: ' + o.url; }).join('\n\n') +
+        '\n\nIf none of these work, open any of the links and tap "None of these work" to suggest another day and time.';
+    } else {
+      block = 'Could you let us know another day and time that would work for you?\nYou can reply here: ' + cr.page;
+    }
+    var note = String(p.note || '').trim();
+    var msg = String(p.message || '').replace(new RegExp('\\r', 'g'), '');
+    msg = msg.indexOf('{{DATES}}') > -1 ? msg.replace('{{DATES}}', function(){ return block; }) : msg + '\n\n' + block;
+    msg = msg.replace('{{NOTE}}', function(){ return note; }).replace(new RegExp('\\n{3,}', 'g'), '\n\n').trim();
+    var subject = String(p.subject || '').trim() || ('Garden Ranger visit - schedule change at ' + site.name);
+    var mo = { name: sender.name + ' (Enrich LA)', replyTo: sender.email };
+    if (cc.length) mo.cc = cc.join(',');
+    try { // if the leader's address is a send-as alias of this account, it really is From them
+      var al = GmailApp.getAliases().map(function(a){ return String(a).toLowerCase(); });
+      if (al.indexOf(sender.email) > -1) mo.from = sender.email;
+    } catch (e) {}
+    GmailApp.sendEmail(to.join(','), subject, msg, mo);
+    var cs = handleCancelSub({ actor: me.email, subId: s.ID, resched: true, reason: 'Shifted to reschedule with ' + site.name });
+    _subHist('Reschedule', cr.id, s.ID, s.Site, 'Shifted sub call to reschedule', me.email, 'Waiting for School',
+      'From ' + sender.name + ' to ' + to.join(', ') + (cc.length ? ' cc ' + cc.join(', ') : ''));
+    return { ok: true, id: cr.id, to: to.length, cc: cc.length, cancelled: !!(cs && cs.ok), cancelError: cs && !cs.ok ? cs.error : '' };
   } catch (e) { return { ok: false, error: e.message }; }
 }

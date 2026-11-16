@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.00 -->
+<!-- v12.01 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2451,10 +2451,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.00';
+const APP_VERSION='v12.01';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 12:20 PT - Send information button (emails the role information file), Information File picker on Roles, activity tally under Confidential Notes.';
+const BUILD_STAMP='2026-11-16 13:10 PT - Shift to reschedule with school button on sub shifts (cancels the sub call, emails the school from a Level 2 leader with the Ranger copied).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -14374,6 +14374,8 @@ function subAskRequester(id){
 }
 // Requesting Ranger: switch from finding a sub to rescheduling with the school
 function _subReschedBtn(s){
+  if(_subIsAdmin()&&['Pending Approval','Open','Filled'].includes(s.Status)&&s.Date>=_subToday())
+    return '<button class="sub-btn hot" style="flex:1 1 100%;font-weight:800;padding:12px" onclick="event.stopPropagation();subShiftResched(\''+ea(s.ID)+'\')">📅 Shift to reschedule with school</button>';
   if(String(s['Requested By']||'').toLowerCase()!==_subMe())return '';
   if(!['Pending Approval','Open'].includes(s.Status)||s.Date<_subToday())return '';
   return '<button class="sub-btn alt" onclick="subReschedInstead(\''+ea(s.ID)+'\')">📅 Reschedule with the school instead</button>';
@@ -14386,6 +14388,71 @@ function subReschedInstead(id){
   subSetMode('resched');
   const hint=document.getElementById('subDayHint');
   if(hint)hint.insertAdjacentHTML('afterbegin','<div style="color:#b4501c;font-weight:700;margin-bottom:4px">Once the school is asked, your sub request for '+escHtml(_subFmtDate(s.Date))+' is cancelled.</div>');
+}
+
+// ── Shift to reschedule with school (v12.01, Level 1-2) ─────────────────────
+// Cancels the sub call and emails the school from a chosen Level 1-2 leader, copying the Ranger and leadership.
+function _subLeaders(){return (DATA.humans||[]).filter(h=>{const lv=String(h['Access Level']||'').trim();return lv==='1'||lv==='2';}).map(h=>({email:String(h.Email||h.email||''),name:fullName(h)||h.Email})).filter(x=>x.email);}
+const _sr={id:'',site:null,s:null};
+function subShiftResched(id){
+  const s=_SUB.subs.find(x=>x.ID===id);if(!s)return;
+  const site=_subSiteByKey(s.Site);if(!site){alert('School not found.');return;}
+  const leaders=_subLeaders(),lead=new Set(leaders.map(l=>l.email.toLowerCase()));
+  const contacts=_subSchoolContactEmails(site).filter(e=>!lead.has(String(e).toLowerCase()));
+  if(!contacts.length){alert('There are no school contacts on file for this school yet.');return;}
+  _subCloseDetail();
+  Object.assign(_sr,{id,site,s});
+  const me=_subMe(),rgEmail=String(s['Requested By']||''),name=sf(site,'Name','name');
+  const row=(cls,e,lbl,chk)=>'<label style="display:flex;align-items:center;gap:10px;margin:6px 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none"><input type="checkbox" class="'+cls+'" value="'+ea(e)+'" style="width:20px;height:20px"'+(chk?' checked':'')+'><span>'+escHtml(lbl)+'</span></label>';
+  const lbl=e=>{const h=gh(e);return h?(fullName(h)+(h.Role||h.role?' ('+(h.Role||h.role)+')':'')):e;};
+  const ccList=[];if(rgEmail)ccList.push(rgEmail);leaders.forEach(l=>{if(l.email.toLowerCase()!==rgEmail.toLowerCase())ccList.push(l.email);});
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='srOverlay';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>Shift to reschedule</h3><div class="sub-meta" style="margin:-6px 0 8px">'+escHtml(name+' · '+_subFmtShift(s))+'<br><b style="color:#b4501c">This cancels the sub call and emails the school instead.</b> Volunteers and the Ranger are told.</div>'+
+    '<div class="sub-lbl">Send it from</div><select class="sub-in" id="srFrom" onchange="_srDraft()">'+leaders.map(l=>'<option value="'+ea(l.email)+'"'+(l.email.toLowerCase()===me?' selected':'')+'>'+escHtml(l.name)+'</option>').join('')+'</select>'+
+    '<div class="sub-lbl">To (school)</div>'+contacts.map(e=>row('srTo',e,lbl(e),true)).join('')+
+    '<div class="sub-lbl">Copy (CC)</div>'+ccList.map(e=>row('srCc',e,lbl(e),true)).join('')+
+    '<div class="sub-lbl">Days we could come instead (suggest a few)</div><div id="srAlts"></div><button class="sub-btn alt" style="margin-top:4px" onclick="_srAddAlt()">+ Suggest a Date</button>'+
+    '<div class="sub-lbl">Note to the school (optional)</div><textarea class="sub-in" id="srNote" rows="2" oninput="_srDraft()"></textarea>'+
+    '<div class="sub-lbl">Subject</div><input class="sub-in" id="srSubj" value="'+ea('Garden Ranger visit - schedule change at '+name)+'">'+
+    '<div class="sub-lbl">Message</div><textarea class="sub-in" id="srMsg" rows="10" oninput="this.dataset.edited=\'1\'"></textarea>'+
+    '<div class="sub-meta">Leave <b>{{DATES}}</b> where the tap-to-confirm date choices should go. Replies go to the person it is sent from.</div>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'srOverlay\').remove()">Keep the sub call</button><button class="sub-btn hot" id="srSend" onclick="_srSend()">Cancel sub call &amp; email school</button></div></div>';
+  document.body.appendChild(ov);
+  _srAddAlt();_srDraft();
+}
+function _srAddAlt(){
+  const box=document.getElementById('srAlts');if(!box)return;
+  const rows=box.querySelectorAll('.sub-shift'),last=rows[rows.length-1];
+  const base=last?last.querySelector('input').value:_sr.s.Date;
+  const x=new Date((base||_subToday())+'T12:00:00');
+  do{x.setDate(x.getDate()+1);}while(x.getDay()===0||x.getDay()===6||_subYmd(x)===_sr.s.Date);
+  box.insertAdjacentHTML('beforeend',_subShiftRow(_subYmd(x),_sr.s.Start||'',_sr.s.End||''));
+}
+function _srDraft(){
+  const ta=document.getElementById('srMsg');if(!ta||ta.dataset.edited==='1')return;
+  const s=_sr.s,name=sf(_sr.site,'Name','name');
+  const fh=gh((document.getElementById('srFrom')||{}).value),fn=fh?fullName(fh):'';
+  const rg=(_subPerson(s['Requested By']).name||'').split(' ')[0]||'our Garden Ranger';
+  const hasNote=!!((document.getElementById('srNote')||{}).value||'').trim();
+  ta.value='Hello,\n\nWe are sorry, but '+rg+' will not be able to make the Garden Ranger visit at '+name+' on:\n- '+_subFmtShift(s)+'\n\n{{DATES}}\n\n'+(hasNote?'{{NOTE}}\n\n':'')+'Thank you for understanding,\n'+fn+'\nEnrich LA';
+}
+async function _srSend(){
+  const to=[...document.querySelectorAll('#srOverlay .srTo:checked')].map(i=>i.value);
+  const from=(document.getElementById('srFrom')||{}).value;
+  const cc=[...document.querySelectorAll('#srOverlay .srCc:checked')].map(i=>i.value).filter(e=>e.toLowerCase()!==String(from).toLowerCase());
+  if(!to.length){alert('Tick at least one school contact.');return;}
+  const alts=[...document.querySelectorAll('#srAlts .sub-shift')].map(r=>{const i=r.querySelectorAll('input');return {date:i[0].value,start:i[1].value,end:i[2].value};}).filter(x=>x.date);
+  if(!alts.length&&!confirm('No alternative dates suggested. Send and just ask the school for a new day?'))return;
+  if(!confirm('Cancel the sub call and email '+to.length+' school contact'+(to.length===1?'':'s')+' now?'))return;
+  const btn=document.getElementById('srSend');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  try{
+    const r=await gasPost({action:'shiftToReschedule',actor:SESSION.email,subId:_sr.id,from,to,cc,alts,note:((document.getElementById('srNote')||{}).value||'').trim(),
+      subject:((document.getElementById('srSubj')||{}).value||'').trim(),message:((document.getElementById('srMsg')||{}).value||'')});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not send - Apps Script may need a new deployment (v12.01).');if(btn){btn.disabled=false;btn.textContent='Cancel sub call & email school';}return;}
+    const ov=document.getElementById('srOverlay');if(ov)ov.remove();
+    showSaveToast(r.cancelled?'📅 School emailed - sub call cancelled':'📅 School emailed (sub call could not be cancelled - please cancel it)');
+    loadSubs(true);
+  }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Cancel sub call & email school';}}
 }
 function _subCloseDetail(){const o=document.getElementById('subDetailOverlay');if(o)o.remove();}
 function subReachFromShift(id){
