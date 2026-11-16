@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.05 -->
+<!-- v12.06 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2478,10 +2478,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.05';
+const APP_VERSION='v12.06';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 14:10 PT - Send info email now has two reply links (would love to be considered / no longer interested) that notify the sender with a link to the applicant profile.';
+const BUILD_STAMP='2026-11-16 14:50 PT - Interview scheduling: every offered time has its own interviewers (nobody forced), and the confirmed-interview email opens the Send details window directly.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10667,8 +10667,7 @@ function ivOpen(email,existingId){
   const meE=String(SESSION.email||'').toLowerCase();
   const sms=String(sf(h,'SMS Consent','SMSConsent')||'').trim().toUpperCase()==='TRUE'&&!!(h.Mobile||h.mobile);
   _iv.form={email,first:(h['First Name']||h.FirstName||fullName(h)||'').split(' ')[0],name:fullName(h),existingId:existingId||'',slots:[],sel:new Set(),half:false,conf:{},qdate:'',sms,
-    interviewers:new Set(ex?ex.interviewers:[meE])};
-  _iv.form.interviewers.add(meE);
+    interviewers:new Set(ex&&ex.interviewers&&ex.interviewers.length?ex.interviewers:[meE])};
   const f=_iv.form;
   const staff=_ivStaffList();
   const kind=ex?ex.kind:'Interview',fmt=ex?ex.format:'In person',dur=ex?String(ex.duration||30):'30';
@@ -10681,6 +10680,8 @@ function ivOpen(email,existingId){
     '<div class="sub-lbl">Where, or video / phone details</div><input class="sub-in" id="ivLoc" placeholder="Address, Zoom or Meet link, or phone number" value="'+ea(ex?ex.location:'')+'">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="sub-lbl">Length</div><select class="sub-in" id="ivDur" onchange="_ivDurChanged()">'+[15,20,30,45,60,90].map(n=>'<option value="'+n+'"'+(String(n)===dur?' selected':'')+'>'+n+' minutes</option>').join('')+'</select></div>'+
     '<div><div class="sub-lbl">Position</div><input class="sub-in" id="ivPos" value="'+ea(ex?ex.position:_ivGuessPosition(h))+'" placeholder="optional" oninput="_ivDraft()"></div></div>'+
+    '<div class="sub-lbl">Who can interview the times you add next</div><div class="sub-meta" style="margin:0 0 6px">Tick who is free, pick the day and start times below, tap Add. Then change the ticks for other times - each time keeps its own interviewers.</div><div style="background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:4px 10px">'+
+      staff.map(x=>'<label style="display:flex;align-items:center;gap:10px;margin:0;padding:7px 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;flex-shrink:0" value="'+ea(x.em)+'"'+(f.interviewers.has(x.em)?' checked':'')+''+' onchange="_ivWho(this)"><span>'+escHtml(x.nm)+(x.em===meE?' (you)':'')+'</span></label>').join('')+'</div>'+
     '<div class="sub-lbl">Times to offer</div>'+
     '<div class="sub-meta" style="margin:0 0 6px">Pick a day, tap the start times that work, then Add. Repeat for other days.</div>'+
     '<input type="date" class="sub-in" id="ivQd" min="'+_subToday()+'" onchange="_iv.form.qdate=this.value">'+
@@ -10688,8 +10689,6 @@ function ivOpen(email,existingId){
     '<div class="sub-actions" style="margin-top:2px"><button class="sub-btn alt" onclick="_ivAddSlots()">+ Add these times</button><button class="sub-btn alt" onclick="_iv.form.half=!_iv.form.half;_ivChips()">½ hours</button></div>'+
     '<div id="ivRows" style="margin-top:10px"></div>'+
     '<div class="sub-actions" style="margin-top:0"><button class="sub-btn alt" onclick="_ivCheckCal()">🔍 Check my calendar</button></div>'+
-    '<div class="sub-lbl">Who will interview</div><div style="background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:4px 10px">'+
-      staff.map(x=>'<label style="display:flex;align-items:center;gap:10px;margin:0;padding:7px 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;flex-shrink:0" value="'+ea(x.em)+'"'+(f.interviewers.has(x.em)?' checked':'')+(x.em===meE?' disabled':'')+' onchange="_ivWho(this)"><span>'+escHtml(x.nm)+(x.em===meE?' (you)':'')+'</span></label>').join('')+'</div>'+
     '<div class="sub-lbl">Details shown on their page <span style="text-transform:none;font-weight:400">(optional)</span></div><textarea class="sub-in" id="ivNote" rows="2" placeholder="Parking, what to bring, who to ask for…">'+escHtml(ex?ex.note:'')+'</textarea>'+
     '<div class="sub-lbl">Email subject</div><input class="sub-in" id="ivSubj" placeholder="Enrich LA - let us set up your interview">'+
     '<div class="sub-lbl">Message</div><textarea class="sub-in" id="ivMsg" rows="9" oninput="this.dataset.edited=\'1\'"></textarea>'+
@@ -10716,7 +10715,7 @@ function _ivAddSlots(){
   const f=_iv.form,qd=(document.getElementById('ivQd')||{}).value;
   if(!qd){alert('Pick a day first.');return;}
   if(!f.sel.size){alert('Tap at least one start time.');return;}
-  f.sel.forEach(t=>{if(!f.slots.some(s=>s.date===qd&&s.start===t))f.slots.push({date:qd,start:t,end:_ivAddMin(t,_ivDur()),auto:true});});
+  f.sel.forEach(t=>{if(!f.slots.some(s=>s.date===qd&&s.start===t))f.slots.push({date:qd,start:t,end:_ivAddMin(t,_ivDur()),auto:true,iv:[...f.interviewers]});});
   f.sel.clear();f.conf={};_ivSort();_ivChips();_ivRows();
 }
 function _ivSort(){_iv.form.slots.sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));}
@@ -10725,7 +10724,9 @@ function _ivRows(){
   if(!f.slots.length){box.innerHTML='<div class="sub-meta">No times yet.</div>';return;}
   box.innerHTML=f.slots.map((s,i)=>'<div class="sub-shift"><input type="date" class="sub-in" min="'+_subToday()+'" value="'+ea(s.date)+'" onchange="_ivRowSet('+i+',\'date\',this.value)">'+
     '<input type="time" class="sub-in" value="'+ea(s.start)+'" onchange="_ivRowSet('+i+',\'start\',this.value)"><input type="time" class="sub-in" value="'+ea(s.end)+'" onchange="_ivRowSet('+i+',\'end\',this.value)">'+
-    '<button class="sub-x" onclick="_ivRowDel('+i+')">✕</button></div>'+(f.conf[i]?'<div class="sub-meta" style="color:var(--danger);margin:-3px 0 6px">⚠ Clashes with: '+escHtml(f.conf[i])+'</div>':'')).join('');
+    '<button class="sub-x" onclick="_ivRowDel('+i+')">✕</button></div>'+
+    '<div class="iv-q" style="margin:-2px 0 6px">'+_ivStaffList().map(x=>'<button type="button" class="'+((s.iv||[]).includes(x.em)?'on':'')+'" onclick="_ivRowWho('+i+',\''+ea(x.em)+'\')">'+escHtml(x.nm.split(' ')[0])+'</button>').join('')+'</div>'+
+    ((s.iv||[]).length?'':'<div class="sub-meta" style="color:var(--danger);margin:-3px 0 6px">⚠ Nobody ticked for this time</div>')+(f.conf[i]?'<div class="sub-meta" style="color:var(--danger);margin:-3px 0 6px">⚠ Clashes with: '+escHtml(f.conf[i])+'</div>':'')).join('');
 }
 function _ivRowSet(i,k,v){
   const s=_iv.form.slots[i];if(!s)return;
@@ -10736,6 +10737,7 @@ function _ivRowSet(i,k,v){
   if(k==='start'||k==='date')_ivSort();
   _ivRows();
 }
+function _ivRowWho(i,em){const s=_iv.form.slots[i];if(!s)return;s.iv=s.iv||[];const k=s.iv.indexOf(em);if(k>-1)s.iv.splice(k,1);else s.iv.push(em);_ivRows();}
 function _ivRowDel(i){_iv.form.slots.splice(i,1);_iv.form.conf={};_ivRows();}
 function _ivDurChanged(){const f=_iv.form;if(!f)return;f.slots.forEach(s=>{if(s.auto)s.end=_ivAddMin(s.start,_ivDur());});f.conf={};_ivRows();_ivDraft();}
 function _ivDraft(){
@@ -10763,13 +10765,14 @@ async function _ivSend(){
   if(!f.slots.length){alert('Add at least one time.');return;}
   for(const s of f.slots){
     if(!s.date||!s.start){alert('Every time needs a day and a start time.');return;}
+    if(!(s.iv&&s.iv.length)&&!f.interviewers.size){alert('Tick who can interview each time.');return;}
     if(s.end&&s.end<=s.start){alert('An end time is before its start time.');return;}
   }
   const btn=document.getElementById('ivSend');if(btn){btn.disabled=true;btn.textContent='Sending…';}
   try{
     const r=await gasPost({action:'createInterview',actor:SESSION.email,email:f.email,interviewId:f.existingId,position:v('ivPos'),kind:v('ivKind'),format:v('ivFmt'),location:v('ivLoc'),
       duration:_ivDur(),note:v('ivNote'),subject:v('ivSubj'),message:(document.getElementById('ivMsg')||{}).value||'',
-      slots:f.slots.map(s=>({date:s.date,start:s.start,end:s.end})),interviewers:[...f.interviewers],sendText:!!(document.getElementById('ivSms')||{}).checked});
+      slots:f.slots.map(s=>({date:s.date,start:s.start,end:s.end,interviewers:s.iv&&s.iv.length?s.iv:[...f.interviewers]})),interviewers:[...f.interviewers],sendText:!!(document.getElementById('ivSms')||{}).checked});
     if(!r||!r.ok){alert((r&&r.error)||'Could not send - Apps Script may need a new deployment (v11.98).');if(btn){btn.disabled=false;btn.textContent='Send invitation';}return;}
     const ov=document.getElementById('ivOverlay');if(ov)ov.remove();
     showToast('📅 Invitation sent to '+f.first);
@@ -15990,6 +15993,20 @@ function _tryDeepLink(retries){
       switchTab('sub');loadSubs(true);
       try{history.replaceState(null,'',location.pathname);}catch(e){}
     }else if(retries>0){setTimeout(()=>_tryDeepLink(retries-1),400);}
+    return;
+  }
+  // Deep link: .../ranger-rover/#ivdetails=I123 (confirmed-interview email) -> the "Send meeting details" window.
+  const mid=/[#&]ivdetails=([^&]+)/.exec(location.hash);
+  if(mid){
+    if(!SESSION)return;
+    const iid=decodeURIComponent(mid[1]);
+    if(SESSION.accessLevel>2){try{history.replaceState(null,'',location.pathname);}catch(e){}showToast('Not available at your access level');return;}
+    (async()=>{
+      await _ivLoad(true);
+      if(_iv.list.some(x=>x.id===iid)){try{history.replaceState(null,'',location.pathname);}catch(e){}ivDetails(iid);}
+      else if(retries>0)setTimeout(()=>_tryDeepLink(retries-1),600);
+      else{try{history.replaceState(null,'',location.pathname);}catch(e){}showToast('That interview was not found - open Operations > Humans > Interviews');}
+    })();
     return;
   }
   // Deep link: .../ranger-rover/#person=email (from the "new application" email) -> that person's profile.

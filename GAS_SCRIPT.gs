@@ -8329,7 +8329,7 @@ var IV_TAB = 'Interviews';
 var IV_SLOT_TAB = 'Interview Slots';
 var IV_HEADERS = ['ID','Created','Created By','Applicant Email','Applicant Name','Position','Kind','Format','Location','Duration','Note','Status','Interviewers',
   'Chosen Slot','Chosen Date','Chosen Start','Chosen End','Chosen At','Applicant Suggestion','Suggested Date','Suggested Start','Suggested End','Calendar Event','Updated','Details Sent'];
-var IV_SLOT_HEADERS = ['Slot ID','Interview ID','Date','Start','End','Status'];
+var IV_SLOT_HEADERS = ['Slot ID','Interview ID','Date','Start','End','Status','Interviewers'];
 var IV_PAGE_URL = 'https://tomasogrady-hub.github.io/ranger-rover/interview.html';
 var IV_DEFAULT_MIN = 30;
 
@@ -8379,7 +8379,15 @@ function _ivLoad(id) {
   var st = _subReadAll(_subGetSheet(IV_SLOT_TAB, IV_SLOT_HEADERS));
   return { it: it, st: st, r: r, slots: st.rows.filter(function(s){ return s['Interview ID'] === r.ID; }) };
 }
+// Who actually interviews (calendar guests, clash checks). Falls back to the person who created it.
 function _ivPeopleOf(r) {
+  var s = {}; var out = [];
+  var base = _ivLower(r.Interviewers); if (!base.length) base = [r['Created By']];
+  base.forEach(function(e){ e = String(e || '').trim().toLowerCase(); if (e && !s[e]) { s[e] = 1; out.push(e); } });
+  return out;
+}
+// Who is kept in the loop (notified): the person who set it up plus the interviewers.
+function _ivStaffOf(r) {
   var s = {}; var out = [];
   [r['Created By']].concat(_ivLower(r.Interviewers)).forEach(function(e){ e = String(e || '').trim().toLowerCase(); if (e && !s[e]) { s[e] = 1; out.push(e); } });
   return out;
@@ -8390,11 +8398,12 @@ function _ivTaken(L) {
   var mine = _ivPeopleOf(L.r);
   var others = L.it.rows.filter(function(x){ return x.Status === 'Confirmed' && x.ID !== L.r.ID && x['Chosen Date']; });
   if (!others.length) return taken;
-  others = others.filter(function(o){ var ps = _ivPeopleOf(o); return ps.some(function(e){ return mine.indexOf(e) !== -1; }); });
   L.slots.forEach(function(s){
+    var sp = _ivLower(s.Interviewers); if (!sp.length) sp = mine;   // each time has its own interviewers
     var a0 = _ivMin(s.Start), a1 = _ivMin(_ivEnd(s.Start, s.End, L.r.Duration));
     others.forEach(function(o){
       if (o['Chosen Date'] !== s.Date) return;
+      if (!_ivPeopleOf(o).some(function(e){ return sp.indexOf(e) !== -1; })) return;
       var b0 = _ivMin(o['Chosen Start']), b1 = _ivMin(_ivEnd(o['Chosen Start'], o['Chosen End'], o.Duration));
       if (a0 < b1 && a1 > b0) taken[s['Slot ID']] = true;
     });
@@ -8503,7 +8512,7 @@ function _ivPublicView(L, people) {
   };
 }
 function _ivNotifyStaff(r, people, subject, body, sms) {
-  _ivPeopleOf(r).forEach(function(e, i){
+  _ivStaffOf(r).forEach(function(e, i){
     var x = people[e]; if (!x) return;
     _subNotify(x, subject, 'Hi ' + x.first + ',\n\n' + body, i === 0 ? sms : '', i === 0 ? {} : { noSms: true });
   });
@@ -8521,8 +8530,10 @@ function handleCreateInterview(p) {
     var appEmail = String(p.email || '').trim().toLowerCase();
     var applicant = people[appEmail];
     if (!applicant) return { ok: false, error: 'Applicant not found in Humans.' };
-    var ivs = _ivLower(p.interviewers).filter(function(e){ return _ivStaffLevel(e) <= 2; });
-    if (ivs.indexOf(me.email) === -1) ivs.unshift(me.email);
+    var staffOnly = function(a){ return _ivLower(a).filter(function(e){ return _ivStaffLevel(e) <= 2; }); };
+    var ivs = staffOnly(p.interviewers), slotIv = {};
+    slots.forEach(function(s){ var l = staffOnly(s.interviewers); slotIv[s.date + ' ' + s.start] = l; l.forEach(function(e){ if (ivs.indexOf(e) === -1) ivs.push(e); }); });
+    if (!ivs.length) ivs = [me.email];
     var it = _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS));
     var ih = it.h, now = new Date();
     var existing = p.interviewId ? it.rows.filter(function(x){ return x.ID === String(p.interviewId).trim(); })[0] : null;
@@ -8553,7 +8564,8 @@ function handleCreateInterview(p) {
     var seen = {};
     var rows = slots.filter(function(s){ var k = s.date + ' ' + s.start; if (seen[k]) return false; seen[k] = 1; return true; })
       .sort(function(a, b){ return (a.date + a.start).localeCompare(b.date + b.start); })
-      .map(function(s){ return { 'Slot ID': _resId('S'), 'Interview ID': id, 'Date': s.date, 'Start': s.start, 'End': _ivEnd(s.start, s.end, dur), 'Status': 'Offered' }; });
+      .map(function(s){ return { 'Slot ID': _resId('S'), 'Interview ID': id, 'Date': s.date, 'Start': s.start, 'End': _ivEnd(s.start, s.end, dur), 'Status': 'Offered',
+        'Interviewers': (slotIv[s.date + ' ' + s.start] && slotIv[s.date + ' ' + s.start].length ? slotIv[s.date + ' ' + s.start] : ivs).join(', ') }; });
     var first = osh.getLastRow() + 1;
     ['Date', 'Start', 'End'].forEach(function(c){ osh.getRange(first, oh.indexOf(c) + 1, rows.length, 1).setNumberFormat('@'); });
     osh.getRange(first, 1, rows.length, oh.length).setValues(rows.map(function(o){ return oh.map(function(k){ return o[k] !== undefined ? o[k] : ''; }); }));
@@ -8580,6 +8592,8 @@ function _ivConfirm(L, people, date, start, end, slotId, byLabel, actorEmail) {
   var r = L.r, now = new Date();
   var old = r['Calendar Event'];
   if (old) _ivCalDelete(old);
+  var chosenSlot = L.slots.filter(function(s){ return s['Slot ID'] === slotId; })[0];
+  if (chosenSlot && _ivLower(chosenSlot.Interviewers).length) _subSet(L.it, r, { 'Interviewers': _ivLower(chosenSlot.Interviewers).join(', ') });
   var ev = _ivCalCreate(r, date, start, end, people);
   _subSet(L.it, r, { 'Status': 'Confirmed', 'Chosen Slot': slotId, 'Chosen Date': date, 'Chosen Start': start, 'Chosen End': end, 'Chosen At': now,
     'Applicant Suggestion': '', 'Suggested Date': '', 'Suggested Start': '', 'Suggested End': '', 'Calendar Event': ev, 'Details Sent': '' });
@@ -8600,8 +8614,8 @@ function _ivConfirm(L, people, date, start, end, slotId, byLabel, actorEmail) {
   _ivNotifyStaff(r, people, byLabel + ': ' + kind + ' with ' + r['Applicant Name'] + ' - ' + _subFmtDate(date),
     byLabel + '. ' + kind + ' with ' + r['Applicant Name'] + (r.Position ? ' (' + r.Position + ')' : '') + ':\n\n' + when + '\n' + (r.Format || '') + (r.Location ? ': ' + r.Location : '') +
     '\n\n' + (ev ? 'It is on the Google Calendar and the applicant has been sent an invitation.' : 'It could NOT be added to Google Calendar automatically (run authorizeInterviewCalendar once in Apps Script) - please add it yourself.') +
-    '\n\nNEXT: share the meeting details (Zoom or Meet link, phone number or address). Open Ranger Rover > Operations > Humans > Interviews and tap "Send details" - it is a one-tap message to ' + r['Applicant Name'] + '. ' + SUB_APP_URL,
-    'Enrich LA - ' + r['Applicant Name'] + ' confirmed ' + kind.toLowerCase() + ': ' + when + '. Open Ranger Rover > Interviews and tap Send details to share the Zoom link.');
+    '\n\nNEXT: share the meeting details (Zoom or Meet link, phone number or address). Tap this link to open the "Send details" window for ' + r['Applicant Name'] + ':\n' + SUB_APP_URL + '#ivdetails=' + encodeURIComponent(r.ID),
+    'Enrich LA - ' + r['Applicant Name'] + ' confirmed ' + kind.toLowerCase() + ': ' + when + '. Send the meeting details here: ' + SUB_APP_URL + '#ivdetails=' + encodeURIComponent(r.ID));
   _subHist('Interview', r.ID, slotId, '', byLabel, actorEmail || r['Applicant Email'], 'Confirmed', r['Applicant Name'] + ' - ' + when + (ev ? ' (calendar)' : ' (no calendar)'));
   _subFlushSms();
   return when;
