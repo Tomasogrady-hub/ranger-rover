@@ -12,7 +12,7 @@
 <meta property="og:title" content="Join the Enrich LA team">
 <meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- job.html v2.7 - 2026-11-16 - videos in a row play in sequence. v2.6 - 2026-11-16 - videos autoplay muted + loop (sound button). v2.5 - 2026-11-16 - direct video player first, Drive player as fallback. v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
+<!-- job.html v2.8 - 2026-11-16 - no retry loops when a video fails. v2.7 - 2026-11-16 - videos in a row play in sequence. v2.6 - 2026-11-16 - videos autoplay muted + loop (sound button). v2.5 - 2026-11-16 - direct video player first, Drive player as fallback. v2.4 - 2026-11-16 - 'Open video' fallback link. v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
   *{box-sizing:border-box}
@@ -186,12 +186,19 @@
         t.appendChild(s);
       }
     });
+    var nextOf = function(){
+      var L = rowVids(t), k = L.indexOf(t), i, c;
+      for (i = 1; i < L.length; i++) { c = L[(k + i) % L.length]; if (!c.dataset.bad) return c; }
+      return null;
+    };
     v.addEventListener('ended', function(){
       if (solo) return;
-      var L = rowVids(t), n = L[(L.indexOf(t) + 1) % L.length];
-      startVid(n, true);
+      var n = nextOf(); if (n) startVid(n, true);
     });
-    v.addEventListener('error', function(){ v.remove(); if (!solo) { var L = rowVids(t), n = L[(L.indexOf(t) + 1) % L.length]; if (n !== t && !n.querySelector('video')) startVid(n, true); } });
+    v.addEventListener('error', function(){
+      t.dataset.bad = '1'; v.remove();                      // this one can not autoplay: leave it as tap-to-play, never retry
+      if (!solo) { var n = nextOf(); if (n && !n.querySelector('video')) startVid(n, true); }
+    });
     v.src = 'https://drive.usercontent.google.com/download?id=' + m[1] + '&export=download';
     t.insertBefore(v, t.firstChild);
     var pr = v.play(); if (pr && pr.catch) pr.catch(function(){});
