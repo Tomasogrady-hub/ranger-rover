@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.01 -->
+<!-- v12.02 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -798,6 +798,17 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .hr-f textarea{min-height:110px;resize:vertical;line-height:1.45}
 .hr-f .hr-hint{font-size:12px;color:var(--stone);margin-top:4px}
 .hr-f .hr-ro{font-size:14px;color:var(--stone);padding:4px 0;word-break:break-all}
+.hr-mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:4px 0 8px}
+.hr-mslot{position:relative}
+.hr-mbox{aspect-ratio:16/9;border:2px dashed var(--mist);border-radius:10px;overflow:hidden;background:var(--fog);display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;color:var(--stone);cursor:pointer}
+.hr-mbox img{width:100%;height:100%;object-fit:cover;display:block}
+.hr-mbox.on{border-style:solid}
+.hr-mx{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(0,0,0,.65);color:#fff;font-size:14px;cursor:pointer}
+.hr-mtag{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px}
+.pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.pm-tile{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--fog);cursor:pointer;border:none;padding:0}
+.pm-tile img{width:100%;height:100%;object-fit:cover;display:block}
+.pm-tile span{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:11px;padding:3px 6px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ops-empty-page{padding:60px 24px;text-align:center;color:var(--silver);font-family:var(--font-d);font-size:20px;font-style:italic}
 
 
@@ -1970,6 +1981,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <button class="reach-menu-btn" onclick="showDataPage('items')">📦 Items</button>
         <button class="reach-menu-btn" onclick="showDataPage('documents')">📄 Documents</button>
         <button class="reach-menu-btn" onclick="showDataPage('roles')">🎭 Roles</button>
+        <button class="reach-menu-btn" onclick="showDataPage('pubmedia')">🎬 Public Videos &amp; Pictures</button>
       </div>
     </div>
 
@@ -2313,6 +2325,21 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <div id="rolesList" style="padding:0 16px 28px"><div class="spinner"></div></div>
     </div>
 
+    <!-- Public Videos and Pictures -->
+    <div id="data-pubmedia" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Public Videos &amp; Pictures</span>
+        <span class="page-count" id="pmCount"></span>
+      </div>
+      <div style="padding:0 16px 28px">
+        <div class="settings-note" style="padding:2px 0 10px">Everything here is public (anyone with the link). Use it in job posting banners and other public pages.</div>
+        <button class="btn-save" style="width:100%;margin:0 0 10px" onclick="pmUploadOpen()">⬆ Upload a picture or video</button>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap" id="pmChips"></div>
+        <div id="pmList"></div>
+      </div>
+    </div>
+
     <!-- Documents -->
     <div id="data-documents" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
@@ -2451,10 +2478,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.01';
+const APP_VERSION='v12.02';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 13:10 PT - Shift to reschedule with school button on sub shifts (cancels the sub call, emails the school from a Level 2 leader with the Ranger copied).';
+const BUILD_STAMP='2026-11-16 14:30 PT - Public Videos and Pictures library under Bulk Data, picture/video banner (2 top, 2 bottom) in the job posting editor and public job page.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3937,7 +3964,7 @@ function showApp(){
 
 /* ═══ API ═══ */
 // Background polls that should never pop the garden thread card
-const _BUSY_SILENT=new Set(['getInterviews','logActivity','getActivity','getAppSettings','getThreads','getAiSummaries','aiSummaryStatus','getMyLocation']);
+const _BUSY_SILENT=new Set(['publicMediaStart','publicMediaChunk','uploadPublicMedia','getInterviews','logActivity','getActivity','getAppSettings','getThreads','getAiSummaries','aiSummaryStatus','getMyLocation']);
 async function gasPost(payload){
   const quiet=_BUSY_SILENT.has(payload&&payload.action);
   if(!quiet)rrBusyStart();
@@ -10867,6 +10894,8 @@ function _hrEdit(id,copyFrom){
     '<div style="font-weight:700;font-size:18px">'+(isNew?(copyFrom?'Duplicate posting':'New job posting'):'Edit '+escHtml(id))+'</div></div>';
   const heads=_hr.headers.length?_hr.headers:['ID','Name of Position Internal','Date','Public Title','Public Description','Status','Location','Schedule','When','Pay','Requirements','Position Description','FAQ','Notify Email','Form Location','Applications','Apply Link'];
   if(!heads.includes('Photos'))heads.push('Photos');
+  _HR_MEDIA.forEach(c=>{if(!heads.includes(c))heads.push(c);});
+  _hr.media=_HR_MEDIA.map(c=>String(v[c]||'').trim());
   _hr.photos=String(v['Photos']||'').split(/[\n,\s]+/).filter(u=>/^https?:/i.test(u)).slice(0,2);
   heads.forEach(c=>{
     const val=v[c]==null?'':String(v[c]);
@@ -10880,6 +10909,8 @@ function _hrEdit(id,copyFrom){
         '<input type="file" id="hrPhotoFile" accept="image/*" style="display:none" onchange="_hrPhotoUpload(this)">'+
         '<div class="hr-hint">Shown at the top of the public job posting. From the app = any school, people or plant photo.</div>';return;
     }
+    if(c==='Media Top 1'){h+=_hrMediaBlock();return;}
+    if(/^Media (Top|Bottom) \d$/.test(c))return;
     if(c==='ID'){
       if(!isNew)h+='<label>ID</label><div class="hr-ro">'+escHtml(val)+'</div>';return;
     }
@@ -10928,6 +10959,7 @@ function _hrEdit(id,copyFrom){
      (isNew?'':'<button class="btn-cancel" style="width:100%;margin-top:18px;text-align:center;color:var(--danger);border-color:var(--danger)" onclick="_hrDelete(\''+ea(id)+'\')">🗑 Delete this posting</button>')+'</div>';
   body.innerHTML=h;
   _hrPhotosRender();
+  _hrMediaRender();_pmLoad().then(_hrMediaRender);
   body.scrollIntoView({block:'start'});
   ['hrf-Public_Title','hrf-Public_Description','hrf-Requirements'].forEach(fid=>{const el=document.getElementById(fid);if(el){el.dataset.auto=el.value.trim()?'':'1';el.addEventListener('input',()=>{el.dataset.auto='';});}});
 }
@@ -10965,6 +10997,175 @@ async function _hrPhotoUpload(inp){
     _hrPhotosAdd([out]);showToast('Photo added');
   }catch(e){showToast(e.message||'Upload failed');}
 }
+
+// ── Public Videos & Pictures (v12.02): Bulk Data library + job posting banner ──────────────
+const _HR_MEDIA=['Media Top 1','Media Top 2','Media Bottom 1','Media Bottom 2'];
+const _pm={list:null,err:'',filter:'all'};
+async function _pmLoad(force){
+  if(_pm.list&&!force)return _pm.list;
+  try{
+    const r=await gasPost({action:'getPublicMedia',actor:SESSION.email});
+    if(r&&r.ok){_pm.list=r.items||[];_pm.err='';}
+    else _pm.err=(r&&r.error)||'Could not load - Apps Script may need a new deployment (v12.02).';
+  }catch(e){_pm.err='Connection error.';}
+  return _pm.list||[];
+}
+function _pmById(id){return (_pm.list||[]).find(x=>x.id===id)||null;}
+function _pmThumbOf(id){return 'https://drive.google.com/thumbnail?id='+encodeURIComponent(id)+'&sz=w480';}
+function _pmSize(n){return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';}
+async function renderPubMedia(force){
+  const box=document.getElementById('pmList');if(!box)return;
+  if(!_pm.list||force)box.innerHTML='<div class="spinner"></div>';
+  await _pmLoad(force);
+  const cnt=document.getElementById('pmCount');
+  if(!_pm.list){box.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml(_pm.err||'Could not load.')+'</div>';return;}
+  if(cnt)cnt.textContent=_pm.list.length+' item'+(_pm.list.length===1?'':'s');
+  const chip=(k,l)=>'<button type="button" class="reach-token-chip'+(_pm.filter===k?' active':'')+'" onclick="_pm.filter=\''+k+'\';renderPubMedia()">'+l+'</button>';
+  const ch=document.getElementById('pmChips');if(ch)ch.innerHTML=chip('all','All')+chip('image','🖼 Pictures')+chip('video','🎬 Videos');
+  const rows=_pm.list.filter(x=>_pm.filter==='all'||x.type===_pm.filter);
+  if(!rows.length){box.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing here yet - tap Upload.</div>';return;}
+  box.innerHTML=rows.map(x=>'<div class="th-card" style="display:flex;gap:12px;align-items:flex-start"><div style="position:relative;flex:0 0 112px"><img loading="lazy" src="'+ea(x.thumb)+'" alt="" style="width:112px;height:84px;object-fit:cover;border-radius:8px;background:var(--fog);display:block">'+
+    '<span class="hr-mtag">'+(x.type==='video'?'🎬 Video':'🖼 Picture')+'</span></div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;color:var(--ink);word-break:break-word">'+escHtml(x.name||'(no name)')+'</div>'+
+    (x.description?'<div style="font-size:13px;color:var(--stone);margin-top:2px;white-space:pre-wrap">'+escHtml(x.description)+'</div>':'')+
+    '<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><a class="dlink" style="font-size:13px" target="_blank" rel="noopener" href="'+ea(x.link)+'">Open ↗</a>'+
+    '<button type="button" class="settings-btn" style="margin:0;width:auto;padding:5px 10px;font-size:13px;background:var(--mist);color:var(--ink)" onclick="pmEdit(\''+ea(x.id)+'\')">✏️ Edit</button>'+
+    '<button type="button" class="settings-btn" style="margin:0;width:auto;padding:5px 10px;font-size:13px;background:var(--mist);color:var(--danger)" onclick="pmDelete(\''+ea(x.id)+'\')">🗑</button></div></div></div>').join('');
+}
+function pmEdit(id){
+  const x=_pmById(id);if(!x)return;
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='pmEditOv';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>Edit</h3><div class="sub-lbl">Name</div><input class="sub-in" id="pmeName" value="'+ea(x.name)+'"><div class="sub-lbl">Description</div><textarea class="sub-in" id="pmeDesc" rows="3">'+escHtml(x.description)+'</textarea>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'pmEditOv\').remove()">Cancel</button><button class="sub-btn hot" onclick="_pmEditSave(\''+ea(id)+'\')">Save</button></div></div>';
+  document.body.appendChild(ov);
+}
+async function _pmEditSave(id){
+  const name=((document.getElementById('pmeName')||{}).value||'').trim(),description=((document.getElementById('pmeDesc')||{}).value||'').trim();
+  if(!name){alert('Add a name.');return;}
+  try{
+    const r=await gasPost({action:'updatePublicMedia',actor:SESSION.email,id,name,description});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not save.');return;}
+    const x=_pmById(id);if(x){x.name=name;x.description=description;}
+    const ov=document.getElementById('pmEditOv');if(ov)ov.remove();renderPubMedia();showToast('Saved');
+  }catch(e){alert('Connection problem - please try again.');}
+}
+async function pmDelete(id){
+  const x=_pmById(id);if(!x)return;
+  const used=(_hr.positions||[]).filter(pp=>_HR_MEDIA.some(c=>String((pp.values||{})[c]||'').trim()===id)).map(pp=>(pp.values||{})['Public Title']||pp.id);
+  if(!confirm('Delete "'+x.name+'"?'+(used.length?'\n\nIt is used in: '+used.join(', ')+'. It will disappear from those postings.':'')+'\n\nThe file goes to the Drive trash.'))return;
+  try{
+    const r=await gasPost({action:'deletePublicMedia',actor:SESSION.email,id});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not delete.');return;}
+    _pm.list=(_pm.list||[]).filter(y=>y.id!==id);renderPubMedia();showToast('Deleted');
+  }catch(e){alert('Connection problem - please try again.');}
+}
+// Upload sheet: picks a file, names it, uploads (one request when small, 3 MB chunks when big)
+const _pmU={file:null,cb:null,busy:false};
+function pmUploadOpen(cb){
+  _pmU.file=null;_pmU.cb=cb||null;_pmU.busy=false;
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='pmUpOv';ov.onclick=e=>{if(e.target===ov&&!_pmU.busy)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>Upload</h3>'+
+    '<button type="button" class="reach-token-chip" style="width:100%;text-align:center;padding:12px" onclick="document.getElementById(\'pmUpFile\').click()">📁 Choose a picture or video</button>'+
+    '<input type="file" id="pmUpFile" accept="image/*,video/*" style="display:none" onchange="_pmUpPicked(this)">'+
+    '<div class="sub-meta" id="pmUpInfo" style="margin-top:6px">Pictures and videos up to 200 MB.</div>'+
+    '<div class="sub-lbl">Name</div><input class="sub-in" id="pmUpName" placeholder="e.g. Rangers planting at Logan">'+
+    '<div class="sub-lbl">Description (optional)</div><textarea class="sub-in" id="pmUpDesc" rows="2"></textarea>'+
+    '<div id="pmUpBar" style="display:none;height:10px;background:var(--mist);border-radius:6px;margin-top:12px;overflow:hidden"><div id="pmUpFill" style="height:100%;width:0;background:var(--leaf,#2f6b35);transition:width .2s"></div></div>'+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" id="pmUpCancel" onclick="document.getElementById(\'pmUpOv\').remove()">Cancel</button><button class="sub-btn hot" id="pmUpGo" onclick="_pmUpGo()">Upload</button></div></div>';
+  document.body.appendChild(ov);
+}
+function _pmUpPicked(inp){
+  const f=inp.files&&inp.files[0];if(!f)return;
+  if(!/^(image|video)\//.test(f.type)){alert('Please choose a picture or a video.');return;}
+  if(f.size>200*1048576){alert('That file is over 200 MB. Please shrink it first.');return;}
+  _pmU.file=f;
+  document.getElementById('pmUpInfo').textContent=(f.type.indexOf('video')===0?'🎬 ':'🖼 ')+f.name+' · '+_pmSize(f.size);
+  const n=document.getElementById('pmUpName');if(n&&!n.value)n.value=f.name.replace(/\.[A-Za-z0-9]{2,5}$/,'');
+}
+function _pmBlobB64(b){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]||'');r.onerror=()=>rej(new Error('Could not read the file'));r.readAsDataURL(b);});}
+async function _pmShrink(f){ // pictures: max 2000px JPEG so pages load fast
+  if(f.type==='image/gif'||f.type==='image/svg+xml')return f;
+  try{
+    const url=URL.createObjectURL(f);
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
+    const m=2000,sc=Math.min(1,m/Math.max(img.naturalWidth,img.naturalHeight));
+    if(sc===1&&f.size<1500000){URL.revokeObjectURL(url);return f;}
+    const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+    const b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86));
+    return b&&b.size<f.size?new File([b],f.name.replace(/\.\w+$/,'')+'.jpg',{type:'image/jpeg'}):f;
+  }catch(e){return f;}
+}
+async function _pmUpGo(){
+  if(_pmU.busy)return;
+  if(!_pmU.file){alert('Choose a picture or video first.');return;}
+  const name=((document.getElementById('pmUpName')||{}).value||'').trim(),description=((document.getElementById('pmUpDesc')||{}).value||'').trim();
+  if(!name){alert('Add a name.');return;}
+  _pmU.busy=true;
+  const go=document.getElementById('pmUpGo'),bar=document.getElementById('pmUpBar'),fill=document.getElementById('pmUpFill'),cx=document.getElementById('pmUpCancel');
+  if(go){go.disabled=true;go.textContent='Uploading…';}if(cx)cx.disabled=true;if(bar)bar.style.display='block';
+  const prog=pc=>{if(fill)fill.style.width=Math.round(pc)+'%';};
+  try{
+    let f=_pmU.file;if(f.type.indexOf('image/')===0)f=await _pmShrink(f);
+    const mime=f.type||'application/octet-stream';let item=null;
+    if(f.size<=5*1048576){
+      prog(15);
+      const r=await gasPost({action:'uploadPublicMedia',actor:SESSION.email,base64:await _pmBlobB64(f),mimeType:mime,filename:f.name,name,description});
+      if(!r||!r.ok)throw new Error((r&&r.error)||'Upload failed - Apps Script may need a new deployment (v12.02).');
+      item=r.item;
+    }else{
+      const st=await gasPost({action:'publicMediaStart',actor:SESSION.email,filename:f.name,mimeType:mime,size:f.size});
+      if(!st||!st.ok)throw new Error((st&&st.error)||'Could not start the upload.');
+      const CH=3*1048576;
+      for(let start=0;start<f.size;start+=CH){
+        const b64=await _pmBlobB64(f.slice(start,Math.min(f.size,start+CH)));
+        let r=null;
+        for(let t=0;t<3&&!(r&&r.ok);t++){r=await gasPost({action:'publicMediaChunk',actor:SESSION.email,uploadUrl:st.uploadUrl,b64,start,total:f.size,name,description});}
+        if(!r||!r.ok)throw new Error((r&&r.error)||'The upload was interrupted. Please try again.');
+        prog(Math.min(99,(start+CH)/f.size*100));
+        if(r.done)item=r.item;
+      }
+      if(!item)throw new Error('Upload did not finish. Please try again.');
+    }
+    prog(100);
+    (_pm.list=_pm.list||[]).unshift(item);
+    const ov=document.getElementById('pmUpOv');if(ov)ov.remove();
+    showToast('✅ Uploaded');
+    if(document.getElementById('data-pubmedia')&&document.getElementById('data-pubmedia').style.display!=='none')renderPubMedia();
+    const cb=_pmU.cb;_pmU.cb=null;if(cb)cb(item);
+  }catch(e){
+    alert(e.message||'Upload failed.');
+    if(go){go.disabled=false;go.textContent='Upload';}if(cx)cx.disabled=false;if(bar)bar.style.display='none';
+  }
+  _pmU.busy=false;
+}
+// Picker used by the posting editor
+function _pmPick(slot){
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='pmPickOv';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>Choose</h3><button type="button" class="reach-token-chip" style="width:100%;text-align:center;padding:10px;margin-bottom:10px" onclick="document.getElementById(\'pmPickOv\').remove();pmUploadOpen(function(it){_hrMediaSet('+slot+',it.id)})">⬆ Upload a new picture or video</button><div id="pmPickList"><div class="spinner"></div></div></div>';
+  document.body.appendChild(ov);
+  _pmLoad().then(list=>{
+    const box=document.getElementById('pmPickList');if(!box)return;
+    if(!list.length){box.innerHTML='<div class="sub-meta">'+escHtml(_pm.err||'Nothing in the library yet - upload one above.')+'</div>';return;}
+    box.innerHTML='<div class="pm-grid">'+list.map(x=>'<button type="button" class="pm-tile" onclick="_hrMediaSet('+slot+',\''+ea(x.id)+'\');document.getElementById(\'pmPickOv\').remove()"><img loading="lazy" src="'+ea(x.thumb)+'" alt=""><span>'+(x.type==='video'?'🎬 ':'')+escHtml(x.name||'')+'</span></button>').join('')+'</div>';
+  });
+}
+function _hrMediaBlock(){
+  const slot=i=>'<div class="hr-mslot"><input type="hidden" id="hrm-'+i+'" data-col="'+_HR_MEDIA[i]+'" value="'+ea((_hr.media||[])[i]||'')+'"><div class="hr-mbox" id="hrmb-'+i+'" onclick="_pmPick('+i+')"></div><button type="button" class="hr-mx" id="hrmx-'+i+'" aria-label="Remove" onclick="_hrMediaSet('+i+',\'\')" style="display:none">✕</button></div>';
+  return '<label>Banner pictures &amp; videos <span style="font-weight:400;color:var(--silver)">(optional)</span></label>'+
+    '<div class="hr-hint" style="margin:0 0 4px">Top banner - across the top of the posting (one or two)</div><div class="hr-mgrid">'+slot(0)+slot(1)+'</div>'+
+    '<div class="hr-hint" style="margin:6px 0 4px">Bottom - above the Apply button (one or two)</div><div class="hr-mgrid">'+slot(2)+slot(3)+'</div>'+
+    '<div class="hr-hint">Choose from Public Videos &amp; Pictures (Bulk Data) or upload new. Side by side on a computer, stacked on a phone. Videos play only when tapped, so the page stays fast.</div>';
+}
+function _hrMediaRender(){
+  for(let i=0;i<4;i++){
+    const inp=document.getElementById('hrm-'+i),box=document.getElementById('hrmb-'+i),x=document.getElementById('hrmx-'+i);if(!inp||!box)continue;
+    const id=inp.value.trim(),it=id?_pmById(id):null;
+    box.classList.toggle('on',!!id);
+    box.innerHTML=id?'<img loading="lazy" src="'+ea(it?it.thumb:_pmThumbOf(id))+'" alt=""><span class="hr-mtag">'+(it?(it.type==='video'?'🎬 ':'🖼 ')+escHtml((it.name||'').slice(0,18)):'…')+'</span>':'＋<br>Picture or video';
+    if(x)x.style.display=id?'block':'none';
+  }
+}
+function _hrMediaSet(i,id){const inp=document.getElementById('hrm-'+i);if(!inp)return;inp.value=id||'';(_hr.media=_hr.media||[])[i]=id||'';_hrMediaRender();}
 function _hrRoleObj(name){const n=String(name||'').trim().toLowerCase();return (DATA.roles||[]).find(r=>String(r.name||'').trim().toLowerCase()===n)||null;}
 // Put a Role default into a posting field: always if blank or untouched, ask if someone typed their own.
 function _hrFillFromRole(fid,val,label){
@@ -17740,7 +17941,7 @@ let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
 function showDataPage(page){
   _dataCurrentPage = page;
-  ['menu','people','schools','prices','items','documents','roles'].forEach(p=>{
+  ['menu','people','schools','prices','items','documents','roles','pubmedia'].forEach(p=>{
     const el=document.getElementById('data-'+p);
     if(el)el.style.display='none';
   });
@@ -17765,6 +17966,9 @@ function showDataPage(page){
   }
   if(page==='roles'){
     initRoles();
+  }
+  if(page==='pubmedia'){
+    renderPubMedia(true);
   }
 }
 

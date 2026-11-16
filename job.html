@@ -12,7 +12,7 @@
 <meta property="og:title" content="Join the Enrich LA team">
 <meta property="og:description" content="Teach hands-on garden lessons and care for school gardens across Los Angeles.">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- job.html v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
+<!-- job.html v2.3 - 2026-11-16 - picture/video banner (2 top, 2 bottom), videos load only when tapped. v2.2 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v2.1 - 2026-11-15 - plain logo header, up to 2 photos per posting. v2.0 - 2026-11-09 - ALL open job postings on one page; ?p=ID jumps to (and highlights) that posting. Apply buttons -> apply.html?p=ID -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0}
   *{box-sizing:border-box}
@@ -24,6 +24,16 @@
   header img{height:64px;width:auto;max-width:90%;display:block;margin:0 auto}
   header .kick,header h1{display:none}
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 20px;margin-top:12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
+  .mrow{display:grid;gap:10px;margin:0 0 16px}
+  .mrow.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mrow.one{grid-template-columns:minmax(0,1fr)}
+  .mrow.bot{margin:18px 0 6px}
+  .mt{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#111}
+  .mt img{width:100%;height:100%;object-fit:cover;display:block}
+  .mt.vid img{object-fit:contain}
+  .mt .play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;border:none;background:rgba(0,0,0,.62);color:#fff;font-size:26px;cursor:pointer}
+  .mt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  @media(max-width:640px){.mrow.two{grid-template-columns:minmax(0,1fr)}}
   .ph{display:grid;gap:10px;margin:14px 0 4px}
   .ph.two{grid-template-columns:1fr 1fr}
   .ph img{width:100%;height:100%;max-height:300px;object-fit:cover;border-radius:10px;display:block;background:var(--fog)}
@@ -124,9 +134,24 @@
   function sec(title, body){ return body ? '<h3>' + title + '</h3>' + body : ''; }
 
   // One posting as its own card (all postings live on this one page).
+  function mediaTile(m){
+    return m.type === 'video'
+      ? '<div class="mt vid" data-src="' + esc(m.src) + '"><img src="' + esc(m.thumb) + '" alt="" loading="lazy"><button class="play" type="button" aria-label="Play video">&#9654;</button></div>'
+      : '<div class="mt"><img src="' + esc(m.src) + '" alt="" loading="lazy"></div>';
+  }
+  function mediaRow(list, cls){
+    return (list && list.length) ? '<div class="mrow ' + (list.length > 1 ? 'two' : 'one') + (cls ? ' ' + cls : '') + '">' + list.map(mediaTile).join('') + '</div>' : '';
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target.closest ? e.target.closest('.mt.vid') : null;
+    if (t && t.dataset.src && !t.querySelector('iframe')) {
+      t.innerHTML = '<iframe src="' + t.dataset.src + '" allow="autoplay; fullscreen" allowfullscreen></iframe>';
+    }
+  });
   function postingHtml(p, highlight){
     var applyUrl = p.formUrl || ('apply.html?p=' + encodeURIComponent(p.id));
     return '<div class="card post" id="' + esc(p.id) + '"' + (highlight ? ' style="outline:3px solid var(--sun)"' : '') + '>' +
+      mediaRow(p.media && p.media.top) +
       '<h2>' + esc(p.title) + '</h2>' + (p.date ? '<div class="posted">Posted ' + esc(p.date) + '</div>' : '') +
       ((p.photos && p.photos.length) ? '<div class="ph' + (p.photos.length > 1 ? ' two' : '') + '">' + p.photos.map(function(u){ return '<img src="' + esc(u) + '" alt="" loading="lazy">'; }).join('') + '</div>' : '') +
       '<div class="facts">' + fact('📍','Where',p.location) + fact('🗓️','Schedule',p.schedule) + fact('⏰','When',p.when) + fact('💵','Pay',p.pay) + '</div>' +
@@ -134,6 +159,7 @@
         sec('Requirements', fmt(p.requirements)) +
         sec('Questions & answers', p.faq ? fmtFaq(p.faq) : '') +
       '</div>' +
+      mediaRow(p.media && p.media.bottom, 'bot') +
       (p.open ? '<a class="apply" href="' + esc(applyUrl) + '">Apply for ' + esc(p.title) + '</a>'
               : '<div class="closed">This posting is no longer accepting applications.</div>') +
     '</div>';

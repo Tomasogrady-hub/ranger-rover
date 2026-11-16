@@ -874,6 +874,12 @@ function _doPostRoute(e) {
       case 'completeInterview':         return respond(handleCompleteInterview(p));
       case 'sendInterviewDetails':      return respond(handleSendInterviewDetails(p));
       case 'sendApplicantInfo':         return respond(handleSendApplicantInfo(p));
+      case 'getPublicMedia':            return respond(handleGetPublicMedia(p));
+      case 'uploadPublicMedia':         return respond(handleUploadPublicMedia(p));
+      case 'publicMediaStart':          return respond(handlePublicMediaStart(p));
+      case 'publicMediaChunk':          return respond(handlePublicMediaChunk(p));
+      case 'updatePublicMedia':         return respond(handleUpdatePublicMedia(p));
+      case 'deletePublicMedia':         return respond(handleDeletePublicMedia(p));
       case 'shiftToReschedule':         return respond(handleShiftToReschedule(p));
       case 'getApplicantLog':           return respond(handleGetApplicantLog(p));
       case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
@@ -7729,7 +7735,8 @@ const HR_DEFAULT_NOTIFY = 'tomasogrady@enrichla.org';
 const HR_APPLICANT_ROLE = 'Ranger Applicant';
 const HR_POS_COLS = ['ID', 'Name of Position Internal', 'Date', 'Public Title', 'Public Description',
                      'Status', 'Location', 'Schedule', 'Pay', 'Requirements', 'Notify Email',
-                     'Applications', 'Apply Link', 'FAQ', 'Position Description', 'When', 'Form Location', 'Photos'];
+                     'Applications', 'Apply Link', 'FAQ', 'Position Description', 'When', 'Form Location', 'Photos',
+                     'Media Top 1', 'Media Top 2', 'Media Bottom 1', 'Media Bottom 2'];
 // Columns the app never lets people type into (system-maintained).
 const HR_POS_SYSTEM = ['Applications', 'Apply Link'];
 const HR_MAX_RESUME_BYTES = 6 * 1024 * 1024;
@@ -7795,6 +7802,7 @@ function _hrPublicPos(o) {
     pay:          String(o['Pay'] || ''),
     requirements: String(o['Requirements'] || ''),
     photos:       String(o['Photos'] || '').split(/[\s,]+/).filter(function(u) { return /^https?:/i.test(u); }).slice(0, 2),
+    media:        _pmForPosting(o),
     date:         _hrFmtDate(o['Date']),
     open:         _hrIsOpen(o['Status']),
     postingUrl:   _hrPostingUrl(id),
@@ -8936,4 +8944,183 @@ function handleShiftToReschedule(p) {
       'From ' + sender.name + ' to ' + to.join(', ') + (cc.length ? ' cc ' + cc.join(', ') : ''));
     return { ok: true, id: cr.id, to: to.length, cc: cc.length, cancelled: !!(cs && cs.ok), cancelError: cs && !cs.ok ? cs.error : '' };
   } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── PUBLIC VIDEOS AND PICTURES (v12.02) ──────────────────────────────────────────────────
+// Drive folder + sheet "Public Videos and Pictures" (ID | Name | Description | Link | Type). Everything in
+// the folder is shared "anyone with the link" so it can be used on public pages (job postings banner).
+// Small files upload in one request; big videos use a Drive resumable upload fed in 3 MB chunks.
+const PUBMEDIA_FOLDER = '19lp7MZiaTs0gUEMZImuKeClpyJHRwC-H';
+const PUBMEDIA_SHEET_ID = '1CSpwZCxHyQX25pvLDAqeXr2sDE5byAJiZhUoB-BddJA';
+const PM_HEADERS = ['ID', 'Name', 'Description', 'Link', 'Type'];
+
+function _pmSheet() {
+  var sh = SpreadsheetApp.openById(PUBMEDIA_SHEET_ID).getSheets()[0];
+  var h = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 5)).getValues()[0].map(function(x) { return String(x).trim(); });
+  if (h[0] !== 'ID') { sh.getRange(1, 1, 1, 5).setValues([PM_HEADERS]).setFontWeight('bold'); }
+  return sh;
+}
+function _pmId(link) { var m = String(link || '').match(/[-\w]{25,}/); return m ? m[0] : ''; }
+function _pmTypeOf(mime) {
+  mime = String(mime || '').toLowerCase();
+  return mime.indexOf('image/') === 0 ? 'image' : mime.indexOf('video/') === 0 ? 'video' : '';
+}
+function _pmThumb(fid, w) { return 'https://drive.google.com/thumbnail?id=' + fid + '&sz=w' + (w || 600); }
+function _pmItem(row) { // row = [ID, Name, Description, Link, Type]
+  var fid = String(row[0] || '').trim();
+  return { id: fid, name: String(row[1] || ''), description: String(row[2] || ''), link: String(row[3] || ''),
+           type: String(row[4] || '').toLowerCase() === 'video' ? 'video' : 'image', thumb: _pmThumb(fid, 480) };
+}
+function _pmClearCache() { try { CacheService.getScriptCache().remove('pm_map_v1'); } catch (e) {} }
+function _pmAddRow(file, name, desc) {
+  var type = _pmTypeOf(file.getMimeType()) || 'image';
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { Logger.log('pm share: ' + e.message); }
+  var row = [file.getId(), name || String(file.getName()).replace(new RegExp('\\.[A-Za-z0-9]{2,5}$'), ''), desc || '',
+             'https://drive.google.com/file/d/' + file.getId() + '/view?usp=sharing', type];
+  _pmSheet().appendRow(row);
+  _pmClearCache();
+  return _pmItem(row);
+}
+function _pmAdmin(p) {
+  if (_ivStaffLevel(p.actor) > 2) throw new Error('Only Access Level 1-2 can manage public media.');
+}
+function handleGetPublicMedia(p) {
+  try {
+    _pmAdmin(p);
+    var sh = _pmSheet();
+    var data = sh.getDataRange().getValues();
+    var known = {};
+    for (var r = 1; r < data.length; r++) { var k = _pmId(data[r][0]) || _pmId(data[r][3]); if (k) known[k] = true; }
+    // Files dropped straight into the folder get a row too (and are shared), a few per visit.
+    var added = 0;
+    try {
+      var it = DriveApp.getFolderById(PUBMEDIA_FOLDER).getFiles();
+      while (it.hasNext() && added < 25) {
+        var f = it.next();
+        if (known[f.getId()] || !_pmTypeOf(f.getMimeType())) continue;
+        _pmAddRow(f, '', ''); added++;
+      }
+    } catch (e2) { Logger.log('pm folder scan: ' + e2.message); }
+    if (added) data = sh.getDataRange().getValues();
+    var items = [];
+    for (var i = 1; i < data.length; i++) {
+      if (!String(data[i][0] || '').trim()) continue;
+      var row = data[i].slice(0, 5);
+      if (!_pmId(row[0])) row[0] = _pmId(row[3]);
+      if (row[0]) items.push(_pmItem(row));
+    }
+    items.reverse();
+    return { ok: true, items: items };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleUploadPublicMedia(p) {
+  try {
+    _pmAdmin(p);
+    if (!p.base64) return { ok: false, error: 'Missing file' };
+    var mime = String(p.mimeType || '').toLowerCase();
+    if (/heic|heif/.test(mime)) mime = 'image/jpeg';
+    if (!_pmTypeOf(mime)) return { ok: false, error: 'Only pictures and videos can be added here.' };
+    var fname = String(p.filename || 'media').trim();
+    var f = DriveApp.getFolderById(PUBMEDIA_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, fname));
+    var item = _pmAddRow(f, String(p.name || '').trim(), String(p.description || '').trim());
+    logActivity(p.actor || '', 'uploaded public media', item.name, 'media', item.type);
+    return { ok: true, item: item };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Big files: 1) start a Drive resumable session, 2) send 3 MB chunks, the last one returns the finished item.
+function handlePublicMediaStart(p) {
+  try {
+    _pmAdmin(p);
+    var mime = String(p.mimeType || '').toLowerCase();
+    if (!_pmTypeOf(mime)) return { ok: false, error: 'Only pictures and videos can be added here.' };
+    var total = Number(p.size) || 0;
+    if (!total || total > 200 * 1024 * 1024) return { ok: false, error: 'Files up to 200 MB are supported.' };
+    var res = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
+      method: 'post', contentType: 'application/json; charset=UTF-8',
+      headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Upload-Content-Type': mime, 'X-Upload-Content-Length': String(total) },
+      payload: JSON.stringify({ name: String(p.filename || 'media'), parents: [PUBMEDIA_FOLDER], mimeType: mime }), muteHttpExceptions: true });
+    var hd = res.getAllHeaders(), loc = hd['Location'] || hd['location'];
+    if (res.getResponseCode() >= 300 || !loc) return { ok: false, error: 'Could not start the upload (' + res.getResponseCode() + ').' };
+    return { ok: true, uploadUrl: String(loc) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handlePublicMediaChunk(p) {
+  try {
+    _pmAdmin(p);
+    var url = String(p.uploadUrl || '');
+    if (url.indexOf('https://www.googleapis.com/upload/drive/') !== 0) return { ok: false, error: 'Bad upload address.' };
+    var bytes = Utilities.base64Decode(p.b64 || ''), start = Number(p.start) || 0, total = Number(p.total) || 0;
+    if (!bytes.length || !total) return { ok: false, error: 'Empty chunk.' };
+    var res = UrlFetchApp.fetch(url, { method: 'put', payload: Utilities.newBlob(bytes).getBytes(),
+      headers: { 'Content-Range': 'bytes ' + start + '-' + (start + bytes.length - 1) + '/' + total }, muteHttpExceptions: true });
+    var code = res.getResponseCode();
+    if (code === 308) return { ok: true, done: false };
+    if (code !== 200 && code !== 201) return { ok: false, error: 'Upload failed (' + code + ').' };
+    var meta = JSON.parse(res.getContentText());
+    var f = DriveApp.getFileById(meta.id);
+    var item = _pmAddRow(f, String(p.name || '').trim(), String(p.description || '').trim());
+    logActivity(p.actor || '', 'uploaded public media', item.name, 'media', item.type);
+    return { ok: true, done: true, item: item };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function _pmRowOf(sh, id) {
+  var data = sh.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) { if ((_pmId(data[r][0]) || _pmId(data[r][3])) === id) return r + 1; }
+  return -1;
+}
+function handleUpdatePublicMedia(p) {
+  try {
+    _pmAdmin(p);
+    var sh = _pmSheet(), row = _pmRowOf(sh, String(p.id || ''));
+    if (row < 0) return { ok: false, error: 'Not found.' };
+    if (p.name !== undefined && String(p.name).trim()) {
+      sh.getRange(row, 2).setValue(String(p.name).trim());
+      try { var f = DriveApp.getFileById(String(p.id)); var ext = String(f.getName()).match(new RegExp('\\.[A-Za-z0-9]{2,5}$')); f.setName(String(p.name).trim() + (ext ? ext[0] : '')); } catch (e) {}
+    }
+    if (p.description !== undefined) sh.getRange(row, 3).setValue(String(p.description).slice(0, 1000));
+    _pmClearCache();
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleDeletePublicMedia(p) {
+  try {
+    _pmAdmin(p);
+    var sh = _pmSheet(), row = _pmRowOf(sh, String(p.id || ''));
+    if (row < 0) return { ok: false, error: 'Not found.' };
+    try { DriveApp.getFileById(String(p.id)).setTrashed(true); } catch (e) {}
+    sh.deleteRow(row);
+    _pmClearCache();
+    try { _hrClearPosCache(); } catch (e3) {}
+    logActivity(p.actor || '', 'deleted public media', String(p.id), 'media', '');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Public side: a posting's four slots resolved to what the page needs (type, embed/src, thumbnail).
+function _pmMap() {
+  var cache = CacheService.getScriptCache(), hit = cache.get('pm_map_v1');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var map = {};
+  try {
+    var data = _pmSheet().getDataRange().getValues();
+    for (var r = 1; r < data.length; r++) {
+      var id = _pmId(data[r][0]) || _pmId(data[r][3]);
+      if (id) map[id] = { t: String(data[r][4] || '').toLowerCase() === 'video' ? 'video' : 'image', n: String(data[r][1] || '') };
+    }
+  } catch (e2) { Logger.log('pmMap: ' + e2.message); }
+  try { cache.put('pm_map_v1', JSON.stringify(map), 600); } catch (e3) {}
+  return map;
+}
+function _pmPublic(id, map) {
+  id = _pmId(id) || String(id || '').trim();
+  var m = id && map[id];
+  if (!m) return null;
+  return m.t === 'video'
+    ? { type: 'video', id: id, name: m.n, thumb: _pmThumb(id, 1000), src: 'https://drive.google.com/file/d/' + id + '/preview' }
+    : { type: 'image', id: id, name: m.n, thumb: 'https://lh3.googleusercontent.com/d/' + id + '=w1400', src: 'https://lh3.googleusercontent.com/d/' + id + '=w1400' };
+}
+function _pmForPosting(o) {
+  var map = _pmMap(), pick = function(cols) {
+    return cols.map(function(c) { return _pmPublic(o[c], map); }).filter(function(x) { return x; });
+  };
+  return { top: pick(['Media Top 1', 'Media Top 2']), bottom: pick(['Media Bottom 1', 'Media Bottom 2']) };
 }
