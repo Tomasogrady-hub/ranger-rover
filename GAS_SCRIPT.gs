@@ -4105,7 +4105,7 @@ function handleGetInfoFiles() {
   try {
     var out = [];
     // Only files inside the Static / Dynamic subfolders are offered (loose files elsewhere are ignored).
-    _eachInfoFile(function(f0, kind, path) { if (kind === 'other' || _isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; j.folder = path || ''; out.push(j); });
+    _eachInfoFile(function(f0, kind, path) { if ((kind === 'other' && path) || _isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; j.folder = path || ''; out.push(j); });
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
     try { _syncInfoFilesSheet(out); } catch (e2) { Logger.log('info sheet sync: ' + e2.message); }
     return { ok: true, files: out, dataVer: _dataVer() };
@@ -4167,7 +4167,7 @@ function handleUploadInfoFile(p) {
     var mime = (p.mimeType && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'application/pdf';
     if (/heic|heif/i.test(mime)) mime = 'image/jpeg';
     var fname = String(p.filename || 'Information file').trim();
-    var f = DriveApp.getFolderById(INFO_STATIC_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, fname));
+    var f = DriveApp.getFolderById(p.root ? INFO_FILES_FOLDER : INFO_STATIC_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), mime, fname));
     _setInfoFilePublic(f, !!p.isPublic);
     logActivity(p.actor || '', 'uploaded information file', fname, 'item', p.isPublic ? 'public' : 'not public');
     return { ok: true, file: _infoFileJson(f) };

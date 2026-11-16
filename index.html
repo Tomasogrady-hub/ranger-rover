@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.03 -->
+<!-- v12.04 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2478,10 +2478,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.03';
+const APP_VERSION='v12.04';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 15:05 PT - Fix Delete Contact (restores the missing delete handler in Apps Script); a failed delete now brings the person back right away.';
+const BUILD_STAMP='2026-11-16 13:20 PT - Role Information File picker lists the main Information Files folder plus its subfolders (grouped); uploads from a role go into the main Information Files folder.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -18302,7 +18302,9 @@ async function _mountInfoField(pfx,url,label){
 function _fillInfoSelect(pfx,url){
   const sel=document.getElementById(pfx+'InfoSel');if(!sel)return;
   const files=_infoFilesCache||[];
-  let opts='<option value="">(none)</option>'+files.map(f=>`<option value="${ea(f.url)}">${escHtml(f.name)}</option>`).join('');
+  const grp={};files.forEach(f=>{const k=f.folder||'';(grp[k]=grp[k]||[]).push(f);});
+  const gk=Object.keys(grp).sort((a,b)=>a===''?-1:b===''?1:a<b?-1:1);
+  let opts='<option value="">(none)</option>'+(gk.length>1||(gk[0]||'')===''&&gk.length===1?gk.map(k=>`<optgroup label="${ea(k||'Information Files (main folder)')}">`+grp[k].map(f=>`<option value="${ea(f.url)}">${escHtml(f.name)}</option>`).join('')+'</optgroup>').join(''):files.map(f=>`<option value="${ea(f.url)}">${escHtml(f.name)}</option>`).join(''));
   if(url&&!_infoFileByUrl(url))opts+=`<option value="${ea(url)}">(current link)</option>`;
   sel.innerHTML=opts;
   sel.value=url||'';
@@ -18401,7 +18403,7 @@ async function uploadInfoFromInput(pfx,mode,input){
     const base64=await _readFileB64(file);
     let res;
     if(mode==='replace')res=await gasPost({action:'replaceInfoFile',fileId:curFile.id,url:curFile.url,base64,mimeType:file.type,filename:file.name,actor:SESSION?SESSION.email:''});
-    else{const pub=document.getElementById(pfx+'InfoPub');res=await gasPost({action:'uploadInfoFile',base64,mimeType:file.type,filename:file.name,isPublic:!!(pub&&pub.checked),actor:SESSION?SESSION.email:''});}
+    else{const pub=document.getElementById(pfx+'InfoPub');res=await gasPost({action:'uploadInfoFile',base64,mimeType:file.type,filename:file.name,isPublic:!!(pub&&pub.checked),root:pfx.indexOf('rl')===0,actor:SESSION?SESSION.email:''});}
     if(!res||!res.ok){_infoStatus(pfx,(res&&res.error)||'Upload failed.',true);return;}
     await _loadInfoFiles(true);
     if(mode==='replace'){
