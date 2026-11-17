@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.15 -->
+<!-- v12.16 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.15';
+const APP_VERSION='v12.16';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Quotes now send through the Reach tab (PDF attached like any Reach attachment, school people pre-picked); map picture and $ amount fixes in the quote Doc.';
+const BUILD_STAMP='2026-11-17 PT - Quotes: quantity per item (replaces Included), map picker with framed capture + instructions, map fills the page width.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4243,7 +4243,7 @@ async function qtDuplicate(id){
   if(ln===undefined){
     try{const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;}catch(e){showSaveToast('Connection error');return;}
   }
-  qtNewToggle(true,Object.assign({},x,{dup:true,location:'',itemIds:ln.map(l=>l.itemId).filter(Boolean)}));
+  qtNewToggle(true,Object.assign({},x,{dup:true,location:'',itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.qty||1]))}));
   const b=document.getElementById('qtAddBox');if(b)b.scrollIntoView({block:'start',behavior:'smooth'});
 }
 async function qtDelete(id){
@@ -4296,8 +4296,9 @@ function qtLocOpen(){
       <button type="button" ${tb} id="qtLocArrowB" onclick="qtLocMode('arrow')">➡️ Arrow</button><button type="button" ${tb} id="qtLocBoxB" onclick="qtLocMode('box')">▭ Box</button>
       <button type="button" ${tb} onclick="qtLocClear()">Clear</button>
       <button type="button" ${tb} onclick="qtLocDone()">✓ Done</button><button type="button" class="settings-btn" style="margin:0;padding:8px 12px;background:var(--mist);color:var(--ink)" onclick="qtLocClose()">Cancel</button></div>
-    <div id="qtLocHelp" class="sub-meta" style="background:#fffbe6;padding:6px 10px;font-size:13px;color:#333">Pinch or use +/- to zoom in on the garden, then tap where it is.</div>
-    <div id="qtLocMap" style="flex:1;min-height:0"></div>`;
+    <div style="background:#fffbe6;padding:6px 10px;font-size:12.5px;line-height:1.45;color:#333"><b>How to use:</b> 1) Pinch/drag the map so the garden sits <b>inside the dashed frame</b> - only the framed area goes into the quote, so zoom in close. 2) <b>Arrow</b>: tap the garden. <b>Box</b>: tap one corner of the garden, then the opposite corner. Tap again to start over. 3) Press <b>Done</b>.</div>
+    <div id="qtLocHelp" style="background:#2f6b35;color:#fff;padding:6px 10px;font-size:13px;font-weight:600"></div>
+    <div style="position:relative;flex:1;min-height:0"><div id="qtLocMap" style="position:absolute;inset:0"></div><div id="qtLocFrame" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:3px dashed #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.4);pointer-events:none;z-index:600;border-radius:4px"></div></div>`;
   document.body.appendChild(m);
   _qtLocAnn={mode:'arrow',arrow:null,box:[]};_qtLocLayers=[];
   qtLocMode('arrow');
@@ -4306,18 +4307,32 @@ function qtLocOpen(){
     const map=_qtLocMap=L.map('qtLocMap',{zoomControl:true,maxZoom:19}).setView(has?[ll[0],ll[1]]:[34.05,-118.35],has?18:10);
     L.tileLayer(_QT_ESRI,{maxZoom:19,crossOrigin:true,attribution:'Imagery © Esri'}).addTo(map);
     map.on('click',e=>qtLocTap(e.latlng));
+    _qtLocFrameFit();setTimeout(()=>{try{map.invalidateSize();}catch(e){}_qtLocFrameFit();},120);
   });
 }
 function qtLocMode(mode){
   _qtLocAnn.mode=mode;_qtLocAnn.arrow=null;_qtLocAnn.box=[];_qtLocDraw();
   ['Arrow','Box'].forEach(k=>{const b=document.getElementById('qtLoc'+k+'B');if(b){const on=(k.toLowerCase()===mode);b.style.background=on?'':'var(--mist)';b.style.color=on?'':'var(--ink)';}});
-  const h=document.getElementById('qtLocHelp');if(h)h.textContent=mode==='arrow'?'Zoom in on the garden, then tap the spot the arrow should point to.':'Zoom in, then tap two opposite corners of the garden area.';
+  _qtLocStatus();
+}
+function _qtLocStatus(){
+  const h=document.getElementById('qtLocHelp');if(!h)return;const a=_qtLocAnn;
+  h.textContent=a.mode==='arrow'?(a.arrow?'Arrow placed. Tap elsewhere to move it, or press Done.':'Arrow: tap the garden spot the arrow should point to.')
+    :(a.box.length===0?'Box: tap one corner of the garden.':a.box.length===1?'Now tap the OPPOSITE corner.':'Box drawn. Press Done, or tap again to redraw.');
+}
+function _qtLocFrameSize(){
+  const el=document.getElementById('qtLocMap');if(!el)return null;
+  const mw=el.clientWidth,mh=el.clientHeight,fw=Math.max(120,Math.min(mw-24,(mh-24)*1.5)),fh=Math.round(fw/1.5);
+  return {w:Math.round(fw),h:fh};
+}
+function _qtLocFrameFit(){
+  const f=document.getElementById('qtLocFrame'),z=_qtLocFrameSize();if(f&&z){f.style.width=z.w+'px';f.style.height=z.h+'px';}
 }
 function qtLocClear(){qtLocMode(_qtLocAnn.mode);}
 function qtLocTap(ll){
   if(_qtLocAnn.mode==='arrow')_qtLocAnn.arrow=ll;
   else{if(_qtLocAnn.box.length>=2)_qtLocAnn.box=[];_qtLocAnn.box.push(ll);}
-  _qtLocDraw();
+  _qtLocDraw();_qtLocStatus();
 }
 function _qtLocDraw(){
   _qtLocLayers.forEach(l=>{try{_qtLocMap&&_qtLocMap.removeLayer(l);}catch(e){}});_qtLocLayers=[];
@@ -4345,8 +4360,8 @@ async function qtLocDone(){
   if(!((a.mode==='arrow'&&a.arrow)||(a.mode==='box'&&a.box.length===2))){showSaveToast(a.mode==='arrow'?'Tap the map to place the arrow':'Tap two corners to draw the box');return;}
   const help=document.getElementById('qtLocHelp');if(help)help.textContent='Creating the picture…';
   try{
-    const size=map.getSize(),z=map.getZoom(),zE=Math.min(z+1,19),sc=Math.pow(2,zE-z);
-    const W=Math.round(size.x*sc),H=Math.round(size.y*sc);
+    const fz=_qtLocFrameSize()||map.getSize(),z=map.getZoom(),zE=Math.min(z+1,19),sc=Math.pow(2,zE-z);
+    const W=Math.round((fz.w||fz.x)*sc),H=Math.round((fz.h||fz.y)*sc);
     const c=map.project(map.getCenter(),zE),tl={x:c.x-W/2,y:c.y-H/2};
     const cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
     ctx.fillStyle='#222';ctx.fillRect(0,0,W,H);
@@ -4420,13 +4435,15 @@ function _qtTypeChanged(){
 }
 function _qtQItemsHtml(){
   if(!_qtQItems.length)return '<div class="sub-meta" style="padding:8px 0">No Quote Items yet. In Bulk Data > Items, set Type 1 to "Quote Item".</div>';
-  return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span></label>`).join('');
+  return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span><span style="display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--silver);letter-spacing:.04em;text-transform:uppercase">Qty<input type="number" class="qt-qty" data-id="${ea(i.id)}" inputmode="numeric" min="1" max="100000" step="1" value="1" onclick="event.stopPropagation()" oninput="var c=this.closest('label').querySelector('input[type=checkbox]');if(c&&!c.checked){c.checked=true;_qtItemCount();}" style="width:56px;padding:6px 4px;font-size:15px;text-align:center;border:1px solid var(--mist);border-radius:8px"></span></label>`).join('');
 }
 function _qtRefreshQItems(){
   const l=document.getElementById('qtNItemList');if(!l)return;
-  const keep=new Set([...l.querySelectorAll('input:checked')].map(c=>c.value));
+  const keep=new Set([...l.querySelectorAll('input[type=checkbox]:checked')].map(c=>c.value)),kq={};
+  l.querySelectorAll('.qt-qty').forEach(q=>{kq[q.dataset.id]=q.value;});
   l.innerHTML=_qtQItemsHtml();
-  l.querySelectorAll('input').forEach(c=>{if(keep.has(c.value))c.checked=true;});
+  l.querySelectorAll('input[type=checkbox]').forEach(c=>{if(keep.has(c.value))c.checked=true;});
+  l.querySelectorAll('.qt-qty').forEach(q=>{if(kq[q.dataset.id])q.value=kq[q.dataset.id];});
   _qtItemCount();
 }
 function _qtItemFilter(){
@@ -4434,7 +4451,7 @@ function _qtItemFilter(){
   document.querySelectorAll('#qtNItemList .qt-qi').forEach(l=>{l.style.display=(!q||l.dataset.n.indexOf(q)>-1)?'flex':'none';});
 }
 function _qtItemCount(){
-  const n=document.querySelectorAll('#qtNItemList input:checked').length,c=document.getElementById('qtNItemCount');
+  const n=document.querySelectorAll('#qtNItemList input[type=checkbox]:checked').length,c=document.getElementById('qtNItemCount');
   if(c)c.textContent=n+' item'+(n===1?'':'s')+' chosen';
 }
 // New quote (no argument) or edit an existing one (pass the quote object). One form: school, contact, scope,
@@ -4472,7 +4489,9 @@ function qtNewToggle(show,edit){
     _qtLocRender();
     if(edit){
       const ids=new Set((edit.itemIds||[]).map(String));
-      document.querySelectorAll('#qtNItemList input').forEach(c=>{if(ids.has(c.value))c.checked=true;});
+      const qm=edit.itemQty||{};
+      document.querySelectorAll('#qtNItemList input[type=checkbox]').forEach(c=>{if(ids.has(c.value))c.checked=true;});
+      document.querySelectorAll('#qtNItemList .qt-qty').forEach(q=>{if(qm[q.dataset.id])q.value=qm[q.dataset.id];});
       _qtItemCount();
     }
   }
@@ -4486,7 +4505,7 @@ async function qtEdit(id){
   if(ln===undefined){
     try{const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;}catch(e){showSaveToast('Connection error');return;}
   }
-  qtNewToggle(true,Object.assign({},x,{itemIds:ln.map(l=>l.itemId).filter(Boolean)}));
+  qtNewToggle(true,Object.assign({},x,{itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.qty||1]))}));
   const b=document.getElementById('qtAddBox');if(b)b.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function _qtSchoolPicked(){
@@ -4502,7 +4521,8 @@ function _qtSchoolPicked(){
 }
 async function qtSubmit(sendNow){
   const v=id=>((document.getElementById(id)||{}).value||'').trim();
-  const itemIds=[...document.querySelectorAll('#qtNItemList input:checked')].map(c=>c.value);
+  const itemIds=[...document.querySelectorAll('#qtNItemList input[type=checkbox]:checked')].map(c=>c.value);
+  const itemQty={};document.querySelectorAll('#qtNItemList .qt-qty').forEach(q=>{if(itemIds.indexOf(q.dataset.id)>-1)itemQty[q.dataset.id]=Math.max(1,Math.round(Number(q.value)||1));});
   if(!v('qtNCat')){showSaveToast('Choose a quote type: Program, Maker or Miscellaneous');return;}
   if(!v('qtNSite')){showSaveToast('Choose a school');return;}
   if(!itemIds.length){showSaveToast('Choose at least one item');return;}
@@ -4511,7 +4531,7 @@ async function qtSubmit(sendNow){
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
   const editing=_qtEditId;
   try{
-    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
+    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,itemQty:itemQty,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
     let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items'},payload));
     if(r&&r.ok){
       let msg;

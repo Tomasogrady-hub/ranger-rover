@@ -9478,7 +9478,7 @@ function handleAcctCreateQuote(p) {
     if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
     bulk = Number(p.bulkTotal);
     if (!(bulk >= 0) || bulk > 10000000 || p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined) return { ok: false, error: 'Enter the total price for this quote.' };
-    lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: 1, unit: '', price: 0 }; });
+    lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id), unit: '', price: 0 }; });
   } else {
     lines = (p.lines || []).filter(function (l) { return l && String(l.desc || '').trim(); });
     if (!lines.length) return { ok: false, error: 'Add at least one line item.' };
@@ -9592,7 +9592,7 @@ function _acctMailParts(q) {
 
   var link = ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(q) + '&t=' + encodeURIComponent(String(o['Token']));
   var summary = String(o['Summary'] || '').trim(), scope = String(o['Scope'] || '').trim();
-  var names = itemsFmt ? lines.map(function (l) { return l.desc; }) : [];
+  var names = itemsFmt ? lines.map(_acctLineName) : [];
   var list = names.length ? '<p style="margin:12px 0 4px"><b>Included in this quote:</b></p><ul style="margin:0 0 12px 18px;padding:0">' + names.map(function (n) { return '<li>' + _acctEsc(n) + '</li>'; }).join('') + '</ul>' : '';
   var body = '<p>Hello,</p>' +
     '<p>Attached is quote <b>' + _acctEsc(q) + '</b> for <b>' + _acctEsc(site) + '</b>.</p>' +
@@ -9725,7 +9725,9 @@ function _acctParseDate(s) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '').trim());
   return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0) : '';
 }
-function _acctItemsText(lines) { return lines.map(function (l) { return l.desc; }).join('; '); }
+function _acctQty(p, id) { var n = Math.round(Number(p && p.itemQty && p.itemQty[id])); return n >= 1 && n <= 100000 ? n : 1; }
+function _acctLineName(l) { return Number(l.qty) > 1 ? l.desc + ' (x' + l.qty + ')' : l.desc; }
+function _acctItemsText(lines) { return lines.map(_acctLineName).join('; '); }
 function _acctFillCell(cell, rows, align) {
   cell.clear();
   var first = cell.getChild(0).asParagraph();
@@ -9768,6 +9770,14 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     val = String(val == null ? '' : val);
     var guard = 0, f;
     while ((f = el.findText(pat(tok))) && guard++ < 200) {
+      var t = f.getElement().asText(), st = f.getStartOffset(), en = f.getEndOffsetInclusive();
+      if (val) t.insertText(en + 1, val);
+      t.deleteText(st, en);
+    }
+  }
+  function fillRaw(el, re, val) {
+    var guard = 0, f;
+    while ((f = el.findText(re)) && guard++ < 50) {
       var t = f.getElement().asText(), st = f.getStartOffset(), en = f.getEndOffsetInclusive();
       if (val) t.insertText(en + 1, val);
       t.deleteText(st, en);
@@ -9835,8 +9845,9 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
         try { hd.editAsText().setBold(true); hd.editAsText().setFontSize(15); hd.editAsText().setForegroundColor('#000000'); } catch (e5) {}
       } catch (eH) { _acctBuildNote += ' Location heading failed: ' + eH.message + '.'; }
       try {
-        var li = locP.appendInlineImage(locBlob), lw = li.getWidth(), lh = li.getHeight(), lmax = 520;
-        if (lw > lmax) { li.setWidth(lmax); li.setHeight(Math.round(lh * lmax / lw)); }
+        var li = locP.appendInlineImage(locBlob), lw = li.getWidth(), lh = li.getHeight(), lmax = 468;
+        try { lmax = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eW) {}
+        if (lw !== lmax) { li.setWidth(lmax); li.setHeight(Math.round(lh * lmax / lw)); }
         try { locP.setAlignment(DocumentApp.HorizontalAlignment.LEFT); } catch (e6) {}
       } catch (eImg) {
         _acctBuildNote += ' Location map could not be placed: ' + eImg.message + '.';
@@ -9851,7 +9862,12 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   if (!lf) throw new Error('template is missing {{ITEM LINE}}');
   var row = lf.getElement().getParent().getParent().getParent().asTableRow(), tbl = row.getParent().asTable(), ri = tbl.getChildIndex(row);
   for (var m = list.length - 1; m >= 1; m--) { tbl.insertTableRow(ri + 1, row.copy()); }
-  for (var m2 = 0; m2 < list.length; m2++) { fillRow(tbl.getRow(ri + m2), 'ITEM LINE', list[m2].name); }
+  for (var m2 = 0; m2 < list.length; m2++) {
+    var rw = tbl.getRow(ri + m2);
+    fillRow(rw, 'ITEM LINE', list[m2].name);
+    try { if (rw.getNumCells() > 1) fillRaw(rw.getCell(1), 'Included', String(lines[m2].qty || 1)); } catch (eQ) { _acctBuildNote += ' Quantity cell: ' + eQ.message + '.'; }
+  }
+  try { if (ri > 0 && tbl.getRow(ri - 1).getNumCells() > 1) fillRaw(tbl.getRow(ri - 1).getCell(1), 'AMOUNT', 'QUANTITY'); } catch (eH2) {}
 
   // 3) Plain tokens (lines whose value is empty are removed)
   _acctStage = 'header block';
@@ -9927,7 +9943,7 @@ function handleAcctUpdateQuote(p) {
   if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
   var bulk = Number(p.bulkTotal);
   if (p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined || !(bulk >= 0) || bulk > 10000000) return { ok: false, error: 'Enter the total price for this quote.' };
-  var lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: 1, unit: '', price: 0 }; });
+  var lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id), unit: '', price: 0 }; });
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   var status;
   try {
@@ -9941,7 +9957,7 @@ function handleAcctUpdateQuote(p) {
     var lr = _acctNextRow(L);
     lines.forEach(function (ln, k) {
       var row = lr + k;
-      _acctPut(L, row, lm, { 'Quote #': q, 'Item ID': ln.itemId, 'Description': _acctText(ln.desc, 300), 'Qty': 1, 'Unit': '', 'Unit Price': 0, 'Amount': 0 });
+      _acctPut(L, row, lm, { 'Quote #': q, 'Item ID': ln.itemId, 'Description': _acctText(ln.desc, 300), 'Qty': ln.qty, 'Unit': '', 'Unit Price': 0, 'Amount': 0 });
     });
     var set = {
       'Category': cat, 'Site': _acctText(site, 200), 'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email,
