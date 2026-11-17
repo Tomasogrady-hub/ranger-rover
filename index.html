@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.08 -->
+<!-- v12.09 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -114,6 +114,7 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .nav-btn[data-tab="sub"]      {background:#E07A3F;color:#fff}
 .nav-btn[data-tab="threads"]  {background:#C9A227;color:#1e3a1e}
 .nav-btn[data-tab="projects"] {background:#7C9A5E;color:#14281a}
+.nav-btn[data-tab="quotes"]   {background:#2f6b35;color:#fff}
 .rr-load-ov .rr-thread{max-width:320px;font-size:15px;line-height:1.5;color:var(--stone);background:#f4faf6;border:1px solid var(--mist);border-radius:12px;padding:10px 14px;text-align:left}
 .rr-load-ov .rr-thread b{color:var(--ink)}
 .rr-load-ov .rr-thread .rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3B9E8E;margin-bottom:3px}
@@ -1344,6 +1345,32 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     <div id="projList" style="padding:0 16px 28px"><div class="spinner"></div></div>
   </div>
 
+  <div class="tab-pane" id="tab-quotes">
+    <div class="page-header">
+      <span class="page-title">Quotes</span>
+      <span class="page-count" id="quotesCount"></span>
+    </div>
+    <div style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
+      <input id="qtSearch" type="search" placeholder="Search quotes…" autocomplete="off" oninput="renderQuotes()"
+        style="flex:1;min-width:0;padding:12px 14px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;color:var(--ink);outline:none">
+      <button type="button" class="settings-btn" style="margin:0;width:auto;padding:12px 16px;white-space:nowrap" onclick="qtNewToggle()">＋ New quote</button>
+    </div>
+    <div style="padding:0 16px 4px;display:flex;gap:8px">
+      <select id="qtSort" class="settings-input" style="margin:0;flex:1;min-width:0" onchange="renderQuotes()">
+        <option value="new">Sort: Newest</option><option value="old">Sort: Oldest</option><option value="site">Sort: School A–Z</option><option value="amt">Sort: Amount (high first)</option>
+      </select>
+      <select id="qtStatusF" class="settings-input" style="margin:0;flex:1;min-width:0" onchange="renderQuotes()">
+        <option value="">All statuses</option><option value="__open__">Waiting on approval</option><option value="Draft">Draft</option><option value="Sent">Sent</option><option value="Approved">Approved</option><option value="Declined">Declined</option><option value="Expired">Expired</option>
+      </select>
+      <select id="qtTypeF" class="settings-input" style="margin:0;flex:1;min-width:0" onchange="renderQuotes()">
+        <option value="">Program + Maker</option><option value="Program">Program</option><option value="Maker">Maker</option>
+      </select>
+    </div>
+    <div id="qtFilterNote" class="sub-meta" style="padding:0 16px 10px"></div>
+    <div id="qtAddBox" style="display:none;padding:0 16px 12px"></div>
+    <div id="qtList" style="padding:0 16px 28px"><div class="spinner"></div></div>
+  </div>
+
   <div class="tab-pane" id="tab-threads">
     <div class="page-header">
       <span class="page-title">Threads</span>
@@ -2479,10 +2506,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.08';
+const APP_VERSION='v12.09';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 18:05 PT - Add New School button back on the Schools tab (Level 1-2); searches the master schools sheet.';
+const BUILD_STAMP='2026-11-16 20:52 PT - New Quotes tab (Level 1, or Level 2 if switched on): create, email and approve quotes from the app; saved to the Rover Accounting sheet.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3914,7 +3941,9 @@ function buildNav(lvl){
       r3html += thVisible ? _navBtn('threads','Threads') : '';
       const pjVisible = _navTabAllowed('projects',lvl);
       r3html += pjVisible ? _navBtn('projects','Projects') : '';
-      if(dataVisible || reachVisible || calVisible || thVisible || pjVisible){
+      const qtVisible = _navTabAllowed('quotes',lvl);
+      r3html += qtVisible ? _navBtn('quotes','Quotes') : '';
+      if(dataVisible || reachVisible || calVisible || thVisible || pjVisible || qtVisible){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
@@ -3965,7 +3994,7 @@ function showApp(){
 
 /* ═══ API ═══ */
 // Background polls that should never pop the garden thread card
-const _BUSY_SILENT=new Set(['publicMediaStart','publicMediaChunk','uploadPublicMedia','getInterviews','logActivity','getActivity','getAppSettings','getThreads','getAiSummaries','aiSummaryStatus','getMyLocation']);
+const _BUSY_SILENT=new Set(['publicMediaStart','publicMediaChunk','uploadPublicMedia','getInterviews','logActivity','getActivity','getAppSettings','getThreads','getAiSummaries','aiSummaryStatus','getMyLocation','acctGetData','acctGetQuote']);
 async function gasPost(payload){
   const quiet=_BUSY_SILENT.has(payload&&payload.action);
   if(!quiet)rrBusyStart();
@@ -4059,6 +4088,228 @@ function _opsResponseDropdown(id,current){
 }
 
 // ── THREADS (v11.76): short edible-gardening facts from the Threads sheet. Cached locally so the ladybug spinner can show one instantly.
+// ═══ QUOTES (v12.09): Rover Accounting sheet > Quotes. Levels 1-2 only. Lazy: nothing loads until the tab opens; the cached list paints instantly. ═══
+const QT_CK='rr_quotes_v1';
+let _qtItems=[],_qtQuotes=[];try{const _c=JSON.parse(localStorage.getItem(QT_CK)||'{}');_qtItems=_c.items||[];_qtQuotes=_c.quotes||[];}catch(e){_qtItems=[];_qtQuotes=[];}
+let _qtLoading=null,_qtOpen={},_qtLines={};
+function _qtCanUse(){return !!(SESSION&&Number(SESSION.accessLevel)<=2&&!SESSION.l25);}
+function _qtSave(){try{localStorage.setItem(QT_CK,JSON.stringify({items:_qtItems,quotes:_qtQuotes}));}catch(e){}}
+function _qtCall(action,extra){return gasPost(Object.assign({action:action,actor:SESSION.email},extra||{}));}
+function _qtMoney(n){return '$'+(Number(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+function _qtDate(d){const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return d?escHtml(d):'';return new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
+function _qtPill(st){
+  const c={Draft:['#eceae2','#555'],Sent:['#e3eefb','#1d4f8f'],Approved:['#e4f3e7','#1e6b34'],Declined:['#fbe7e5','#a3332b'],Expired:['#f1ead7','#7a6420']}[st]||['#eceae2','#555'];
+  return `<span class="imp-pill" style="font-size:12px;background:${c[0]};color:${c[1]};border-color:transparent">${escHtml(st||'Draft')}</span>`;
+}
+function loadQuotes(){
+  if(!CFG.URL)return Promise.resolve();
+  if(_qtLoading)return _qtLoading;
+  _qtLoading=_qtCall('acctGetData').then(r=>{
+    if(r&&r.ok){_qtItems=r.items||[];_qtQuotes=r.quotes||[];_qtSave();}
+    else if(!_qtQuotes.length){const el=document.getElementById('qtList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml((r&&r.error)||'Could not load quotes.')+'</div>';}
+  }).catch(()=>{}).finally(()=>{
+    _qtLoading=null;
+    if(_activeTab==='quotes'){renderQuotes();const b=document.getElementById('qtAddBox');if(b&&b.style.display==='block')_qtRefillItems();}
+  });
+  return _qtLoading;
+}
+function initQuotes(){
+  if(!_qtCanUse()){const el=document.getElementById('qtList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Quotes are for access levels 1-2.</div>';return;}
+  renderQuotes();loadQuotes();
+}
+function renderQuotes(){
+  const el=document.getElementById('qtList');if(!el||!_qtCanUse())return;
+  const g=id=>((document.getElementById(id)||{}).value||'');
+  const q=g('qtSearch').trim().toLowerCase(),sort=g('qtSort')||'new',sFil=g('qtStatusF'),tFil=g('qtTypeF');
+  let rows=_qtQuotes.filter(x=>(!sFil||(sFil==='__open__'?(x.status==='Draft'||x.status==='Sent'):x.status===sFil))&&(!tFil||x.category===tFil)&&(!q||(x.id+' '+x.site+' '+x.contactName+' '+x.contactEmail+' '+x.scope+' '+x.po).toLowerCase().indexOf(q)>-1));
+  const site=(a,b)=>String(a.site).localeCompare(String(b.site));
+  const cmp={new:(a,b)=>(String(b.date)<String(a.date)?-1:String(b.date)>String(a.date)?1:String(b.id).localeCompare(String(a.id))),old:(a,b)=>(String(a.date)<String(b.date)?-1:String(a.date)>String(b.date)?1:String(a.id).localeCompare(String(b.id))),site:site,amt:(a,b)=>(b.total-a.total)||site(a,b)}[sort]||site;
+  rows.sort(cmp);
+  const cnt=document.getElementById('quotesCount');if(cnt)cnt.textContent=_qtQuotes.length?(rows.length===_qtQuotes.length?String(rows.length):rows.length+' of '+_qtQuotes.length):'';
+  const note=document.getElementById('qtFilterNote');
+  if(note){
+    const stTxt=sFil==='__open__'?'quotes waiting on approval (drafts and sent)':sFil?sFil.toLowerCase()+' quotes':'quotes';
+    const tyTxt=tFil?tFil+' ':'';
+    const sum=rows.reduce((t,x)=>t+(Number(x.total)||0),0);
+    note.textContent=_qtQuotes.length?`Showing ${rows.length} ${tyTxt}${stTxt}${q?' matching "'+q+'"':''}, ${({new:'newest first',old:'oldest first',site:'by school A to Z',amt:'largest first'})[sort]||''}. Total ${_qtMoney(sum)}.`:'';
+  }
+  if(!_qtQuotes.length){el.innerHTML=_qtLoading?'<div class="spinner"></div>':'<div class="sub-meta" style="padding:14px 0;text-align:center">No quotes yet. Tap New quote.</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Nothing matches.</div>';return;}
+  el.innerHTML=rows.map(_qtCardHtml).join('');
+}
+function _qtCardHtml(x){
+  const open=!!_qtOpen[x.id],btn='margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)',i=ea(x.id);
+  const waiting=x.status==='Draft'||x.status==='Sent';
+  let detail='';
+  if(open){
+    const ln=_qtLines[x.id];
+    const lines=ln===undefined?'<div class="spinner"></div>':Array.isArray(ln)&&ln.length?`<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px"><tr style="color:var(--silver);text-align:left"><th style="padding:3px 0">Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr>${ln.map(l=>`<tr><td style="padding:3px 6px 3px 0">${escHtml(l.desc)}</td><td style="text-align:right;white-space:nowrap">${escHtml(l.qty)}${l.unit?' '+escHtml(l.unit):''}</td><td style="text-align:right;white-space:nowrap">${_qtMoney(l.amount)}</td></tr>`).join('')}</table>`:'<div class="sub-meta">No line items found.</div>';
+    detail=`<div style="margin-top:8px;font-size:14px;line-height:1.5;color:var(--stone)">
+      ${x.contactName||x.contactEmail?`<div><b>To:</b> ${escHtml(x.contactName)}${x.contactEmail?' &lt;'+escHtml(x.contactEmail)+'&gt;':''}</div>`:'<div><b>To:</b> no contact email yet</div>'}
+      ${x.scope?`<div style="margin-top:4px;white-space:pre-wrap">${escHtml(x.scope)}</div>`:''}
+      ${lines}
+      <div style="margin-top:6px;font-size:13px;color:var(--silver)">${x.validUntil?'Valid through '+_qtDate(x.validUntil)+' · ':''}${x.sentDate?'Emailed '+_qtDate(x.sentDate)+' · ':''}${x.approvedDate?'Approved '+_qtDate(x.approvedDate)+(x.po?' · PO '+escHtml(x.po):''):''}</div>
+      ${x.notes?`<div style="margin-top:4px"><b>Notes:</b> ${escHtml(x.notes)}</div>`:''}</div>`;
+  }
+  const acts=[`<button type="button" class="settings-btn" style="${btn}" onclick="qtToggle('${i}')">${open?'▴ Collapse':'▾ Expand'}</button>`];
+  if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtSend('${i}')">${x.status==='Sent'?'📧 Resend':'📧 Email quote'}</button>`);
+  if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtApprove('${i}')">✅ Record approval</button>`);
+  if(x.pdf)acts.push(`<a class="settings-btn" style="${btn};text-decoration:none;display:inline-block" href="${ea(x.pdf)}" target="_blank" rel="noopener">📄 PDF</a>`);
+  if(waiting&&x.link)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtCopyLink('${i}')">🔗 Copy approval link</button>`);
+  if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn};color:var(--danger)" onclick="qtStatus('${i}','Declined')">Mark declined</button>`);
+  if(x.status==='Declined'||x.status==='Expired')acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtStatus('${i}','Draft')">Reopen as draft</button>`);
+  return `<div class="th-card" id="qtc-${i}"><div style="display:flex;align-items:flex-start;gap:8px">
+      <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink)">${escHtml(x.site)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px">${_qtPill(x.status)}<span style="font-size:12px;color:var(--silver)">${escHtml(x.id)} · ${escHtml(x.category)} · ${_qtDate(x.date)}</span></div></div>
+      <div style="font-size:17px;font-weight:700;color:var(--ink);white-space:nowrap">${_qtMoney(x.total)}</div></div>
+    ${detail}<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${acts.join('')}</div></div>`;
+}
+function _qtReplace(shape){
+  if(!shape||!shape.id)return;
+  const k=_qtQuotes.findIndex(x=>x.id===shape.id);
+  if(k>-1)_qtQuotes[k]=shape;else _qtQuotes.unshift(shape);
+  _qtSave();
+}
+async function qtToggle(id){
+  _qtOpen[id]=!_qtOpen[id];renderQuotes();
+  if(_qtOpen[id]&&_qtLines[id]===undefined){
+    try{const r=await _qtCall('acctGetQuote',{id:id});_qtLines[id]=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];}catch(e){_qtLines[id]=[];}
+    renderQuotes();
+  }
+}
+async function qtSend(id){
+  const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
+  if(!x.contactEmail){showSaveToast('Add a contact email on the quote row in the sheet first');return;}
+  if(!confirm('Email quote '+x.id+' ('+_qtMoney(x.total)+') to '+(x.contactName?x.contactName+' ':'')+'<'+x.contactEmail+'>?'))return;
+  try{
+    const r=await _qtCall('acctSendQuote',{id:id});
+    if(r&&r.ok){_qtReplace(r.quote);renderQuotes();showSaveToast('✓ Quote emailed');return;}
+    showSaveToast((r&&r.error)||'Could not send');
+  }catch(e){showSaveToast('Connection error - not sent');}
+}
+async function qtApprove(id){
+  const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
+  const po=prompt('Customer PO number for '+x.id+' (leave blank if approved without a PO):','');
+  if(po===null)return;
+  try{
+    const r=await _qtCall('acctApproveQuote',{id:id,po:po.trim(),by:x.contactName||''});
+    if(r&&r.ok){_qtReplace(r.quote);renderQuotes();showSaveToast('✓ Approval recorded - see Purchase Orders and Approvals');return;}
+    showSaveToast((r&&r.error)||'Could not record');
+  }catch(e){showSaveToast('Connection error - not saved');}
+}
+async function qtStatus(id,st){
+  const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
+  if(st==='Declined'&&!confirm('Mark '+x.id+' as declined?'))return;
+  try{
+    const r=await _qtCall('acctSetStatus',{id:id,status:st});
+    if(r&&r.ok){_qtReplace(r.quote);renderQuotes();showSaveToast('✓ '+x.id+' is now '+st);return;}
+    showSaveToast((r&&r.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+}
+function qtCopyLink(id){
+  const x=_qtQuotes.find(v=>v.id===id);if(!x||!x.link)return;
+  const ok=()=>showSaveToast('✓ Approval link copied');
+  try{navigator.clipboard.writeText(x.link).then(ok,()=>prompt('Copy this link:',x.link));}catch(e){prompt('Copy this link:',x.link);}
+}
+
+// ── New quote form ──
+function _qtSchoolNames(){
+  const set={};(DATA.sites||[]).forEach(s=>{const n=String(sf(s,'Name','name')||'').trim();if(n)set[n]=1;});
+  return Object.keys(set).sort((a,b)=>a.localeCompare(b));
+}
+function _qtItemsFor(cat){return _qtItems.filter(i=>!cat||i.category===cat);}
+function _qtItemOpts(cat,sel){
+  return '<option value="">Custom line</option>'+_qtItemsFor(cat).map(i=>`<option value="${ea(i.id)}"${i.id===sel?' selected':''}>${escHtml(i.name)}</option>`).join('');
+}
+function qtNewToggle(show){
+  const b=document.getElementById('qtAddBox');if(!b)return;
+  const open=(typeof show==='boolean')?show:b.style.display==='none';
+  if(open){
+    const inp='class="edit-input" style="width:100%;margin-bottom:8px"';
+    b.innerHTML=`<div class="th-card">
+      <div style="display:flex;gap:8px"><select id="qtNCat" ${inp} onchange="_qtRefillItems()"><option>Program</option><option>Maker</option></select>
+        <input id="qtNSite" ${inp} list="qtSchools" maxlength="200" placeholder="School (start typing)" autocomplete="off" oninput="_qtSchoolPicked()" onchange="_qtSchoolPicked()"></div>
+      <datalist id="qtSchools">${_qtSchoolNames().map(n=>`<option value="${ea(n)}">`).join('')}</datalist>
+      <div style="display:flex;gap:8px"><input id="qtNName" ${inp} maxlength="120" placeholder="Contact name"><input id="qtNEmail" ${inp} type="email" maxlength="200" placeholder="Contact email"></div>
+      <div id="qtNHint" class="sub-meta" style="margin:-4px 0 8px"></div>
+      <textarea id="qtNScope" ${inp} rows="2" maxlength="2000" placeholder="Scope / what this quote covers"></textarea>
+      <div id="qtNLines"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px"><button type="button" class="settings-btn" style="margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)" onclick="_qtAddLine()">＋ Add line</button><div id="qtNTotal" style="margin-left:auto;font-size:17px;font-weight:700">$0.00</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">Save draft</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; email</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
+    _qtAddLine();
+  }
+  b.style.display=open?'block':'none';
+  if(open)setTimeout(()=>{const n=document.getElementById('qtNSite');if(n)n.focus();},50);
+}
+function _qtSchoolPicked(){
+  const v=((document.getElementById('qtNSite')||{}).value||'').trim().toLowerCase();
+  const s=(DATA.sites||[]).find(x=>String(sf(x,'Name','name')).trim().toLowerCase()===v);
+  const hint=document.getElementById('qtNHint');
+  if(!s){if(hint)hint.textContent='';return;}
+  let pe=String(sf(s,'Principal','principal')||'').trim(),nm=pe?hn(pe):'';
+  if(!pe){pe=String(sf(s,'Principal Email Raw')||'').trim();nm=(String(sf(s,'Principal First Name Raw')||'')+' '+String(sf(s,'Principal Last Name Raw')||'')).trim();}
+  const ne=document.getElementById('qtNName'),ee=document.getElementById('qtNEmail');
+  if(ne&&ee){ne.value=(nm&&nm!==pe)?nm:'';ee.value=pe;}
+  if(hint)hint.textContent=pe?'Contact filled in from the principal. Change it if the quote should go to someone else.':'No principal on file for this school. Add a contact email.';
+}
+function _qtAddLine(){
+  const wrap=document.getElementById('qtNLines');if(!wrap)return;
+  const cat=(document.getElementById('qtNCat')||{}).value||'';
+  const d=document.createElement('div');d.className='qt-line';d.style.cssText='border-top:1px solid var(--mist);padding-top:8px;margin-top:2px';
+  const inp='class="edit-input" style="width:100%;margin-bottom:6px"';
+  d.innerHTML=`<select class="qt-item edit-input" style="width:100%;margin-bottom:6px">${_qtItemOpts(cat,'')}</select>
+    <input class="qt-desc edit-input" style="width:100%;margin-bottom:6px" maxlength="300" placeholder="Description">
+    <div style="display:flex;gap:8px;align-items:center"><input class="qt-qty edit-input" style="width:80px;margin:0" type="number" inputmode="decimal" min="0" step="any" value="1" aria-label="Quantity">
+      <input class="qt-price edit-input" style="flex:1;min-width:0;margin:0" type="number" inputmode="decimal" min="0" step="any" placeholder="Unit price" aria-label="Unit price">
+      <div class="qt-amt" style="width:96px;text-align:right;font-weight:600">$0.00</div>
+      <button type="button" class="settings-btn qt-rm" style="margin:0;width:auto;padding:6px 10px;background:var(--mist);color:var(--ink)" aria-label="Remove line">✕</button></div>`;
+  wrap.appendChild(d);
+  d.querySelector('.qt-item').onchange=()=>{
+    const it=_qtItems.find(i=>i.id===d.querySelector('.qt-item').value);
+    if(it){d.querySelector('.qt-desc').value=it.name+(it.desc?' - '+it.desc:'');d.querySelector('.qt-price').value=it.price||'';d.dataset.unit=it.unit||'';}
+    _qtRecalc();
+  };
+  d.querySelector('.qt-qty').oninput=_qtRecalc;d.querySelector('.qt-price').oninput=_qtRecalc;
+  d.querySelector('.qt-rm').onclick=()=>{d.remove();_qtRecalc();};
+  _qtRecalc();
+}
+function _qtRefillItems(){
+  const cat=(document.getElementById('qtNCat')||{}).value||'';
+  document.querySelectorAll('#qtNLines .qt-item').forEach(s=>{const keep=s.value;s.innerHTML=_qtItemOpts(cat,keep);if(![...s.options].some(o=>o.value===keep))s.value='';});
+}
+function _qtRecalc(){
+  let t=0;
+  document.querySelectorAll('#qtNLines .qt-line').forEach(d=>{
+    const a=(Number(d.querySelector('.qt-qty').value)||0)*(Number(d.querySelector('.qt-price').value)||0);
+    d.querySelector('.qt-amt').textContent=_qtMoney(a);t+=a;
+  });
+  const el=document.getElementById('qtNTotal');if(el)el.textContent=_qtMoney(t);
+}
+async function qtSubmit(sendNow){
+  const v=id=>((document.getElementById(id)||{}).value||'').trim();
+  const lines=[];
+  document.querySelectorAll('#qtNLines .qt-line').forEach(d=>{
+    const desc=d.querySelector('.qt-desc').value.trim();if(!desc)return;
+    lines.push({itemId:d.querySelector('.qt-item').value,desc:desc,unit:d.dataset.unit||'',qty:Number(d.querySelector('.qt-qty').value)||0,price:Number(d.querySelector('.qt-price').value)||0});
+  });
+  if(!v('qtNSite')){showSaveToast('Choose a school');return;}
+  if(!lines.length){showSaveToast('Add at least one line with a description');return;}
+  if(lines.some(l=>!(l.qty>0))){showSaveToast('Every line needs a quantity above zero');return;}
+  if(sendNow&&!v('qtNEmail')){showSaveToast('Add a contact email to send the quote');return;}
+  const b1=document.getElementById('qtSaveBtn'),b2=document.getElementById('qtSendBtn');
+  [b1,b2].forEach(b=>{if(b)b.disabled=true;});
+  try{
+    const r=await _qtCall('acctCreateQuote',{category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),lines:lines,sendNow:!!sendNow});
+    if(r&&r.ok){
+      _qtReplace(r.quote);qtNewToggle(false);renderQuotes();
+      showSaveToast(r.sent?'✓ Quote '+r.id+' emailed':r.sendError?'Saved as draft - email failed: '+r.sendError:'✓ Draft '+r.id+' saved');
+      return;
+    }
+    showSaveToast((r&&r.error)||'Could not save');
+  }catch(e){showSaveToast('Connection error - not saved');}
+  [b1,b2].forEach(b=>{if(b)b.disabled=false;});
+}
+
 const THREADS_CK='rr_threads_v1';
 const THREADS_FALLBACK=[{id:'',name:'Tomato',content:'A tomato is both a fruit and a vegetable, depending on whether you look at it from a scientific or a cooking perspective.'}];
 let _threads=[];try{_threads=(JSON.parse(localStorage.getItem(THREADS_CK)||'[]')||[]).filter(t=>t&&t.name&&t.content);}catch(e){_threads=[];}
@@ -12067,7 +12318,7 @@ function switchTab(tab,initMapFlag=false){
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads'||tab==='projects')?'none':'block';
+  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads'||tab==='projects'||tab==='quotes')?'none':'block';
   if(tab==='map'||initMapFlag){
     setTimeout(()=>{
       initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();
@@ -12080,6 +12331,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='plants')initPlants();
   if(tab==='threads')initThreads();
   if(tab==='projects')initProjects();
+  if(tab==='quotes')initQuotes();
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
@@ -17820,6 +18072,7 @@ const NAV_ALL_TABS = [
   {key:'plants',   label:'🪴 Plants'},
   {key:'threads',  label:'🧵 Threads'},
   {key:'projects', label:'📌 Projects (Levels 1-2 only)'},
+  {key:'quotes',   label:'💲 Quotes (Level 1 always; Level 2 only if on)'},
   {key:'action',   label:'⚡ Action'},
   {key:'operations', label:'🧭 Operations'},
   {key:'reach',    label:'📡 Reach'},
@@ -17835,7 +18088,7 @@ const NAV_ALL_TABS = [
 // visible-for-everyone like ordinary tabs. Used for sensitive, opt-in-only
 // features (e.g. searching teammates' inboxes) where accidentally leaving a
 // checkbox pre-checked could grant access nobody intended to grant.
-const NAV_OPT_IN_ONLY = ['team_email_search_btn','ask_hints_add'];
+const NAV_OPT_IN_ONLY = ['team_email_search_btn','ask_hints_add','quotes'];
 
 // Default: all ordinary tabs visible for every level (opt-in-only keys start unchecked)
 function _nvDefaults(){
@@ -17930,6 +18183,12 @@ function _navTabAllowed(tabKey, lvl){
   // regardless of what's stored — same always-on rule already used below for
   // _teamEmailSearchAllowed.
   if(Number(lvl)===1)return true;
+  // Quotes (money): never for Level 3+, and for Level 2 only when switched on explicitly in the panel (opt-in, like team email search)
+  if(tabKey==='quotes'){
+    if(Number(lvl)>=3)return false;
+    const _qv=_appSettings.navVisibility,_qe=_qv?(_qv[lvl]!==undefined?_qv[lvl]:_qv[String(lvl)]):null;
+    return Array.isArray(_qe)&&_qe.includes('quotes');
+  }
   // Level 3 (field rangers) never get Operations or its card buttons, whatever the nav settings say
   if(Number(lvl)>=3&&(tabKey==='operations'||tabKey==='site_ops_btn'||tabKey==='projects'))return false;
   const vis=_appSettings.navVisibility;

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<title>Your quote | Enrich LA</title>
+<meta name="robots" content="noindex">
+<!-- quote.html v1.0 - 2026-11-16 - principal reviews and approves (or declines) a quote from the emailed link. Calls GAS publicQuoteInfo / publicQuoteRespond. -->
+<style>
+  :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b;--ok:#1e6b34;--okbg:#e4f3e7}
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#fff;line-height:1.5;font-size:17px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px 70px}
+  header{padding:24px 16px 8px;text-align:center}
+  header img{height:88px;width:auto;max-width:90%;display:block;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:12px;box-shadow:0 2px 10px rgba(30,58,30,.06)}
+  h1{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:30px;margin:4px 0 2px;color:var(--grove)}
+  .muted{color:var(--muted);font-size:14px}
+  .scope{background:var(--fog);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:15px;white-space:pre-wrap}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:15px}
+  th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 4px;border-bottom:2px solid var(--line)}
+  td{padding:9px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+  .r{text-align:right;white-space:nowrap}
+  .tot td{font-weight:700;font-size:18px;border-bottom:none;border-top:2px solid var(--grove)}
+  label{display:block;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:16px 0 5px}
+  input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+  button.go{width:100%;margin-top:18px;padding:15px;border:none;border-radius:11px;background:var(--orange);color:#fff;font-size:17px;font-weight:700;cursor:pointer}
+  button.go:disabled{background:#b9b6aa;cursor:not-allowed}
+  button.link{background:none;border:none;color:var(--muted);text-decoration:underline;font-size:15px;padding:14px 0 0;cursor:pointer;display:block;margin:0 auto}
+  .ok{background:var(--okbg);color:var(--ok);border-radius:12px;padding:18px;text-align:center}
+  .ok h1{color:var(--ok)}
+  .error{color:var(--err);font-size:15px;margin-top:12px}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--fog);font-size:13px;font-weight:600;color:var(--muted)}
+  footer{text-align:center;margin-top:26px;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:21px;color:var(--grove);padding:8px 16px}
+</style>
+</head>
+<body>
+<header><a href="https://www.enrichla.org/" title="Enrich LA home" style="display:block;line-height:0"><img src="enrich-logo.png" alt="Enrich LA"></a></header>
+<div class="wrap" id="app"><div class="card muted" style="text-align:center">One moment...</div></div>
+<script>
+(function(){
+  var FALLBACK_URL='https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec';
+  var GAS_URL=FALLBACK_URL;
+  try{GAS_URL=localStorage.getItem('rr_gas_url')||FALLBACK_URL;}catch(e){}
+  var qs=new URLSearchParams(location.search), Q=qs.get('q')||'', T=qs.get('t')||'', app=document.getElementById('app');
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function money(n){return '$'+(Number(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+  function raw(action,extra){return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action:action},extra||{}))}).then(function(r){return r.json();});}
+  function card(h){app.innerHTML='<div class="card">'+h+'</div>';}
+  function bad(msg){card('<div class="error">'+esc(msg||'Sorry, something went wrong. Please reply to the email instead.')+'</div>');}
+
+  function render(r){
+    var qt=r.quote, rows=r.lines.map(function(l){
+      return '<tr><td>'+esc(l.desc)+'</td><td class="r">'+esc(l.qty)+(l.unit?' '+esc(l.unit):'')+'</td><td class="r">'+money(l.amount)+'</td></tr>';
+    }).join('');
+    var head='<span class="badge">Quote '+esc(qt.id)+'</span><h1>'+esc(qt.site)+'</h1><div class="muted">From '+esc(r.org)+(qt.validUntil?' &middot; valid through '+esc(qt.validUntil):'')+'</div>'+
+      (qt.scope?'<div class="scope">'+esc(qt.scope)+'</div>':'')+
+      '<table><tr><th>Item</th><th class="r">Qty</th><th class="r">Amount</th></tr>'+rows+'<tr class="tot"><td>Total</td><td></td><td class="r">'+money(qt.total)+'</td></tr></table>';
+    if(qt.status==='Approved'){card(head+'<div class="ok" style="margin-top:16px"><h1>Approved</h1><div>This quote has already been approved. Thank you!</div></div>');return;}
+    if(qt.status==='Declined'){card(head+'<div class="muted" style="margin-top:16px">This quote was declined. If that was a mistake, please reply to the email.</div>');return;}
+    if(qt.expired){card(head+'<div class="error">This quote has expired. Please reply to the email and we will send an updated quote.</div>');return;}
+    card(head+
+      '<label for="nm">Your name</label><input id="nm" autocomplete="name">'+
+      '<label for="po">Purchase order number (if you have one)</label><input id="po" autocomplete="off">'+
+      '<button class="go" id="ok">Approve this quote</button>'+
+      '<button class="link" id="no">Decline</button><div class="error" id="err"></div>');
+    var ok=document.getElementById('ok'), no=document.getElementById('no'), err=document.getElementById('err');
+    function send(decision){
+      err.textContent='';
+      var name=document.getElementById('nm').value.trim();
+      if(decision==='approve'&&!name){err.textContent='Please enter your name.';return;}
+      if(decision==='decline'&&!confirm('Decline this quote?'))return;
+      ok.disabled=true;no.disabled=true;ok.textContent='Sending...';
+      raw('publicQuoteRespond',{q:Q,t:T,decision:decision,name:name,po:document.getElementById('po').value.trim()}).then(function(x){
+        if(x&&x.ok){card('<div class="ok"><h1>'+(decision==='approve'?'Thank you!':'Response recorded')+'</h1><div>'+esc(x.message||'')+'</div></div>');return;}
+        err.textContent=(x&&x.error)||'Sorry, something went wrong.';ok.disabled=false;no.disabled=false;ok.textContent='Approve this quote';
+      }).catch(function(){err.textContent='Connection problem. Please try again.';ok.disabled=false;no.disabled=false;ok.textContent='Approve this quote';});
+    }
+    ok.onclick=function(){send('approve');};
+    no.onclick=function(){send('decline');};
+  }
+
+  if(!Q||!T){bad('This link is not valid.');return;}
+  raw('getAppSettings').then(function(r){if(r&&r.gasUrl&&r.gasUrl!==GAS_URL){GAS_URL=r.gasUrl;try{localStorage.setItem('rr_gas_url',GAS_URL);}catch(e){}}}).catch(function(){})
+  .then(function(){return raw('publicQuoteInfo',{q:Q,t:T});})
+  .then(function(r){if(!r||!r.ok){bad(r&&r.error);return;}render(r);})
+  .catch(function(){bad();});
+})();
+</script>
+<footer>Thank you for growing with us</footer>
+</body>
+</html>

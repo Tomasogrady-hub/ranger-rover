@@ -799,6 +799,13 @@ function _doPostRoute(e) {
       case 'addProject':    return respond(handleAddProject(p));
       case 'updateProject': return respond(handleUpdateProject(p));
       case 'deleteProject': return respond(handleDeleteProject(p));
+      // ── ACCOUNTING / QUOTES (v12.09; Levels 1-2, checked server-side) ────────────
+      case 'acctGetData':      return respond(handleAcctGetData(p));
+      case 'acctGetQuote':     return respond(handleAcctGetQuote(p));
+      case 'acctCreateQuote':  return respond(handleAcctCreateQuote(p));
+      case 'acctSendQuote':    return respond(handleAcctSendQuote(p));
+      case 'acctApproveQuote': return respond(handleAcctApproveQuote(p));
+      case 'acctSetStatus':    return respond(handleAcctSetStatus(p));
       case 'getRolesAdmin': return respond(handleGetRolesAdmin());
       case 'saveRoleRow':   return respond(handleSaveRoleRow(p));
       case 'addRoleRow':    return respond(handleAddRoleRow(p));
@@ -887,6 +894,8 @@ function _doPostRoute(e) {
       case 'publicApplicantReply':      return respond(handlePublicApplicantReply(p));
       case 'publicInterviewInfo':       return respond(handlePublicInterviewInfo(p));
       case 'publicInterviewChoose':     return respond(handlePublicInterviewChoose(p));
+      case 'publicQuoteInfo':           return respond(handlePublicQuoteInfo(p));
+      case 'publicQuoteRespond':        return respond(handlePublicQuoteRespond(p));
       case 'publicInterviewSuggest':    return respond(handlePublicInterviewSuggest(p));
       case 'publicInterviewDecline':    return respond(handlePublicInterviewDecline(p));
 
@@ -9236,4 +9245,396 @@ function handleDeleteHuman(p) {
     logActivity(p.actor || '', 'deleted person', label, 'person', victim);
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACCOUNTING / QUOTES (v12.09)
+// Quotes are created and emailed from the app (Quotes tab, Levels 1-2). Data lives in
+// the "Rover Accounting" sheet (tabs: Quotes, Quote Lines, Accounting Items,
+// Purchase Orders and Approvals, Invoices, Accounting). PO -> invoice -> payment is still
+// done from that sheet's own Accounting menu. Quote / PA numbers are derived from the
+// sheet itself (max existing number + 1) so the app and the sheet script never collide.
+// Optional Script Properties for the PDF letterhead: acct_org_address, acct_org_phone, acct_org_ein
+// ═══════════════════════════════════════════════════════════════════════════════
+const ACCT_ID = '1aBDr2NswdzHD61XYn9ggYwAmQxBUua57cxNphCtlgEs'; // "Rover Accounting" spreadsheet
+const ACCT_FOLDERS = {
+  Program: '1adz4VlMZbpLpaOBjehoNacvPwfsA8Sa2', // Accounting > Quotes > Program Quotes
+  Maker:   '1bjWzDcdxc1mND9eUw8prrOWM5WUtcuy8'  // Accounting > Quotes > Maker Quotes
+};
+const ACCT_QUOTE_VALID_DAYS = 30;
+const ACCT_ORG_NAME  = 'Enrich LA';
+const ACCT_ORG_EMAIL = 'tomasogrady@enrichla.org';
+const ACCT_PUBLIC_PAGE = 'https://tomasogrady-hub.github.io/ranger-rover/quote.html';
+
+function _acctSheet(name) {
+  var s = SpreadsheetApp.openById(ACCT_ID).getSheetByName(name);
+  if (!s) throw new Error('Rover Accounting is missing the "' + name + '" tab.');
+  return s;
+}
+function _acctHdr(sh) {
+  var h = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0], m = {};
+  h.forEach(function (x, i) { var k = String(x).trim(); if (k) m[k] = i + 1; });
+  return m;
+}
+function _acctLetter(n) {
+  var s = '';
+  while (n > 0) { var r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function _acctNextRow(sh) {
+  var v = sh.getRange(1, 1, sh.getMaxRows(), 1).getValues(), last = 1;
+  for (var i = 0; i < v.length; i++) if (v[i][0] !== '') last = i + 1;
+  return last + 1;
+}
+function _acctFind(sh, m, header, value) {
+  var c = m[header];
+  if (!c) throw new Error('Column "' + header + '" not found on ' + sh.getName() + '.');
+  var v = sh.getRange(1, c, sh.getMaxRows(), 1).getValues();
+  for (var i = 1; i < v.length; i++) if (String(v[i][0]) === String(value)) return i + 1;
+  return 0;
+}
+function _acctRowObj(sh, row, m) {
+  var v = sh.getRange(row, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0], o = {};
+  for (var k in m) o[k] = v[m[k] - 1];
+  return o;
+}
+function _acctPut(sh, row, m, obj) {
+  var n = 0, k;
+  for (k in obj) { if (!m[k]) throw new Error('Column "' + k + '" not found on ' + sh.getName() + '.'); if (m[k] > n) n = m[k]; }
+  var arr = []; for (var i = 0; i < n; i++) arr.push('');
+  for (k in obj) arr[m[k] - 1] = obj[k];
+  if (row > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), row - sh.getMaxRows() + 50);
+  sh.getRange(row, 1, 1, n).setValues([arr]);
+}
+function _acctSet(sh, row, m, obj) {
+  for (var k in obj) {
+    if (!m[k]) throw new Error('Column "' + k + '" not found on ' + sh.getName() + '.');
+    sh.getRange(row, m[k]).setValue(obj[k]);
+  }
+}
+function _acctNext(prefix, sh, m, header) {
+  var yr = new Date().getFullYear(), c = m[header];
+  if (!c) throw new Error('Column "' + header + '" not found on ' + sh.getName() + '.');
+  var v = sh.getRange(1, c, sh.getMaxRows(), 1).getValues(), max = 0;
+  var re = new RegExp('^' + prefix + '-' + yr + '-(\\d+)$');
+  for (var i = 1; i < v.length; i++) {
+    var mt = re.exec(String(v[i][0]));
+    if (mt && Number(mt[1]) > max) max = Number(mt[1]);
+  }
+  return prefix + '-' + yr + '-' + ('0000' + (max + 1)).slice(-4);
+}
+function _acctIso(d) {
+  if (d instanceof Date && !isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return d ? String(d) : '';
+}
+function _acctFmtDate(d) {
+  if (d instanceof Date && !isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), 'MMM d, yyyy');
+  return String(d || '');
+}
+function _acctMoney(n) { n = Number(n) || 0; return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function _acctEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function _acctText(v, max) { return _projSafe(String(v == null ? '' : v).substring(0, max)); }
+
+// Server-side check: the caller must be a Humans row with Access Level 1 or 2 (cached 5 min).
+function _acctLevelOk(p) {
+  var em = String((p && p.actor) || '').trim().toLowerCase();
+  if (!em) return false;
+  var cache = CacheService.getScriptCache(), key = 'acct_lvl_' + em, hit = cache.get(key);
+  if (hit !== null) return hit === '1';
+  var ok = false;
+  try {
+    var v = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans').getDataRange().getValues();
+    var ei = -1, li = -1;
+    v[0].forEach(function (x, i) { var k = String(x).trim(); if (k === 'Email') ei = i; if (k === 'Access Level') li = i; });
+    if (ei > -1 && li > -1) {
+      for (var r = 1; r < v.length; r++) {
+        if (String(v[r][ei]).trim().toLowerCase() === em) {
+          var lv = Number(v[r][li]);
+          ok = lv >= 1 && lv <= 2;
+          break;
+        }
+      }
+    }
+  } catch (e) { ok = false; }
+  cache.put(key, ok ? '1' : '0', 300);
+  return ok;
+}
+
+function _acctLines(q) {
+  var L = _acctSheet('Quote Lines'), m = _acctHdr(L), v = L.getDataRange().getValues(), out = [];
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][m['Quote #'] - 1]) !== String(q)) continue;
+    var qty = Number(v[i][m['Qty'] - 1]) || 0, price = Number(v[i][m['Unit Price'] - 1]) || 0;
+    out.push({
+      itemId: String(v[i][m['Item ID'] - 1] || ''), desc: String(v[i][m['Description'] - 1] || ''),
+      qty: qty, unit: String(v[i][m['Unit'] - 1] || ''), price: price, amount: Math.round(qty * price * 100) / 100
+    });
+  }
+  return out;
+}
+function _acctSum(lines) {
+  var t = 0; lines.forEach(function (l) { t += l.amount; });
+  return Math.round(t * 100) / 100;
+}
+function _acctQuoteShape(o) {
+  var tok = String(o['Token'] || '');
+  return {
+    id: String(o['Quote #'] || ''), date: _acctIso(o['Date']), validUntil: _acctIso(o['Valid Until']),
+    category: String(o['Category'] || ''), site: String(o['Site'] || ''), contactName: String(o['Contact Name'] || ''),
+    contactEmail: String(o['Contact Email'] || ''), scope: String(o['Scope'] || ''), total: Number(o['Total']) || 0,
+    status: String(o['Status'] || ''), sentDate: _acctIso(o['Sent Date']), approvedDate: _acctIso(o['Approved Date']),
+    po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Notes'] || ''),
+    link: tok ? ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(String(o['Quote #'])) + '&t=' + encodeURIComponent(tok) : ''
+  };
+}
+
+// ── list: price list + quotes (newest first, capped) ──────────────────────────
+function handleAcctGetData(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try {
+    var I = _acctSheet('Accounting Items'), im = _acctHdr(I), iv = I.getDataRange().getValues(), items = [];
+    for (var i = 1; i < iv.length; i++) {
+      var id = String(iv[i][(im['Item ID'] || 1) - 1] || '').trim();
+      if (!id) continue;
+      var act = iv[i][(im['Active'] || 1) - 1];
+      if (act === false || /^(false|no)$/i.test(String(act))) continue;
+      items.push({
+        id: id, category: String(iv[i][im['Category'] - 1] || ''), name: String(iv[i][im['Item Name'] - 1] || ''),
+        desc: String(iv[i][im['Description'] - 1] || ''), unit: String(iv[i][im['Unit'] - 1] || ''),
+        price: Number(iv[i][im['Unit Price'] - 1]) || 0
+      });
+    }
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), qv = Q.getDataRange().getValues(), quotes = [];
+    for (var r = 1; r < qv.length; r++) {
+      var qid = String(qv[r][qm['Quote #'] - 1] || '').trim();
+      if (!qid) continue;
+      var o = {};
+      for (var k in qm) o[k] = qv[r][qm[k] - 1];
+      quotes.push(_acctQuoteShape(o));
+    }
+    quotes.reverse();
+    if (quotes.length > 400) quotes = quotes.slice(0, 400);
+    return { ok: true, items: items, quotes: quotes };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function handleAcctGetQuote(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try { return { ok: true, lines: _acctLines(String(p.id || '')) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── create (draft) and optionally email ──────────────────────────────────────
+function handleAcctCreateQuote(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var cat = String(p.category || '');
+  if (!ACCT_FOLDERS[cat]) return { ok: false, error: 'Choose Program or Maker.' };
+  var site = String(p.site || '').trim();
+  if (!site) return { ok: false, error: 'Choose a school.' };
+  var email = String(p.contactEmail || '').trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'That contact email does not look right.' };
+  if (p.sendNow && !email) return { ok: false, error: 'Add a contact email to send the quote.' };
+  var lines = (p.lines || []).filter(function (l) { return l && String(l.desc || '').trim(); });
+  if (!lines.length) return { ok: false, error: 'Add at least one line item.' };
+  if (lines.length > 40) return { ok: false, error: 'Too many lines (40 max).' };
+  for (var i = 0; i < lines.length; i++) {
+    var qty = Number(lines[i].qty), pr = Number(lines[i].price);
+    if (!(qty > 0) || !(pr >= 0) || qty > 100000 || pr > 10000000) return { ok: false, error: 'Check quantity and price on line ' + (i + 1) + '.' };
+  }
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  var q, shape;
+  try {
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), L = _acctSheet('Quote Lines'), lm = _acctHdr(L);
+    q = _acctNext('Q', Q, qm, 'Quote #');
+    var now = new Date(), valid = new Date(now.getTime() + (Number(p.validDays) || ACCT_QUOTE_VALID_DAYS) * 86400000);
+    var lr = _acctNextRow(L);
+    lines.forEach(function (ln, i) {
+      var r = lr + i;
+      _acctPut(L, r, lm, {
+        'Quote #': q, 'Item ID': _acctText(ln.itemId, 40), 'Description': _acctText(ln.desc, 300),
+        'Qty': Number(ln.qty), 'Unit': _acctText(ln.unit, 30), 'Unit Price': Number(ln.price),
+        'Amount': '=' + _acctLetter(lm['Qty']) + r + '*' + _acctLetter(lm['Unit Price']) + r
+      });
+    });
+    var qr = _acctNextRow(Q), qa = _acctLetter(lm['Quote #']), am = _acctLetter(lm['Amount']);
+    _acctPut(Q, qr, qm, {
+      'Quote #': q, 'Date': now, 'Valid Until': valid, 'Category': cat, 'Site': _acctText(site, 200),
+      'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email, 'Scope': _acctText(p.scope, 2000),
+      'Total': "=SUMIF('Quote Lines'!" + qa + ':' + qa + ',' + _acctLetter(qm['Quote #']) + qr + ",'Quote Lines'!" + am + ':' + am + ')',
+      'Status': 'Draft', 'Notes': _acctText(p.notes, 2000), 'Token': Utilities.getUuid()
+    });
+    SpreadsheetApp.flush();
+    shape = _acctQuoteShape(_acctRowObj(Q, qr, qm));
+  } finally { lock.releaseLock(); }
+  var out = { ok: true, id: q, quote: shape };
+  if (p.sendNow) {
+    try { out.quote = _acctSendQuote(q); out.sent = true; }
+    catch (e) { out.sendError = e.message; }
+  }
+  return out;
+}
+
+// ── email the quote (PDF to Drive + email with Approve link) ─────────────────
+function _acctDocHtml(o) {
+  var props = PropertiesService.getScriptProperties();
+  var addr = props.getProperty('acct_org_address') || '', phone = props.getProperty('acct_org_phone') || '', ein = props.getProperty('acct_org_ein') || '';
+  var rows = o.lines.map(function (l) {
+    return '<tr><td>' + _acctEsc(l.desc) + '</td><td class="r">' + l.qty + '</td><td>' + _acctEsc(l.unit) + '</td><td class="r">' + _acctMoney(l.price) + '</td><td class="r">' + _acctMoney(l.amount) + '</td></tr>';
+  }).join('');
+  var bill = (o.billTo || []).filter(function (x) { return x; }).map(_acctEsc).join('<br>');
+  return '<html><head><style>' +
+    'body{font-family:Arial,sans-serif;font-size:12px;color:#222}h1{margin:0;font-size:26px;color:#2e7d32}' +
+    'table{width:100%;border-collapse:collapse;margin-top:18px}th{background:#2e7d32;color:#fff;text-align:left;padding:7px}' +
+    'td{padding:7px;border-bottom:1px solid #ddd}.r{text-align:right}.tot td{font-weight:bold;font-size:14px;border-top:2px solid #222}' +
+    '.meta{margin-top:14px}.small{color:#666;font-size:10px;margin-top:26px}</style></head><body>' +
+    '<table style="margin:0"><tr><td style="border:0;padding:0"><h1>' + _acctEsc(o.title) + '</h1><b>' + _acctEsc(ACCT_ORG_NAME) + '</b>' +
+    (addr ? '<br>' + _acctEsc(addr) : '') + (phone ? '<br>' + _acctEsc(phone) : '') + '<br>' + _acctEsc(ACCT_ORG_EMAIL) + (ein ? '<br>EIN ' + _acctEsc(ein) : '') + '</td>' +
+    '<td style="border:0;padding:0;text-align:right;vertical-align:top"><div><b>' + _acctEsc(o.title) + ' #:</b> ' + _acctEsc(o.number) + '</div>' +
+    '<div><b>Date:</b> ' + _acctFmtDate(o.date) + '</div><div><b>' + _acctEsc(o.refLabel) + ':</b> ' + _acctEsc(o.refValue) + '</div></td></tr></table>' +
+    '<div class="meta"><b>Prepared for</b><br>' + bill + '</div>' +
+    (o.scope ? '<div class="meta"><b>Scope</b><br>' + _acctEsc(o.scope) + '</div>' : '') +
+    '<table><tr><th>Description</th><th class="r">Qty</th><th>Unit</th><th class="r">Unit price</th><th class="r">Amount</th></tr>' + rows +
+    '<tr class="tot"><td colspan="4" class="r">Total</td><td class="r">' + _acctMoney(o.total) + '</td></tr></table>' +
+    '<div class="small">' + _acctEsc(o.footer || '') + '</div></body></html>';
+}
+
+function _acctSendQuote(q) {
+  var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
+  if (!r) throw new Error('Quote not found: ' + q);
+  var o = _acctRowObj(Q, r, qm);
+  if (o['Status'] === 'Approved') throw new Error(q + ' is already approved.');
+  if (o['Status'] === 'Declined') throw new Error(q + ' was declined. Change its status back to Draft first.');
+  var to = String(o['Contact Email'] || '').trim();
+  if (!to) throw new Error('This quote has no contact email.');
+  var folderId = ACCT_FOLDERS[String(o['Category'])];
+  if (!folderId) throw new Error('This quote has no Program / Maker type.');
+  var lines = _acctLines(q);
+  if (!lines.length) throw new Error('This quote has no line items.');
+  var total = _acctSum(lines), site = String(o['Site']);
+  var valid = o['Valid Until'] instanceof Date ? o['Valid Until'] : new Date(Date.now() + ACCT_QUOTE_VALID_DAYS * 86400000);
+
+  var html = _acctDocHtml({
+    title: 'QUOTE', number: q, date: o['Date'], refLabel: 'Valid until', refValue: _acctFmtDate(valid),
+    billTo: [site, o['Contact Name'], to], scope: o['Scope'], lines: lines, total: total,
+    footer: 'This quote is an offer only and is not a contract until approved by the customer. Pricing is valid through ' + _acctFmtDate(valid) + '.'
+  });
+  var pdf = Utilities.newBlob(html, 'text/html', q + '.html').getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
+  var file = DriveApp.getFolderById(folderId).createFile(pdf);
+  var old = String(o['PDF Link'] || '').match(/[-\w]{25,}/);
+  if (old) { try { DriveApp.getFileById(old[0]).setTrashed(true); } catch (e) {} }
+
+  var link = ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(q) + '&t=' + encodeURIComponent(String(o['Token']));
+  var cn = String(o['Contact Name'] || '').trim();
+  var body = '<p>Hello ' + _acctEsc(cn.split(' ')[0] || 'there') + ',</p>' +
+    '<p>Attached is quote <b>' + _acctEsc(q) + '</b> for <b>' + _acctEsc(site) + '</b>, total <b>' + _acctMoney(total) + '</b>, valid through ' + _acctFmtDate(valid) + '.</p>' +
+    '<p><a href="' + link + '" style="background:#2f6b35;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold">Review &amp; approve this quote</a></p>' +
+    '<p>You can also just reply to this email with your purchase order or written approval.</p>' +
+    '<p>Thank you,<br>' + _acctEsc(ACCT_ORG_NAME) + '</p>';
+  GmailApp.sendEmail(to, 'Quote ' + q + ' from ' + ACCT_ORG_NAME + ' - ' + site, 'Quote ' + q + ' for ' + site + ' - total ' + _acctMoney(total) + '. Approve here: ' + link, {
+    htmlBody: body, attachments: [file.getBlob()], name: ACCT_ORG_NAME, replyTo: ACCT_ORG_EMAIL, bcc: ACCT_ORG_EMAIL
+  });
+  _acctSet(Q, r, qm, { 'Status': 'Sent', 'Sent Date': new Date(), 'PDF Link': file.getUrl() });
+  SpreadsheetApp.flush();
+  return _acctQuoteShape(_acctRowObj(Q, r, qm));
+}
+
+function handleAcctSendQuote(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try { return { ok: true, quote: _acctSendQuote(String(p.id || '')) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── approval -> Purchase Orders and Approvals row ────────────────────────────
+function _acctApprove(q, info) {
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
+    if (!r) throw new Error('Quote not found: ' + q);
+    var o = _acctRowObj(Q, r, qm);
+    if (o['Status'] === 'Approved') throw new Error(q + ' is already approved.');
+    var total = _acctSum(_acctLines(q)), now = new Date(), po = _acctText(info.po, 60);
+    _acctSet(Q, r, qm, { 'Status': 'Approved', 'Approved Date': now, 'PO #': po });
+    var P = _acctSheet('Purchase Orders and Approvals'), pm = _acctHdr(P);
+    _acctPut(P, _acctNextRow(P), pm, {
+      'Record ID': _acctNext('PA', P, pm, 'Record ID'), 'Quote #': q, 'Site': o['Site'], 'Category': o['Category'], 'PO #': po,
+      'Approval Date': now, 'Approved By': _acctText(info.by, 120), 'Method': info.method || '', 'Amount': total,
+      'Document Link': '', 'Status': 'Open', 'Invoice #': '', 'Notes': ''
+    });
+    SpreadsheetApp.flush();
+    return _acctQuoteShape(_acctRowObj(Q, r, qm));
+  } finally { lock.releaseLock(); }
+}
+
+function handleAcctApproveQuote(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try {
+    var by = String(p.by || '').trim() || String(p.actor || '');
+    var shape = _acctApprove(String(p.id || ''), { po: p.po, by: by, method: String(p.po || '').trim() ? 'PO received' : 'Written approval' });
+    return { ok: true, quote: shape };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function handleAcctSetStatus(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var st = String(p.status || '');
+  if (['Draft', 'Declined', 'Expired'].indexOf(st) < 0) return { ok: false, error: 'That status cannot be set here.' };
+  try {
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', String(p.id || ''));
+    if (!r) return { ok: false, error: 'Quote not found.' };
+    var o = _acctRowObj(Q, r, qm);
+    if (o['Status'] === 'Approved') return { ok: false, error: 'Approved quotes cannot be changed here.' };
+    _acctSet(Q, r, qm, { 'Status': st });
+    SpreadsheetApp.flush();
+    return { ok: true, quote: _acctQuoteShape(_acctRowObj(Q, r, qm)) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ── public approval page (quote.html): token-checked, no login ────────────────
+function _acctPublicFind(p) {
+  var q = String(p.q || '').trim(), t = String(p.t || '').trim();
+  if (!q || !t) return null;
+  var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
+  if (!r) return null;
+  var o = _acctRowObj(Q, r, qm);
+  if (String(o['Token'] || '') !== t) return null;
+  return { Q: Q, qm: qm, row: r, o: o, q: q };
+}
+function handlePublicQuoteInfo(p) {
+  try {
+    var f = _acctPublicFind(p);
+    if (!f) return { ok: false, error: 'This link is not valid.' };
+    var lines = _acctLines(f.q), valid = f.o['Valid Until'];
+    var expired = valid instanceof Date && valid.getTime() + 86400000 < Date.now();
+    return {
+      ok: true, org: ACCT_ORG_NAME,
+      quote: { id: f.q, site: String(f.o['Site'] || ''), scope: String(f.o['Scope'] || ''), status: String(f.o['Status'] || ''),
+               validUntil: _acctFmtDate(valid), expired: !!expired, total: _acctSum(lines), po: String(f.o['PO #'] || '') },
+      lines: lines.map(function (l) { return { desc: l.desc, qty: l.qty, unit: l.unit, price: l.price, amount: l.amount }; })
+    };
+  } catch (e) { return { ok: false, error: 'Something went wrong. Please try again.' }; }
+}
+function handlePublicQuoteRespond(p) {
+  try {
+    var f = _acctPublicFind(p);
+    if (!f) return { ok: false, error: 'This link is not valid.' };
+    var st = String(f.o['Status'] || '');
+    if (st === 'Approved') return { ok: true, already: true, message: 'This quote has already been approved. Thank you!' };
+    var site = String(f.o['Site'] || '');
+    if (String(p.decision) === 'decline') {
+      _acctSet(f.Q, f.row, f.qm, { 'Status': 'Declined' });
+      try { GmailApp.sendEmail(ACCT_ORG_EMAIL, 'Quote ' + f.q + ' declined - ' + site, 'The customer declined quote ' + f.q + ' for ' + site + '.'); } catch (e) {}
+      return { ok: true, message: 'Your response has been recorded.' };
+    }
+    var valid = f.o['Valid Until'];
+    if (valid instanceof Date && valid.getTime() + 86400000 < Date.now()) return { ok: false, error: 'This quote has expired. Please contact us for an updated quote.' };
+    var name = String(p.name || '').trim();
+    if (!name) return { ok: false, error: 'Please enter your name.' };
+    var po = String(p.po || '').trim();
+    _acctApprove(f.q, { po: po, by: name, method: 'Email link' });
+    try { GmailApp.sendEmail(ACCT_ORG_EMAIL, 'Quote ' + f.q + ' approved - ' + site, 'Approved by ' + name + (po ? ', PO # ' + po : '') + '. A record was added to Purchase Orders and Approvals in the Rover Accounting sheet.'); } catch (e) {}
+    return { ok: true, message: 'Thank you! Your approval has been recorded.' };
+  } catch (e) { return { ok: false, error: e.message === 'Quote not found: ' + String(p.q) ? 'This link is not valid.' : 'Something went wrong. Please try again.' }; }
 }
