@@ -9478,7 +9478,7 @@ function handleAcctCreateQuote(p) {
     if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
     bulk = Number(p.bulkTotal);
     if (!(bulk >= 0) || bulk > 10000000 || p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined) return { ok: false, error: 'Enter the total price for this quote.' };
-    lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id), unit: '', price: 0 }; });
+    lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id).qty, unit: _acctQty(p, id).unit, price: 0 }; });
   } else {
     lines = (p.lines || []).filter(function (l) { return l && String(l.desc || '').trim(); });
     if (!lines.length) return { ok: false, error: 'Add at least one line item.' };
@@ -9685,6 +9685,14 @@ function handleAcctDraftEmail(p) {
 // Quote Items are Items All rows with Type 1 = "Quote Item". The quote is built from the
 // Google Doc template "Quote Maker Form 1" (Actual Forms folder): {{tokens}} are replaced and the
 // {{ITEMS}} line becomes one block per item (name, description, photo). One bulk total, no line pricing.
+// "Our Work" photos printed at the end of every item-list quote (Drive file ids, captions as shown).
+const ACCT_OUR_WORK = [
+  { id: '1vDvJCNb8FT0KDDtIBrmqrfzNFDJKP58h', cap: 'Insect Tower at Superior Elementary School' },
+  { id: '1cNYvCnTil-5ImSiTuKhwzBKM9CJlVDOI', cap: "Coeur d'Alene Avenue Elementary School Garden" },
+  { id: '1W6m4MJI4AwpYDpXhXlUgoCjDjZQSc1sa', cap: 'Dixie Canyon Elementary School Garden' },
+  { id: '1oGsEXa9OeGs3pUx5zF9qnvOyzGSPbJKX', cap: 'Nora Sterry Elementary School Garden' }
+];
+const ACCT_FONT_BODY = 'Outfit', ACCT_FONT_HEAD = 'Cormorant Garamond';
 const ACCT_QUOTE_TEMPLATE_ID = '1-siKS7iFwpTcKSjyBu41KZHCErXEQQIPmVp2kjRs5JA';
 function _acctQuoteItems() {
   var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
@@ -9694,7 +9702,8 @@ function _acctQuoteItems() {
     if (String(v[r][t1] || '').trim().toLowerCase() !== 'quote item') continue;
     var id = String(v[r][ii] || '').trim(), name = String(v[r][ni] || '').trim();
     if (!id || !name) continue;
-    out.push({ id: id, name: name, desc: String(v[r][di] || '').trim(), img: String(im[0] > -1 ? v[r][im[0]] || '' : '').trim(), hasImg: !!String(im[0] > -1 ? v[r][im[0]] || '' : '').trim() });
+    var imgs = im.map(function (ix) { return ix > -1 ? String(v[r][ix] || '').trim() : ''; }).filter(String).slice(0, 3);
+    out.push({ id: id, name: name, desc: String(v[r][di] || '').trim(), img: imgs[0] || '', imgs: imgs, hasImg: imgs.length > 0 });
   }
   return out;
 }
@@ -9725,8 +9734,14 @@ function _acctParseDate(s) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '').trim());
   return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0) : '';
 }
-function _acctQty(p, id) { var n = Math.round(Number(p && p.itemQty && p.itemQty[id])); return n >= 1 && n <= 100000 ? n : 1; }
-function _acctLineName(l) { return Number(l.qty) > 1 ? l.desc + ' (x' + l.qty + ')' : l.desc; }
+function _acctQty(p, id) {
+  var raw = p && p.itemQty ? p.itemQty[id] : '';
+  if (/^n\/?a$/i.test(String(raw || '').trim())) return { qty: 0, unit: 'N/A' };
+  var n = Math.round(Number(raw));
+  return { qty: n >= 1 && n <= 100000 ? n : 1, unit: '' };
+}
+function _acctQtyText(l) { return String(l.unit) === 'N/A' ? 'N/A' : String(l.qty || 1); }
+function _acctLineName(l) { return String(l.unit) !== 'N/A' && Number(l.qty) > 1 ? l.desc + ' (x' + l.qty + ')' : l.desc; }
 function _acctItemsText(lines) { return lines.map(_acctLineName).join('; '); }
 function _acctFillCell(cell, rows, align) {
   cell.clear();
@@ -9786,13 +9801,13 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   function fillRow(row, tok, val) { for (var ci = 0; ci < row.getNumCells(); ci++) fillTok(row.getCell(ci), tok, val); }
   function pat(tok) { return '\\{\\{' + tok.replace(/[#]/g, '\\#') + '\\}\\}'; }
   function paraOf(tok) { var f = body.findText(pat(tok)); return f ? f.getElement().getParent() : null; }
-  var list = lines.map(function (ln) { return items[ln.itemId] || { name: ln.desc, desc: '', img: '' }; });
+  var list = lines.map(function (ln) { return items[ln.itemId] || { name: ln.desc, desc: '', img: '', imgs: [] }; });
 
   // 1) Detail block: repeat name / image / description once per item
   _acctStage = 'detail pages';
   var nameP = paraOf('ITEM NAME'), imgP = paraOf('ITEM IMAGE'), descP = paraOf('ITEM DESCRIPTION');
   if (!nameP || !imgP || !descP) throw new Error('template is missing {{ITEM NAME}} / {{ITEM IMAGE}} / {{ITEM DESCRIPTION}}');
-  var n0 = body.getChildIndex(nameP);
+  var nameParas = [], n0 = body.getChildIndex(nameP);
   for (var k = list.length - 1; k >= 1; k--) {
     var at = n0 + 3;
     var c1 = body.insertParagraph(at, nameP.copy()), c2 = body.insertParagraph(at + 1, imgP.copy()), c3 = body.insertParagraph(at + 2, descP.copy());
@@ -9801,16 +9816,20 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   for (var k2 = list.length - 1; k2 >= 0; k2--) {  // last block first so extra description paragraphs never shift earlier blocks
     var it = list[k2], base = n0 + 3 * k2;
     var pn = body.getChild(base).asParagraph(), pi = body.getChild(base + 1).asParagraph(), pd = body.getChild(base + 2).asParagraph();
-    fillTok(pn, 'ITEM NAME', it.name);
+    fillTok(pn, 'ITEM NAME', it.name); nameParas.push(pn);
     try { pn.setKeepWithNext(true); } catch (e) {}
     fillTok(pi, 'ITEM IMAGE', '');
-    var blob = it.img ? _acctImageBlob(it.img) : null;
-    if (blob) {
-      try {
-        var im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight(), maxW = 360;
-        if (w > maxW) { im.setWidth(maxW).setHeight(Math.round(h * maxW / w)); }
-        pi.setSpacingAfter(6); try { pi.setKeepWithNext(true); } catch (e2) {}
-      } catch (e) {}
+    var blobs = (it.imgs || []).map(function (u) { return _acctImageBlob(u); }).filter(function (b) { return b; });
+    if (blobs.length) {
+      var maxW = blobs.length === 1 ? 360 : (blobs.length === 2 ? 228 : 150);
+      blobs.forEach(function (blob, bi) {
+        try {
+          var im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight();
+          if (w !== maxW) { im.setWidth(maxW); im.setHeight(Math.round(h * maxW / w)); }
+          if (bi < blobs.length - 1) pi.appendText('  ');
+        } catch (e) {}
+      });
+      try { pi.setSpacingAfter(6); pi.setKeepWithNext(true); } catch (e2) {}
     }
     var parts = String(it.desc || '').split(/\n+/).map(function (x) { return x.trim(); }).filter(String);
     fillTok(pd, 'ITEM DESCRIPTION', parts.length ? parts[0] : '');
@@ -9865,9 +9884,17 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   for (var m2 = 0; m2 < list.length; m2++) {
     var rw = tbl.getRow(ri + m2);
     fillRow(rw, 'ITEM LINE', list[m2].name);
-    try { if (rw.getNumCells() > 1) fillRaw(rw.getCell(1), 'Included', String(lines[m2].qty || 1)); } catch (eQ) { _acctBuildNote += ' Quantity cell: ' + eQ.message + '.'; }
+    try { if (rw.getNumCells() > 1) fillRaw(rw.getCell(1), 'Included', _acctQtyText(lines[m2])); } catch (eQ) { _acctBuildNote += ' Quantity cell: ' + eQ.message + '.'; }
   }
   try { if (ri > 0 && tbl.getRow(ri - 1).getNumCells() > 1) fillRaw(tbl.getRow(ri - 1).getCell(1), 'AMOUNT', 'QUANTITY'); } catch (eH2) {}
+
+  // Remove the old terms sentence, and remember the headline paragraphs (for fonts) before their tokens are filled
+  try {
+    var tf = body.findText('This quote is an offer only');
+    if (tf) { var tp = tf.getElement().getParent(); try { tp.removeFromParent(); } catch (eT) { try { tp.asParagraph().clear(); } catch (eT2) {} } }
+  } catch (eTerms) {}
+  var sumP = null, schP = null;
+  try { sumP = paraOf('Summary'); schP = paraOf('School'); } catch (eSP) {}
 
   // 3) Plain tokens (lines whose value is empty are removed)
   _acctStage = 'header block';
@@ -9895,6 +9922,35 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   setTok('Prepared By', ACCT_ORG_NAME);
   setTok('Total', _acctMoney(total));
   setTok('Scope', o['Scope'], true);
+  // 4) OUR WORK: permanent photos with captions at the end
+  _acctStage = 'our work';
+  var owHead = null;
+  try {
+    owHead = body.appendParagraph('OUR WORK');
+    try { owHead.setHeading(DocumentApp.ParagraphHeading.NORMAL); owHead.setAlignment(DocumentApp.HorizontalAlignment.LEFT); owHead.setSpacingBefore(28); owHead.setSpacingAfter(8); owHead.setKeepWithNext(true); } catch (e1) {}
+    try { owHead.editAsText().setBold(true); owHead.editAsText().setFontSize(18); owHead.editAsText().setForegroundColor('#000000'); } catch (e2) {}
+    var owW = 216, grid = [['', ''], ['', '']], owT = body.appendTable(grid);
+    try { owT.setBorderWidth(0); } catch (e3) {}
+    ACCT_OUR_WORK.forEach(function (w, wi) {
+      var cell = owT.getRow(Math.floor(wi / 2)).getCell(wi % 2);
+      try {
+        var wb = DriveApp.getFileById(w.id).getBlob(), by = wb.getBytes();
+        var isPng = by.length > 4 && by[0] === -119 && by[1] === 80;
+        var blob = Utilities.newBlob(by, isPng ? 'image/png' : 'image/jpeg', 'work' + wi + (isPng ? '.png' : '.jpg'));
+        var cp = cell.getChild(0).asParagraph(), wim = cp.appendInlineImage(blob), ww = wim.getWidth(), wh = wim.getHeight();
+        wim.setWidth(owW); wim.setHeight(Math.round(wh * owW / ww));
+        var capP = cell.appendParagraph(w.cap);
+        try { capP.setHeading(DocumentApp.ParagraphHeading.NORMAL); capP.setSpacingBefore(3); capP.setSpacingAfter(10); capP.editAsText().setFontSize(10).setBold(false).setForegroundColor('#444444'); } catch (e4) {}
+      } catch (eW) { _acctBuildNote += ' Our Work photo ' + (wi + 1) + ' skipped: ' + eW.message + '.'; }
+    });
+  } catch (eOW) { _acctBuildNote += ' Our Work section failed: ' + eOW.message + '.'; }
+
+  // 5) Fonts used in the app and on the website: Outfit for text, Cormorant Garamond for headlines
+  _acctStage = 'fonts';
+  try { body.editAsText().setFontFamily(ACCT_FONT_BODY); } catch (eF) { _acctBuildNote += ' Body font not applied.'; }
+  [sumP, schP, owHead, (typeof hd !== 'undefined' ? hd : null)].concat(nameParas).forEach(function (pp) {
+    if (!pp) return; try { pp.editAsText().setFontFamily(ACCT_FONT_HEAD); } catch (eH) {}
+  });
   _acctStage = 'save and PDF';
   doc.saveAndClose();
   return { docFile: copy, pdf: copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf') };
@@ -9943,7 +9999,7 @@ function handleAcctUpdateQuote(p) {
   if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
   var bulk = Number(p.bulkTotal);
   if (p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined || !(bulk >= 0) || bulk > 10000000) return { ok: false, error: 'Enter the total price for this quote.' };
-  var lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id), unit: '', price: 0 }; });
+  var lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id).qty, unit: _acctQty(p, id).unit, price: 0 }; });
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   var status;
   try {
@@ -9957,7 +10013,7 @@ function handleAcctUpdateQuote(p) {
     var lr = _acctNextRow(L);
     lines.forEach(function (ln, k) {
       var row = lr + k;
-      _acctPut(L, row, lm, { 'Quote #': q, 'Item ID': ln.itemId, 'Description': _acctText(ln.desc, 300), 'Qty': ln.qty, 'Unit': '', 'Unit Price': 0, 'Amount': 0 });
+      _acctPut(L, row, lm, { 'Quote #': q, 'Item ID': ln.itemId, 'Description': _acctText(ln.desc, 300), 'Qty': ln.qty, 'Unit': ln.unit || '', 'Unit Price': 0, 'Amount': 0 });
     });
     var set = {
       'Category': cat, 'Site': _acctText(site, 200), 'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email,

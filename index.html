@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.18 -->
+<!-- v12.19 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.18';
+const APP_VERSION='v12.19';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Every device now switches to the current Apps Script address once, so a stale saved address can no longer cause the login connection error.';
+const BUILD_STAMP='2026-11-17 PT - Quotes: all item photos (up to 3), N/A quantity, Enrich LA team in the send picker, Our Work page, app fonts, terms line removed.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4222,6 +4222,7 @@ async function qtSend(id){
   const lbl='display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)';
   body.innerHTML=`<div class="sub-meta" style="margin-bottom:8px">📎 ${escHtml(_qtShare.name)} will be attached in Reach, just as if you picked it there.</div>
     ${_qtShare.contacts.length?`<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:6px 0 4px">People at this school</div>`+_qtShare.contacts.map(c=>`<label style="${lbl}"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}"${c.email===_qtShare.pre?' checked':''} style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label||c.email)}</b> <span style="font-size:12px;color:var(--silver)">${escHtml(c.role)}</span><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join(''):'<div class="sub-meta">No contacts found for this school. You can pick people in Reach.</div>'}
+    ${(()=>{const have=new Set(_qtShare.contacts.map(c=>String(c.email).toLowerCase()));const st=(DATA.humans||[]).filter(h=>parseFloat(h['Access Level'])===2).map(h=>({email:String(h.Email||h.email||'').trim(),label:fullName(h)||h.Email||''})).filter(h=>h.email&&!have.has(h.email.toLowerCase())).sort((a,b)=>a.label.localeCompare(b.label));return st.length?`<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:12px 0 4px">Enrich LA team</div>`+st.map(c=>`<label style="${lbl}"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}" style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label)}</b><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join(''):'';})()}
     ${_qtShare.wasDraft?`<label style="${lbl};border:none"><input type="checkbox" id="qtMarkSent" checked style="margin-top:3px"><span>Mark this quote as Sent</span></label>`:''}
     <div style="margin-top:10px"><button type="button" class="settings-btn" style="margin:0" onclick="qtSendToReach()">Continue in Reach ›</button></div>`;
 }
@@ -4247,7 +4248,7 @@ async function qtDuplicate(id){
   if(ln===undefined){
     try{const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;}catch(e){showSaveToast('Connection error');return;}
   }
-  qtNewToggle(true,Object.assign({},x,{dup:true,location:'',itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.qty||1]))}));
+  qtNewToggle(true,Object.assign({},x,{dup:true,location:'',itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.unit==='N/A'?'N/A':(l.qty||1)]))}));
   const b=document.getElementById('qtAddBox');if(b)b.scrollIntoView({block:'start',behavior:'smooth'});
 }
 async function qtDelete(id){
@@ -4439,7 +4440,7 @@ function _qtTypeChanged(){
 }
 function _qtQItemsHtml(){
   if(!_qtQItems.length)return '<div class="sub-meta" style="padding:8px 0">No Quote Items yet. In Bulk Data > Items, set Type 1 to "Quote Item".</div>';
-  return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span><span style="display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--silver);letter-spacing:.04em;text-transform:uppercase">Qty<input type="number" class="qt-qty" data-id="${ea(i.id)}" inputmode="numeric" min="1" max="100000" step="1" value="1" onclick="event.stopPropagation()" oninput="var c=this.closest('label').querySelector('input[type=checkbox]');if(c&&!c.checked){c.checked=true;_qtItemCount();}" style="width:56px;padding:6px 4px;font-size:15px;text-align:center;border:1px solid var(--mist);border-radius:8px"></span></label>`).join('');
+  return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span><span style="display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--silver);letter-spacing:.04em;text-transform:uppercase">Qty<input type="text" class="qt-qty" data-id="${ea(i.id)}" inputmode="numeric" maxlength="6" value="1" onclick="event.stopPropagation()" oninput="var c=this.closest('label').querySelector('input[type=checkbox]');if(c&&!c.checked){c.checked=true;_qtItemCount();}" style="width:56px;padding:6px 4px;font-size:15px;text-align:center;border:1px solid var(--mist);border-radius:8px"><button type="button" onclick="event.preventDefault();event.stopPropagation();var q=this.parentNode.querySelector('.qt-qty');q.value=/^n\/?a$/i.test(q.value)?'1':'N/A';var c=this.closest('label').querySelector('input[type=checkbox]');if(c&&!c.checked){c.checked=true;_qtItemCount();}" style="margin-top:3px;padding:2px 6px;font-size:10px;border:1px solid var(--mist);border-radius:6px;background:var(--mist);color:var(--ink);text-transform:none;letter-spacing:0">N/A</button></span></label>`).join('');
 }
 function _qtRefreshQItems(){
   const l=document.getElementById('qtNItemList');if(!l)return;
@@ -4509,7 +4510,7 @@ async function qtEdit(id){
   if(ln===undefined){
     try{const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;}catch(e){showSaveToast('Connection error');return;}
   }
-  qtNewToggle(true,Object.assign({},x,{itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.qty||1]))}));
+  qtNewToggle(true,Object.assign({},x,{itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.unit==='N/A'?'N/A':(l.qty||1)]))}));
   const b=document.getElementById('qtAddBox');if(b)b.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function _qtSchoolPicked(){
@@ -4526,7 +4527,7 @@ function _qtSchoolPicked(){
 async function qtSubmit(sendNow){
   const v=id=>((document.getElementById(id)||{}).value||'').trim();
   const itemIds=[...document.querySelectorAll('#qtNItemList input[type=checkbox]:checked')].map(c=>c.value);
-  const itemQty={};document.querySelectorAll('#qtNItemList .qt-qty').forEach(q=>{if(itemIds.indexOf(q.dataset.id)>-1)itemQty[q.dataset.id]=Math.max(1,Math.round(Number(q.value)||1));});
+  const itemQty={};document.querySelectorAll('#qtNItemList .qt-qty').forEach(q=>{if(itemIds.indexOf(q.dataset.id)>-1)itemQty[q.dataset.id]=/^n\/?a$/i.test(String(q.value).trim())?'N/A':Math.max(1,Math.round(Number(q.value)||1));});
   if(!v('qtNCat')){showSaveToast('Choose a quote type: Program, Maker or Miscellaneous');return;}
   if(!v('qtNSite')){showSaveToast('Choose a school');return;}
   if(!itemIds.length){showSaveToast('Choose at least one item');return;}
