@@ -9738,8 +9738,10 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
         try { var t2 = pd.editAsText(); t2.setBold(false); t2.setFontSize(10.5); t2.setForegroundColor('#222222'); } catch (e) {}
       });
     });
-    body.removeChild(dp);
+    // The last paragraph of a document cannot be deleted, so blank it instead when nothing follows it.
+    try { body.removeChild(dp); } catch (eRm) { try { dp.setText(''); } catch (eTx) {} }
   }
+  try { body.editAsText().setFontFamily('Georgia'); } catch (eFont) {}
   _acctStage = 'save and PDF';
   doc.saveAndClose();
   return { docFile: copy, pdf: copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf') };
