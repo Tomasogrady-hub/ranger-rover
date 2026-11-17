@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.17 -->
+<!-- v12.18 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.17';
+const APP_VERSION='v12.18';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Points the app and all public pages at the new Apps Script deployment URL (login connection error fix).';
+const BUILD_STAMP='2026-11-17 PT - Every device now switches to the current Apps Script address once, so a stale saved address can no longer cause the login connection error.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2539,8 +2539,12 @@ if(window.visualViewport){
   visualViewport.addEventListener('scroll', _syncViewportGap);
   _syncViewportGap();
 }
+// Built-in Apps Script address. Whenever this changes in a new app version, every device switches to it once
+// (replacing a stale saved address); after that, the Settings > Apps Script API URL field still overrides it as before.
+const GAS_DEFAULT_URL='https://script.google.com/macros/s/AKfycbzz5sVMvvxF6k0Su5N1P1ZbnymOt1GFXgeZ8ya2NOPKcY26KqrJAwPWK9ZMQ_C_LQR-/exec';
+try{if(localStorage.getItem('rr_gas_default')!==GAS_DEFAULT_URL){localStorage.setItem('rr_gas_url',GAS_DEFAULT_URL);localStorage.setItem('rr_gas_default',GAS_DEFAULT_URL);}}catch(e){}
 const CFG={
-  URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzz5sVMvvxF6k0Su5N1P1ZbnymOt1GFXgeZ8ya2NOPKcY26KqrJAwPWK9ZMQ_C_LQR-/exec',
+  URL:localStorage.getItem('rr_gas_url')||GAS_DEFAULT_URL,
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
   CLOUDINARY_CLOUD:'dtecnh1il',
   CLOUDINARY_PRESET:'ranger_rover',
