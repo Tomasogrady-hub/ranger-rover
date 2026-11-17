@@ -9652,6 +9652,8 @@ function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
   }
 }
 function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
+  // The template Google Doc ("Quote Maker Form 1") holds ALL the layout, tables and formatting. This function only
+  // substitutes {{tokens}}, repeats the {{ITEM LINE}} table row and the {{ITEM NAME}}/{{ITEM IMAGE}}/{{ITEM DESCRIPTION}} block.
   var site = String(o['Site'] || ''), folder = DriveApp.getFolderById(folderId);
   _acctStage = 'copy template';
   var items = {}; _acctQuoteItems().forEach(function (it) { items[it.id] = it; });
@@ -9661,86 +9663,74 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   _acctStage = 'open template';
   var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
   function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); }
-  body.replaceText('\\{\\{Valid Until\\}\\}', esc(_acctFmtDate(valid)));
-  // Scope paragraph (removed when empty)
-  var scope = String(o['Scope'] || '').trim(), sh = body.findText('\\{\\{Scope\\}\\}');
-  if (sh) {
-    var sp = sh.getElement().getParent();
-    if (scope) { body.replaceText('\\{\\{Scope\\}\\}', esc(scope)); } else { try { body.removeChild(sp); } catch (e) { body.replaceText('\\{\\{Scope\\}\\}', ''); } }
-  }
-  // Header: Prepared for | Quote details
-  _acctStage = 'header block';
-  var hh = body.findText('\\{\\{HEADER\\}\\}');
-  if (hh) {
-    var hp = hh.getElement().getParent(), hi = body.getChildIndex(hp);
-    var t = body.insertTable(hi, [['', '']]);
-    try { t.setBorderWidth(0); } catch (e) {}
-    var left = [{ t: 'PREPARED FOR', b: true, s: 9, c: '#666666' }, { t: site, b: true, s: 11 }];
-    if (String(o['Contact Name'] || '').trim()) left.push({ t: String(o['Contact Name']).trim() });
-    if (info.address) left.push({ t: info.address });
-    if (info.phone) left.push({ t: info.phone });
-    if (String(o['Contact Email'] || '').trim()) left.push({ t: String(o['Contact Email']).trim() });
-    var right = [{ t: 'QUOTE DETAILS', b: true, s: 9, c: '#666666' }, { t: 'Quote Number: ' + q }, { t: 'Quote Date: ' + _acctDateText(o['Date']) }, { t: 'Valid Until: ' + _acctFmtDate(valid) }];
-    var bd = _acctDateText(o['Build Date']);
-    if (bd) right.push({ t: 'Build Date: ' + bd });
-    right.push({ t: 'Prepared By: ' + ACCT_ORG_NAME });
-    _acctFillCell(t.getCell(0, 0), left, DocumentApp.HorizontalAlignment.LEFT);
-    _acctFillCell(t.getCell(0, 1), right, DocumentApp.HorizontalAlignment.RIGHT);
-    body.removeChild(hp);
-  }
-  // Item list: one line per item name, then the single total
-  _acctStage = 'item list';
-  var ih = body.findText('\\{\\{ITEMS\\}\\}');
-  if (ih) {
-    var ip = ih.getElement().getParent(), ii = body.getChildIndex(ip);
-    var cells = [['DESCRIPTION', '']];
-    lines.forEach(function (ln) { cells.push([(items[ln.itemId] || { name: ln.desc }).name, '']); });
-    cells.push(['TOTAL', _acctMoney(total)]);
-    var tb = body.insertTable(ii, cells);
-    try { tb.setBorderWidth(0.5); tb.setBorderColor('#bbbbbb'); } catch (e) {}
-    try { tb.setColumnWidth(0, 400); tb.setColumnWidth(1, 140); } catch (e) {}
-    for (var r = 0; r < cells.length; r++) {
-      var head = r === 0, last = r === cells.length - 1;
-      for (var c = 0; c < 2; c++) {
-        var cell = tb.getCell(r, c);
-        try { cell.setPaddingTop(6); cell.setPaddingBottom(6); } catch (e) {}
-        try { if (head) cell.setBackgroundColor('#f1efe9'); } catch (e) {}
-        try { if (cells[r][c]) { var tx = cell.editAsText(); tx.setBold(head || last); tx.setFontSize(last ? 12 : 10); } } catch (e) {}
-        try { if (c === 1) cell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.RIGHT); } catch (e) {}
-      }
-    }
-    body.removeChild(ip);
-  }
-  // Detail pages
+  function pat(tok) { return '\\{\\{' + tok.replace(/[#]/g, '\\#') + '\\}\\}'; }
+  function paraOf(tok) { var f = body.findText(pat(tok)); return f ? f.getElement().getParent() : null; }
+  var list = lines.map(function (ln) { return items[ln.itemId] || { name: ln.desc, desc: '', img: '' }; });
+
+  // 1) Detail block: repeat name / image / description once per item
   _acctStage = 'detail pages';
-  var dh = body.findText('\\{\\{DETAILS\\}\\}');
-  if (dh) {
-    var dp = dh.getElement().getParent(), di = body.getChildIndex(dp);
-    lines.forEach(function (ln, k) {
-      var it = items[ln.itemId] || { name: ln.desc, desc: '', img: '' };
-      var p1 = body.insertParagraph(di++, it.name);
-      try { p1.setHeading(DocumentApp.ParagraphHeading.NORMAL); p1.setAlignment(DocumentApp.HorizontalAlignment.LEFT); p1.setSpacingBefore(k ? 22 : 0); p1.setSpacingAfter(6); } catch (e) {}
-      try { var t1 = p1.editAsText(); t1.setBold(true); t1.setFontSize(15); t1.setForegroundColor('#000000'); } catch (e) {}
-      try { p1.setKeepWithNext(true); } catch (e) {}
-      var blob = it.img ? _acctImageBlob(it.img) : null;
-      if (blob) {
-        try {
-          var pi = body.insertParagraph(di++, ''), im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight(), maxW = 360;
-          if (w > maxW) { im.setWidth(maxW).setHeight(Math.round(h * maxW / w)); }
-          pi.setSpacingAfter(6);
-          try { pi.setKeepWithNext(true); } catch (e2) {}
-        } catch (e) {}
-      }
-      String(it.desc || '').split(/\n+/).forEach(function (txt) {
-        if (!txt.trim()) return;
-        var pd = body.insertParagraph(di++, txt.trim());
-        try { pd.setHeading(DocumentApp.ParagraphHeading.NORMAL); pd.setAlignment(DocumentApp.HorizontalAlignment.LEFT); pd.setSpacingAfter(6); } catch (e) {}
-        try { var t2 = pd.editAsText(); t2.setBold(false); t2.setFontSize(10.5); t2.setForegroundColor('#222222'); } catch (e) {}
-      });
-    });
-    // The last paragraph of a document cannot be deleted, so blank it instead when nothing follows it.
-    try { body.removeChild(dp); } catch (eRm) { try { dp.setText(''); } catch (eTx) {} }
+  var nameP = paraOf('ITEM NAME'), imgP = paraOf('ITEM IMAGE'), descP = paraOf('ITEM DESCRIPTION');
+  if (!nameP || !imgP || !descP) throw new Error('template is missing {{ITEM NAME}} / {{ITEM IMAGE}} / {{ITEM DESCRIPTION}}');
+  var n0 = body.getChildIndex(nameP);
+  for (var k = list.length - 1; k >= 1; k--) {
+    var at = n0 + 3;
+    var c1 = body.insertParagraph(at, nameP.copy()), c2 = body.insertParagraph(at + 1, imgP.copy()), c3 = body.insertParagraph(at + 2, descP.copy());
+    try { c1.setSpacingBefore(22); } catch (e) {}
   }
+  for (var k2 = list.length - 1; k2 >= 0; k2--) {  // last block first so extra description paragraphs never shift earlier blocks
+    var it = list[k2], base = n0 + 3 * k2;
+    var pn = body.getChild(base).asParagraph(), pi = body.getChild(base + 1).asParagraph(), pd = body.getChild(base + 2).asParagraph();
+    pn.replaceText(pat('ITEM NAME'), esc(it.name));
+    try { pn.setKeepWithNext(true); } catch (e) {}
+    pi.replaceText(pat('ITEM IMAGE'), '');
+    var blob = it.img ? _acctImageBlob(it.img) : null;
+    if (blob) {
+      try {
+        var im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight(), maxW = 360;
+        if (w > maxW) { im.setWidth(maxW).setHeight(Math.round(h * maxW / w)); }
+        pi.setSpacingAfter(6); try { pi.setKeepWithNext(true); } catch (e2) {}
+      } catch (e) {}
+    }
+    var parts = String(it.desc || '').split(/\n+/).map(function (x) { return x.trim(); }).filter(String);
+    pd.replaceText(pat('ITEM DESCRIPTION'), esc(parts.length ? parts[0] : ''));
+    for (var pj = parts.length - 1; pj >= 1; pj--) {
+      var extra = body.insertParagraph(base + 3, parts[pj]);
+      try { extra.setHeading(DocumentApp.ParagraphHeading.NORMAL); extra.setFontSize(10.5); extra.setBold(false); extra.setSpacingBefore(0); extra.setSpacingAfter(6); } catch (e) {}
+    }
+  }
+
+  // 2) Item list table: clone the {{ITEM LINE}} row once per item
+  _acctStage = 'item list';
+  var lf = body.findText(pat('ITEM LINE'));
+  if (!lf) throw new Error('template is missing {{ITEM LINE}}');
+  var row = lf.getElement().getParent().getParent().getParent().asTableRow(), tbl = row.getParent().asTable(), ri = tbl.getChildIndex(row);
+  for (var m = list.length - 1; m >= 1; m--) { tbl.insertTableRow(ri + 1, row.copy()); }
+  for (var m2 = 0; m2 < list.length; m2++) { tbl.getRow(ri + m2).replaceText(pat('ITEM LINE'), esc(list[m2].name)); }
+
+  // 3) Plain tokens (lines whose value is empty are removed)
+  _acctStage = 'header block';
+  function setTok(tok, val, dropIfEmpty) {
+    val = String(val == null ? '' : val).trim();
+    var f = body.findText(pat(tok));
+    if (!f) return;
+    if (!val && dropIfEmpty) {
+      var p = f.getElement().getParent();
+      try { p.removeFromParent(); return; } catch (e) {}
+    }
+    body.replaceText(pat(tok), esc(val));
+  }
+  setTok('School', site);
+  setTok('Contact Name', o['Contact Name'], true);
+  setTok('Address', info.address, true);
+  setTok('Phone', info.phone, true);
+  setTok('Contact Email', o['Contact Email'], true);
+  setTok('Quote #', q);
+  setTok('Date', _acctDateText(o['Date']));
+  setTok('Valid Until', _acctFmtDate(valid));
+  setTok('Build Date', _acctDateText(o['Build Date']), true);
+  setTok('Prepared By', ACCT_ORG_NAME);
+  setTok('Total', _acctMoney(total));
+  setTok('Scope', o['Scope'], true);
   try { body.editAsText().setFontFamily('Georgia'); } catch (eFont) {}
   _acctStage = 'save and PDF';
   doc.saveAndClose();
@@ -9835,7 +9825,7 @@ function _acctApprove(q, info) {
     if (!r) throw new Error('Quote not found: ' + q);
     var o = _acctRowObj(Q, r, qm);
     if (o['Status'] === 'Approved') throw new Error(q + ' is already approved.');
-    var total = String(f.o['Format'] || '') === 'Items' ? (Number(f.o['Total']) || 0) : _acctSum(_acctLines(q)), now = new Date(), po = _acctText(info.po, 60);
+    var total = String(o['Format'] || '') === 'Items' ? (Number(o['Total']) || 0) : _acctSum(_acctLines(q)), now = new Date(), po = _acctText(info.po, 60);
     _acctSet(Q, r, qm, { 'Status': 'Approved', 'Approved Date': now, 'PO #': po });
     var P = _acctSheet('Purchase Orders and Approvals'), pm = _acctHdr(P);
     _acctPut(P, _acctNextRow(P), pm, {
