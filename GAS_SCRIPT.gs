@@ -9763,7 +9763,17 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   _acctCopyId = copy.getId();
   _acctStage = 'open template';
   var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
-  function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); }
+  // Inserts the value as plain text right after the token, then deletes the token (no replacement-string rules, so "$" and "\\" stay literal and the token's styling is kept).
+  function fillTok(el, tok, val) {
+    val = String(val == null ? '' : val);
+    var guard = 0, f;
+    while ((f = el.findText(pat(tok))) && guard++ < 200) {
+      var t = f.getElement().asText(), st = f.getStartOffset(), en = f.getEndOffsetInclusive();
+      if (val) t.insertText(en + 1, val);
+      t.deleteText(st, en);
+    }
+  }
+  function fillRow(row, tok, val) { for (var ci = 0; ci < row.getNumCells(); ci++) fillTok(row.getCell(ci), tok, val); }
   function pat(tok) { return '\\{\\{' + tok.replace(/[#]/g, '\\#') + '\\}\\}'; }
   function paraOf(tok) { var f = body.findText(pat(tok)); return f ? f.getElement().getParent() : null; }
   var list = lines.map(function (ln) { return items[ln.itemId] || { name: ln.desc, desc: '', img: '' }; });
@@ -9781,9 +9791,9 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   for (var k2 = list.length - 1; k2 >= 0; k2--) {  // last block first so extra description paragraphs never shift earlier blocks
     var it = list[k2], base = n0 + 3 * k2;
     var pn = body.getChild(base).asParagraph(), pi = body.getChild(base + 1).asParagraph(), pd = body.getChild(base + 2).asParagraph();
-    pn.replaceText(pat('ITEM NAME'), esc(it.name));
+    fillTok(pn, 'ITEM NAME', it.name);
     try { pn.setKeepWithNext(true); } catch (e) {}
-    pi.replaceText(pat('ITEM IMAGE'), '');
+    fillTok(pi, 'ITEM IMAGE', '');
     var blob = it.img ? _acctImageBlob(it.img) : null;
     if (blob) {
       try {
@@ -9793,7 +9803,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       } catch (e) {}
     }
     var parts = String(it.desc || '').split(/\n+/).map(function (x) { return x.trim(); }).filter(String);
-    pd.replaceText(pat('ITEM DESCRIPTION'), esc(parts.length ? parts[0] : ''));
+    fillTok(pd, 'ITEM DESCRIPTION', parts.length ? parts[0] : '');
     for (var pj = parts.length - 1; pj >= 1; pj--) {
       var extra = body.insertParagraph(base + 3, parts[pj]);
       try { extra.setHeading(DocumentApp.ParagraphHeading.NORMAL); extra.setFontSize(10.5); extra.setBold(false); extra.setSpacingBefore(0); extra.setSpacingAfter(6); } catch (e) {}
@@ -9803,18 +9813,35 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   // 1b) Garden location map at the end ({{LOCATION}} paragraph); removed when no map was chosen
   var locP = paraOf('LOCATION');
   if (locP) {
+    _acctStage = 'location map';
     var locBlob = null, locId = _driveIdFromUrl(String(o['Location'] || ''));
-    if (locId) { try { locBlob = DriveApp.getFileById(locId).getBlob(); } catch (eL) {} }
-    locP.replaceText(pat('LOCATION'), '');
-    if (locBlob) {
+    if (String(o['Location'] || '').trim() && !locId) _acctBuildNote += ' Location link could not be read.';
+    if (locId) {
       try {
-        var hd = body.insertParagraph(body.getChildIndex(locP), 'Garden location');
-        hd.setHeading(DocumentApp.ParagraphHeading.NORMAL); hd.setAlignment(DocumentApp.HorizontalAlignment.LEFT); hd.setSpacingBefore(24); hd.setSpacingAfter(6); hd.setKeepWithNext(true);
-        hd.editAsText().setBold(true).setFontSize(15).setForegroundColor('#000000');
+        var lb = DriveApp.getFileById(locId).getBlob(), by = lb.getBytes();
+        var isPng = by.length > 4 && by[0] === -119 && by[1] === 80;
+        locBlob = Utilities.newBlob(by, isPng ? 'image/png' : 'image/jpeg', 'location.' + (isPng ? 'png' : 'jpg'));
+      } catch (eL) { _acctBuildNote += ' Location picture could not be read: ' + eL.message + '.'; }
+    }
+    try { fillTok(locP, 'LOCATION', ''); } catch (eT) { _acctBuildNote += ' (location token: ' + eT.message + ')'; }
+    if (locBlob) {
+      var hd = null;
+      try {
+        hd = body.insertParagraph(body.getChildIndex(locP), 'Garden location');
+        try { hd.setHeading(DocumentApp.ParagraphHeading.NORMAL); } catch (e1) {}
+        try { hd.setAlignment(DocumentApp.HorizontalAlignment.LEFT); } catch (e2) {}
+        try { hd.setSpacingBefore(24); hd.setSpacingAfter(6); } catch (e3) {}
+        try { hd.setKeepWithNext(true); } catch (e4) {}
+        try { hd.editAsText().setBold(true); hd.editAsText().setFontSize(15); hd.editAsText().setForegroundColor('#000000'); } catch (e5) {}
+      } catch (eH) { _acctBuildNote += ' Location heading failed: ' + eH.message + '.'; }
+      try {
         var li = locP.appendInlineImage(locBlob), lw = li.getWidth(), lh = li.getHeight(), lmax = 520;
-        if (lw > lmax) { li.setWidth(lmax).setHeight(Math.round(lh * lmax / lw)); }
-        locP.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
-      } catch (eImg) {}
+        if (lw > lmax) { li.setWidth(lmax); li.setHeight(Math.round(lh * lmax / lw)); }
+        try { locP.setAlignment(DocumentApp.HorizontalAlignment.LEFT); } catch (e6) {}
+      } catch (eImg) {
+        _acctBuildNote += ' Location map could not be placed: ' + eImg.message + '.';
+        if (hd) { try { hd.removeFromParent(); } catch (e7) {} }
+      }
     }
   }
 
@@ -9824,7 +9851,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   if (!lf) throw new Error('template is missing {{ITEM LINE}}');
   var row = lf.getElement().getParent().getParent().getParent().asTableRow(), tbl = row.getParent().asTable(), ri = tbl.getChildIndex(row);
   for (var m = list.length - 1; m >= 1; m--) { tbl.insertTableRow(ri + 1, row.copy()); }
-  for (var m2 = 0; m2 < list.length; m2++) { tbl.getRow(ri + m2).replaceText(pat('ITEM LINE'), esc(list[m2].name)); }
+  for (var m2 = 0; m2 < list.length; m2++) { fillRow(tbl.getRow(ri + m2), 'ITEM LINE', list[m2].name); }
 
   // 3) Plain tokens (lines whose value is empty are removed)
   _acctStage = 'header block';
@@ -9837,7 +9864,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       while (f && guard++ < 10) { try { f.getElement().getParent().removeFromParent(); } catch (e) { break; } f = body.findText(pat(tok)); }
       if (!f) return;
     }
-    body.replaceText(pat(tok), esc(val));
+    fillTok(body, tok, val);
   }
   setTok('Summary', o['Summary'], true);
   setTok('School', site);
@@ -9977,8 +10004,10 @@ function handleAcctDeleteQuote(p) {
 function handleAcctGetPdf(p) {
   if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
   try {
-    var m = _acctMailParts(String(p.id || '')), blob = m.file.getBlob();
-    return { ok: true, name: m.file.getName(), mime: 'application/pdf', b64: Utilities.base64Encode(blob.getBytes()), subject: m.subject, text: m.text, quote: _acctQuoteShape(m.o) };
+    var m = _acctMailParts(String(p.id || ''));
+    var out = { ok: true, fileId: m.file.getId(), name: m.file.getName(), mime: 'application/pdf', subject: m.subject, text: m.text, quote: _acctQuoteShape(m.o) };
+    if (p.withData) out.b64 = Utilities.base64Encode(m.file.getBlob().getBytes());
+    return out;
   } catch (e) { return { ok: false, error: e.message }; }
 }
 function handleAcctMarkSent(p) {

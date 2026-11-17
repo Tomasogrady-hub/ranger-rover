@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.14 -->
+<!-- v12.15 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.14';
+const APP_VERSION='v12.15';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Quotes: Duplicate + Delete, send via the phone share sheet (replaces Gmail draft), satellite map picker with arrow/box Location added to the end of the quote.';
+const BUILD_STAMP='2026-11-17 PT - Quotes now send through the Reach tab (PDF attached like any Reach attachment, school people pre-picked); map picture and $ amount fixes in the quote Doc.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4195,8 +4195,8 @@ async function qtToggle(id){
     renderQuotes();
   }
 }
-// Send a quote with the phone's own share sheet (email, text, WhatsApp, Drive... whatever the person chooses).
-// Step 1 prepares the PDF; step 2 (a fresh tap) opens the share sheet, which browsers require.
+// Send a quote through the app's own Reach tab: the quote PDF is staged as a normal Reach attachment,
+// the school's people are pre-selected, and Reach asks how to send (email / text, together / each).
 let _qtShare=null;
 async function qtSend(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
@@ -4206,60 +4206,36 @@ async function qtSend(id){
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
   m.innerHTML=`<div style="background:var(--paper,#fff);border-radius:14px;max-width:460px;width:100%;max-height:88vh;overflow:auto;padding:16px">
     <div style="font-size:16px;font-weight:700;color:var(--ink)">Send ${escHtml(x.id)} - ${escHtml(x.site)}</div>
-    <div id="qtMailBody" style="margin-top:10px"><div class="spinner"></div><div class="sub-meta" style="text-align:center">Preparing the PDF…</div></div>
-    <div style="margin-top:12px"><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="document.getElementById('qtMailBox').remove()">Close</button></div></div>`;
+    <div id="qtMailBody" style="margin-top:10px"><div class="spinner"></div><div class="sub-meta" style="text-align:center">Getting the quote PDF ready…</div></div>
+    <div style="margin-top:12px"><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="document.getElementById('qtMailBox').remove()">Cancel</button></div></div>`;
   document.body.appendChild(m);
   let r=null,cr=null;
   try{[r,cr]=await Promise.all([_qtCall('acctGetPdf',{id:id}),_qtCall('acctQuoteContacts',{id:id}).catch(()=>null)]);}catch(e){}
   const body=document.getElementById('qtMailBody');if(!body)return;
   if(!r||!r.ok){body.innerHTML='<div class="sub-meta" style="color:var(--danger)">'+escHtml((r&&r.error)||'Could not prepare the PDF.')+'</div>';return;}
-  const bin=atob(r.b64),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
-  const file=new File([arr],r.name||(id+'.pdf'),{type:'application/pdf'});
-  _qtShare={id:id,file:file,subject:r.subject,text:r.text,contacts:(cr&&cr.ok&&cr.contacts)||[],pre:(cr&&cr.preselect)||''};
-  const canFiles=!!(navigator.canShare&&navigator.canShare({files:[file]}));
-  const bs='margin:0 8px 8px 0';
-  body.innerHTML=`<div class="sub-meta" style="margin-bottom:8px">PDF ready. Share opens your phone's usual sheet so you choose how to send it (email, text, WhatsApp, …).</div>
-    <div style="display:flex;flex-wrap:wrap">
-      ${canFiles?`<button type="button" class="settings-btn" style="${bs}" onclick="qtShareNow()">📤 Share PDF…</button>`:''}
-      <button type="button" class="settings-btn" style="${bs}" onclick="qtShareDownload()">⬇️ Download PDF</button>
-      <button type="button" class="settings-btn" style="${bs}" onclick="qtShareCopy()">📋 Copy message</button>
-      <button type="button" class="settings-btn" style="${bs}" onclick="qtShareMarkSent()">✓ Mark as sent</button>
-    </div>
-    ${canFiles?'':'<div class="sub-meta">This browser can\'t share files directly. Download the PDF, then attach it in your mail or messaging app.</div>'}
-    ${_qtShare.contacts.length?`<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:10px 0 4px">People at this school</div>`+_qtShare.contacts.map(c=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}"${c.email===_qtShare.pre?' checked':''} style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label||c.email)}</b> <span style="font-size:12px;color:var(--silver)">${escHtml(c.role)}</span><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join('')+`<div style="display:flex;flex-wrap:wrap;margin-top:8px"><button type="button" class="settings-btn" style="${bs}" onclick="qtShareCopyEmails()">Copy selected emails</button><button type="button" class="settings-btn" style="${bs}" onclick="qtShareMailto()">✉️ Open mail app (no attachment)</button></div>`:''}`;
+  if(!r.fileId){body.innerHTML='<div class="sub-meta" style="color:var(--danger)">The PDF has no file id - redeploy the Apps Script (new version), then try again.</div>';return;}
+  _qtShare={id:id,site:x.site,fileId:r.fileId,name:r.name||(id+'.pdf'),subject:r.subject,text:r.text,contacts:(cr&&cr.ok&&cr.contacts)||[],pre:(cr&&cr.preselect)||'',wasDraft:x.status==='Draft'};
+  const lbl='display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)';
+  body.innerHTML=`<div class="sub-meta" style="margin-bottom:8px">📎 ${escHtml(_qtShare.name)} will be attached in Reach, just as if you picked it there.</div>
+    ${_qtShare.contacts.length?`<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:6px 0 4px">People at this school</div>`+_qtShare.contacts.map(c=>`<label style="${lbl}"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}"${c.email===_qtShare.pre?' checked':''} style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label||c.email)}</b> <span style="font-size:12px;color:var(--silver)">${escHtml(c.role)}</span><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join(''):'<div class="sub-meta">No contacts found for this school. You can pick people in Reach.</div>'}
+    ${_qtShare.wasDraft?`<label style="${lbl};border:none"><input type="checkbox" id="qtMarkSent" checked style="margin-top:3px"><span>Mark this quote as Sent</span></label>`:''}
+    <div style="margin-top:10px"><button type="button" class="settings-btn" style="margin:0" onclick="qtSendToReach()">Continue in Reach ›</button></div>`;
 }
-function _qtShareTo(){return [...document.querySelectorAll('.qtMailTo:checked')].map(c=>c.value);}
-async function qtShareNow(){
-  if(!_qtShare)return;
-  try{
-    await navigator.share({files:[_qtShare.file],title:_qtShare.subject,text:_qtShare.text});
-    await qtShareMarkSent(true);
-  }catch(e){if(e&&e.name!=='AbortError')showSaveToast('Sharing failed - try Download instead');}
-}
-function qtShareDownload(){
-  if(!_qtShare)return;
-  const u=URL.createObjectURL(_qtShare.file),a=document.createElement('a');a.href=u;a.download=_qtShare.file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
-}
-function qtShareCopy(){
-  if(!_qtShare)return;
-  const t=_qtShare.text,ok=()=>showSaveToast('✓ Message copied');
-  try{navigator.clipboard.writeText(t).then(ok,()=>prompt('Copy this message:',t));}catch(e){prompt('Copy this message:',t);}
-}
-function qtShareCopyEmails(){
-  const t=_qtShareTo().join(', ');if(!t){showSaveToast('Tick at least one person');return;}
-  try{navigator.clipboard.writeText(t).then(()=>showSaveToast('✓ Emails copied'),()=>prompt('Copy:',t));}catch(e){prompt('Copy:',t);}
-}
-function qtShareMailto(){
-  if(!_qtShare)return;const to=_qtShareTo();
-  location.href='mailto:'+to.join(',')+'?subject='+encodeURIComponent(_qtShare.subject)+'&body='+encodeURIComponent(_qtShare.text+'\n\n(Attach the downloaded PDF.)');
-}
-async function qtShareMarkSent(quiet){
-  if(!_qtShare)return;
-  try{
-    const r=await _qtCall('acctMarkSent',{id:_qtShare.id});
-    if(r&&r.ok){_qtReplace(r.quote);renderQuotes();showSaveToast(quiet?'✓ Shared - marked as sent':'✓ Marked as sent');const m=document.getElementById('qtMailBox');if(m&&quiet)m.remove();}
-    else showSaveToast((r&&r.error)||'Could not update');
-  }catch(e){showSaveToast('Connection error');}
+function qtSendToReach(){
+  const s=_qtShare;if(!s)return;
+  const picked=[...document.querySelectorAll('.qtMailTo:checked')].map(c=>c.value);
+  const known=new Set((DATA.humans||[]).map(h=>h.Email||h.email||''));
+  const inApp=picked.filter(e=>known.has(e)),extra=picked.filter(e=>!known.has(e));
+  const mark=!!(document.getElementById('qtMarkSent')&&document.getElementById('qtMarkSent').checked);
+  const mb=document.getElementById('qtMailBox');if(mb)mb.remove();
+  _schoolReachSiteName=s.site;
+  _reachSelected.clear();inApp.forEach(e=>_reachSelected.add(e));
+  _reachPendingAttach=[{name:s.name,fileId:s.fileId,kind:'file'}];
+  _reachForwardPrefill={subject:s.subject,message:s.text,cc:extra.join(', ')};
+  if(mark){_qtCall('acctMarkSent',{id:s.id}).then(r=>{if(r&&r.ok){_qtReplace(r.quote);renderQuotes();}}).catch(()=>{});}
+  switchTab('reach');showReachPage('schoolask');
+  if(inApp.length){_subAskReachMode(inApp.length,'The quote PDF is attached. Choose Email to send it'+(extra.length?' (people not in the app are in CC).':'.'),false);}
+  else showToast(extra.length?'📎 Quote attached. Pick who to send it to (outside contacts are in CC).':'📎 Quote attached. Pick who to send it to.');
 }
 async function qtDuplicate(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
@@ -4543,7 +4519,8 @@ async function qtSubmit(sendNow){
         delete _qtLines[editing];
         msg=r.needsResend?'✓ '+editing+' updated, PDF replaced. Tap Email quote to send the new one.':'✓ '+editing+' updated, PDF replaced';
       }else msg=r.buildError?'Saved, but the PDF failed: '+r.buildError:'✓ Draft '+r.id+' saved with PDF';
-      if(r.buildNote)msg+=' ('+r.buildNote+')';
+      if(r.buildNote)msg+=' ('+r.buildNote.trim()+')';
+      if(r.locationError)msg+=' (Map not saved: '+r.locationError+')';
       _qtReplace(r.quote);qtNewToggle(false);renderQuotes();showSaveToast(msg);
       if(sendNow&&!r.buildError)qtSend(editing||r.id);
       return;
