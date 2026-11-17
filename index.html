@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.09 -->
+<!-- v12.10 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2308,6 +2308,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
             <button type="button" class="dd-opt" id="itViewSimpleBtn" onclick="setItemView('simple')">Simple</button>
             <button type="button" class="dd-opt active" id="itViewSummaryBtn" onclick="setItemView('summary')">Summary</button>
             <button type="button" class="dd-opt" id="itViewDetailedBtn" onclick="setItemView('detailed')">Detailed</button>
+            <button type="button" class="dd-opt" id="itViewPicturesBtn" onclick="setItemView('pictures')">Pictures</button>
           </div>
         </div>
       </div>
@@ -2323,7 +2324,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           </div>
           <div id="itNewTypes" style="display:flex;flex-direction:column;gap:10px"></div>
           <div id="itNewAInfoWrap"></div><div id="itNewBInfoWrap"></div><div id="itNewCInfoWrap"></div>
-          <div class="sub-meta">Photos (Image 1 / Image 2): add the item first, then tap Edit to upload them.</div>
+          <div id="itNewImgs" style="display:flex;gap:10px;flex-wrap:wrap"></div>
           <textarea id="itNewDesc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description (optional)"></textarea>
         </div>
         <div style="display:flex;gap:8px;margin-top:10px">
@@ -2506,10 +2507,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.09';
+const APP_VERSION='v12.10';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 20:52 PT - New Quotes tab (Level 1, or Level 2 if switched on): create, email and approve quotes from the app; saved to the Rover Accounting sheet.';
+const BUILD_STAMP='2026-11-17 PT - Items: new Pictures view in the Detail dropdown; photos upload from Add/Edit item into Item Images 1/2/3 folders (3 image slots).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -18331,7 +18332,7 @@ function _itemInfoLinkHtml(i){
     const f=_infoFileByUrl(u);
     return `<a class="dlink" href="${ea(u)}" target="_blank" rel="noopener" style="font-size:13px;margin-right:12px">📎 ${escHtml(f?f.name:'Information file '+(n+1))}</a>`;
   }).join('');
-  const imgs=[i.img1,i.img2].filter(Boolean).length;
+  const imgs=[i.img1,i.img2,i.img3].filter(Boolean).length;
   const ph=imgs?`<a class="dlink" href="#" style="font-size:13px" onclick="event.preventDefault();_itemShowPhotos('${ea(_itemRid(i))}',this)">🖼 Photo${imgs>1?'s':''}</a>`:'';
   return (links||ph)?`<div style="margin-top:4px">${links}${ph}<div id="itPh-${ea(_itemRid(i))}" style="display:none;gap:8px;flex-wrap:wrap;margin-top:6px"></div></div>`:'';
 }
@@ -18340,16 +18341,30 @@ function _itemImgSrc(u,w){const m=String(u||'').match(/\/d\/([-\w]{20,})/);retur
 function _itemShowPhotos(rid,a){
   const box=document.getElementById('itPh-'+rid),it=_itemByRid(rid);if(!box||!it)return;
   if(box.style.display==='flex'){box.style.display='none';return;}
-  if(!box.dataset.f){box.innerHTML=[it.img1,it.img2].filter(Boolean).map(u=>`<a href="${ea(u)}" target="_blank" rel="noopener"><img loading="lazy" src="${ea(_itemImgSrc(u,480))}" alt="item photo" style="height:110px;max-width:46vw;object-fit:cover;border-radius:8px;border:1px solid var(--mist)"></a>`).join('');box.dataset.f='1';}
+  if(!box.dataset.f){box.innerHTML=[it.img1,it.img2,it.img3].filter(Boolean).map(u=>`<a href="${ea(u)}" target="_blank" rel="noopener"><img loading="lazy" src="${ea(_itemImgSrc(u,480))}" alt="item photo" style="height:110px;max-width:46vw;object-fit:cover;border-radius:8px;border:1px solid var(--mist)"></a>`).join('');box.dataset.f='1';}
   box.style.display='flex';
 }
-// Photo slot (Image 1 / Image 2) in the edit panel: thumbnail + upload / replace. Uploads go to the "Item Image Files" Drive folder.
+// Photo slot (Image 1 / Image 2) in the edit panel: thumbnail + upload / replace. Image n uploads to Drive folder "Item Images n".
 function _itemImgSlotHtml(rid,pfx,n,url){
   const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b)';
   return `<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:130px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Image ${n}</label>
     <div id="${pfx}Img${n}Box">${url?`<img loading="lazy" src="${ea(_itemImgSrc(url,320))}" alt="" style="height:90px;max-width:100%;object-fit:cover;border-radius:8px;border:1px solid var(--mist)">`:'<span class="sub-meta">No photo yet</span>'}</div>
     <button type="button" style="${bs};text-align:left" onclick="document.getElementById('${pfx}Img${n}In').click()">${url?'🔄 Replace photo':'⬆ Upload photo'}</button>
     <input type="file" accept="image/*" id="${pfx}Img${n}In" style="display:none" onchange="itemPhotoUpload('${ea(rid)}','${pfx}',${n},this)"></div>`;
+}
+async function _itemPrepPhoto(file){
+  let uf=file;
+  const heic=!file.type||/heic|heif|octet-stream/i.test(file.type),ios=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  if(ios||heic||file.size>4*1024*1024){
+    _updatePhotoOverlay(8,'Converting photo\u2026','Optimising for upload\u2026');
+    const rd=await _reencodeToJpeg(file,0.85);
+    if(rd&&rd.startsWith('data:image/jpeg')){
+      const bs=atob(rd.split(',')[1]),by=new Uint8Array(bs.length);
+      for(let k=0;k<bs.length;k++)by[k]=bs.charCodeAt(k);
+      uf=new File([by],(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'});
+    }else if(heic&&rd===null)throw new Error('Could not convert HEIC photo. Please use a JPEG.');
+  }
+  return uf;
 }
 async function itemPhotoUpload(rid,pfx,n,input){
   const file=input.files&&input.files[0];input.value='';if(!file)return;
@@ -18358,17 +18373,7 @@ async function itemPhotoUpload(rid,pfx,n,input){
   const overlay=_showPhotoOverlay('Uploading photo\u2026');
   _updatePhotoOverlay(2,'Reading photo\u2026','Please keep the app open');
   try{
-    let uf=file;
-    const heic=!file.type||/heic|heif|octet-stream/i.test(file.type),ios=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
-    if(ios||heic||file.size>4*1024*1024){
-      _updatePhotoOverlay(8,'Converting photo\u2026','Optimising for upload\u2026');
-      const rd=await _reencodeToJpeg(file,0.85);
-      if(rd&&rd.startsWith('data:image/jpeg')){
-        const bs=atob(rd.split(',')[1]),by=new Uint8Array(bs.length);
-        for(let k=0;k<bs.length;k++)by[k]=bs.charCodeAt(k);
-        uf=new File([by],(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'});
-      }else if(heic&&rd===null)throw new Error('Could not convert HEIC photo. Please use a JPEG.');
-    }
+    const uf=await _itemPrepPhoto(file);
     const url=await _uploadPhotoXHR(uf,{action:'uploadItemImage',itemId:it.id,row:it.row,slot:n});
     it['img'+n]=url;
     overlay.remove();
@@ -18379,12 +18384,38 @@ async function itemPhotoUpload(rid,pfx,n,input){
     _playUploadError();overlay.remove();showSaveToast('\u26a0 '+(err.message||'Upload failed'));
   }
 }
+// Add New Item: photos are chosen first, then uploaded (to Item Images 1/2/3) right after the row is created.
+let _itNewFiles={1:null,2:null,3:null};
+function _itNewImgsHtml(){
+  const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b);text-align:left';
+  return [1,2,3].map(n=>`<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:110px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Image ${n}</label>
+    <div id="itNewImg${n}Box"><span class="sub-meta">No photo</span></div>
+    <button type="button" style="${bs}" onclick="document.getElementById('itNewImg${n}In').click()">\u2b06 Choose photo</button>
+    <input type="file" accept="image/*" id="itNewImg${n}In" style="display:none" onchange="itNewPickPhoto(${n},this)"></div>`).join('');
+}
+function _itNewResetImgs(){
+  Object.values(_itNewFiles).forEach(f=>{if(f&&f._u)try{URL.revokeObjectURL(f._u);}catch(e){}});
+  _itNewFiles={1:null,2:null,3:null};
+  const w=document.getElementById('itNewImgs');if(w)w.innerHTML=_itNewImgsHtml();
+}
+function itNewPickPhoto(n,input){
+  const f=input.files&&input.files[0];input.value='';if(!f)return;
+  if(_itNewFiles[n]&&_itNewFiles[n]._u)try{URL.revokeObjectURL(_itNewFiles[n]._u);}catch(e){}
+  _itNewFiles[n]=f;
+  let u='';try{u=URL.createObjectURL(f);f._u=u;}catch(e){}
+  const box=document.getElementById('itNewImg'+n+'Box');
+  if(box)box.innerHTML=u?`<img src="${ea(u)}" alt="" style="height:90px;max-width:100%;object-fit:cover;border-radius:8px;border:1px solid var(--mist)">`:'<span class="sub-meta">'+escHtml(f.name||'photo selected')+'</span>';
+}
 function _itemRowHtml(i){
   const amount=_dataPriceFmtAmount(i.amount),rid=ea(_itemRid(i));
   const editBtn=`<button type="button" onclick="copyItemLink('${rid}')" title="Copy link to this item card" style="border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1;flex:none">🔗</button><button type="button" onclick="toggleEditItem('${rid}')" title="Edit" style="border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1;flex:none">✏️</button>`;
   const panel=`<div id="itEdit-${rid}" style="display:none"></div>`;
   if(itView==='simple'){
     return `<div id="itRow-${rid}" class="it-row" style="border-bottom:1px solid var(--mist)"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 16px;font-size:14px"><span style="color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(i.name)}${i.infoLink?' 📎':''}</span><span style="color:var(--silver);flex:none">${escHtml(i.type1||'')}</span>${editBtn}</div>${panel}</div>`;
+  }
+  if(itView==='pictures'){
+    const th=[i.img1,i.img2,i.img3].filter(Boolean).map(u=>`<a href="${ea(u)}" target="_blank" rel="noopener"><img loading="lazy" decoding="async" src="${ea(_itemImgSrc(u,240))}" alt="" style="height:84px;width:84px;object-fit:cover;border-radius:8px;border:1px solid var(--mist)"></a>`).join('')||'<span class="sub-meta">No photos</span>';
+    return `<div id="itRow-${rid}" class="it-row" style="padding:10px 16px;border-bottom:1px solid var(--mist)"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-size:15px;color:var(--ink);font-weight:600;min-width:0;flex:1">${escHtml(i.name)}</div>${editBtn}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${th}</div>${panel}</div>`;
   }
   const head=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="flex:1;min-width:0"><div style="font-size:15px;color:var(--ink);font-weight:600">${escHtml(i.name)}</div><div>${_itemTypeChips(i)}</div>${_itemInfoLinkHtml(i)}</div>${i.amount!==''&&i.amount!==null&&i.amount!==undefined?`<div style="font-size:15px;font-weight:700;color:var(--sage);flex:none;padding-top:2px">${amount}</div>`:''}${editBtn}</div>`;
   if(itView==='summary')return `<div id="itRow-${rid}" class="it-row" style="padding:12px 16px;border-bottom:1px solid var(--mist)">${head}${panel}</div>`;
@@ -18400,7 +18431,7 @@ function _updateItemDDLabels(){
   const fb=document.querySelector('#itDD .dd-btn[data-dd="filter"]');if(fb)fb.classList.toggle('on',n>0);
   const sb=document.querySelector('#itDD .dd-btn[data-dd="sort"]');if(sb)sb.classList.toggle('on',itSort!=='name-asc');
   if(dv)dv.textContent=itView.charAt(0).toUpperCase()+itView.slice(1);
-  ['simple','summary','detailed'].forEach(v=>{const b=document.getElementById('itView'+v.charAt(0).toUpperCase()+v.slice(1)+'Btn');if(b)b.classList.toggle('active',v===itView);});
+  ['simple','summary','detailed','pictures'].forEach(v=>{const b=document.getElementById('itView'+v.charAt(0).toUpperCase()+v.slice(1)+'Btn');if(b)b.classList.toggle('active',v===itView);});
   _ddSentence('itDD',_itemsSentence());
 }
 async function renderDataItems(){
@@ -18471,6 +18502,7 @@ async function toggleNewItemForm(){
     if(!_itemsCache&&!(await _loadItems()))return;
     document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
     _mountInfoSlots('itNew',{});
+    _itNewResetImgs();
   }
   f.style.display=open?'block':'none';
 }
@@ -18496,13 +18528,23 @@ async function submitNewItem(){
       statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not add item.';
       btn.disabled=false;btn.style.opacity='1';return;
     }
-    (_itemsCache=_itemsCache||[]).push({row:res.row||0,id:res.id||'',name,type1,type2,type3,amount,description,info1,info2,info3,infoLink,img1:'',img2:'',dateStamp:new Date().toISOString()});
+    const newIt={row:res.row||0,id:res.id||'',name,type1,type2,type3,amount,description,info1,info2,info3,infoLink,img1:'',img2:'',img3:'',dateStamp:new Date().toISOString()};
+    (_itemsCache=_itemsCache||[]).push(newIt);
+    const picks=[1,2,3].filter(n=>_itNewFiles[n]).map(n=>[n,_itNewFiles[n]]);
+    if(picks.length){
+      statusEl.textContent='Uploading photos\u2026';
+      for(const [n,f] of picks){
+        try{const uf=await _itemPrepPhoto(f);newIt['img'+n]=await _uploadPhotoXHR(uf,{action:'uploadItemImage',itemId:newIt.id,row:newIt.row,slot:n});}
+        catch(e){showSaveToast('\u26a0 Image '+n+': '+(e.message||'upload failed')+' - item saved; add it via Edit');}
+      }
+    }
     [['type1',type1],['type2',type2],['type3',type3]].forEach(([k,v])=>{if(v&&(_itemOpts[k]||(_itemOpts[k]=[])).indexOf(v)===-1)_itemOpts[k].push(v);});
     _itemOpts.type1.sort();_itemOpts.type2.sort();_itemOpts.type3.sort();
     _prices_invalidateIfNeeded(type3);
     nameEl.value='';if(amtEl)amtEl.value='';if(descEl)descEl.value='';
     document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
     _mountInfoSlots('itNew',{});
+    _itNewResetImgs();
     _fillItemFilterSelects();
     statusEl.style.color='var(--sage)';statusEl.textContent='Added!';
     renderDataItems();
@@ -18530,7 +18572,7 @@ async function toggleEditItem(rid){
     </div>
     ${_itemTypeSelectHtml(1,pfx,it.type1)}${_itemTypeSelectHtml(2,pfx,it.type2)}${_itemTypeSelectHtml(3,pfx,it.type3)}
     ${_infoWrapsHtml(pfx)}
-    <div style="display:flex;gap:10px;flex-wrap:wrap">${_itemImgSlotHtml(rid,pfx,1,it.img1)}${_itemImgSlotHtml(rid,pfx,2,it.img2)}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">${_itemImgSlotHtml(rid,pfx,1,it.img1)}${_itemImgSlotHtml(rid,pfx,2,it.img2)}${_itemImgSlotHtml(rid,pfx,3,it.img3)}</div>
     <textarea id="${pfx}Desc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description">${escHtml(it.description||'')}</textarea>
     <div style="display:flex;gap:8px">
       <button type="button" class="settings-btn" style="flex:1" onclick="saveEditItem('${ea(rid)}','${pfx}')">Save</button>

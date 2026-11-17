@@ -85,7 +85,9 @@ const SITES_IMG_FOLDER  = '1ShOd2m9UzPjuftceOeL2MdeYvkug4haU';
 const HUMANS_IMG_FOLDER = '1PsqHbWRwurrVEpwhT-iRNGhjlf9jPgUx';
 const CHORES_IMG_FOLDER = '1f_B10hFEsPg5WUHwpcbS86lq2EcPu_si';
 const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
-const ITEM_IMG_FOLDER   = '1cbPd2FInZJvZY2pDiWBmwDRd4u_H-PlB'; // "Item Image Files" - Items All Image 1 / Image 2
+const ITEM_IMG_FOLDER   = '1cbPd2FInZJvZY2pDiWBmwDRd4u_H-PlB'; // "Item Images" (parent)
+// One subfolder per Items All image column: Image 1 -> "Item Images 1", Image 2 -> "Item Images 2", Image 3 -> "Item Images 3"
+const ITEM_IMG_FOLDERS  = ['1qcKSbRCk7QtH_9CKS8rhRmxTfNRHxq4q', '1V8QbP-5uqLzPtFX718hVdJVoSjPMNil8', '1vsf3Bt4e7LT5ocVaP2ZTIZGbQqw3WPdf'];
 const INFO_SHEET_ID     = '14Z6I1lPXGlI83NKo1ko7KX1S8GqxDCajv6EbQTyS690'; // "Information Files" tracking sheet (ID, Name, Description, Type)
 const PROJECTS_ID       = '1i0cUEIzd8M_5LXSvc8NgDcUeGPYEuCJYRCSOqhNjYcg'; // Project Rover sheet, tab "Projects"
 const INFO_FILES_FOLDER = '1x8zbWU-t4KJHtNuoj5VqpBtvcJRdMHDI'; // Items All > "Link to information file"
@@ -3519,10 +3521,10 @@ function _itemsInfoIdxs(headers) {
 }
 // First information-file column (kept for older callers).
 function _itemsInfoIdx(headers) { return _itemsInfoIdxs(headers)[0]; }
-// Items All "Image 1" / "Image 2" columns ("Image" is accepted as slot 1).
+// Items All "Image 1" / "Image 2" / "Image 3" columns ("Image" is accepted as slot 1).
 function _itemsImgIdxs(headers) {
   var a = headers.indexOf('Image 1'); if (a === -1) a = headers.indexOf('Image');
-  return [a, headers.indexOf('Image 2')];
+  return [a, headers.indexOf('Image 2'), headers.indexOf('Image 3')];
 }
 
 // 8-char unique ID generator for Items All rows (same pattern as Chores' ID column).
@@ -3941,7 +3943,7 @@ function handleGetItems() {
       description: cell(r, di),
       info1: cell(r, lki[0]), info2: cell(r, lki[1]), info3: cell(r, lki[2]),
       infoLink: cell(r, lki[0]),
-      img1: cell(r, imi[0]), img2: cell(r, imi[1]),
+      img1: cell(r, imi[0]), img2: cell(r, imi[1]), img3: cell(r, imi[2]),
       dateStamp: dti > -1 ? data[r][dti] : ''
     });
   }
@@ -4143,12 +4145,12 @@ function _syncInfoFilesSheet(files) {
   if (out.length) sh.getRange(2, 1, out.length, 4).setValues(out);
   props.setProperty('INFO_SHEET_SIG', sig);
 }
-// Uploads a photo for an Items All row into the "Item Image Files" Drive folder and writes its URL
-// into Image 1 / Image 2. p.itemId (or p.row), p.slot = 1 | 2.
+// Uploads a photo for an Items All row into the matching "Item Images 1/2/3" Drive subfolder and writes
+// its URL into Image 1 / 2 / 3. p.itemId (or p.row), p.slot = 1 | 2 | 3.
 function handleUploadItemImage(p) {
   try {
     if (!p.base64) return { ok: false, error: 'Missing photo' };
-    var slot = Number(p.slot) === 2 ? 2 : 1;
+    var slot = Math.min(3, Math.max(1, Number(p.slot) || 1));
     var sheet = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
     if (!sheet) return { ok: false, error: '"Items All" tab not found.' };
     var data = sheet.getDataRange().getValues(), h = data[0];
@@ -4162,7 +4164,7 @@ function handleUploadItemImage(p) {
     var safeMime = (p.mimeType && !/heic|heif/i.test(p.mimeType) && p.mimeType !== 'application/octet-stream') ? p.mimeType : 'image/jpeg';
     var ext = /png/i.test(safeMime) ? '.png' : '.jpg';
     var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyyMMdd_HHmmss');
-    var file = DriveApp.getFolderById(ITEM_IMG_FOLDER).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), safeMime, (itemName || 'Item') + '.Image ' + slot + '.' + stamp + ext));
+    var file = DriveApp.getFolderById(ITEM_IMG_FOLDERS[slot - 1]).createFile(Utilities.newBlob(Utilities.base64Decode(p.base64), safeMime, (itemName || 'Item') + '.Image ' + slot + '.' + stamp + ext));
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     var url = 'https://lh3.googleusercontent.com/d/' + file.getId();
     sheet.getRange(target, ci + 1).setValue(url);
