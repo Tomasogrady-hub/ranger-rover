@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.11 -->
+<!-- v12.12 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.11';
+const APP_VERSION='v12.12';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - New Forms page in Bulk Data (from Rover Forms > Actual Forms); Quotes can now be an item list with photos and descriptions plus one total, built from the Quote Maker Form 1 template.';
+const BUILD_STAMP='2026-11-17 PT - Quotes: item-list only (no qty x price), build date, Edit an existing quote (new PDF replaces the old), new quote layout with one-line item list and photo detail pages.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4122,7 +4122,7 @@ function loadQuotes(){
     else if(!_qtQuotes.length){const el=document.getElementById('qtList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml((r&&r.error)||'Could not load quotes.')+'</div>';}
   }).catch(()=>{}).finally(()=>{
     _qtLoading=null;
-    if(_activeTab==='quotes'){renderQuotes();const b=document.getElementById('qtAddBox');if(b&&b.style.display==='block')_qtRefillItems();}
+    if(_activeTab==='quotes'){renderQuotes();const b=document.getElementById('qtAddBox');if(b&&b.style.display==='block')_qtRefreshQItems();}
   });
   return _qtLoading;
 }
@@ -4162,10 +4162,11 @@ function _qtCardHtml(x){
       ${x.contactName||x.contactEmail?`<div><b>To:</b> ${escHtml(x.contactName)}${x.contactEmail?' &lt;'+escHtml(x.contactEmail)+'&gt;':''}</div>`:'<div><b>To:</b> no contact email yet</div>'}
       ${x.scope?`<div style="margin-top:4px;white-space:pre-wrap">${escHtml(x.scope)}</div>`:''}
       ${lines}
-      <div style="margin-top:6px;font-size:13px;color:var(--silver)">${x.validUntil?'Valid through '+_qtDate(x.validUntil)+' · ':''}${x.sentDate?'Emailed '+_qtDate(x.sentDate)+' · ':''}${x.approvedDate?'Approved '+_qtDate(x.approvedDate)+(x.po?' · PO '+escHtml(x.po):''):''}</div>
+      <div style="margin-top:6px;font-size:13px;color:var(--silver)">${x.buildDate?'Build date '+(/^\d{4}-\d{2}-\d{2}$/.test(x.buildDate)?_qtDate(x.buildDate):escHtml(x.buildDate))+' · ':''}${x.validUntil?'Valid through '+_qtDate(x.validUntil)+' · ':''}${x.sentDate?'Emailed '+_qtDate(x.sentDate)+' · ':''}${x.approvedDate?'Approved '+_qtDate(x.approvedDate)+(x.po?' · PO '+escHtml(x.po):''):''}</div>
       ${x.notes?`<div style="margin-top:4px"><b>Notes:</b> ${escHtml(x.notes)}</div>`:''}</div>`;
   }
   const acts=[`<button type="button" class="settings-btn" style="${btn}" onclick="qtToggle('${i}')">${open?'▴ Collapse':'▾ Expand'}</button>`];
+  if(x.status!=='Approved')acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtEdit('${i}')">✏️ Edit</button>`);
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtSend('${i}')">${x.status==='Sent'?'📧 Resend':'📧 Email quote'}</button>`);
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtApprove('${i}')">✅ Record approval</button>`);
   if(x.docLink)acts.push(`<a class="settings-btn" style="${btn};text-decoration:none;display:inline-block" href="${ea(x.docLink)}" target="_blank" rel="noopener">📝 Doc</a>`);
@@ -4236,42 +4237,17 @@ function _qtItemsFor(cat){return _qtItems.filter(i=>!cat||i.category===cat);}
 function _qtItemOpts(cat,sel){
   return '<option value="">Custom line</option>'+_qtItemsFor(cat).map(i=>`<option value="${ea(i.id)}"${i.id===sel?' selected':''}>${escHtml(i.name)}</option>`).join('');
 }
-function qtNewToggle(show){
-  const b=document.getElementById('qtAddBox');if(!b)return;
-  const open=(typeof show==='boolean')?show:b.style.display==='none';
-  if(open){
-    const inp='class="edit-input" style="width:100%;margin-bottom:8px"';
-    b.innerHTML=`<div class="th-card">
-      <div style="display:flex;gap:8px"><select id="qtNCat" ${inp} onchange="_qtRefillItems()"><option>Program</option><option>Maker</option></select>
-        <input id="qtNSite" ${inp} list="qtSchools" maxlength="200" placeholder="School (start typing)" autocomplete="off" oninput="_qtSchoolPicked()" onchange="_qtSchoolPicked()"></div>
-      <datalist id="qtSchools">${_qtSchoolNames().map(n=>`<option value="${ea(n)}">`).join('')}</datalist>
-      <div style="display:flex;gap:8px"><input id="qtNName" ${inp} maxlength="120" placeholder="Contact name"><input id="qtNEmail" ${inp} type="email" maxlength="200" placeholder="Contact email"></div>
-      <div id="qtNHint" class="sub-meta" style="margin:-4px 0 8px"></div>
-      <textarea id="qtNScope" ${inp} rows="2" maxlength="2000" placeholder="Scope / what this quote covers"></textarea>
-      <select id="qtNFmt" ${inp} onchange="_qtFmtChanged()"><option value="">Price list lines (qty x unit price)</option><option value="Items">Item list - photos &amp; descriptions, one total</option></select>
-      <div id="qtNItemsBlock" style="display:none">
-        <input id="qtNItemSearch" ${inp} type="search" placeholder="Search quote items" oninput="_qtItemFilter()">
-        <div id="qtNItemList" style="max-height:260px;overflow:auto;border:1px solid var(--mist);border-radius:10px;padding:4px 10px;margin-bottom:8px">${_qtQItemsHtml()}</div>
-        <div id="qtNItemCount" class="sub-meta" style="margin:-2px 0 8px">0 items chosen</div>
-        <input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="Total price for the whole quote ($)">
-      </div>
-      <div id="qtNPriceBlock"><div id="qtNLines"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px"><button type="button" class="settings-btn" style="margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)" onclick="_qtAddLine()">＋ Add line</button><div id="qtNTotal" style="margin-left:auto;font-size:17px;font-weight:700">$0.00</div></div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">Save draft</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; email</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
-    _qtAddLine();
-  }
-  b.style.display=open?'block':'none';
-  if(open)setTimeout(()=>{const n=document.getElementById('qtNSite');if(n)n.focus();},50);
-}
+let _qtEditId='';
 function _qtQItemsHtml(){
   if(!_qtQItems.length)return '<div class="sub-meta" style="padding:8px 0">No Quote Items yet. In Bulk Data > Items, set Type 1 to "Quote Item".</div>';
   return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span></label>`).join('');
 }
-function _qtFmtChanged(){
-  const it=((document.getElementById('qtNFmt')||{}).value)==='Items';
-  const a=document.getElementById('qtNItemsBlock'),b=document.getElementById('qtNPriceBlock');
-  if(a)a.style.display=it?'block':'none';if(b)b.style.display=it?'none':'block';
-  if(it){const l=document.getElementById('qtNItemList');if(l)l.innerHTML=_qtQItemsHtml();_qtItemCount();}
+function _qtRefreshQItems(){
+  const l=document.getElementById('qtNItemList');if(!l)return;
+  const keep=new Set([...l.querySelectorAll('input:checked')].map(c=>c.value));
+  l.innerHTML=_qtQItemsHtml();
+  l.querySelectorAll('input').forEach(c=>{if(keep.has(c.value))c.checked=true;});
+  _qtItemCount();
 }
 function _qtItemFilter(){
   const q=((document.getElementById('qtNItemSearch')||{}).value||'').trim().toLowerCase();
@@ -4280,6 +4256,48 @@ function _qtItemFilter(){
 function _qtItemCount(){
   const n=document.querySelectorAll('#qtNItemList input:checked').length,c=document.getElementById('qtNItemCount');
   if(c)c.textContent=n+' item'+(n===1?'':'s')+' chosen';
+}
+// New quote (no argument) or edit an existing one (pass the quote object). One form: school, contact, scope,
+// the Quote Items to include, one total price, build date, notes. Saving builds the Doc + PDF.
+function qtNewToggle(show,edit){
+  const b=document.getElementById('qtAddBox');if(!b)return;
+  const open=(typeof show==='boolean')?show:b.style.display==='none';
+  _qtEditId=(open&&edit)?edit.id:'';
+  if(open){
+    const e=edit||{},inp='class="edit-input" style="width:100%;margin-bottom:8px"',lab='style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px"';
+    b.innerHTML=`<div class="th-card">
+      ${edit?`<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px">Edit ${escHtml(e.id)}</div><div class="sub-meta" style="margin:-4px 0 8px">Saving rebuilds the quote and replaces the old PDF. ${e.status==='Sent'?'This quote was already emailed - use Resend afterwards to send the new PDF.':''}</div>`:''}
+      <div style="display:flex;gap:8px"><select id="qtNCat" ${inp}><option${e.category==='Program'?' selected':''}>Program</option><option${e.category==='Maker'?' selected':''}>Maker</option></select>
+        <input id="qtNSite" ${inp} list="qtSchools" maxlength="200" placeholder="School (start typing)" autocomplete="off" oninput="_qtSchoolPicked()" onchange="_qtSchoolPicked()" value="${ea(e.site||'')}"></div>
+      <datalist id="qtSchools">${_qtSchoolNames().map(n=>`<option value="${ea(n)}">`).join('')}</datalist>
+      <div style="display:flex;gap:8px"><input id="qtNName" ${inp} maxlength="120" placeholder="Contact name" value="${ea(e.contactName||'')}"><input id="qtNEmail" ${inp} type="email" maxlength="200" placeholder="Contact email" value="${ea(e.contactEmail||'')}"></div>
+      <div id="qtNHint" class="sub-meta" style="margin:-4px 0 8px"></div>
+      <textarea id="qtNScope" ${inp} rows="2" maxlength="2000" placeholder="Scope / what this quote covers (optional)">${escHtml(e.scope||'')}</textarea>
+      <input id="qtNItemSearch" ${inp} type="search" placeholder="Search quote items" oninput="_qtItemFilter()">
+      <div id="qtNItemList" style="max-height:260px;overflow:auto;border:1px solid var(--mist);border-radius:10px;padding:4px 10px;margin-bottom:8px">${_qtQItemsHtml()}</div>
+      <div id="qtNItemCount" class="sub-meta" style="margin:-2px 0 8px">0 items chosen</div>
+      <div style="display:flex;gap:8px"><div style="flex:1"><label ${lab}>Total price ($)</label><input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${ea(edit&&e.total!==undefined?e.total:'')}"></div>
+        <div style="flex:1"><label ${lab}>Build date</label><input id="qtNBuild" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.buildDate||'')?e.buildDate:'')}"></div></div>
+      <textarea id="qtNNotes" ${inp} rows="2" maxlength="2000" placeholder="Internal notes (not on the quote)">${escHtml(e.notes||'')}</textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${edit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">${edit?'Save &amp; email':'Save &amp; email'}</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
+    if(edit){
+      const ids=new Set((edit.itemIds||[]).map(String));
+      document.querySelectorAll('#qtNItemList input').forEach(c=>{if(ids.has(c.value))c.checked=true;});
+      _qtItemCount();
+    }
+  }
+  b.style.display=open?'block':'none';
+  if(open&&!edit)setTimeout(()=>{const n=document.getElementById('qtNSite');if(n)n.focus();},50);
+}
+async function qtEdit(id){
+  const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
+  if(x.status==='Approved'){showSaveToast('Approved quotes cannot be edited');return;}
+  let ln=_qtLines[id];
+  if(ln===undefined){
+    try{const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;}catch(e){showSaveToast('Connection error');return;}
+  }
+  qtNewToggle(true,Object.assign({},x,{itemIds:ln.map(l=>l.itemId).filter(Boolean)}));
+  const b=document.getElementById('qtAddBox');if(b)b.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function _qtSchoolPicked(){
   const v=((document.getElementById('qtNSite')||{}).value||'').trim().toLowerCase();
@@ -4292,63 +4310,30 @@ function _qtSchoolPicked(){
   if(ne&&ee){ne.value=(nm&&nm!==pe)?nm:'';ee.value=pe;}
   if(hint)hint.textContent=pe?'Contact filled in from the principal. Change it if the quote should go to someone else.':'No principal on file for this school. Add a contact email.';
 }
-function _qtAddLine(){
-  const wrap=document.getElementById('qtNLines');if(!wrap)return;
-  const cat=(document.getElementById('qtNCat')||{}).value||'';
-  const d=document.createElement('div');d.className='qt-line';d.style.cssText='border-top:1px solid var(--mist);padding-top:8px;margin-top:2px';
-  const inp='class="edit-input" style="width:100%;margin-bottom:6px"';
-  d.innerHTML=`<select class="qt-item edit-input" style="width:100%;margin-bottom:6px">${_qtItemOpts(cat,'')}</select>
-    <input class="qt-desc edit-input" style="width:100%;margin-bottom:6px" maxlength="300" placeholder="Description">
-    <div style="display:flex;gap:8px;align-items:center"><input class="qt-qty edit-input" style="width:80px;margin:0" type="number" inputmode="decimal" min="0" step="any" value="1" aria-label="Quantity">
-      <input class="qt-price edit-input" style="flex:1;min-width:0;margin:0" type="number" inputmode="decimal" min="0" step="any" placeholder="Unit price" aria-label="Unit price">
-      <div class="qt-amt" style="width:96px;text-align:right;font-weight:600">$0.00</div>
-      <button type="button" class="settings-btn qt-rm" style="margin:0;width:auto;padding:6px 10px;background:var(--mist);color:var(--ink)" aria-label="Remove line">✕</button></div>`;
-  wrap.appendChild(d);
-  d.querySelector('.qt-item').onchange=()=>{
-    const it=_qtItems.find(i=>i.id===d.querySelector('.qt-item').value);
-    if(it){d.querySelector('.qt-desc').value=it.name+(it.desc?' - '+it.desc:'');d.querySelector('.qt-price').value=it.price||'';d.dataset.unit=it.unit||'';}
-    _qtRecalc();
-  };
-  d.querySelector('.qt-qty').oninput=_qtRecalc;d.querySelector('.qt-price').oninput=_qtRecalc;
-  d.querySelector('.qt-rm').onclick=()=>{d.remove();_qtRecalc();};
-  _qtRecalc();
-}
-function _qtRefillItems(){
-  const cat=(document.getElementById('qtNCat')||{}).value||'';
-  document.querySelectorAll('#qtNLines .qt-item').forEach(s=>{const keep=s.value;s.innerHTML=_qtItemOpts(cat,keep);if(![...s.options].some(o=>o.value===keep))s.value='';});
-}
-function _qtRecalc(){
-  let t=0;
-  document.querySelectorAll('#qtNLines .qt-line').forEach(d=>{
-    const a=(Number(d.querySelector('.qt-qty').value)||0)*(Number(d.querySelector('.qt-price').value)||0);
-    d.querySelector('.qt-amt').textContent=_qtMoney(a);t+=a;
-  });
-  const el=document.getElementById('qtNTotal');if(el)el.textContent=_qtMoney(t);
-}
 async function qtSubmit(sendNow){
   const v=id=>((document.getElementById(id)||{}).value||'').trim();
-  const itemsMode=v('qtNFmt')==='Items',itemIds=[...document.querySelectorAll('#qtNItemList input:checked')].map(c=>c.value);
-  const lines=[];
-  if(!itemsMode)document.querySelectorAll('#qtNLines .qt-line').forEach(d=>{
-    const desc=d.querySelector('.qt-desc').value.trim();if(!desc)return;
-    lines.push({itemId:d.querySelector('.qt-item').value,desc:desc,unit:d.dataset.unit||'',qty:Number(d.querySelector('.qt-qty').value)||0,price:Number(d.querySelector('.qt-price').value)||0});
-  });
+  const itemIds=[...document.querySelectorAll('#qtNItemList input:checked')].map(c=>c.value);
   if(!v('qtNSite')){showSaveToast('Choose a school');return;}
-  if(itemsMode){
-    if(!itemIds.length){showSaveToast('Choose at least one item');return;}
-    if(v('qtNBulk')===''||!(Number(v('qtNBulk'))>=0)){showSaveToast('Enter the total price for the quote');return;}
-  }else{
-    if(!lines.length){showSaveToast('Add at least one line with a description');return;}
-    if(lines.some(l=>!(l.qty>0))){showSaveToast('Every line needs a quantity above zero');return;}
-  }
+  if(!itemIds.length){showSaveToast('Choose at least one item');return;}
+  if(v('qtNBulk')===''||!(Number(v('qtNBulk'))>=0)){showSaveToast('Enter the total price for the quote');return;}
   if(sendNow&&!v('qtNEmail')){showSaveToast('Add a contact email to send the quote');return;}
   const b1=document.getElementById('qtSaveBtn'),b2=document.getElementById('qtSendBtn');
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
+  const editing=_qtEditId;
   try{
-    const r=await _qtCall('acctCreateQuote',{category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),lines:lines,format:itemsMode?'Items':'',itemIds:itemIds,bulkTotal:itemsMode?v('qtNBulk'):'',sendNow:!!sendNow});
+    const payload={category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
+    let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items',sendNow:!!sendNow},payload));
     if(r&&r.ok){
-      _qtReplace(r.quote);qtNewToggle(false);renderQuotes();
-      showSaveToast(r.sent?'✓ Quote '+r.id+' emailed':r.sendError?'Saved as draft - email failed: '+r.sendError:'✓ Draft '+r.id+' saved');
+      let msg;
+      if(editing){
+        delete _qtLines[editing];
+        if(sendNow){
+          const s=await _qtCall('acctSendQuote',{id:editing});
+          if(s&&s.ok){r=s;r.quote=s.quote;msg='✓ '+editing+' updated and emailed';}
+          else msg='Updated, but email failed: '+((s&&s.error)||'error');
+        }else msg=r.needsResend?'✓ '+editing+' updated, PDF replaced. Tap Resend to email the new one.':'✓ '+editing+' updated, PDF replaced';
+      }else msg=r.sent?'✓ Quote '+r.id+' emailed':r.sendError?'Saved - email failed: '+r.sendError:r.buildError?'Saved, but the PDF failed: '+r.buildError:'✓ Draft '+r.id+' saved with PDF';
+      _qtReplace(r.quote);qtNewToggle(false);renderQuotes();showSaveToast(msg);
       return;
     }
     showSaveToast((r&&r.error)||'Could not save');

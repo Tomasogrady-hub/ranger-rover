@@ -805,6 +805,7 @@ function _doPostRoute(e) {
       case 'acctGetData':      return respond(handleAcctGetData(p));
       case 'acctGetQuote':     return respond(handleAcctGetQuote(p));
       case 'acctCreateQuote':  return respond(handleAcctCreateQuote(p));
+      case 'acctUpdateQuote':  return respond(handleAcctUpdateQuote(p));
       case 'acctSendQuote':    return respond(handleAcctSendQuote(p));
       case 'acctApproveQuote': return respond(handleAcctApproveQuote(p));
       case 'acctSetStatus':    return respond(handleAcctSetStatus(p));
@@ -9394,7 +9395,8 @@ function _acctQuoteShape(o) {
     contactEmail: String(o['Contact Email'] || ''), scope: String(o['Scope'] || ''), total: Number(o['Total']) || 0,
     status: String(o['Status'] || ''), sentDate: _acctIso(o['Sent Date']), approvedDate: _acctIso(o['Approved Date']),
     po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Notes'] || ''),
-    format: String(o['Format'] || ''), docLink: String(o['Doc Link'] || ''),
+    format: String(o['Format'] || ''), docLink: String(o['Doc Link'] || ''), items: String(o['Items'] || ''),
+    buildDate: (o['Build Date'] instanceof Date) ? _acctIso(o['Build Date']) : String(o['Build Date'] || ''),
     link: tok ? ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(String(o['Quote #'])) + '&t=' + encodeURIComponent(tok) : ''
   };
 }
@@ -9488,10 +9490,17 @@ function handleAcctCreateQuote(p) {
       'Format': itemsMode ? 'Items' : '',
       'Status': 'Draft', 'Notes': _acctText(p.notes, 2000), 'Token': Utilities.getUuid()
     });
+    var extra = {};
+    if (qm['Build Date']) extra['Build Date'] = _acctParseDate(p.buildDate);
+    if (qm['Items']) extra['Items'] = _acctItemsText(lines);
+    if (Object.keys(extra).length) _acctSet(Q, qr, qm, extra);
     SpreadsheetApp.flush();
     shape = _acctQuoteShape(_acctRowObj(Q, qr, qm));
   } finally { lock.releaseLock(); }
   var out = { ok: true, id: q, quote: shape };
+  if (itemsMode) {
+    try { shape = _acctRebuild(q); out.quote = shape; } catch (e) { out.buildError = e.message; }
+  }
   if (p.sendNow) {
     try { out.quote = _acctSendQuote(q); out.sent = true; }
     catch (e) { out.sendError = e.message; }
@@ -9539,21 +9548,23 @@ function _acctSendQuote(q) {
   var total = itemsFmt ? (Number(o['Total']) || 0) : _acctSum(lines), site = String(o['Site']);
   var valid = o['Valid Until'] instanceof Date ? o['Valid Until'] : new Date(Date.now() + ACCT_QUOTE_VALID_DAYS * 86400000);
 
-  var pdf, docUrl = '';
+  var file, docUrl = '';
   if (itemsFmt) {
-    var built = _acctBuildItemsDoc(q, o, lines, total, valid, folderId);
-    pdf = built.pdf; docUrl = built.docUrl;
+    // The PDF is built when the quote is saved or edited; reuse it, or build it now if it is missing.
+    var exId = _driveIdFromUrl(o['PDF Link']);
+    if (exId) { try { file = DriveApp.getFileById(exId); if (file.isTrashed()) file = null; } catch (e) { file = null; } }
+    if (!file) { var rr = _acctRenderItems(q, o, lines, total, valid, folderId); file = rr.file; docUrl = rr.docUrl; }
   } else {
-  var html = _acctDocHtml({
-    title: 'QUOTE', number: q, date: o['Date'], refLabel: 'Valid until', refValue: _acctFmtDate(valid),
-    billTo: [site, o['Contact Name'], to], scope: o['Scope'], lines: lines, total: total,
-    footer: 'This quote is an offer only and is not a contract until approved by the customer. Pricing is valid through ' + _acctFmtDate(valid) + '.'
-  });
-  pdf = Utilities.newBlob(html, 'text/html', q + '.html').getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
+    var html = _acctDocHtml({
+      title: 'QUOTE', number: q, date: o['Date'], refLabel: 'Valid until', refValue: _acctFmtDate(valid),
+      billTo: [site, o['Contact Name'], to], scope: o['Scope'], lines: lines, total: total,
+      footer: 'This quote is an offer only and is not a contract until approved by the customer. Pricing is valid through ' + _acctFmtDate(valid) + '.'
+    });
+    var pdf = Utilities.newBlob(html, 'text/html', q + '.html').getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
+    file = DriveApp.getFolderById(folderId).createFile(pdf);
+    var old = String(o['PDF Link'] || '').match(/[-\w]{25,}/);
+    if (old) { try { DriveApp.getFileById(old[0]).setTrashed(true); } catch (e) {} }
   }
-  var file = DriveApp.getFolderById(folderId).createFile(pdf);
-  var old = String(o['PDF Link'] || '').match(/[-\w]{25,}/);
-  if (old) { try { DriveApp.getFileById(old[0]).setTrashed(true); } catch (e) {} }
 
   var link = ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(q) + '&t=' + encodeURIComponent(String(o['Token']));
   var cn = String(o['Contact Name'] || '').trim();
@@ -9597,40 +9608,201 @@ function _acctImageBlob(url) {
   try { var rsp = UrlFetchApp.fetch('https://lh3.googleusercontent.com/d/' + id + '=w900', { muteHttpExceptions: true }); if (rsp.getResponseCode() === 200) return rsp.getBlob(); } catch (e2) {}
   return null;
 }
+function _acctSiteInfo(name) {
+  try {
+    var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites');
+    var v = sh.getDataRange().getValues(), h = v[0], ni = h.indexOf('Name'), ai = h.indexOf('Full Address'), ti = h.indexOf('Telephone');
+    for (var r = 1; r < v.length; r++) {
+      if (String(v[r][ni]).trim().toLowerCase() === String(name).trim().toLowerCase()) {
+        return { address: ai > -1 ? String(v[r][ai] || '').trim() : '', phone: ti > -1 ? String(v[r][ti] || '').trim() : '' };
+      }
+    }
+  } catch (e) {}
+  return { address: '', phone: '' };
+}
+function _acctDateText(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return _acctFmtDate(v);
+  return String(v || '').trim();
+}
+function _acctParseDate(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '').trim());
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0) : '';
+}
+function _acctItemsText(lines) { return lines.map(function (l) { return l.desc; }).join('; '); }
+function _acctFillCell(cell, rows, align) {
+  cell.clear();
+  var first = cell.getChild(0).asParagraph();
+  rows.forEach(function (row, i) {
+    var p = i === 0 ? first : cell.appendParagraph('');
+    p.setText(row.t);
+    p.setAlignment(align || DocumentApp.HorizontalAlignment.LEFT);
+    p.setSpacingBefore(0).setSpacingAfter(2);
+    var tx = p.editAsText();
+    tx.setBold(!!row.b).setFontSize(row.s || 10).setForegroundColor(row.c || '#222222');
+  });
+}
+// Builds the quote Google Doc from the template ("Quote Maker Form 1"): header block, one-line item list with the
+// single total, and detail pages (name, photo, description per item). Returns { docFile, pdf }.
 function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
   var site = String(o['Site'] || ''), folder = DriveApp.getFolderById(folderId);
   var items = {}; _acctQuoteItems().forEach(function (it) { items[it.id] = it; });
+  var info = _acctSiteInfo(site);
   var copy = DriveApp.getFileById(ACCT_QUOTE_TEMPLATE_ID).makeCopy(q + ' - ' + site + ' (quote doc)', folder);
   var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
-  var map = {
-    'Quote #': q, 'Date': _acctFmtDate(o['Date']), 'Valid Until': _acctFmtDate(valid), 'School': site,
-    'Contact Name': String(o['Contact Name'] || ''), 'Contact Email': String(o['Contact Email'] || ''),
-    'Scope': String(o['Scope'] || ''), 'Total': _acctMoney(total)
-  };
-  Object.keys(map).forEach(function (k) {
-    body.replaceText('\\{\\{' + k.replace(/[#]/g, '\\#') + '\\}\\}', String(map[k]).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'));
-  });
-  var hit = body.findText('\\{\\{ITEMS\\}\\}');
-  if (hit) {
-    var para = hit.getElement().getParent();
-    var idx = body.getChildIndex(para);
-    lines.forEach(function (ln) {
+  function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); }
+  body.replaceText('\\{\\{Valid Until\\}\\}', esc(_acctFmtDate(valid)));
+  // Scope paragraph (removed when empty)
+  var scope = String(o['Scope'] || '').trim(), sh = body.findText('\\{\\{Scope\\}\\}');
+  if (sh) {
+    var sp = sh.getElement().getParent();
+    if (scope) { body.replaceText('\\{\\{Scope\\}\\}', esc(scope)); } else { try { body.removeChild(sp); } catch (e) { body.replaceText('\\{\\{Scope\\}\\}', ''); } }
+  }
+  // Header: Prepared for | Quote details
+  var hh = body.findText('\\{\\{HEADER\\}\\}');
+  if (hh) {
+    var hp = hh.getElement().getParent(), hi = body.getChildIndex(hp);
+    var t = body.insertTable(hi, [['', '']]);
+    t.setBorderWidth(0);
+    var left = [{ t: 'PREPARED FOR', b: true, s: 9, c: '#666666' }, { t: site, b: true, s: 11 }];
+    if (String(o['Contact Name'] || '').trim()) left.push({ t: String(o['Contact Name']).trim() });
+    if (info.address) left.push({ t: info.address });
+    if (info.phone) left.push({ t: info.phone });
+    if (String(o['Contact Email'] || '').trim()) left.push({ t: String(o['Contact Email']).trim() });
+    var right = [{ t: 'QUOTE DETAILS', b: true, s: 9, c: '#666666' }, { t: 'Quote Number: ' + q }, { t: 'Quote Date: ' + _acctDateText(o['Date']) }, { t: 'Valid Until: ' + _acctFmtDate(valid) }];
+    var bd = _acctDateText(o['Build Date']);
+    if (bd) right.push({ t: 'Build Date: ' + bd });
+    right.push({ t: 'Prepared By: ' + ACCT_ORG_NAME });
+    _acctFillCell(t.getCell(0, 0), left, DocumentApp.HorizontalAlignment.LEFT);
+    _acctFillCell(t.getCell(0, 1), right, DocumentApp.HorizontalAlignment.RIGHT);
+    body.removeChild(hp);
+  }
+  // Item list: one line per item name, then the single total
+  var ih = body.findText('\\{\\{ITEMS\\}\\}');
+  if (ih) {
+    var ip = ih.getElement().getParent(), ii = body.getChildIndex(ip);
+    var cells = [['DESCRIPTION', '']];
+    lines.forEach(function (ln) { cells.push([(items[ln.itemId] || { name: ln.desc }).name, '']); });
+    cells.push(['TOTAL', _acctMoney(total)]);
+    var tb = body.insertTable(ii, cells);
+    tb.setBorderWidth(0.5).setBorderColor('#bbbbbb');
+    try { tb.setColumnWidth(0, 400); tb.setColumnWidth(1, 140); } catch (e) {}
+    for (var r = 0; r < cells.length; r++) {
+      var head = r === 0, last = r === cells.length - 1;
+      for (var c = 0; c < 2; c++) {
+        var cell = tb.getCell(r, c);
+        cell.setPaddingTop(6).setPaddingBottom(6);
+        if (head) cell.setBackgroundColor('#f1efe9');
+        var tx = cell.editAsText();
+        tx.setBold(head || last).setFontSize(last ? 12 : 10);
+        if (c === 1) cell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+      }
+    }
+    body.removeChild(ip);
+  }
+  // Detail pages
+  var dh = body.findText('\\{\\{DETAILS\\}\\}');
+  if (dh) {
+    var dp = dh.getElement().getParent(), di = body.getChildIndex(dp);
+    lines.forEach(function (ln, k) {
       var it = items[ln.itemId] || { name: ln.desc, desc: '', img: '' };
-      var p1 = body.insertParagraph(idx++, it.name); p1.setHeading(DocumentApp.ParagraphHeading.HEADING4).setSpacingBefore(10);
-      String(it.desc || '').split(/\n+/).forEach(function (t) { if (t.trim()) { var pd = body.insertParagraph(idx++, t.trim()); pd.setHeading(DocumentApp.ParagraphHeading.NORMAL); } });
+      var p1 = body.insertParagraph(di++, it.name);
+      p1.setHeading(DocumentApp.ParagraphHeading.NORMAL).setAlignment(DocumentApp.HorizontalAlignment.LEFT).setSpacingBefore(k ? 22 : 0).setSpacingAfter(6);
+      p1.editAsText().setBold(true).setFontSize(15).setForegroundColor('#000000');
+      try { p1.setKeepWithNext(true); } catch (e) {}
       var blob = it.img ? _acctImageBlob(it.img) : null;
       if (blob) {
         try {
-          var pi = body.insertParagraph(idx++, ''), im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight(), maxW = 300;
+          var pi = body.insertParagraph(di++, ''), im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight(), maxW = 360;
           if (w > maxW) { im.setWidth(maxW).setHeight(Math.round(h * maxW / w)); }
+          pi.setSpacingAfter(6);
+          try { pi.setKeepWithNext(true); } catch (e2) {}
         } catch (e) {}
       }
+      String(it.desc || '').split(/\n+/).forEach(function (txt) {
+        if (!txt.trim()) return;
+        var pd = body.insertParagraph(di++, txt.trim());
+        pd.setHeading(DocumentApp.ParagraphHeading.NORMAL).setAlignment(DocumentApp.HorizontalAlignment.LEFT).setSpacingAfter(6);
+        pd.editAsText().setBold(false).setFontSize(10.5).setForegroundColor('#222222');
+      });
     });
-    body.removeChild(para);
+    body.removeChild(dp);
   }
   doc.saveAndClose();
-  var pdf = copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
-  return { pdf: pdf, docUrl: copy.getUrl() };
+  return { docFile: copy, pdf: copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf') };
+}
+// Builds the doc + PDF for an item-list quote, saves both in the Program / Maker quotes folder,
+// and trashes the previous PDF and doc so only the current version remains.
+function _acctRenderItems(q, o, lines, total, valid, folderId) {
+  var built = _acctBuildItemsDoc(q, o, lines, total, valid, folderId);
+  var file = DriveApp.getFolderById(folderId).createFile(built.pdf);
+  [String(o['PDF Link'] || ''), String(o['Doc Link'] || '')].forEach(function (u) {
+    var id = _driveIdFromUrl(u);
+    if (id && id !== file.getId() && id !== built.docFile.getId()) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) {} }
+  });
+  return { file: file, docUrl: built.docFile.getUrl() };
+}
+
+
+// Re-reads the quote from the sheet, rebuilds its Doc + PDF (replacing the old ones) and stores the links.
+function _acctRebuild(q) {
+  var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
+  if (!r) throw new Error('Quote not found: ' + q);
+  var o = _acctRowObj(Q, r, qm), lines = _acctLines(q);
+  var folderId = ACCT_FOLDERS[String(o['Category'])];
+  if (!folderId) throw new Error('This quote has no Program / Maker type.');
+  var valid = o['Valid Until'] instanceof Date ? o['Valid Until'] : new Date(Date.now() + ACCT_QUOTE_VALID_DAYS * 86400000);
+  var rr = _acctRenderItems(q, o, lines, Number(o['Total']) || 0, valid, folderId);
+  _acctSet(Q, r, qm, { 'PDF Link': rr.file.getUrl(), 'Doc Link': rr.docUrl });
+  SpreadsheetApp.flush();
+  return _acctQuoteShape(_acctRowObj(Q, r, qm));
+}
+// Edit an existing item-list quote (Draft or Sent). Rewrites the quote row and its lines, then rebuilds the
+// Doc and PDF so the new version REPLACES the old one. Does not email: use Resend for that.
+function handleAcctUpdateQuote(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var q = String(p.id || '').trim();
+  var cat = String(p.category || '');
+  if (!ACCT_FOLDERS[cat]) return { ok: false, error: 'Choose Program or Maker.' };
+  var site = String(p.site || '').trim();
+  if (!site) return { ok: false, error: 'Choose a school.' };
+  var email = String(p.contactEmail || '').trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'That contact email does not look right.' };
+  var catalog = _acctQuoteItems(), byId = {};
+  catalog.forEach(function (it) { byId[it.id] = it; });
+  var ids = (p.itemIds || []).map(String).filter(function (id, k, a) { return byId[id] && a.indexOf(id) === k; });
+  if (!ids.length) return { ok: false, error: 'Choose at least one item.' };
+  if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
+  var bulk = Number(p.bulkTotal);
+  if (p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined || !(bulk >= 0) || bulk > 10000000) return { ok: false, error: 'Enter the total price for this quote.' };
+  var lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: 1, unit: '', price: 0 }; });
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  var status;
+  try {
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
+    if (!r) return { ok: false, error: 'Quote not found: ' + q };
+    var cur = _acctRowObj(Q, r, qm);
+    status = String(cur['Status'] || '');
+    if (status === 'Approved') return { ok: false, error: q + ' is approved and cannot be edited.' };
+    var L = _acctSheet('Quote Lines'), lm = _acctHdr(L), lv = L.getDataRange().getValues();
+    for (var i = lv.length - 1; i >= 1; i--) { if (String(lv[i][lm['Quote #'] - 1]) === q) L.deleteRow(i + 1); }
+    var lr = _acctNextRow(L);
+    lines.forEach(function (ln, k) {
+      var row = lr + k;
+      _acctPut(L, row, lm, { 'Quote #': q, 'Item ID': ln.itemId, 'Description': _acctText(ln.desc, 300), 'Qty': 1, 'Unit': '', 'Unit Price': 0, 'Amount': 0 });
+    });
+    var set = {
+      'Category': cat, 'Site': _acctText(site, 200), 'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email,
+      'Scope': _acctText(p.scope, 2000), 'Total': Math.round(bulk * 100) / 100, 'Notes': _acctText(p.notes, 2000), 'Format': 'Items'
+    };
+    if (qm['Build Date']) set['Build Date'] = _acctParseDate(p.buildDate);
+    if (qm['Items']) set['Items'] = _acctItemsText(lines);
+    _acctSet(Q, r, qm, set);
+    SpreadsheetApp.flush();
+  } finally { lock.releaseLock(); }
+  try {
+    var shape = _acctRebuild(q);
+    return { ok: true, id: q, quote: shape, replaced: true, needsResend: status === 'Sent' };
+  } catch (e) { return { ok: false, error: 'Saved, but the PDF could not be rebuilt: ' + e.message }; }
 }
 
 function handleAcctSendQuote(p) {
