@@ -4792,12 +4792,17 @@ function handleGetFormTemplates() {
   var headers = data[0];
   var nameCol = headers.indexOf('Form Name');
   var linkCol = headers.indexOf('Actual Form');
+  function hc(h) { return headers.indexOf(h); }
   var templates = data.slice(1)
     .filter(function(row) { return nameCol > -1 && String(row[nameCol] || '').trim(); })
     .map(function(row) {
       var name = row[nameCol];
       return {
         name: name,
+        id: hc('ID') > -1 ? String(row[hc('ID')] || '') : '',
+        description: hc('Description') > -1 ? String(row[hc('Description')] || '') : '',
+        category: hc('Category') > -1 ? String(row[hc('Category')] || '') : '',
+        destination: hc('Destination') > -1 ? String(row[hc('Destination')] || '') : '',
         link: linkCol > -1 ? row[linkCol] : '',
         // null/undefined = no filter, show every Forms-tab textCol (old behavior,
         // e.g. Project Approval Tracking Sheet); an array = show ONLY these columns.
@@ -9389,6 +9394,7 @@ function _acctQuoteShape(o) {
     contactEmail: String(o['Contact Email'] || ''), scope: String(o['Scope'] || ''), total: Number(o['Total']) || 0,
     status: String(o['Status'] || ''), sentDate: _acctIso(o['Sent Date']), approvedDate: _acctIso(o['Approved Date']),
     po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Notes'] || ''),
+    format: String(o['Format'] || ''), docLink: String(o['Doc Link'] || ''),
     link: tok ? ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(String(o['Quote #'])) + '&t=' + encodeURIComponent(tok) : ''
   };
 }
@@ -9419,7 +9425,7 @@ function handleAcctGetData(p) {
     }
     quotes.reverse();
     if (quotes.length > 400) quotes = quotes.slice(0, 400);
-    return { ok: true, items: items, quotes: quotes };
+    return { ok: true, items: items, quotes: quotes, qitems: _acctQuoteItems() };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
@@ -9439,12 +9445,24 @@ function handleAcctCreateQuote(p) {
   var email = String(p.contactEmail || '').trim();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'That contact email does not look right.' };
   if (p.sendNow && !email) return { ok: false, error: 'Add a contact email to send the quote.' };
-  var lines = (p.lines || []).filter(function (l) { return l && String(l.desc || '').trim(); });
-  if (!lines.length) return { ok: false, error: 'Add at least one line item.' };
-  if (lines.length > 40) return { ok: false, error: 'Too many lines (40 max).' };
-  for (var i = 0; i < lines.length; i++) {
-    var qty = Number(lines[i].qty), pr = Number(lines[i].price);
-    if (!(qty > 0) || !(pr >= 0) || qty > 100000 || pr > 10000000) return { ok: false, error: 'Check quantity and price on line ' + (i + 1) + '.' };
+  var itemsMode = String(p.format || '') === 'Items', bulk = 0, lines;
+  if (itemsMode) {
+    var cat2 = _acctQuoteItems(), byId = {};
+    cat2.forEach(function (it) { byId[it.id] = it; });
+    var ids = (p.itemIds || []).map(String).filter(function (id, k, a) { return byId[id] && a.indexOf(id) === k; });
+    if (!ids.length) return { ok: false, error: 'Choose at least one item.' };
+    if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
+    bulk = Number(p.bulkTotal);
+    if (!(bulk >= 0) || bulk > 10000000 || p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined) return { ok: false, error: 'Enter the total price for this quote.' };
+    lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: 1, unit: '', price: 0 }; });
+  } else {
+    lines = (p.lines || []).filter(function (l) { return l && String(l.desc || '').trim(); });
+    if (!lines.length) return { ok: false, error: 'Add at least one line item.' };
+    if (lines.length > 40) return { ok: false, error: 'Too many lines (40 max).' };
+    for (var i = 0; i < lines.length; i++) {
+      var qty = Number(lines[i].qty), pr = Number(lines[i].price);
+      if (!(qty > 0) || !(pr >= 0) || qty > 100000 || pr > 10000000) return { ok: false, error: 'Check quantity and price on line ' + (i + 1) + '.' };
+    }
   }
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   var q, shape;
@@ -9465,7 +9483,8 @@ function handleAcctCreateQuote(p) {
     _acctPut(Q, qr, qm, {
       'Quote #': q, 'Date': now, 'Valid Until': valid, 'Category': cat, 'Site': _acctText(site, 200),
       'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email, 'Scope': _acctText(p.scope, 2000),
-      'Total': "=SUMIF('Quote Lines'!" + qa + ':' + qa + ',' + _acctLetter(qm['Quote #']) + qr + ",'Quote Lines'!" + am + ':' + am + ')',
+      'Total': itemsMode ? Math.round(bulk * 100) / 100 : "=SUMIF('Quote Lines'!" + qa + ':' + qa + ',' + _acctLetter(qm['Quote #']) + qr + ",'Quote Lines'!" + am + ':' + am + ')',
+      'Format': itemsMode ? 'Items' : '',
       'Status': 'Draft', 'Notes': _acctText(p.notes, 2000), 'Token': Utilities.getUuid()
     });
     SpreadsheetApp.flush();
@@ -9515,15 +9534,22 @@ function _acctSendQuote(q) {
   if (!folderId) throw new Error('This quote has no Program / Maker type.');
   var lines = _acctLines(q);
   if (!lines.length) throw new Error('This quote has no line items.');
-  var total = _acctSum(lines), site = String(o['Site']);
+  var itemsFmt = String(o['Format'] || '') === 'Items';
+  var total = itemsFmt ? (Number(o['Total']) || 0) : _acctSum(lines), site = String(o['Site']);
   var valid = o['Valid Until'] instanceof Date ? o['Valid Until'] : new Date(Date.now() + ACCT_QUOTE_VALID_DAYS * 86400000);
 
+  var pdf, docUrl = '';
+  if (itemsFmt) {
+    var built = _acctBuildItemsDoc(q, o, lines, total, valid, folderId);
+    pdf = built.pdf; docUrl = built.docUrl;
+  } else {
   var html = _acctDocHtml({
     title: 'QUOTE', number: q, date: o['Date'], refLabel: 'Valid until', refValue: _acctFmtDate(valid),
     billTo: [site, o['Contact Name'], to], scope: o['Scope'], lines: lines, total: total,
     footer: 'This quote is an offer only and is not a contract until approved by the customer. Pricing is valid through ' + _acctFmtDate(valid) + '.'
   });
-  var pdf = Utilities.newBlob(html, 'text/html', q + '.html').getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
+  pdf = Utilities.newBlob(html, 'text/html', q + '.html').getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
+  }
   var file = DriveApp.getFolderById(folderId).createFile(pdf);
   var old = String(o['PDF Link'] || '').match(/[-\w]{25,}/);
   if (old) { try { DriveApp.getFileById(old[0]).setTrashed(true); } catch (e) {} }
@@ -9538,9 +9564,72 @@ function _acctSendQuote(q) {
   GmailApp.sendEmail(to, 'Quote ' + q + ' from ' + ACCT_ORG_NAME + ' - ' + site, 'Quote ' + q + ' for ' + site + ' - total ' + _acctMoney(total) + '. Approve here: ' + link, {
     htmlBody: body, attachments: [file.getBlob()], name: ACCT_ORG_NAME, replyTo: ACCT_ORG_EMAIL, bcc: ACCT_ORG_EMAIL
   });
-  _acctSet(Q, r, qm, { 'Status': 'Sent', 'Sent Date': new Date(), 'PDF Link': file.getUrl() });
+  var upd = { 'Status': 'Sent', 'Sent Date': new Date(), 'PDF Link': file.getUrl() };
+  if (docUrl) upd['Doc Link'] = docUrl;
+  _acctSet(Q, r, qm, upd);
   SpreadsheetApp.flush();
   return _acctQuoteShape(_acctRowObj(Q, r, qm));
+}
+
+
+// ── Item-list quotes (v12.11) ────────────────────────────────────────────────
+// Quote Items are Items All rows with Type 1 = "Quote Item". The quote is built from the
+// Google Doc template "Quote Maker Form 1" (Actual Forms folder): {{tokens}} are replaced and the
+// {{ITEMS}} line becomes one block per item (name, description, photo). One bulk total, no line pricing.
+const ACCT_QUOTE_TEMPLATE_ID = '1-siKS7iFwpTcKSjyBu41KZHCErXEQQIPmVp2kjRs5JA';
+function _acctQuoteItems() {
+  var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
+  if (!sh) return [];
+  var v = sh.getDataRange().getValues(), h = v[0], ii = h.indexOf('ID'), ni = h.indexOf('Name'), t1 = _itemsTypeIdx(h), di = h.indexOf('Description'), im = _itemsImgIdxs(h), out = [];
+  for (var r = 1; r < v.length; r++) {
+    if (String(v[r][t1] || '').trim().toLowerCase() !== 'quote item') continue;
+    var id = String(v[r][ii] || '').trim(), name = String(v[r][ni] || '').trim();
+    if (!id || !name) continue;
+    out.push({ id: id, name: name, desc: String(v[r][di] || '').trim(), img: String(im[0] > -1 ? v[r][im[0]] || '' : '').trim(), hasImg: !!String(im[0] > -1 ? v[r][im[0]] || '' : '').trim() });
+  }
+  return out;
+}
+function _acctImageBlob(url) {
+  var id = _driveIdFromUrl(url);
+  if (!id) return null;
+  try { return DriveApp.getFileById(id).getBlob(); } catch (e) {}
+  try { var rsp = UrlFetchApp.fetch('https://lh3.googleusercontent.com/d/' + id + '=w900', { muteHttpExceptions: true }); if (rsp.getResponseCode() === 200) return rsp.getBlob(); } catch (e2) {}
+  return null;
+}
+function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
+  var site = String(o['Site'] || ''), folder = DriveApp.getFolderById(folderId);
+  var items = {}; _acctQuoteItems().forEach(function (it) { items[it.id] = it; });
+  var copy = DriveApp.getFileById(ACCT_QUOTE_TEMPLATE_ID).makeCopy(q + ' - ' + site + ' (quote doc)', folder);
+  var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
+  var map = {
+    'Quote #': q, 'Date': _acctFmtDate(o['Date']), 'Valid Until': _acctFmtDate(valid), 'School': site,
+    'Contact Name': String(o['Contact Name'] || ''), 'Contact Email': String(o['Contact Email'] || ''),
+    'Scope': String(o['Scope'] || ''), 'Total': _acctMoney(total)
+  };
+  Object.keys(map).forEach(function (k) {
+    body.replaceText('\\{\\{' + k.replace(/[#]/g, '\\#') + '\\}\\}', String(map[k]).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'));
+  });
+  var hit = body.findText('\\{\\{ITEMS\\}\\}');
+  if (hit) {
+    var para = hit.getElement().getParent();
+    var idx = body.getChildIndex(para);
+    lines.forEach(function (ln) {
+      var it = items[ln.itemId] || { name: ln.desc, desc: '', img: '' };
+      var p1 = body.insertParagraph(idx++, it.name); p1.setHeading(DocumentApp.ParagraphHeading.HEADING4).setSpacingBefore(10);
+      String(it.desc || '').split(/\n+/).forEach(function (t) { if (t.trim()) { var pd = body.insertParagraph(idx++, t.trim()); pd.setHeading(DocumentApp.ParagraphHeading.NORMAL); } });
+      var blob = it.img ? _acctImageBlob(it.img) : null;
+      if (blob) {
+        try {
+          var pi = body.insertParagraph(idx++, ''), im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight(), maxW = 300;
+          if (w > maxW) { im.setWidth(maxW).setHeight(Math.round(h * maxW / w)); }
+        } catch (e) {}
+      }
+    });
+    body.removeChild(para);
+  }
+  doc.saveAndClose();
+  var pdf = copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
+  return { pdf: pdf, docUrl: copy.getUrl() };
 }
 
 function handleAcctSendQuote(p) {
@@ -9557,7 +9646,7 @@ function _acctApprove(q, info) {
     if (!r) throw new Error('Quote not found: ' + q);
     var o = _acctRowObj(Q, r, qm);
     if (o['Status'] === 'Approved') throw new Error(q + ' is already approved.');
-    var total = _acctSum(_acctLines(q)), now = new Date(), po = _acctText(info.po, 60);
+    var total = String(f.o['Format'] || '') === 'Items' ? (Number(f.o['Total']) || 0) : _acctSum(_acctLines(q)), now = new Date(), po = _acctText(info.po, 60);
     _acctSet(Q, r, qm, { 'Status': 'Approved', 'Approved Date': now, 'PO #': po });
     var P = _acctSheet('Purchase Orders and Approvals'), pm = _acctHdr(P);
     _acctPut(P, _acctNextRow(P), pm, {
@@ -9613,7 +9702,7 @@ function handlePublicQuoteInfo(p) {
     return {
       ok: true, org: ACCT_ORG_NAME,
       quote: { id: f.q, site: String(f.o['Site'] || ''), scope: String(f.o['Scope'] || ''), status: String(f.o['Status'] || ''),
-               validUntil: _acctFmtDate(valid), expired: !!expired, total: _acctSum(lines), po: String(f.o['PO #'] || '') },
+               validUntil: _acctFmtDate(valid), expired: !!expired, total: String(f.o['Format'] || '') === 'Items' ? (Number(f.o['Total']) || 0) : _acctSum(lines), po: String(f.o['PO #'] || ''), itemsOnly: String(f.o['Format'] || '') === 'Items' },
       lines: lines.map(function (l) { return { desc: l.desc, qty: l.qty, unit: l.unit, price: l.price, amount: l.amount }; })
     };
   } catch (e) { return { ok: false, error: 'Something went wrong. Please try again.' }; }

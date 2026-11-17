@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.10 -->
+<!-- v12.11 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2008,6 +2008,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <button class="reach-menu-btn" onclick="showDataPage('prices')">💲 Prices</button>
         <button class="reach-menu-btn" onclick="showDataPage('items')">📦 Items</button>
         <button class="reach-menu-btn" onclick="showDataPage('documents')">📄 Documents</button>
+        <button class="reach-menu-btn" onclick="showDataPage('forms')">📋 Forms</button>
         <button class="reach-menu-btn" onclick="showDataPage('roles')">🎭 Roles</button>
         <button class="reach-menu-btn" onclick="showDataPage('pubmedia')">🎬 Public Videos &amp; Pictures</button>
       </div>
@@ -2355,6 +2356,17 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     </div>
 
     <!-- Public Videos and Pictures -->
+    <!-- Forms (Rover Forms sheet > Actual Forms tab). Templates are set up with Claude, so there is no Add New. -->
+    <div id="data-forms" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Forms</span>
+        <span class="page-count" id="dataFormsCount"></span>
+      </div>
+      <div style="padding:0 16px 8px"><input id="dataFormsSearch" class="settings-input" style="margin:0" type="search" placeholder="Search forms" oninput="renderDataForms()"></div>
+      <div id="dataFormsList" style="padding:0 0 20px"><div class="spinner"></div></div>
+    </div>
+
     <div id="data-pubmedia" style="display:none">
       <div class="page-header" style="display:flex;align-items:center;gap:10px">
         <button onclick="showDataPage('menu')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
@@ -2507,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.10';
+const APP_VERSION='v12.11';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Items: new Pictures view in the Detail dropdown; photos upload from Add/Edit item into Item Images 1/2/3 folders (3 image slots).';
+const BUILD_STAMP='2026-11-17 PT - New Forms page in Bulk Data (from Rover Forms > Actual Forms); Quotes can now be an item list with photos and descriptions plus one total, built from the Quote Maker Form 1 template.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4106,7 +4118,7 @@ function loadQuotes(){
   if(!CFG.URL)return Promise.resolve();
   if(_qtLoading)return _qtLoading;
   _qtLoading=_qtCall('acctGetData').then(r=>{
-    if(r&&r.ok){_qtItems=r.items||[];_qtQuotes=r.quotes||[];_qtSave();}
+    if(r&&r.ok){_qtItems=r.items||[];_qtQuotes=r.quotes||[];_qtQItems=r.qitems||[];_qtSave();}
     else if(!_qtQuotes.length){const el=document.getElementById('qtList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml((r&&r.error)||'Could not load quotes.')+'</div>';}
   }).catch(()=>{}).finally(()=>{
     _qtLoading=null;
@@ -4114,6 +4126,7 @@ function loadQuotes(){
   });
   return _qtLoading;
 }
+let _qtQItems=[];
 function initQuotes(){
   if(!_qtCanUse()){const el=document.getElementById('qtList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">Quotes are for access levels 1-2.</div>';return;}
   renderQuotes();loadQuotes();
@@ -4144,7 +4157,7 @@ function _qtCardHtml(x){
   let detail='';
   if(open){
     const ln=_qtLines[x.id];
-    const lines=ln===undefined?'<div class="spinner"></div>':Array.isArray(ln)&&ln.length?`<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px"><tr style="color:var(--silver);text-align:left"><th style="padding:3px 0">Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr>${ln.map(l=>`<tr><td style="padding:3px 6px 3px 0">${escHtml(l.desc)}</td><td style="text-align:right;white-space:nowrap">${escHtml(l.qty)}${l.unit?' '+escHtml(l.unit):''}</td><td style="text-align:right;white-space:nowrap">${_qtMoney(l.amount)}</td></tr>`).join('')}</table>`:'<div class="sub-meta">No line items found.</div>';
+    const lines=ln===undefined?'<div class="spinner"></div>':x.format==='Items'&&Array.isArray(ln)&&ln.length?`<div style="margin-top:6px;font-size:13px"><b>Items:</b><ul style="margin:4px 0 0 18px;padding:0">${ln.map(l=>`<li>${escHtml(l.desc)}</li>`).join('')}</ul></div>`:Array.isArray(ln)&&ln.length?`<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px"><tr style="color:var(--silver);text-align:left"><th style="padding:3px 0">Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr>${ln.map(l=>`<tr><td style="padding:3px 6px 3px 0">${escHtml(l.desc)}</td><td style="text-align:right;white-space:nowrap">${escHtml(l.qty)}${l.unit?' '+escHtml(l.unit):''}</td><td style="text-align:right;white-space:nowrap">${_qtMoney(l.amount)}</td></tr>`).join('')}</table>`:'<div class="sub-meta">No line items found.</div>';
     detail=`<div style="margin-top:8px;font-size:14px;line-height:1.5;color:var(--stone)">
       ${x.contactName||x.contactEmail?`<div><b>To:</b> ${escHtml(x.contactName)}${x.contactEmail?' &lt;'+escHtml(x.contactEmail)+'&gt;':''}</div>`:'<div><b>To:</b> no contact email yet</div>'}
       ${x.scope?`<div style="margin-top:4px;white-space:pre-wrap">${escHtml(x.scope)}</div>`:''}
@@ -4155,13 +4168,14 @@ function _qtCardHtml(x){
   const acts=[`<button type="button" class="settings-btn" style="${btn}" onclick="qtToggle('${i}')">${open?'▴ Collapse':'▾ Expand'}</button>`];
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtSend('${i}')">${x.status==='Sent'?'📧 Resend':'📧 Email quote'}</button>`);
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtApprove('${i}')">✅ Record approval</button>`);
+  if(x.docLink)acts.push(`<a class="settings-btn" style="${btn};text-decoration:none;display:inline-block" href="${ea(x.docLink)}" target="_blank" rel="noopener">📝 Doc</a>`);
   if(x.pdf)acts.push(`<a class="settings-btn" style="${btn};text-decoration:none;display:inline-block" href="${ea(x.pdf)}" target="_blank" rel="noopener">📄 PDF</a>`);
   if(waiting&&x.link)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtCopyLink('${i}')">🔗 Copy approval link</button>`);
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn};color:var(--danger)" onclick="qtStatus('${i}','Declined')">Mark declined</button>`);
   if(x.status==='Declined'||x.status==='Expired')acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtStatus('${i}','Draft')">Reopen as draft</button>`);
   return `<div class="th-card" id="qtc-${i}"><div style="display:flex;align-items:flex-start;gap:8px">
       <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink)">${escHtml(x.site)}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px">${_qtPill(x.status)}<span style="font-size:12px;color:var(--silver)">${escHtml(x.id)} · ${escHtml(x.category)} · ${_qtDate(x.date)}</span></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px">${_qtPill(x.status)}<span style="font-size:12px;color:var(--silver)">${escHtml(x.id)} · ${escHtml(x.category)}${x.format==='Items'?' · Item list':''} · ${_qtDate(x.date)}</span></div></div>
       <div style="font-size:17px;font-weight:700;color:var(--ink);white-space:nowrap">${_qtMoney(x.total)}</div></div>
     ${detail}<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${acts.join('')}</div></div>`;
 }
@@ -4234,13 +4248,38 @@ function qtNewToggle(show){
       <div style="display:flex;gap:8px"><input id="qtNName" ${inp} maxlength="120" placeholder="Contact name"><input id="qtNEmail" ${inp} type="email" maxlength="200" placeholder="Contact email"></div>
       <div id="qtNHint" class="sub-meta" style="margin:-4px 0 8px"></div>
       <textarea id="qtNScope" ${inp} rows="2" maxlength="2000" placeholder="Scope / what this quote covers"></textarea>
-      <div id="qtNLines"></div>
-      <div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px"><button type="button" class="settings-btn" style="margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)" onclick="_qtAddLine()">＋ Add line</button><div id="qtNTotal" style="margin-left:auto;font-size:17px;font-weight:700">$0.00</div></div>
+      <select id="qtNFmt" ${inp} onchange="_qtFmtChanged()"><option value="">Price list lines (qty x unit price)</option><option value="Items">Item list - photos &amp; descriptions, one total</option></select>
+      <div id="qtNItemsBlock" style="display:none">
+        <input id="qtNItemSearch" ${inp} type="search" placeholder="Search quote items" oninput="_qtItemFilter()">
+        <div id="qtNItemList" style="max-height:260px;overflow:auto;border:1px solid var(--mist);border-radius:10px;padding:4px 10px;margin-bottom:8px">${_qtQItemsHtml()}</div>
+        <div id="qtNItemCount" class="sub-meta" style="margin:-2px 0 8px">0 items chosen</div>
+        <input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="Total price for the whole quote ($)">
+      </div>
+      <div id="qtNPriceBlock"><div id="qtNLines"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px"><button type="button" class="settings-btn" style="margin:0;width:auto;padding:6px 12px;font-size:13px;background:var(--mist);color:var(--ink)" onclick="_qtAddLine()">＋ Add line</button><div id="qtNTotal" style="margin-left:auto;font-size:17px;font-weight:700">$0.00</div></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">Save draft</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; email</button><button type="button" class="settings-btn" style="margin:0;background:var(--fog);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
     _qtAddLine();
   }
   b.style.display=open?'block':'none';
   if(open)setTimeout(()=>{const n=document.getElementById('qtNSite');if(n)n.focus();},50);
+}
+function _qtQItemsHtml(){
+  if(!_qtQItems.length)return '<div class="sub-meta" style="padding:8px 0">No Quote Items yet. In Bulk Data > Items, set Type 1 to "Quote Item".</div>';
+  return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span></label>`).join('');
+}
+function _qtFmtChanged(){
+  const it=((document.getElementById('qtNFmt')||{}).value)==='Items';
+  const a=document.getElementById('qtNItemsBlock'),b=document.getElementById('qtNPriceBlock');
+  if(a)a.style.display=it?'block':'none';if(b)b.style.display=it?'none':'block';
+  if(it){const l=document.getElementById('qtNItemList');if(l)l.innerHTML=_qtQItemsHtml();_qtItemCount();}
+}
+function _qtItemFilter(){
+  const q=((document.getElementById('qtNItemSearch')||{}).value||'').trim().toLowerCase();
+  document.querySelectorAll('#qtNItemList .qt-qi').forEach(l=>{l.style.display=(!q||l.dataset.n.indexOf(q)>-1)?'flex':'none';});
+}
+function _qtItemCount(){
+  const n=document.querySelectorAll('#qtNItemList input:checked').length,c=document.getElementById('qtNItemCount');
+  if(c)c.textContent=n+' item'+(n===1?'':'s')+' chosen';
 }
 function _qtSchoolPicked(){
   const v=((document.getElementById('qtNSite')||{}).value||'').trim().toLowerCase();
@@ -4288,19 +4327,25 @@ function _qtRecalc(){
 }
 async function qtSubmit(sendNow){
   const v=id=>((document.getElementById(id)||{}).value||'').trim();
+  const itemsMode=v('qtNFmt')==='Items',itemIds=[...document.querySelectorAll('#qtNItemList input:checked')].map(c=>c.value);
   const lines=[];
-  document.querySelectorAll('#qtNLines .qt-line').forEach(d=>{
+  if(!itemsMode)document.querySelectorAll('#qtNLines .qt-line').forEach(d=>{
     const desc=d.querySelector('.qt-desc').value.trim();if(!desc)return;
     lines.push({itemId:d.querySelector('.qt-item').value,desc:desc,unit:d.dataset.unit||'',qty:Number(d.querySelector('.qt-qty').value)||0,price:Number(d.querySelector('.qt-price').value)||0});
   });
   if(!v('qtNSite')){showSaveToast('Choose a school');return;}
-  if(!lines.length){showSaveToast('Add at least one line with a description');return;}
-  if(lines.some(l=>!(l.qty>0))){showSaveToast('Every line needs a quantity above zero');return;}
+  if(itemsMode){
+    if(!itemIds.length){showSaveToast('Choose at least one item');return;}
+    if(v('qtNBulk')===''||!(Number(v('qtNBulk'))>=0)){showSaveToast('Enter the total price for the quote');return;}
+  }else{
+    if(!lines.length){showSaveToast('Add at least one line with a description');return;}
+    if(lines.some(l=>!(l.qty>0))){showSaveToast('Every line needs a quantity above zero');return;}
+  }
   if(sendNow&&!v('qtNEmail')){showSaveToast('Add a contact email to send the quote');return;}
   const b1=document.getElementById('qtSaveBtn'),b2=document.getElementById('qtSendBtn');
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
   try{
-    const r=await _qtCall('acctCreateQuote',{category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),lines:lines,sendNow:!!sendNow});
+    const r=await _qtCall('acctCreateQuote',{category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),lines:lines,format:itemsMode?'Items':'',itemIds:itemIds,bulkTotal:itemsMode?v('qtNBulk'):'',sendNow:!!sendNow});
     if(r&&r.ok){
       _qtReplace(r.quote);qtNewToggle(false);renderQuotes();
       showSaveToast(r.sent?'✓ Quote '+r.id+' emailed':r.sendError?'Saved as draft - email failed: '+r.sendError:'✓ Draft '+r.id+' saved');
@@ -18249,7 +18294,7 @@ let _dataPeopleAdjustMode = 'access'; // 'access' | 'role' | 'roleAdditional'
 
 function showDataPage(page){
   _dataCurrentPage = page;
-  ['menu','people','schools','prices','items','documents','roles','pubmedia'].forEach(p=>{
+  ['menu','people','schools','prices','items','documents','roles','pubmedia','forms'].forEach(p=>{
     const el=document.getElementById('data-'+p);
     if(el)el.style.display='none';
   });
@@ -18278,6 +18323,33 @@ function showDataPage(page){
   if(page==='pubmedia'){
     renderPubMedia(true);
   }
+  if(page==='forms'){
+    renderDataForms();
+  }
+}
+// ── Bulk Data > Forms: the form templates registered in Rover Forms > "Actual Forms" ──
+let _dataFormsCache=null;
+async function renderDataForms(){
+  const el=document.getElementById('dataFormsList');if(!el)return;
+  if(!_dataFormsCache){
+    if(_formsTemplatesCache&&_formsTemplatesCache.templates)_dataFormsCache=_formsTemplatesCache.templates;
+    else{
+      el.innerHTML='<div class="spinner"></div>';
+      try{const r=await gasPost({action:'getFormTemplates'});_formsTemplatesCache=r;_dataFormsCache=(r&&r.templates)||[];}
+      catch(e){el.innerHTML=empty('—','Connection error.','');return;}
+    }
+  }
+  const q=((document.getElementById('dataFormsSearch')||{}).value||'').trim().toLowerCase();
+  const rows=_dataFormsCache.filter(t=>!q||[t.name,t.description,t.category,t.destination].join(' ').toLowerCase().indexOf(q)>-1);
+  const cnt=document.getElementById('dataFormsCount');if(cnt)cnt.textContent=rows.length===_dataFormsCache.length?String(rows.length):rows.length+' of '+_dataFormsCache.length;
+  if(!rows.length){el.innerHTML=empty('—','No forms match','');return;}
+  const chip=(t)=>t?`<span style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--mist);color:var(--stone);margin:2px 4px 0 0">${escHtml(t)}</span>`:'';
+  el.innerHTML=rows.map(t=>`<div class="it-row" style="padding:12px 16px;border-bottom:1px solid var(--mist)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="flex:1;min-width:0">
+      <div style="font-size:15px;color:var(--ink);font-weight:600">${escHtml(t.name)}</div>
+      <div>${chip(t.category)}${t.destination?chip('→ '+t.destination):''}</div>
+      ${t.description?`<div style="font-size:13px;color:var(--stone);margin-top:6px;line-height:1.4">${escHtml(t.description)}</div>`:''}</div>
+      ${t.link?`<a class="dlink" href="${ea(t.link)}" target="_blank" rel="noopener" style="font-size:13px;white-space:nowrap">Open ↗</a>`:''}</div></div>`).join('');
 }
 
 // ── DATA page (Items) — every row of the Items All tab ─────────────────────

@@ -56,11 +56,11 @@
 
   function render(r){
     var qt=r.quote, rows=r.lines.map(function(l){
-      return '<tr><td>'+esc(l.desc)+'</td><td class="r">'+esc(l.qty)+(l.unit?' '+esc(l.unit):'')+'</td><td class="r">'+money(l.amount)+'</td></tr>';
+      return r.quote.itemsOnly?'<tr><td colspan="3">'+esc(l.desc)+'</td></tr>':'<tr><td>'+esc(l.desc)+'</td><td class="r">'+esc(l.qty)+(l.unit?' '+esc(l.unit):'')+'</td><td class="r">'+money(l.amount)+'</td></tr>';
     }).join('');
     var head='<span class="badge">Quote '+esc(qt.id)+'</span><h1>'+esc(qt.site)+'</h1><div class="muted">From '+esc(r.org)+(qt.validUntil?' &middot; valid through '+esc(qt.validUntil):'')+'</div>'+
       (qt.scope?'<div class="scope">'+esc(qt.scope)+'</div>':'')+
-      '<table><tr><th>Item</th><th class="r">Qty</th><th class="r">Amount</th></tr>'+rows+'<tr class="tot"><td>Total</td><td></td><td class="r">'+money(qt.total)+'</td></tr></table>';
+      '<table>'+(qt.itemsOnly?'<tr><th colspan="3">Items included</th></tr>':'<tr><th>Item</th><th class="r">Qty</th><th class="r">Amount</th></tr>')+rows+'<tr class="tot"><td>Total</td><td></td><td class="r">'+money(qt.total)+'</td></tr></table>';
     if(qt.status==='Approved'){card(head+'<div class="ok" style="margin-top:16px"><h1>Approved</h1><div>This quote has already been approved. Thank you!</div></div>');return;}
     if(qt.status==='Declined'){card(head+'<div class="muted" style="margin-top:16px">This quote was declined. If that was a mistake, please reply to the email.</div>');return;}
     if(qt.expired){card(head+'<div class="error">This quote has expired. Please reply to the email and we will send an updated quote.</div>');return;}
