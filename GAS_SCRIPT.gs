@@ -9637,17 +9637,28 @@ function _acctFillCell(cell, rows, align) {
     p.setText(row.t);
     p.setAlignment(align || DocumentApp.HorizontalAlignment.LEFT);
     p.setSpacingBefore(0).setSpacingAfter(2);
-    var tx = p.editAsText();
-    tx.setBold(!!row.b).setFontSize(row.s || 10).setForegroundColor(row.c || '#222222');
+    try { var tx = p.editAsText(); tx.setBold(!!row.b); tx.setFontSize(row.s || 10); tx.setForegroundColor(row.c || '#222222'); } catch (e) {}
   });
 }
 // Builds the quote Google Doc from the template ("Quote Maker Form 1"): header block, one-line item list with the
 // single total, and detail pages (name, photo, description per item). Returns { docFile, pdf }.
+var _acctStage = '', _acctCopyId = '';
 function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
+  _acctStage = 'start'; _acctCopyId = '';
+  try { return _acctBuildItemsDoc_(q, o, lines, total, valid, folderId); }
+  catch (e) {
+    if (_acctCopyId) { try { DriveApp.getFileById(_acctCopyId).setTrashed(true); } catch (e2) {} }
+    throw new Error('Quote document step "' + _acctStage + '" failed: ' + e.message);
+  }
+}
+function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   var site = String(o['Site'] || ''), folder = DriveApp.getFolderById(folderId);
+  _acctStage = 'copy template';
   var items = {}; _acctQuoteItems().forEach(function (it) { items[it.id] = it; });
   var info = _acctSiteInfo(site);
   var copy = DriveApp.getFileById(ACCT_QUOTE_TEMPLATE_ID).makeCopy(q + ' - ' + site + ' (quote doc)', folder);
+  _acctCopyId = copy.getId();
+  _acctStage = 'open template';
   var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
   function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); }
   body.replaceText('\\{\\{Valid Until\\}\\}', esc(_acctFmtDate(valid)));
@@ -9658,11 +9669,12 @@ function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
     if (scope) { body.replaceText('\\{\\{Scope\\}\\}', esc(scope)); } else { try { body.removeChild(sp); } catch (e) { body.replaceText('\\{\\{Scope\\}\\}', ''); } }
   }
   // Header: Prepared for | Quote details
+  _acctStage = 'header block';
   var hh = body.findText('\\{\\{HEADER\\}\\}');
   if (hh) {
     var hp = hh.getElement().getParent(), hi = body.getChildIndex(hp);
     var t = body.insertTable(hi, [['', '']]);
-    t.setBorderWidth(0);
+    try { t.setBorderWidth(0); } catch (e) {}
     var left = [{ t: 'PREPARED FOR', b: true, s: 9, c: '#666666' }, { t: site, b: true, s: 11 }];
     if (String(o['Contact Name'] || '').trim()) left.push({ t: String(o['Contact Name']).trim() });
     if (info.address) left.push({ t: info.address });
@@ -9677,6 +9689,7 @@ function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
     body.removeChild(hp);
   }
   // Item list: one line per item name, then the single total
+  _acctStage = 'item list';
   var ih = body.findText('\\{\\{ITEMS\\}\\}');
   if (ih) {
     var ip = ih.getElement().getParent(), ii = body.getChildIndex(ip);
@@ -9684,30 +9697,30 @@ function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
     lines.forEach(function (ln) { cells.push([(items[ln.itemId] || { name: ln.desc }).name, '']); });
     cells.push(['TOTAL', _acctMoney(total)]);
     var tb = body.insertTable(ii, cells);
-    tb.setBorderWidth(0.5).setBorderColor('#bbbbbb');
+    try { tb.setBorderWidth(0.5); tb.setBorderColor('#bbbbbb'); } catch (e) {}
     try { tb.setColumnWidth(0, 400); tb.setColumnWidth(1, 140); } catch (e) {}
     for (var r = 0; r < cells.length; r++) {
       var head = r === 0, last = r === cells.length - 1;
       for (var c = 0; c < 2; c++) {
         var cell = tb.getCell(r, c);
-        cell.setPaddingTop(6).setPaddingBottom(6);
-        if (head) cell.setBackgroundColor('#f1efe9');
-        var tx = cell.editAsText();
-        tx.setBold(head || last).setFontSize(last ? 12 : 10);
-        if (c === 1) cell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+        try { cell.setPaddingTop(6); cell.setPaddingBottom(6); } catch (e) {}
+        try { if (head) cell.setBackgroundColor('#f1efe9'); } catch (e) {}
+        try { if (cells[r][c]) { var tx = cell.editAsText(); tx.setBold(head || last); tx.setFontSize(last ? 12 : 10); } } catch (e) {}
+        try { if (c === 1) cell.getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.RIGHT); } catch (e) {}
       }
     }
     body.removeChild(ip);
   }
   // Detail pages
+  _acctStage = 'detail pages';
   var dh = body.findText('\\{\\{DETAILS\\}\\}');
   if (dh) {
     var dp = dh.getElement().getParent(), di = body.getChildIndex(dp);
     lines.forEach(function (ln, k) {
       var it = items[ln.itemId] || { name: ln.desc, desc: '', img: '' };
       var p1 = body.insertParagraph(di++, it.name);
-      p1.setHeading(DocumentApp.ParagraphHeading.NORMAL).setAlignment(DocumentApp.HorizontalAlignment.LEFT).setSpacingBefore(k ? 22 : 0).setSpacingAfter(6);
-      p1.editAsText().setBold(true).setFontSize(15).setForegroundColor('#000000');
+      try { p1.setHeading(DocumentApp.ParagraphHeading.NORMAL); p1.setAlignment(DocumentApp.HorizontalAlignment.LEFT); p1.setSpacingBefore(k ? 22 : 0); p1.setSpacingAfter(6); } catch (e) {}
+      try { var t1 = p1.editAsText(); t1.setBold(true); t1.setFontSize(15); t1.setForegroundColor('#000000'); } catch (e) {}
       try { p1.setKeepWithNext(true); } catch (e) {}
       var blob = it.img ? _acctImageBlob(it.img) : null;
       if (blob) {
@@ -9721,12 +9734,13 @@ function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
       String(it.desc || '').split(/\n+/).forEach(function (txt) {
         if (!txt.trim()) return;
         var pd = body.insertParagraph(di++, txt.trim());
-        pd.setHeading(DocumentApp.ParagraphHeading.NORMAL).setAlignment(DocumentApp.HorizontalAlignment.LEFT).setSpacingAfter(6);
-        pd.editAsText().setBold(false).setFontSize(10.5).setForegroundColor('#222222');
+        try { pd.setHeading(DocumentApp.ParagraphHeading.NORMAL); pd.setAlignment(DocumentApp.HorizontalAlignment.LEFT); pd.setSpacingAfter(6); } catch (e) {}
+        try { var t2 = pd.editAsText(); t2.setBold(false); t2.setFontSize(10.5); t2.setForegroundColor('#222222'); } catch (e) {}
       });
     });
     body.removeChild(dp);
   }
+  _acctStage = 'save and PDF';
   doc.saveAndClose();
   return { docFile: copy, pdf: copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf') };
 }
