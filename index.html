@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.07 -->
+<!-- v12.08 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1109,6 +1109,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       </div>
     </div>
     <div class="page-header"><span class="page-title">Schools</span><span class="page-count" id="schoolCount"></span></div>
+    <div id="schoolAddBar" style="display:none;padding:0 16px 8px"><button class="settings-btn" style="width:100%;margin:0" onclick="showAddNewSiteModal()">➕ Add New School</button></div>
     <div class="card-list" id="schoolList"><div class="spinner"></div></div>
   </div>
 
@@ -2478,10 +2479,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.07';
+const APP_VERSION='v12.08';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-16 15:40 PT - Invite to training (Information File 2 + reply links), Set up training (school, trainers, times), Information File 1/2 on Roles, applicant progress meter.';
+const BUILD_STAMP='2026-11-16 18:05 PT - Add New School button back on the Schools tab (Level 1-2); searches the master schools sheet.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -6121,6 +6122,7 @@ function _renderDataSchoolsInner(){
 }
 
 function renderSchools(){
+  const _ab=document.getElementById('schoolAddBar');if(_ab)_ab.style.display=(SESSION&&SESSION.accessLevel<=2)?'block':'none';
   const q=sq.toLowerCase();
   const pool=getMySchools()||DATA.sites;
   const sites=pool.filter(s=>{
