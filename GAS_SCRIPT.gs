@@ -808,6 +808,9 @@ function _doPostRoute(e) {
       case 'acctUpdateQuote':  return respond(handleAcctUpdateQuote(p));
       case 'acctSendQuote':    return respond(handleAcctSendQuote(p));
       case 'acctQuoteContacts': return respond(handleAcctQuoteContacts(p));
+      case 'acctDeleteQuote':  return respond(handleAcctDeleteQuote(p));
+      case 'acctGetPdf':       return respond(handleAcctGetPdf(p));
+      case 'acctMarkSent':     return respond(handleAcctMarkSent(p));
       case 'acctDraftEmail':   return respond(handleAcctDraftEmail(p));
       case 'acctApproveQuote': return respond(handleAcctApproveQuote(p));
       case 'acctSetStatus':    return respond(handleAcctSetStatus(p));
@@ -9411,7 +9414,7 @@ function _acctQuoteShape(o) {
     contactEmail: String(o['Contact Email'] || ''), scope: String(o['Scope'] || ''), total: Number(o['Total']) || 0,
     status: String(o['Status'] || ''), sentDate: _acctIso(o['Sent Date']), approvedDate: _acctIso(o['Approved Date']),
     po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Notes'] || ''),
-    summary: String(o['Summary'] || ''), form: String(o['Form'] || ''),
+    summary: String(o['Summary'] || ''), form: String(o['Form'] || ''), location: String(o['Location'] || ''),
     format: String(o['Format'] || ''), docLink: String(o['Doc Link'] || ''), items: String(o['Items'] || ''),
     buildDate: (o['Build Date'] instanceof Date) ? _acctIso(o['Build Date']) : String(o['Build Date'] || ''),
     link: tok ? ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(String(o['Quote #'])) + '&t=' + encodeURIComponent(tok) : ''
@@ -9519,6 +9522,7 @@ function handleAcctCreateQuote(p) {
   } finally { lock.releaseLock(); }
   var out = { ok: true, id: q, quote: shape };
   if (itemsMode) {
+    try { if (p.locationImage) _acctSaveLocation(q, cat, p.locationImage, false); } catch (eLoc) { out.locationError = eLoc.message; }
     try { shape = _acctRebuild(q); out.quote = shape; if (_acctBuildNote) out.buildNote = _acctBuildNote; } catch (e) { out.buildError = e.message; }
   }
   if (p.sendNow) {
@@ -9796,6 +9800,24 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     }
   }
 
+  // 1b) Garden location map at the end ({{LOCATION}} paragraph); removed when no map was chosen
+  var locP = paraOf('LOCATION');
+  if (locP) {
+    var locBlob = null, locId = _driveIdFromUrl(String(o['Location'] || ''));
+    if (locId) { try { locBlob = DriveApp.getFileById(locId).getBlob(); } catch (eL) {} }
+    locP.replaceText(pat('LOCATION'), '');
+    if (locBlob) {
+      try {
+        var hd = body.insertParagraph(body.getChildIndex(locP), 'Garden location');
+        hd.setHeading(DocumentApp.ParagraphHeading.NORMAL); hd.setAlignment(DocumentApp.HorizontalAlignment.LEFT); hd.setSpacingBefore(24); hd.setSpacingAfter(6); hd.setKeepWithNext(true);
+        hd.editAsText().setBold(true).setFontSize(15).setForegroundColor('#000000');
+        var li = locP.appendInlineImage(locBlob), lw = li.getWidth(), lh = li.getHeight(), lmax = 520;
+        if (lw > lmax) { li.setWidth(lmax).setHeight(Math.round(lh * lmax / lw)); }
+        locP.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
+      } catch (eImg) {}
+    }
+  }
+
   // 2) Item list table: clone the {{ITEM LINE}} row once per item
   _acctStage = 'item list';
   var lf = body.findText(pat('ITEM LINE'));
@@ -9905,10 +9927,70 @@ function handleAcctUpdateQuote(p) {
     _acctSet(Q, r, qm, set);
     SpreadsheetApp.flush();
   } finally { lock.releaseLock(); }
+  var locErr = '';
+  try { if (p.locationImage || p.locationClear) _acctSaveLocation(q, cat, p.locationImage || '', !!p.locationClear); } catch (eLoc) { locErr = eLoc.message; }
   try {
     var shape = _acctRebuild(q);
-    return { ok: true, id: q, quote: shape, replaced: true, needsResend: status === 'Sent', buildNote: _acctBuildNote };
+    return { ok: true, id: q, quote: shape, locationError: locErr, replaced: true, needsResend: status === 'Sent', buildNote: _acctBuildNote };
   } catch (e) { return { ok: false, error: 'Saved, but the PDF could not be rebuilt: ' + e.message }; }
+}
+
+// Saves the map picture (base64 PNG from the app's location picker) in the quote's folder and records its link in the
+// Quotes > Location column. Replaces (trashes) any previous picture. clear=true just removes it.
+function _acctSaveLocation(q, cat, b64, clear) {
+  var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
+  if (!r || !qm['Location']) return;
+  var cur = String(_acctRowObj(Q, r, qm)['Location'] || '');
+  if (!b64 && !clear) return;
+  var oldId = _driveIdFromUrl(cur), url = '';
+  if (b64) {
+    var isJpg = /^data:image\/jpe?g/i.test(String(b64)), raw = String(b64).replace(/^data:image\/\w+;base64,/, '');
+    if (raw.length > 6000000) throw new Error('The map picture is too large.');
+    var f = DriveApp.getFolderById(ACCT_FOLDERS[cat]).createFile(Utilities.newBlob(Utilities.base64Decode(raw), isJpg ? 'image/jpeg' : 'image/png', q + ' - garden location' + (isJpg ? '.jpg' : '.png')));
+    url = f.getUrl();
+  }
+  _acctSet(Q, r, qm, { 'Location': url });
+  if (oldId) { try { DriveApp.getFileById(oldId).setTrashed(true); } catch (e) {} }
+  SpreadsheetApp.flush();
+}
+function handleAcctDeleteQuote(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  var q = String(p.id || '').trim();
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
+    if (!r) return { ok: false, error: 'Quote not found: ' + q };
+    var o = _acctRowObj(Q, r, qm);
+    if (String(o['Status']) === 'Approved') return { ok: false, error: q + ' is approved and cannot be deleted.' };
+    var L = _acctSheet('Quote Lines'), lm = _acctHdr(L), lv = L.getDataRange().getValues();
+    for (var i = lv.length - 1; i >= 1; i--) { if (String(lv[i][lm['Quote #'] - 1]) === q) L.deleteRow(i + 1); }
+    ['PDF Link', 'Doc Link', 'Location'].forEach(function (h) {
+      var id = _driveIdFromUrl(String(o[h] || ''));
+      if (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) {} }
+    });
+    Q.deleteRow(r);
+    SpreadsheetApp.flush();
+    return { ok: true, id: q };
+  } catch (e) { return { ok: false, error: e.message }; } finally { lock.releaseLock(); }
+}
+// Returns the quote PDF (base64) plus a ready-to-send message so the app can open the phone's share sheet.
+function handleAcctGetPdf(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try {
+    var m = _acctMailParts(String(p.id || '')), blob = m.file.getBlob();
+    return { ok: true, name: m.file.getName(), mime: 'application/pdf', b64: Utilities.base64Encode(blob.getBytes()), subject: m.subject, text: m.text, quote: _acctQuoteShape(m.o) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleAcctMarkSent(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try {
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', String(p.id || ''));
+    if (!r) return { ok: false, error: 'Quote not found.' };
+    var o = _acctRowObj(Q, r, qm);
+    if (String(o['Status']) === 'Draft') _acctSet(Q, r, qm, { 'Status': 'Sent', 'Sent Date': new Date() });
+    SpreadsheetApp.flush();
+    return { ok: true, quote: _acctQuoteShape(_acctRowObj(Q, r, qm)) };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
 
 function handleAcctSendQuote(p) {

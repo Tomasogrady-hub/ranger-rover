@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ranger-rover-v12-13';
+const CACHE_NAME = 'ranger-rover-v12-14';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -20,6 +20,9 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
 
   const url = new URL(e.request.url);
+
+  // Map tiles: straight to network (not cached)
+  if (url.hostname.includes('arcgisonline.com')) { e.respondWith(fetch(e.request)); return; }
 
   // Always go straight to network for GAS API calls
   if (url.hostname.includes('script.google.com')) {

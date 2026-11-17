@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.13 -->
+<!-- v12.14 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.13';
+const APP_VERSION='v12.14';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Quotes: required type + Miscellaneous, choose the form (template) per quote, Summary headline, email opens a Gmail draft with recipient picker, new quote header with logo.';
+const BUILD_STAMP='2026-11-17 PT - Quotes: Duplicate + Delete, send via the phone share sheet (replaces Gmail draft), satellite map picker with arrow/box Location added to the end of the quote.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4167,6 +4167,8 @@ function _qtCardHtml(x){
   }
   const acts=[`<button type="button" class="settings-btn" style="${btn}" onclick="qtToggle('${i}')">${open?'▴ Collapse':'▾ Expand'}</button>`];
   if(x.status!=='Approved')acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtEdit('${i}')">✏️ Edit</button>`);
+  acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtDuplicate('${i}')">📑 Duplicate</button>`);
+  if(x.status!=='Approved')acts.push(`<button type="button" class="settings-btn" style="${btn};color:var(--danger)" onclick="qtDelete('${i}')">🗑 Delete</button>`);
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtSend('${i}')">${x.status==='Sent'?'📧 Email again':'📧 Email quote'}</button>`);
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtApprove('${i}')">✅ Record approval</button>`);
   if(x.docLink)acts.push(`<a class="settings-btn" style="${btn};text-decoration:none;display:inline-block" href="${ea(x.docLink)}" target="_blank" rel="noopener">📝 Doc</a>`);
@@ -4193,42 +4195,208 @@ async function qtToggle(id){
     renderQuotes();
   }
 }
-// Email a quote: pick who at the school should get it, then open a Gmail draft (PDF attached, summary and cost in the body).
+// Send a quote with the phone's own share sheet (email, text, WhatsApp, Drive... whatever the person chooses).
+// Step 1 prepares the PDF; step 2 (a fresh tap) opens the share sheet, which browsers require.
+let _qtShare=null;
 async function qtSend(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
+  _qtShare=null;
   let m=document.getElementById('qtMailBox');if(m)m.remove();
   m=document.createElement('div');m.id='qtMailBox';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
   m.innerHTML=`<div style="background:var(--paper,#fff);border-radius:14px;max-width:460px;width:100%;max-height:88vh;overflow:auto;padding:16px">
-    <div style="font-size:16px;font-weight:700;color:var(--ink)">Email ${escHtml(x.id)} - ${escHtml(x.site)}</div>
-    <div class="sub-meta" style="margin:4px 0 10px">Choose who should receive it. A Gmail draft opens with the PDF attached, the summary and the cost.</div>
-    <div id="qtMailList"><div class="spinner"></div></div>
-    <input id="qtMailExtra" class="edit-input" style="width:100%;margin:8px 0" type="text" placeholder="Add another email (optional, comma separated)">
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtMailGo" onclick="qtMailGo('${ea(id)}')">Open email in Gmail</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="document.getElementById('qtMailBox').remove()">Cancel</button></div></div>`;
+    <div style="font-size:16px;font-weight:700;color:var(--ink)">Send ${escHtml(x.id)} - ${escHtml(x.site)}</div>
+    <div id="qtMailBody" style="margin-top:10px"><div class="spinner"></div><div class="sub-meta" style="text-align:center">Preparing the PDF…</div></div>
+    <div style="margin-top:12px"><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="document.getElementById('qtMailBox').remove()">Close</button></div></div>`;
   document.body.appendChild(m);
-  let contacts=[],pre='';
-  try{const r=await _qtCall('acctQuoteContacts',{id:id});if(r&&r.ok){contacts=r.contacts||[];pre=r.preselect||'';}}catch(e){}
-  const l=document.getElementById('qtMailList');if(!l)return;
-  l.innerHTML=contacts.length?contacts.map(c=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}"${c.email===pre?' checked':''} style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label||c.email)}</b> <span style="font-size:12px;color:var(--silver)">${escHtml(c.role)}</span><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join(''):'<div class="sub-meta">No contacts with an email found for this school. Add an address below.</div>';
+  let r=null,cr=null;
+  try{[r,cr]=await Promise.all([_qtCall('acctGetPdf',{id:id}),_qtCall('acctQuoteContacts',{id:id}).catch(()=>null)]);}catch(e){}
+  const body=document.getElementById('qtMailBody');if(!body)return;
+  if(!r||!r.ok){body.innerHTML='<div class="sub-meta" style="color:var(--danger)">'+escHtml((r&&r.error)||'Could not prepare the PDF.')+'</div>';return;}
+  const bin=atob(r.b64),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  const file=new File([arr],r.name||(id+'.pdf'),{type:'application/pdf'});
+  _qtShare={id:id,file:file,subject:r.subject,text:r.text,contacts:(cr&&cr.ok&&cr.contacts)||[],pre:(cr&&cr.preselect)||''};
+  const canFiles=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+  const bs='margin:0 8px 8px 0';
+  body.innerHTML=`<div class="sub-meta" style="margin-bottom:8px">PDF ready. Share opens your phone's usual sheet so you choose how to send it (email, text, WhatsApp, …).</div>
+    <div style="display:flex;flex-wrap:wrap">
+      ${canFiles?`<button type="button" class="settings-btn" style="${bs}" onclick="qtShareNow()">📤 Share PDF…</button>`:''}
+      <button type="button" class="settings-btn" style="${bs}" onclick="qtShareDownload()">⬇️ Download PDF</button>
+      <button type="button" class="settings-btn" style="${bs}" onclick="qtShareCopy()">📋 Copy message</button>
+      <button type="button" class="settings-btn" style="${bs}" onclick="qtShareMarkSent()">✓ Mark as sent</button>
+    </div>
+    ${canFiles?'':'<div class="sub-meta">This browser can\'t share files directly. Download the PDF, then attach it in your mail or messaging app.</div>'}
+    ${_qtShare.contacts.length?`<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:10px 0 4px">People at this school</div>`+_qtShare.contacts.map(c=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}"${c.email===_qtShare.pre?' checked':''} style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label||c.email)}</b> <span style="font-size:12px;color:var(--silver)">${escHtml(c.role)}</span><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join('')+`<div style="display:flex;flex-wrap:wrap;margin-top:8px"><button type="button" class="settings-btn" style="${bs}" onclick="qtShareCopyEmails()">Copy selected emails</button><button type="button" class="settings-btn" style="${bs}" onclick="qtShareMailto()">✉️ Open mail app (no attachment)</button></div>`:''}`;
 }
-async function qtMailGo(id){
-  const to=[...document.querySelectorAll('.qtMailTo:checked')].map(c=>c.value);
-  String((document.getElementById('qtMailExtra')||{}).value||'').split(/[,;\s]+/).forEach(e=>{if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)&&to.indexOf(e)<0)to.push(e);});
-  if(!to.length){showSaveToast('Choose at least one recipient');return;}
-  const go=document.getElementById('qtMailGo');if(go){go.disabled=true;go.textContent='Preparing…';}
-  const w=window.open('','_blank');
+function _qtShareTo(){return [...document.querySelectorAll('.qtMailTo:checked')].map(c=>c.value);}
+async function qtShareNow(){
+  if(!_qtShare)return;
   try{
-    const r=await _qtCall('acctDraftEmail',{id:id,to:to});
-    if(r&&r.ok){
-      _qtReplace(r.quote);renderQuotes();
-      const m=document.getElementById('qtMailBox');if(m)m.remove();
-      if(w)w.location.href=r.url;else window.open(r.url,'_blank');
-      showSaveToast('✓ Gmail draft ready - check it and press Send');return;
+    await navigator.share({files:[_qtShare.file],title:_qtShare.subject,text:_qtShare.text});
+    await qtShareMarkSent(true);
+  }catch(e){if(e&&e.name!=='AbortError')showSaveToast('Sharing failed - try Download instead');}
+}
+function qtShareDownload(){
+  if(!_qtShare)return;
+  const u=URL.createObjectURL(_qtShare.file),a=document.createElement('a');a.href=u;a.download=_qtShare.file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
+}
+function qtShareCopy(){
+  if(!_qtShare)return;
+  const t=_qtShare.text,ok=()=>showSaveToast('✓ Message copied');
+  try{navigator.clipboard.writeText(t).then(ok,()=>prompt('Copy this message:',t));}catch(e){prompt('Copy this message:',t);}
+}
+function qtShareCopyEmails(){
+  const t=_qtShareTo().join(', ');if(!t){showSaveToast('Tick at least one person');return;}
+  try{navigator.clipboard.writeText(t).then(()=>showSaveToast('✓ Emails copied'),()=>prompt('Copy:',t));}catch(e){prompt('Copy:',t);}
+}
+function qtShareMailto(){
+  if(!_qtShare)return;const to=_qtShareTo();
+  location.href='mailto:'+to.join(',')+'?subject='+encodeURIComponent(_qtShare.subject)+'&body='+encodeURIComponent(_qtShare.text+'\n\n(Attach the downloaded PDF.)');
+}
+async function qtShareMarkSent(quiet){
+  if(!_qtShare)return;
+  try{
+    const r=await _qtCall('acctMarkSent',{id:_qtShare.id});
+    if(r&&r.ok){_qtReplace(r.quote);renderQuotes();showSaveToast(quiet?'✓ Shared - marked as sent':'✓ Marked as sent');const m=document.getElementById('qtMailBox');if(m&&quiet)m.remove();}
+    else showSaveToast((r&&r.error)||'Could not update');
+  }catch(e){showSaveToast('Connection error');}
+}
+async function qtDuplicate(id){
+  const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
+  let ln=_qtLines[id];
+  if(ln===undefined){
+    try{const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;}catch(e){showSaveToast('Connection error');return;}
+  }
+  qtNewToggle(true,Object.assign({},x,{dup:true,location:'',itemIds:ln.map(l=>l.itemId).filter(Boolean)}));
+  const b=document.getElementById('qtAddBox');if(b)b.scrollIntoView({block:'start',behavior:'smooth'});
+}
+async function qtDelete(id){
+  const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
+  if(!confirm('Delete '+x.id+' for '+x.site+'? This removes the quote, its PDF and its Doc. This cannot be undone.'))return;
+  try{
+    const r=await _qtCall('acctDeleteQuote',{id:id});
+    if(r&&r.ok){_qtQuotes=_qtQuotes.filter(v=>v.id!==id);delete _qtLines[id];_qtSave();renderQuotes();showSaveToast('✓ '+id+' deleted');return;}
+    showSaveToast((r&&r.error)||'Could not delete');
+  }catch(e){showSaveToast('Connection error - not deleted');}
+}
+
+// ── Garden location map (satellite) ──
+let _qtLoc={img:'',url:'',clear:false};
+function _qtLocRender(){
+  const el=document.getElementById('qtNLocBox');if(!el)return;
+  const btn='class="settings-btn" style="margin:0 8px 0 0;padding:8px 12px"';
+  let h='';
+  if(_qtLoc.img)h+=`<img src="${ea(_qtLoc.img)}" alt="Location map" style="width:100%;max-width:360px;border-radius:10px;display:block;margin-bottom:6px">`;
+  else if(_qtLoc.url&&!_qtLoc.clear)h+=`<div class="sub-meta" style="margin-bottom:6px">A location map is saved with this quote. <a href="${ea(_qtLoc.url)}" target="_blank" rel="noopener">View</a></div>`;
+  const has=_qtLoc.img||(_qtLoc.url&&!_qtLoc.clear);
+  h+=`<button type="button" ${btn} onclick="qtLocOpen()">📍 ${has?'Change location':'Mark garden location'}</button>`;
+  if(has)h+=`<button type="button" class="settings-btn" style="margin:0;padding:8px 12px;background:var(--mist);color:var(--ink)" onclick="_qtLoc.img='';_qtLoc.clear=true;_qtLocRender()">Remove</button>`;
+  el.innerHTML=h;
+}
+const _QT_ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+// Arrow geometry in pixels relative to the tip (shared by the on-screen preview and the exported picture).
+function _qtArrowGeom(tx,ty,s){
+  const tail={x:tx-70*s,y:ty-60*s},dx=70,dy=60,len=Math.sqrt(dx*dx+dy*dy),ux=dx/len,uy=dy/len;
+  const hl=26*s,hw=15*s,bx=tx-ux*hl,by=ty-uy*hl;
+  return {tail,head:[{x:tx,y:ty},{x:bx-uy*hw,y:by+ux*hw},{x:bx+uy*hw,y:by-ux*hw}],label:{x:tail.x-44*s,y:tail.y-32*s,w:88*s,h:28*s}};
+}
+function _qtArrowSvg(){
+  const g=_qtArrowGeom(150,140,1),P=p=>p.x+','+p.y;
+  return `<svg width="190" height="160" style="overflow:visible"><line x1="${g.tail.x}" y1="${g.tail.y}" x2="${g.head[0].x-14}" y2="${g.head[0].y-12}" stroke="#fff" stroke-width="10" stroke-linecap="round"/><line x1="${g.tail.x}" y1="${g.tail.y}" x2="${g.head[0].x-14}" y2="${g.head[0].y-12}" stroke="#e53935" stroke-width="5" stroke-linecap="round"/><polygon points="${g.head.map(P).join(' ')}" fill="#e53935" stroke="#fff" stroke-width="2"/><rect x="${g.label.x}" y="${g.label.y}" width="${g.label.w}" height="${g.label.h}" rx="6" fill="#e53935" stroke="#fff" stroke-width="2"/><text x="${g.label.x+g.label.w/2}" y="${g.label.y+19}" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="15" fill="#fff">Location</text></svg>`;
+}
+let _qtLocMap=null,_qtLocAnn={mode:'arrow',arrow:null,box:[]},_qtLocLayers=[];
+function qtLocOpen(){
+  const siteName=((document.getElementById('qtNSite')||{}).value||'').trim().toLowerCase();
+  const s=(DATA.sites||[]).find(x=>String(sf(x,'Name','name')).trim().toLowerCase()===siteName);
+  if(!s){showSaveToast('Choose the school first');return;}
+  const ll=String(sf(s,'Siteslatlong','siteslatlong')||'').split(',').map(v=>parseFloat(v));
+  const has=ll.length>=2&&isFinite(ll[0])&&isFinite(ll[1]);
+  let m=document.getElementById('qtLocBox');if(m)m.remove();
+  m=document.createElement('div');m.id='qtLocBox';
+  m.style.cssText='position:fixed;inset:0;background:#000;z-index:10000;display:flex;flex-direction:column';
+  const tb='class="settings-btn" style="margin:0;padding:8px 12px"';
+  m.innerHTML=`<div style="background:#fff;padding:8px 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <b style="font-size:14px;flex:1;min-width:140px">${escHtml(String(sf(s,'Name','name')))}</b>
+      <button type="button" ${tb} id="qtLocArrowB" onclick="qtLocMode('arrow')">➡️ Arrow</button><button type="button" ${tb} id="qtLocBoxB" onclick="qtLocMode('box')">▭ Box</button>
+      <button type="button" ${tb} onclick="qtLocClear()">Clear</button>
+      <button type="button" ${tb} onclick="qtLocDone()">✓ Done</button><button type="button" class="settings-btn" style="margin:0;padding:8px 12px;background:var(--mist);color:var(--ink)" onclick="qtLocClose()">Cancel</button></div>
+    <div id="qtLocHelp" class="sub-meta" style="background:#fffbe6;padding:6px 10px;font-size:13px;color:#333">Pinch or use +/- to zoom in on the garden, then tap where it is.</div>
+    <div id="qtLocMap" style="flex:1;min-height:0"></div>`;
+  document.body.appendChild(m);
+  _qtLocAnn={mode:'arrow',arrow:null,box:[]};_qtLocLayers=[];
+  qtLocMode('arrow');
+  _loadLeaflet(()=>{
+    if(_qtLocMap){try{_qtLocMap.remove();}catch(e){}}
+    const map=_qtLocMap=L.map('qtLocMap',{zoomControl:true,maxZoom:19}).setView(has?[ll[0],ll[1]]:[34.05,-118.35],has?18:10);
+    L.tileLayer(_QT_ESRI,{maxZoom:19,crossOrigin:true,attribution:'Imagery © Esri'}).addTo(map);
+    map.on('click',e=>qtLocTap(e.latlng));
+  });
+}
+function qtLocMode(mode){
+  _qtLocAnn.mode=mode;_qtLocAnn.arrow=null;_qtLocAnn.box=[];_qtLocDraw();
+  ['Arrow','Box'].forEach(k=>{const b=document.getElementById('qtLoc'+k+'B');if(b){const on=(k.toLowerCase()===mode);b.style.background=on?'':'var(--mist)';b.style.color=on?'':'var(--ink)';}});
+  const h=document.getElementById('qtLocHelp');if(h)h.textContent=mode==='arrow'?'Zoom in on the garden, then tap the spot the arrow should point to.':'Zoom in, then tap two opposite corners of the garden area.';
+}
+function qtLocClear(){qtLocMode(_qtLocAnn.mode);}
+function qtLocTap(ll){
+  if(_qtLocAnn.mode==='arrow')_qtLocAnn.arrow=ll;
+  else{if(_qtLocAnn.box.length>=2)_qtLocAnn.box=[];_qtLocAnn.box.push(ll);}
+  _qtLocDraw();
+}
+function _qtLocDraw(){
+  _qtLocLayers.forEach(l=>{try{_qtLocMap&&_qtLocMap.removeLayer(l);}catch(e){}});_qtLocLayers=[];
+  if(!_qtLocMap||!window.L)return;
+  const a=_qtLocAnn;
+  if(a.mode==='arrow'&&a.arrow){
+    const ic=L.divIcon({className:'',html:_qtArrowSvg(),iconSize:[190,160],iconAnchor:[150,140]});
+    _qtLocLayers.push(L.marker(a.arrow,{icon:ic,interactive:false}).addTo(_qtLocMap));
+  }else if(a.mode==='box'){
+    if(a.box.length===1)_qtLocLayers.push(L.circleMarker(a.box[0],{radius:6,color:'#fff',weight:2,fillColor:'#e53935',fillOpacity:1}).addTo(_qtLocMap));
+    if(a.box.length===2){
+      const r=L.rectangle(L.latLngBounds(a.box[0],a.box[1]),{color:'#e53935',weight:4,fill:false}).addTo(_qtLocMap);
+      r.bindTooltip('Location',{permanent:true,direction:'top',className:'map-label'});_qtLocLayers.push(r);
     }
-    if(w)w.close();
-    showSaveToast((r&&r.error)||'Could not prepare the email');
-  }catch(e){if(w)w.close();showSaveToast('Connection error - no email prepared');}
-  if(go){go.disabled=false;go.textContent='Open email in Gmail';}
+  }
+}
+function qtLocClose(){
+  const m=document.getElementById('qtLocBox');if(m)m.remove();
+  if(_qtLocMap){try{_qtLocMap.remove();}catch(e){}_qtLocMap=null;}
+}
+function _qtLoadImg(u){return new Promise(res=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>res(null);i.src=u;});}
+async function qtLocDone(){
+  const a=_qtLocAnn,map=_qtLocMap;
+  if(!map)return;
+  if(!((a.mode==='arrow'&&a.arrow)||(a.mode==='box'&&a.box.length===2))){showSaveToast(a.mode==='arrow'?'Tap the map to place the arrow':'Tap two corners to draw the box');return;}
+  const help=document.getElementById('qtLocHelp');if(help)help.textContent='Creating the picture…';
+  try{
+    const size=map.getSize(),z=map.getZoom(),zE=Math.min(z+1,19),sc=Math.pow(2,zE-z);
+    const W=Math.round(size.x*sc),H=Math.round(size.y*sc);
+    const c=map.project(map.getCenter(),zE),tl={x:c.x-W/2,y:c.y-H/2};
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
+    ctx.fillStyle='#222';ctx.fillRect(0,0,W,H);
+    const x0=Math.floor(tl.x/256),x1=Math.floor((tl.x+W)/256),y0=Math.floor(tl.y/256),y1=Math.floor((tl.y+H)/256),jobs=[];
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)jobs.push(_qtLoadImg(_QT_ESRI.replace('{z}',zE).replace('{y}',y).replace('{x}',x)).then(im=>{if(im)ctx.drawImage(im,x*256-tl.x,y*256-tl.y,256,256);}));
+    await Promise.all(jobs);
+    const px=ll=>{const p=map.project(ll,zE);return {x:p.x-tl.x,y:p.y-tl.y};};
+    const red='#e53935';
+    const pill=(x,y,w,h)=>{ctx.fillStyle=red;ctx.strokeStyle='#fff';ctx.lineWidth=2*sc;ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,6*sc):ctx.rect(x,y,w,h);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='700 '+Math.round(15*sc)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('Location',x+w/2,y+h/2+1);};
+    if(a.mode==='arrow'){
+      const t=px(a.arrow),g=_qtArrowGeom(t.x,t.y,sc),ex=g.head[0].x-14*sc,ey=g.head[0].y-12*sc;
+      ctx.lineCap='round';ctx.strokeStyle='#fff';ctx.lineWidth=10*sc;ctx.beginPath();ctx.moveTo(g.tail.x,g.tail.y);ctx.lineTo(ex,ey);ctx.stroke();
+      ctx.strokeStyle=red;ctx.lineWidth=5*sc;ctx.beginPath();ctx.moveTo(g.tail.x,g.tail.y);ctx.lineTo(ex,ey);ctx.stroke();
+      ctx.fillStyle=red;ctx.strokeStyle='#fff';ctx.lineWidth=2*sc;ctx.beginPath();ctx.moveTo(g.head[0].x,g.head[0].y);ctx.lineTo(g.head[1].x,g.head[1].y);ctx.lineTo(g.head[2].x,g.head[2].y);ctx.closePath();ctx.fill();ctx.stroke();
+      pill(g.label.x,g.label.y,g.label.w,g.label.h);
+    }else{
+      const p1=px(a.box[0]),p2=px(a.box[1]),x=Math.min(p1.x,p2.x),y=Math.min(p1.y,p2.y),w=Math.abs(p1.x-p2.x),h=Math.abs(p1.y-p2.y);
+      ctx.strokeStyle='#fff';ctx.lineWidth=9*sc;ctx.strokeRect(x,y,w,h);ctx.strokeStyle=red;ctx.lineWidth=5*sc;ctx.strokeRect(x,y,w,h);
+      pill(x+w/2-44*sc,y-36*sc,88*sc,28*sc);
+    }
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.font=Math.round(11*sc)+'px sans-serif';ctx.textAlign='right';ctx.textBaseline='alphabetic';ctx.fillText('Imagery © Esri',W-6*sc,H-6*sc);
+    _qtLoc={img:cv.toDataURL('image/jpeg',0.85),url:_qtLoc.url,clear:false};
+    qtLocClose();_qtLocRender();
+  }catch(e){
+    const h=document.getElementById('qtLocHelp');if(h)h.textContent='Could not create the picture ('+(e&&e.message||'error')+'). Try again.';
+  }
 }
 async function qtApprove(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
@@ -4298,11 +4466,14 @@ function _qtItemCount(){
 function qtNewToggle(show,edit){
   const b=document.getElementById('qtAddBox');if(!b)return;
   const open=(typeof show==='boolean')?show:b.style.display==='none';
-  _qtEditId=(open&&edit)?edit.id:'';
+  const dup=!!(edit&&edit.dup),isEdit=!!edit&&!dup;
+  _qtEditId=(open&&isEdit)?edit.id:'';
+  _qtLoc={img:'',url:isEdit?String(edit.location||''):'',clear:false};
   if(open){
     const e=edit||{},inp='class="edit-input" style="width:100%;margin-bottom:8px"',lab='style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px"';
     b.innerHTML=`<div class="th-card">
-      ${edit?`<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px">Edit ${escHtml(e.id)}</div><div class="sub-meta" style="margin:-4px 0 8px">Saving rebuilds the quote and replaces the old PDF. ${e.status==='Sent'?'This quote was already emailed - use Resend afterwards to send the new PDF.':''}</div>`:''}
+      ${dup?`<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:4px">Duplicate of ${escHtml(e.id)}</div><div class="sub-meta" style="margin:0 0 8px">Change the school and anything else, then save. This creates a new quote with its own number.</div>`:''}
+      ${isEdit?`<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px">Edit ${escHtml(e.id)}</div><div class="sub-meta" style="margin:-4px 0 8px">Saving rebuilds the quote and replaces the old PDF. ${e.status==='Sent'?'This quote was already emailed - use Email quote afterwards to send the new PDF.':''}</div>`:''}
       <label ${lab}>Summary (the headline at the top of the quote)</label>
       <input id="qtNSummary" ${inp} maxlength="300" placeholder="e.g. An extreme makeover of the edible garden" value="${ea(e.summary||'')}">
       <div style="display:flex;gap:8px"><select id="qtNCat" ${inp} onchange="_qtTypeChanged()"><option value=""${e.category?'':' selected'}>Choose type (required)</option><option value="Program"${e.category==='Program'?' selected':''}>Program</option><option value="Maker"${e.category==='Maker'?' selected':''}>Maker</option><option value="Miscellaneous"${e.category==='Miscellaneous'?' selected':''}>Miscellaneous</option></select>
@@ -4318,8 +4489,11 @@ function qtNewToggle(show,edit){
       <div id="qtNItemCount" class="sub-meta" style="margin:-2px 0 8px">0 items chosen</div>
       <div style="display:flex;gap:8px"><div style="flex:1"><label ${lab}>Total price ($)</label><input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${ea(edit&&e.total!==undefined?e.total:'')}"></div>
         <div style="flex:1"><label ${lab}>Build date</label><input id="qtNBuild" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.buildDate||'')?e.buildDate:'')}"></div></div>
+      <label ${lab}>Garden location (a map picture added to the end of the quote)</label>
+      <div id="qtNLocBox" style="margin-bottom:8px"></div>
       <textarea id="qtNNotes" ${inp} rows="2" maxlength="2000" placeholder="Internal notes (not on the quote)">${escHtml(e.notes||'')}</textarea>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${edit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; choose recipients</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${isEdit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; choose recipients</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
+    _qtLocRender();
     if(edit){
       const ids=new Set((edit.itemIds||[]).map(String));
       document.querySelectorAll('#qtNItemList input').forEach(c=>{if(ids.has(c.value))c.checked=true;});
@@ -4327,7 +4501,7 @@ function qtNewToggle(show,edit){
     }
   }
   b.style.display=open?'block':'none';
-  if(open&&!edit)setTimeout(()=>{const n=document.getElementById('qtNSite');if(n)n.focus();},50);
+  if(open&&!isEdit)setTimeout(()=>{const n=document.getElementById('qtNSite');if(n)n.focus();},50);
 }
 async function qtEdit(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
@@ -4361,13 +4535,13 @@ async function qtSubmit(sendNow){
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
   const editing=_qtEditId;
   try{
-    const payload={summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
+    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
     let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items'},payload));
     if(r&&r.ok){
       let msg;
       if(editing){
         delete _qtLines[editing];
-        msg=r.needsResend?'✓ '+editing+' updated, PDF replaced. Tap Resend to email the new one.':'✓ '+editing+' updated, PDF replaced';
+        msg=r.needsResend?'✓ '+editing+' updated, PDF replaced. Tap Email quote to send the new one.':'✓ '+editing+' updated, PDF replaced';
       }else msg=r.buildError?'Saved, but the PDF failed: '+r.buildError:'✓ Draft '+r.id+' saved with PDF';
       if(r.buildNote)msg+=' ('+r.buildNote+')';
       _qtReplace(r.quote);qtNewToggle(false);renderQuotes();showSaveToast(msg);
