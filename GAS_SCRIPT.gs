@@ -807,6 +807,8 @@ function _doPostRoute(e) {
       case 'acctCreateQuote':  return respond(handleAcctCreateQuote(p));
       case 'acctUpdateQuote':  return respond(handleAcctUpdateQuote(p));
       case 'acctSendQuote':    return respond(handleAcctSendQuote(p));
+      case 'acctQuoteContacts': return respond(handleAcctQuoteContacts(p));
+      case 'acctDraftEmail':   return respond(handleAcctDraftEmail(p));
       case 'acctApproveQuote': return respond(handleAcctApproveQuote(p));
       case 'acctSetStatus':    return respond(handleAcctSetStatus(p));
       case 'getRolesAdmin': return respond(handleGetRolesAdmin());
@@ -9268,8 +9270,22 @@ function handleDeleteHuman(p) {
 const ACCT_ID = '1aBDr2NswdzHD61XYn9ggYwAmQxBUua57cxNphCtlgEs'; // "Rover Accounting" spreadsheet
 const ACCT_FOLDERS = {
   Program: '1adz4VlMZbpLpaOBjehoNacvPwfsA8Sa2', // Accounting > Quotes > Program Quotes
-  Maker:   '1bjWzDcdxc1mND9eUw8prrOWM5WUtcuy8'  // Accounting > Quotes > Maker Quotes
+  Maker:   '1bjWzDcdxc1mND9eUw8prrOWM5WUtcuy8', // Accounting > Quotes > Maker Quotes
+  Miscellaneous: '1AQgw_Ui6r2pAsi5JOwNmmln3o7t1Sz0A' // Accounting > Quotes > Miscellaneous Quotes
 };
+// Quote form templates (Google Docs in the Actual Forms folder; also listed on the Rover Forms > Actual Forms tab).
+// The first form of each type is the default. A form whose Doc has no {{ITEM LINE}} token yet falls back to Quote Maker Form 1.
+const ACCT_QUOTE_FORMS = {
+  Maker: [{ name: 'Quote Maker Form 1', id: '1-siKS7iFwpTcKSjyBu41KZHCErXEQQIPmVp2kjRs5JA' }, { name: 'Quote Maker Form 2', id: '1x6FM01QdZmzXlMG-zPeHCB5A1S7FBraaXUnozmmFESw' }],
+  Program: [{ name: 'Quote Program Form 1', id: '1AXA324KiA-0eViUid5oNk4bjcz_KSBpyOxMllOCHt44' }, { name: 'Quote Program Form 2', id: '1jxQskiw921iHeuR6wUPM22JjJdyat1Xrt6ESdyr5WjQ' }],
+  Miscellaneous: [{ name: 'Quote Misc Form 1', id: '15IRb7PH-xBlqHpmDZwcp1jOgJCpML6HmC2clhgqWJlE' }, { name: 'Quote Misc Form 2', id: '1GD4hWKoa2rJfFmlVST3ZwEsat6qEZClR2ICXrVOPzog' }]
+};
+function _acctForm(cat, name) {
+  var list = ACCT_QUOTE_FORMS[String(cat)] || ACCT_QUOTE_FORMS.Maker, nm = String(name || '').trim();
+  for (var i = 0; i < list.length; i++) { if (list[i].name === nm) return list[i]; }
+  return list[0];
+}
+var _acctBuildNote = '';
 const ACCT_QUOTE_VALID_DAYS = 30;
 const ACCT_ORG_NAME  = 'Enrich LA';
 const ACCT_ORG_EMAIL = 'tomasogrady@enrichla.org';
@@ -9395,6 +9411,7 @@ function _acctQuoteShape(o) {
     contactEmail: String(o['Contact Email'] || ''), scope: String(o['Scope'] || ''), total: Number(o['Total']) || 0,
     status: String(o['Status'] || ''), sentDate: _acctIso(o['Sent Date']), approvedDate: _acctIso(o['Approved Date']),
     po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Notes'] || ''),
+    summary: String(o['Summary'] || ''), form: String(o['Form'] || ''),
     format: String(o['Format'] || ''), docLink: String(o['Doc Link'] || ''), items: String(o['Items'] || ''),
     buildDate: (o['Build Date'] instanceof Date) ? _acctIso(o['Build Date']) : String(o['Build Date'] || ''),
     link: tok ? ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(String(o['Quote #'])) + '&t=' + encodeURIComponent(tok) : ''
@@ -9428,7 +9445,8 @@ function handleAcctGetData(p) {
     quotes.reverse();
     if (quotes.length > 400) quotes = quotes.slice(0, 400);
     var qitems = []; try { qitems = _acctQuoteItems(); } catch (e2) {}
-    return { ok: true, items: items, quotes: quotes, qitems: qitems };
+    var forms = {}; Object.keys(ACCT_QUOTE_FORMS).forEach(function (k) { forms[k] = ACCT_QUOTE_FORMS[k].map(function (f) { return f.name; }); });
+    return { ok: true, items: items, quotes: quotes, qitems: qitems, forms: forms };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
@@ -9442,7 +9460,7 @@ function handleAcctGetQuote(p) {
 function handleAcctCreateQuote(p) {
   if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
   var cat = String(p.category || '');
-  if (!ACCT_FOLDERS[cat]) return { ok: false, error: 'Choose Program or Maker.' };
+  if (!ACCT_FOLDERS[cat]) return { ok: false, error: 'Choose Program, Maker or Miscellaneous.' };
   var site = String(p.site || '').trim();
   if (!site) return { ok: false, error: 'Choose a school.' };
   var email = String(p.contactEmail || '').trim();
@@ -9493,13 +9511,15 @@ function handleAcctCreateQuote(p) {
     var extra = {};
     if (qm['Build Date']) extra['Build Date'] = _acctParseDate(p.buildDate);
     if (qm['Items']) extra['Items'] = _acctItemsText(lines);
+    if (qm['Summary']) extra['Summary'] = _acctText(p.summary, 300);
+    if (qm['Form']) extra['Form'] = _acctForm(cat, p.form).name;
     if (Object.keys(extra).length) _acctSet(Q, qr, qm, extra);
     SpreadsheetApp.flush();
     shape = _acctQuoteShape(_acctRowObj(Q, qr, qm));
   } finally { lock.releaseLock(); }
   var out = { ok: true, id: q, quote: shape };
   if (itemsMode) {
-    try { shape = _acctRebuild(q); out.quote = shape; } catch (e) { out.buildError = e.message; }
+    try { shape = _acctRebuild(q); out.quote = shape; if (_acctBuildNote) out.buildNote = _acctBuildNote; } catch (e) { out.buildError = e.message; }
   }
   if (p.sendNow) {
     try { out.quote = _acctSendQuote(q); out.sent = true; }
@@ -9532,16 +9552,16 @@ function _acctDocHtml(o) {
     '<div class="small">' + _acctEsc(o.footer || '') + '</div></body></html>';
 }
 
-function _acctSendQuote(q) {
+// Gathers everything needed to email a quote: the PDF (reused or rebuilt), subject, and an HTML/plain body that
+// carries the summary, item list, cost and the approve link.
+function _acctMailParts(q) {
   var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', q);
   if (!r) throw new Error('Quote not found: ' + q);
   var o = _acctRowObj(Q, r, qm);
   if (o['Status'] === 'Approved') throw new Error(q + ' is already approved.');
   if (o['Status'] === 'Declined') throw new Error(q + ' was declined. Change its status back to Draft first.');
-  var to = String(o['Contact Email'] || '').trim();
-  if (!to) throw new Error('This quote has no contact email.');
   var folderId = ACCT_FOLDERS[String(o['Category'])];
-  if (!folderId) throw new Error('This quote has no Program / Maker type.');
+  if (!folderId) throw new Error('This quote has no type (Program / Maker / Miscellaneous).');
   var lines = _acctLines(q);
   if (!lines.length) throw new Error('This quote has no line items.');
   var itemsFmt = String(o['Format'] || '') === 'Items';
@@ -9557,7 +9577,7 @@ function _acctSendQuote(q) {
   } else {
     var html = _acctDocHtml({
       title: 'QUOTE', number: q, date: o['Date'], refLabel: 'Valid until', refValue: _acctFmtDate(valid),
-      billTo: [site, o['Contact Name'], to], scope: o['Scope'], lines: lines, total: total,
+      billTo: [site, o['Contact Name'], o['Contact Email']], scope: o['Scope'], lines: lines, total: total,
       footer: 'This quote is an offer only and is not a contract until approved by the customer. Pricing is valid through ' + _acctFmtDate(valid) + '.'
     });
     var pdf = Utilities.newBlob(html, 'text/html', q + '.html').getAs('application/pdf').setName(q + ' - ' + site + '.pdf');
@@ -9567,20 +9587,93 @@ function _acctSendQuote(q) {
   }
 
   var link = ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(q) + '&t=' + encodeURIComponent(String(o['Token']));
-  var cn = String(o['Contact Name'] || '').trim();
-  var body = '<p>Hello ' + _acctEsc(cn.split(' ')[0] || 'there') + ',</p>' +
-    '<p>Attached is quote <b>' + _acctEsc(q) + '</b> for <b>' + _acctEsc(site) + '</b>, total <b>' + _acctMoney(total) + '</b>, valid through ' + _acctFmtDate(valid) + '.</p>' +
+  var summary = String(o['Summary'] || '').trim(), scope = String(o['Scope'] || '').trim();
+  var names = itemsFmt ? lines.map(function (l) { return l.desc; }) : [];
+  var list = names.length ? '<p style="margin:12px 0 4px"><b>Included in this quote:</b></p><ul style="margin:0 0 12px 18px;padding:0">' + names.map(function (n) { return '<li>' + _acctEsc(n) + '</li>'; }).join('') + '</ul>' : '';
+  var body = '<p>Hello,</p>' +
+    '<p>Attached is quote <b>' + _acctEsc(q) + '</b> for <b>' + _acctEsc(site) + '</b>.</p>' +
+    (summary ? '<p style="font-size:16px;margin:8px 0"><b>' + _acctEsc(summary) + '</b></p>' : '') +
+    (scope ? '<p>' + _acctEsc(scope) + '</p>' : '') + list +
+    '<p style="font-size:15px">Total: <b>' + _acctMoney(total) + '</b><br><span style="color:#666">Valid through ' + _acctFmtDate(valid) + '</span></p>' +
     '<p><a href="' + link + '" style="background:#2f6b35;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold">Review &amp; approve this quote</a></p>' +
     '<p>You can also just reply to this email with your purchase order or written approval.</p>' +
     '<p>Thank you,<br>' + _acctEsc(ACCT_ORG_NAME) + '</p>';
-  GmailApp.sendEmail(to, 'Quote ' + q + ' from ' + ACCT_ORG_NAME + ' - ' + site, 'Quote ' + q + ' for ' + site + ' - total ' + _acctMoney(total) + '. Approve here: ' + link, {
-    htmlBody: body, attachments: [file.getBlob()], name: ACCT_ORG_NAME, replyTo: ACCT_ORG_EMAIL, bcc: ACCT_ORG_EMAIL
-  });
-  var upd = { 'Status': 'Sent', 'Sent Date': new Date(), 'PDF Link': file.getUrl() };
-  if (docUrl) upd['Doc Link'] = docUrl;
-  _acctSet(Q, r, qm, upd);
+  var text = 'Quote ' + q + ' for ' + site + (summary ? ' - ' + summary : '') + '\n' + (names.length ? 'Includes: ' + names.join('; ') + '\n' : '') +
+    'Total ' + _acctMoney(total) + ', valid through ' + _acctFmtDate(valid) + '.\nApprove here: ' + link;
+  return { Q: Q, qm: qm, r: r, o: o, file: file, docUrl: docUrl, subject: 'Quote ' + q + ' from ' + ACCT_ORG_NAME + ' - ' + site, html: body, text: text };
+}
+function _acctMarkSent(m) {
+  var upd = { 'Status': 'Sent', 'Sent Date': new Date(), 'PDF Link': m.file.getUrl() };
+  if (m.docUrl) upd['Doc Link'] = m.docUrl;
+  _acctSet(m.Q, m.r, m.qm, upd);
   SpreadsheetApp.flush();
-  return _acctQuoteShape(_acctRowObj(Q, r, qm));
+  return _acctQuoteShape(_acctRowObj(m.Q, m.r, m.qm));
+}
+function _acctSendQuote(q) {
+  var m = _acctMailParts(q), to = String(m.o['Contact Email'] || '').trim();
+  if (!to) throw new Error('This quote has no contact email.');
+  GmailApp.sendEmail(to, m.subject, m.text, { htmlBody: m.html, attachments: [m.file.getBlob()], name: ACCT_ORG_NAME, replyTo: ACCT_ORG_EMAIL, bcc: ACCT_ORG_EMAIL });
+  return _acctMarkSent(m);
+}
+// People associated with the quote's school (Sites sheet contact columns + the quote's own contact), with emails.
+function _acctSiteContacts(site, extraEmail, extraName) {
+  var out = [], seen = {};
+  function add(email, label, role) {
+    email = String(email || '').trim().toLowerCase();
+    if (!email || seen[email]) return;
+    seen[email] = 1; out.push({ email: email, label: String(label || '').trim(), role: role || '' });
+  }
+  var byEmail = {};
+  try {
+    var hv = SpreadsheetApp.openById(HUMANS_ID).getSheetByName('Humans').getDataRange().getValues(), hh = hv[0], he = hh.indexOf('Email'), hn = hh.indexOf('Name');
+    for (var h = 1; h < hv.length; h++) { var em = String(hv[h][he] || '').trim().toLowerCase(); if (em && hn > -1) byEmail[em] = String(hv[h][hn] || '').trim(); }
+  } catch (e) {}
+  var emailRe = /[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+  try {
+    var sv = SpreadsheetApp.openById(SITES_ID).getSheetByName('Sites').getDataRange().getValues(), sh = sv[0], ni = sh.indexOf('Name');
+    for (var r = 1; r < sv.length; r++) {
+      if (String(sv[r][ni]).trim().toLowerCase() !== String(site).trim().toLowerCase()) continue;
+      var cols = [['Principal Email Raw', 'Principal'], ['Principal', 'Principal'], ['School Administrative Assistant', 'Admin assistant'], ['Main Contact 1', 'Contact'], ['Main Contact 2', 'Contact'], ['Main Contact 3', 'Contact'],
+        ['Plant Manager', 'Plant manager'], ['CPM', 'CPM'], ['Teachers', 'Teacher'], ['Other Contacts', 'Contact'], ['Ranger 1', 'Ranger'], ['Ranger 2', 'Ranger'], ['Garden Keeper', 'Garden keeper']];
+      var pf = sh.indexOf('Principal First Name Raw'), pl = sh.indexOf('Principal Last Name Raw');
+      cols.forEach(function (c) {
+        var ci = sh.indexOf(c[0]); if (ci < 0) return;
+        var v = String(sv[r][ci] || ''), m = v.match(emailRe) || [];
+        m.forEach(function (em) {
+          var nm = byEmail[em.toLowerCase()] || '';
+          if (!nm && c[0] === 'Principal Email Raw') nm = ((pf > -1 ? sv[r][pf] : '') + ' ' + (pl > -1 ? sv[r][pl] : '')).trim();
+          add(em, nm, c[1]);
+        });
+      });
+      break;
+    }
+  } catch (e2) {}
+  add(extraEmail, extraName, 'Quote contact');
+  return out;
+}
+function handleAcctQuoteContacts(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try {
+    var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), r = _acctFind(Q, qm, 'Quote #', String(p.id || ''));
+    if (!r) return { ok: false, error: 'Quote not found.' };
+    var o = _acctRowObj(Q, r, qm);
+    return { ok: true, contacts: _acctSiteContacts(String(o['Site'] || ''), o['Contact Email'], o['Contact Name']), preselect: String(o['Contact Email'] || '').trim().toLowerCase() };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// Creates a Gmail DRAFT (quote PDF attached, summary + cost in the body) addressed to the chosen people and returns
+// the link that opens it in Gmail. Nothing is sent until the user presses Send in Gmail.
+function handleAcctDraftEmail(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try {
+    var to = (p.to || []).map(function (x) { return String(x || '').trim(); }).filter(function (x) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x); });
+    if (!to.length) return { ok: false, error: 'Choose at least one recipient.' };
+    var m = _acctMailParts(String(p.id || ''));
+    var d = GmailApp.createDraft(to.join(','), m.subject, m.text, { htmlBody: m.html, attachments: [m.file.getBlob()], name: ACCT_ORG_NAME, replyTo: ACCT_ORG_EMAIL, bcc: ACCT_ORG_EMAIL });
+    var quote = _acctMarkSent(m);
+    var acct = ''; try { acct = Session.getEffectiveUser().getEmail(); } catch (e) {}
+    var url = 'https://mail.google.com/mail/' + (acct ? '?authuser=' + encodeURIComponent(acct) : '') + '#drafts?compose=' + encodeURIComponent(d.getMessageId());
+    return { ok: true, quote: quote, url: url };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
 
 
@@ -9658,7 +9751,11 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   _acctStage = 'copy template';
   var items = {}; _acctQuoteItems().forEach(function (it) { items[it.id] = it; });
   var info = _acctSiteInfo(site);
-  var copy = DriveApp.getFileById(ACCT_QUOTE_TEMPLATE_ID).makeCopy(q + ' - ' + site + ' (quote doc)', folder);
+  var form = _acctForm(o['Category'], o['Form']), tplId = form.id;
+  _acctBuildNote = '';
+  try { if (DocumentApp.openById(tplId).getBody().getText().indexOf('{{ITEM LINE}}') < 0) { tplId = ACCT_QUOTE_TEMPLATE_ID; _acctBuildNote = form.name + ' is not designed yet, so Quote Maker Form 1 was used.'; } }
+  catch (eTpl) { tplId = ACCT_QUOTE_TEMPLATE_ID; _acctBuildNote = 'Could not open ' + form.name + ', so Quote Maker Form 1 was used.'; }
+  var copy = DriveApp.getFileById(tplId).makeCopy(q + ' - ' + site + ' (quote doc)', folder);
   _acctCopyId = copy.getId();
   _acctStage = 'open template';
   var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
@@ -9714,11 +9811,13 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     var f = body.findText(pat(tok));
     if (!f) return;
     if (!val && dropIfEmpty) {
-      var p = f.getElement().getParent();
-      try { p.removeFromParent(); return; } catch (e) {}
+      var guard = 0;
+      while (f && guard++ < 10) { try { f.getElement().getParent().removeFromParent(); } catch (e) { break; } f = body.findText(pat(tok)); }
+      if (!f) return;
     }
     body.replaceText(pat(tok), esc(val));
   }
+  setTok('Summary', o['Summary'], true);
   setTok('School', site);
   setTok('Contact Name', o['Contact Name'], true);
   setTok('Address', info.address, true);
@@ -9731,7 +9830,6 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   setTok('Prepared By', ACCT_ORG_NAME);
   setTok('Total', _acctMoney(total));
   setTok('Scope', o['Scope'], true);
-  try { body.editAsText().setFontFamily('Georgia'); } catch (eFont) {}
   _acctStage = 'save and PDF';
   doc.saveAndClose();
   return { docFile: copy, pdf: copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf') };
@@ -9755,7 +9853,7 @@ function _acctRebuild(q) {
   if (!r) throw new Error('Quote not found: ' + q);
   var o = _acctRowObj(Q, r, qm), lines = _acctLines(q);
   var folderId = ACCT_FOLDERS[String(o['Category'])];
-  if (!folderId) throw new Error('This quote has no Program / Maker type.');
+  if (!folderId) throw new Error('This quote has no type (Program / Maker / Miscellaneous).');
   var valid = o['Valid Until'] instanceof Date ? o['Valid Until'] : new Date(Date.now() + ACCT_QUOTE_VALID_DAYS * 86400000);
   var rr = _acctRenderItems(q, o, lines, Number(o['Total']) || 0, valid, folderId);
   _acctSet(Q, r, qm, { 'PDF Link': rr.file.getUrl(), 'Doc Link': rr.docUrl });
@@ -9768,7 +9866,7 @@ function handleAcctUpdateQuote(p) {
   if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
   var q = String(p.id || '').trim();
   var cat = String(p.category || '');
-  if (!ACCT_FOLDERS[cat]) return { ok: false, error: 'Choose Program or Maker.' };
+  if (!ACCT_FOLDERS[cat]) return { ok: false, error: 'Choose Program, Maker or Miscellaneous.' };
   var site = String(p.site || '').trim();
   if (!site) return { ok: false, error: 'Choose a school.' };
   var email = String(p.contactEmail || '').trim();
@@ -9802,12 +9900,14 @@ function handleAcctUpdateQuote(p) {
     };
     if (qm['Build Date']) set['Build Date'] = _acctParseDate(p.buildDate);
     if (qm['Items']) set['Items'] = _acctItemsText(lines);
+    if (qm['Summary']) set['Summary'] = _acctText(p.summary, 300);
+    if (qm['Form']) set['Form'] = _acctForm(cat, p.form).name;
     _acctSet(Q, r, qm, set);
     SpreadsheetApp.flush();
   } finally { lock.releaseLock(); }
   try {
     var shape = _acctRebuild(q);
-    return { ok: true, id: q, quote: shape, replaced: true, needsResend: status === 'Sent' };
+    return { ok: true, id: q, quote: shape, replaced: true, needsResend: status === 'Sent', buildNote: _acctBuildNote };
   } catch (e) { return { ok: false, error: 'Saved, but the PDF could not be rebuilt: ' + e.message }; }
 }
 

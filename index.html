@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.12 -->
+<!-- v12.13 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1363,7 +1363,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <option value="">All statuses</option><option value="__open__">Waiting on approval</option><option value="Draft">Draft</option><option value="Sent">Sent</option><option value="Approved">Approved</option><option value="Declined">Declined</option><option value="Expired">Expired</option>
       </select>
       <select id="qtTypeF" class="settings-input" style="margin:0;flex:1;min-width:0" onchange="renderQuotes()">
-        <option value="">Program + Maker</option><option value="Program">Program</option><option value="Maker">Maker</option>
+        <option value="">All types</option><option value="Program">Program</option><option value="Maker">Maker</option><option value="Miscellaneous">Miscellaneous</option>
       </select>
     </div>
     <div id="qtFilterNote" class="sub-meta" style="padding:0 16px 10px"></div>
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.12';
+const APP_VERSION='v12.13';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Quotes: item-list only (no qty x price), build date, Edit an existing quote (new PDF replaces the old), new quote layout with one-line item list and photo detail pages.';
+const BUILD_STAMP='2026-11-17 PT - Quotes: required type + Miscellaneous, choose the form (template) per quote, Summary headline, email opens a Gmail draft with recipient picker, new quote header with logo.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4118,7 +4118,7 @@ function loadQuotes(){
   if(!CFG.URL)return Promise.resolve();
   if(_qtLoading)return _qtLoading;
   _qtLoading=_qtCall('acctGetData').then(r=>{
-    if(r&&r.ok){_qtItems=r.items||[];_qtQuotes=r.quotes||[];_qtQItems=r.qitems||[];_qtSave();}
+    if(r&&r.ok){_qtItems=r.items||[];_qtQuotes=r.quotes||[];_qtQItems=r.qitems||[];if(r.forms)_qtForms=r.forms;_qtSave();}
     else if(!_qtQuotes.length){const el=document.getElementById('qtList');if(el)el.innerHTML='<div class="sub-meta" style="padding:14px 0;text-align:center">'+escHtml((r&&r.error)||'Could not load quotes.')+'</div>';}
   }).catch(()=>{}).finally(()=>{
     _qtLoading=null;
@@ -4167,7 +4167,7 @@ function _qtCardHtml(x){
   }
   const acts=[`<button type="button" class="settings-btn" style="${btn}" onclick="qtToggle('${i}')">${open?'▴ Collapse':'▾ Expand'}</button>`];
   if(x.status!=='Approved')acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtEdit('${i}')">✏️ Edit</button>`);
-  if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtSend('${i}')">${x.status==='Sent'?'📧 Resend':'📧 Email quote'}</button>`);
+  if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtSend('${i}')">${x.status==='Sent'?'📧 Email again':'📧 Email quote'}</button>`);
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtApprove('${i}')">✅ Record approval</button>`);
   if(x.docLink)acts.push(`<a class="settings-btn" style="${btn};text-decoration:none;display:inline-block" href="${ea(x.docLink)}" target="_blank" rel="noopener">📝 Doc</a>`);
   if(x.pdf)acts.push(`<a class="settings-btn" style="${btn};text-decoration:none;display:inline-block" href="${ea(x.pdf)}" target="_blank" rel="noopener">📄 PDF</a>`);
@@ -4175,8 +4175,8 @@ function _qtCardHtml(x){
   if(waiting)acts.push(`<button type="button" class="settings-btn" style="${btn};color:var(--danger)" onclick="qtStatus('${i}','Declined')">Mark declined</button>`);
   if(x.status==='Declined'||x.status==='Expired')acts.push(`<button type="button" class="settings-btn" style="${btn}" onclick="qtStatus('${i}','Draft')">Reopen as draft</button>`);
   return `<div class="th-card" id="qtc-${i}"><div style="display:flex;align-items:flex-start;gap:8px">
-      <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink)">${escHtml(x.site)}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px">${_qtPill(x.status)}<span style="font-size:12px;color:var(--silver)">${escHtml(x.id)} · ${escHtml(x.category)}${x.format==='Items'?' · Item list':''} · ${_qtDate(x.date)}</span></div></div>
+      <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:var(--ink)">${escHtml(x.site)}</div>${x.summary?`<div style="font-size:13px;color:var(--stone);margin-top:2px">${escHtml(x.summary)}</div>`:''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px">${_qtPill(x.status)}<span style="font-size:12px;color:var(--silver)">${escHtml(x.id)} · ${escHtml(x.category)}${x.format==='Items'?' · Item list':''}${x.form?' · '+escHtml(x.form):''} · ${_qtDate(x.date)}</span></div></div>
       <div style="font-size:17px;font-weight:700;color:var(--ink);white-space:nowrap">${_qtMoney(x.total)}</div></div>
     ${detail}<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${acts.join('')}</div></div>`;
 }
@@ -4193,15 +4193,42 @@ async function qtToggle(id){
     renderQuotes();
   }
 }
+// Email a quote: pick who at the school should get it, then open a Gmail draft (PDF attached, summary and cost in the body).
 async function qtSend(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
-  if(!x.contactEmail){showSaveToast('Add a contact email on the quote row in the sheet first');return;}
-  if(!confirm('Email quote '+x.id+' ('+_qtMoney(x.total)+') to '+(x.contactName?x.contactName+' ':'')+'<'+x.contactEmail+'>?'))return;
+  let m=document.getElementById('qtMailBox');if(m)m.remove();
+  m=document.createElement('div');m.id='qtMailBox';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML=`<div style="background:var(--paper,#fff);border-radius:14px;max-width:460px;width:100%;max-height:88vh;overflow:auto;padding:16px">
+    <div style="font-size:16px;font-weight:700;color:var(--ink)">Email ${escHtml(x.id)} - ${escHtml(x.site)}</div>
+    <div class="sub-meta" style="margin:4px 0 10px">Choose who should receive it. A Gmail draft opens with the PDF attached, the summary and the cost.</div>
+    <div id="qtMailList"><div class="spinner"></div></div>
+    <input id="qtMailExtra" class="edit-input" style="width:100%;margin:8px 0" type="text" placeholder="Add another email (optional, comma separated)">
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtMailGo" onclick="qtMailGo('${ea(id)}')">Open email in Gmail</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="document.getElementById('qtMailBox').remove()">Cancel</button></div></div>`;
+  document.body.appendChild(m);
+  let contacts=[],pre='';
+  try{const r=await _qtCall('acctQuoteContacts',{id:id});if(r&&r.ok){contacts=r.contacts||[];pre=r.preselect||'';}}catch(e){}
+  const l=document.getElementById('qtMailList');if(!l)return;
+  l.innerHTML=contacts.length?contacts.map(c=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}"${c.email===pre?' checked':''} style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label||c.email)}</b> <span style="font-size:12px;color:var(--silver)">${escHtml(c.role)}</span><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join(''):'<div class="sub-meta">No contacts with an email found for this school. Add an address below.</div>';
+}
+async function qtMailGo(id){
+  const to=[...document.querySelectorAll('.qtMailTo:checked')].map(c=>c.value);
+  String((document.getElementById('qtMailExtra')||{}).value||'').split(/[,;\s]+/).forEach(e=>{if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)&&to.indexOf(e)<0)to.push(e);});
+  if(!to.length){showSaveToast('Choose at least one recipient');return;}
+  const go=document.getElementById('qtMailGo');if(go){go.disabled=true;go.textContent='Preparing…';}
+  const w=window.open('','_blank');
   try{
-    const r=await _qtCall('acctSendQuote',{id:id});
-    if(r&&r.ok){_qtReplace(r.quote);renderQuotes();showSaveToast('✓ Quote emailed');return;}
-    showSaveToast((r&&r.error)||'Could not send');
-  }catch(e){showSaveToast('Connection error - not sent');}
+    const r=await _qtCall('acctDraftEmail',{id:id,to:to});
+    if(r&&r.ok){
+      _qtReplace(r.quote);renderQuotes();
+      const m=document.getElementById('qtMailBox');if(m)m.remove();
+      if(w)w.location.href=r.url;else window.open(r.url,'_blank');
+      showSaveToast('✓ Gmail draft ready - check it and press Send');return;
+    }
+    if(w)w.close();
+    showSaveToast((r&&r.error)||'Could not prepare the email');
+  }catch(e){if(w)w.close();showSaveToast('Connection error - no email prepared');}
+  if(go){go.disabled=false;go.textContent='Open email in Gmail';}
 }
 async function qtApprove(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
@@ -4238,6 +4265,15 @@ function _qtItemOpts(cat,sel){
   return '<option value="">Custom line</option>'+_qtItemsFor(cat).map(i=>`<option value="${ea(i.id)}"${i.id===sel?' selected':''}>${escHtml(i.name)}</option>`).join('');
 }
 let _qtEditId='';
+let _qtForms={Maker:['Quote Maker Form 1','Quote Maker Form 2'],Program:['Quote Program Form 1','Quote Program Form 2'],Miscellaneous:['Quote Misc Form 1','Quote Misc Form 2']};
+function _qtFormOpts(cat,sel){
+  const l=_qtForms[cat];if(!l)return '<option value="">Choose a type first</option>';
+  return l.map((n,i)=>`<option value="${ea(n)}"${(sel?n===sel:i===0)?' selected':''}>${escHtml(n)}${i===0?' (default)':''}</option>`).join('');
+}
+function _qtTypeChanged(){
+  const c=(document.getElementById('qtNCat')||{}).value,f=document.getElementById('qtNForm');
+  if(f){f.innerHTML=_qtFormOpts(c,'');f.disabled=!c;}
+}
 function _qtQItemsHtml(){
   if(!_qtQItems.length)return '<div class="sub-meta" style="padding:8px 0">No Quote Items yet. In Bulk Data > Items, set Type 1 to "Quote Item".</div>';
   return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span></label>`).join('');
@@ -4267,7 +4303,11 @@ function qtNewToggle(show,edit){
     const e=edit||{},inp='class="edit-input" style="width:100%;margin-bottom:8px"',lab='style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px"';
     b.innerHTML=`<div class="th-card">
       ${edit?`<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px">Edit ${escHtml(e.id)}</div><div class="sub-meta" style="margin:-4px 0 8px">Saving rebuilds the quote and replaces the old PDF. ${e.status==='Sent'?'This quote was already emailed - use Resend afterwards to send the new PDF.':''}</div>`:''}
-      <div style="display:flex;gap:8px"><select id="qtNCat" ${inp}><option${e.category==='Program'?' selected':''}>Program</option><option${e.category==='Maker'?' selected':''}>Maker</option></select>
+      <label ${lab}>Summary (the headline at the top of the quote)</label>
+      <input id="qtNSummary" ${inp} maxlength="300" placeholder="e.g. An extreme makeover of the edible garden" value="${ea(e.summary||'')}">
+      <div style="display:flex;gap:8px"><select id="qtNCat" ${inp} onchange="_qtTypeChanged()"><option value=""${e.category?'':' selected'}>Choose type (required)</option><option value="Program"${e.category==='Program'?' selected':''}>Program</option><option value="Maker"${e.category==='Maker'?' selected':''}>Maker</option><option value="Miscellaneous"${e.category==='Miscellaneous'?' selected':''}>Miscellaneous</option></select>
+        <select id="qtNForm" ${inp}${e.category?'':' disabled'}>${_qtFormOpts(e.category,e.form)}</select></div>
+      <div style="display:flex;gap:8px">
         <input id="qtNSite" ${inp} list="qtSchools" maxlength="200" placeholder="School (start typing)" autocomplete="off" oninput="_qtSchoolPicked()" onchange="_qtSchoolPicked()" value="${ea(e.site||'')}"></div>
       <datalist id="qtSchools">${_qtSchoolNames().map(n=>`<option value="${ea(n)}">`).join('')}</datalist>
       <div style="display:flex;gap:8px"><input id="qtNName" ${inp} maxlength="120" placeholder="Contact name" value="${ea(e.contactName||'')}"><input id="qtNEmail" ${inp} type="email" maxlength="200" placeholder="Contact email" value="${ea(e.contactEmail||'')}"></div>
@@ -4279,7 +4319,7 @@ function qtNewToggle(show,edit){
       <div style="display:flex;gap:8px"><div style="flex:1"><label ${lab}>Total price ($)</label><input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${ea(edit&&e.total!==undefined?e.total:'')}"></div>
         <div style="flex:1"><label ${lab}>Build date</label><input id="qtNBuild" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.buildDate||'')?e.buildDate:'')}"></div></div>
       <textarea id="qtNNotes" ${inp} rows="2" maxlength="2000" placeholder="Internal notes (not on the quote)">${escHtml(e.notes||'')}</textarea>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${edit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">${edit?'Save &amp; email':'Save &amp; email'}</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${edit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; choose recipients</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
     if(edit){
       const ids=new Set((edit.itemIds||[]).map(String));
       document.querySelectorAll('#qtNItemList input').forEach(c=>{if(ids.has(c.value))c.checked=true;});
@@ -4313,27 +4353,25 @@ function _qtSchoolPicked(){
 async function qtSubmit(sendNow){
   const v=id=>((document.getElementById(id)||{}).value||'').trim();
   const itemIds=[...document.querySelectorAll('#qtNItemList input:checked')].map(c=>c.value);
+  if(!v('qtNCat')){showSaveToast('Choose a quote type: Program, Maker or Miscellaneous');return;}
   if(!v('qtNSite')){showSaveToast('Choose a school');return;}
   if(!itemIds.length){showSaveToast('Choose at least one item');return;}
   if(v('qtNBulk')===''||!(Number(v('qtNBulk'))>=0)){showSaveToast('Enter the total price for the quote');return;}
-  if(sendNow&&!v('qtNEmail')){showSaveToast('Add a contact email to send the quote');return;}
   const b1=document.getElementById('qtSaveBtn'),b2=document.getElementById('qtSendBtn');
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
   const editing=_qtEditId;
   try{
-    const payload={category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
-    let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items',sendNow:!!sendNow},payload));
+    const payload={summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
+    let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items'},payload));
     if(r&&r.ok){
       let msg;
       if(editing){
         delete _qtLines[editing];
-        if(sendNow){
-          const s=await _qtCall('acctSendQuote',{id:editing});
-          if(s&&s.ok){r=s;r.quote=s.quote;msg='✓ '+editing+' updated and emailed';}
-          else msg='Updated, but email failed: '+((s&&s.error)||'error');
-        }else msg=r.needsResend?'✓ '+editing+' updated, PDF replaced. Tap Resend to email the new one.':'✓ '+editing+' updated, PDF replaced';
-      }else msg=r.sent?'✓ Quote '+r.id+' emailed':r.sendError?'Saved - email failed: '+r.sendError:r.buildError?'Saved, but the PDF failed: '+r.buildError:'✓ Draft '+r.id+' saved with PDF';
+        msg=r.needsResend?'✓ '+editing+' updated, PDF replaced. Tap Resend to email the new one.':'✓ '+editing+' updated, PDF replaced';
+      }else msg=r.buildError?'Saved, but the PDF failed: '+r.buildError:'✓ Draft '+r.id+' saved with PDF';
+      if(r.buildNote)msg+=' ('+r.buildNote+')';
       _qtReplace(r.quote);qtNewToggle(false);renderQuotes();showSaveToast(msg);
+      if(sendNow&&!r.buildError)qtSend(editing||r.id);
       return;
     }
     showSaveToast((r&&r.error)||'Could not save');
