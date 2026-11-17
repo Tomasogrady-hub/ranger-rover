@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.16 -->
+<!-- v12.17 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2519,10 +2519,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.16';
+const APP_VERSION='v12.17';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Quotes: quantity per item (replaces Included), map picker with framed capture + instructions, map fills the page width.';
+const BUILD_STAMP='2026-11-17 PT - Points the app and all public pages at the new Apps Script deployment URL (login connection error fix).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -2540,7 +2540,7 @@ if(window.visualViewport){
   _syncViewportGap();
 }
 const CFG={
-  URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzdqoCSOkvDYuEdMzZsEafBVegdCgEudbxPdqLXlH3DcHLHzUZHBLC-vPlhQ1oqfnYd/exec',
+  URL:localStorage.getItem('rr_gas_url')||'https://script.google.com/macros/s/AKfycbzz5sVMvvxF6k0Su5N1P1ZbnymOt1GFXgeZ8ya2NOPKcY26KqrJAwPWK9ZMQ_C_LQR-/exec',
   CK:'rr_data_cache',TK:'rr_cache_ts',SK:'rr_session',TTL:30*60*1000,STALE_TTL:24*60*60*1000,
   CLOUDINARY_CLOUD:'dtecnh1il',
   CLOUDINARY_PRESET:'ranger_rover',
