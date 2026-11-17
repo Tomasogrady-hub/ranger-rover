@@ -9425,7 +9425,8 @@ function handleAcctGetData(p) {
     }
     quotes.reverse();
     if (quotes.length > 400) quotes = quotes.slice(0, 400);
-    return { ok: true, items: items, quotes: quotes, qitems: _acctQuoteItems() };
+    var qitems = []; try { qitems = _acctQuoteItems(); } catch (e2) {}
+    return { ok: true, items: items, quotes: quotes, qitems: qitems };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
