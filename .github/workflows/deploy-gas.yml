@@ -8,6 +8,10 @@ on:
     paths: ['GAS_SCRIPT.gs']
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: write
+
 concurrency:
   group: deploy-gas
   cancel-in-progress: false
@@ -78,3 +82,22 @@ jobs:
           echo "New web app URL: https://script.google.com/macros/s/$ID/exec"
           echo "## New deployment" >> "$GITHUB_STEP_SUMMARY"
           echo "https://script.google.com/macros/s/$ID/exec" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Point the app and public pages at the new URL, then publish the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NEW="https://script.google.com/macros/s/${{ steps.deploy.outputs.id }}/exec"
+          case "$NEW" in https://script.google.com/macros/s/AKfycb*/exec) ;; *) echo "Unexpected URL: $NEW"; exit 1;; esac
+          sed -i -E "s#https://script\.google\.com/macros/s/AKfycb[A-Za-z0-9_-]+/exec#${NEW}#g" ./*.html
+          sed -i -E "s#(const CACHE_NAME = 'ranger-rover-v[0-9]+-[0-9]+)[^']*'#\1-a${GITHUB_SHA::7}'#" sw.js
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A -- ./*.html sw.js
+          if git diff --cached --quiet; then echo "No URL changes to commit"; exit 0; fi
+          git commit -m "Auto: point app at new Apps Script deployment"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/dispatches" -f ref=main
+          echo "## App now uses" >> "$GITHUB_STEP_SUMMARY"
+          echo "$NEW" >> "$GITHUB_STEP_SUMMARY"
