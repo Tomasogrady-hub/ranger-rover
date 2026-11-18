@@ -1,0 +1,79 @@
+# Deploys GAS_SCRIPT.gs to the Apps Script project and creates a NEW deployment.
+# Runs when GAS_SCRIPT.gs changes on main, or by hand from the Actions tab.
+name: Deploy Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths: ['GAS_SCRIPT.gs']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-gas
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Sign in to Google (from the CLASPRC_JSON secret)
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON" || { echo "CLASPRC_JSON secret is empty"; exit 1; }
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+
+      - name: Pull the live project (keeps emergency.gs and appsscript.json)
+        run: |
+          mkdir -p gas_work && cd gas_work
+          printf '{"scriptId":"1k8EQR70ilzg0eGqWp6Ti278cmw3LXsjqb0lYwDkswFwJNZWG9Yf1qUsU","rootDir":"."}' > .clasp.json
+          clasp pull
+          ls -la
+          test -f "New Ranger Rover App.js" || test -f "New Ranger Rover App.gs" || { echo "Main file not found after pull"; exit 1; }
+          echo "--- appsscript.json ---"
+          cat appsscript.json
+
+      - name: Replace the main file with GAS_SCRIPT.gs and push
+        run: |
+          cd gas_work
+          rm -f "New Ranger Rover App.js" "New Ranger Rover App.gs"
+          cp ../GAS_SCRIPT.gs "New Ranger Rover App.gs"
+          grep -q '"webapp"' appsscript.json || { echo "appsscript.json has no webapp block; refusing to deploy"; exit 1; }
+          clasp push --force
+          clasp status
+
+      - name: Create a new deployment
+        id: deploy
+        run: |
+          cd gas_work
+          DESC="Auto ${GITHUB_SHA::7} $(date -u +%Y-%m-%d_%H:%M)"
+          clasp deploy --description "$DESC" | tee deploy.log
+          ID=$(grep -oE 'AKfycb[A-Za-z0-9_-]+' deploy.log | head -n1)
+          test -n "$ID" || { echo "Could not read the new deployment id"; exit 1; }
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "New web app URL: https://script.google.com/macros/s/$ID/exec"
+          echo "## New deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://script.google.com/macros/s/$ID/exec" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prune only the oldest deployments (keeps the newest 150)
+        continue-on-error: true
+        run: |
+          cd gas_work
+          clasp deployments | grep -oE 'AKfycb[A-Za-z0-9_-]+' > all.txt || true
+          TOTAL=$(wc -l < all.txt)
+          echo "Deployments found: $TOTAL"
+          if [ "$TOTAL" -gt 190 ]; then
+            # clasp lists oldest first; delete the oldest down to 150 (never the newest)
+            DEL=$((TOTAL-150))
+            head -n "$DEL" all.txt | while read -r d; do clasp undeploy "$d" || true; done
+          fi
