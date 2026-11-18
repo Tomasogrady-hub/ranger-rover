@@ -3343,18 +3343,22 @@ function getRoles() {
 // expanded description for that Quantity.
 function _itemsQtyIdx(h) {
   return { qty: h.indexOf('Quantity'), adj: h.indexOf('Adjuster'), amt: h.indexOf('Derived Amount'), dd: h.indexOf('Derived Description from quantity'),
-           exp: [1,2,3,4,5,6,7,8].map(function (n) { return h.indexOf(n + ' Unit Expanded Description'); }) };
+           exp: [1,2,3,4,5,6,7,8].map(function (n) { return h.indexOf(n + ' Unit Expanded Description'); }),
+           start: _itemsHdrCI(h, 'START'), fin: _itemsHdrCI(h, 'FINISH') };
 }
 function _itemsQtyRead(h, row) {
   var x = _itemsQtyIdx(h);
   function c(i) { return i > -1 ? String(row[i] === null || row[i] === undefined ? '' : row[i]).trim() : ''; }
-  return { quantity: c(x.qty), adjuster: c(x.adj), derivedAmount: x.amt > -1 ? row[x.amt] : '', derivedDesc: c(x.dd), exp: x.exp.map(c) };
+  return { quantity: c(x.qty), adjuster: c(x.adj), derivedAmount: x.amt > -1 ? row[x.amt] : '', derivedDesc: c(x.dd), exp: x.exp.map(c),
+           start: x.start > -1 ? _acctAnyDateIso(row[x.start]) : '', finish: x.fin > -1 ? _acctAnyDateIso(row[x.fin]) : '' };
 }
 // Writes whichever of quantity / adjuster / exp[] were sent, then recomputes Derived Amount and Derived Description.
 function _itemsQtyWrite(sheet, h, target, p, amount, description) {
   var x = _itemsQtyIdx(h);
-  if (x.qty < 0 && x.adj < 0 && x.amt < 0) return {};
   function put(i, v) { if (i > -1) sheet.getRange(target, i + 1).setValue(v); }
+  if (p.start !== undefined) put(x.start, _acctParseDate(p.start));
+  if (p.finish !== undefined) put(x.fin, _acctParseDate(p.finish));
+  if (x.qty < 0 && x.adj < 0 && x.amt < 0) return {};
   var cur = _itemsQtyRead(h, sheet.getRange(target, 1, 1, sheet.getLastColumn()).getValues()[0]);
   var q = p.quantity !== undefined ? String(p.quantity).trim() : cur.quantity;
   var adj = p.adjuster !== undefined ? String(p.adjuster).trim() : cur.adjuster;

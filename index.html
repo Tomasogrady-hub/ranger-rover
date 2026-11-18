@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.26 -->
+<!-- v12.27 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.26';
+const APP_VERSION='v12.27';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-18 17:05 PT - Program item START/FINISH fill the quote dates; item name shown wherever the quote form had a raw item token.';
+const BUILD_STAMP='2026-11-18 17:20 PT - Prices and Items cards: Start and Finish dates added.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -19546,6 +19546,10 @@ function _qtyBlockHtml(pfx,q,amtId,descId){
   return `<div style="border:1px solid var(--mist);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px">
     <div style="font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--stone)">Units (Garden Ranger Program pricing)</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:130px">${_qtyLab('Start')}<input id="${pfx}Start" class="settings-input" style="margin:0" type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(q.start||'')?q.start:'')}"></div>
+      <div style="flex:1;min-width:130px">${_qtyLab('Finish')}<input id="${pfx}Finish" class="settings-input" style="margin:0" type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(q.finish||'')?q.finish:'')}"></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
       <div style="flex:1;min-width:110px">${_qtyLab('Quantity')}<input id="${pfx}Qty" class="settings-input" style="margin:0" type="number" step="1" min="1" max="8" inputmode="numeric" placeholder="e.g. 1" value="${ea(q.quantity||'')}" oninput="_qtyRefresh('${pfx}')"></div>
       <div style="flex:1;min-width:110px">${_qtyLab('Adjuster')}<input id="${pfx}Adj" class="settings-input" style="margin:0" type="number" step="0.0001" inputmode="decimal" placeholder="1" value="${ea(q.adjuster||'')}" oninput="_qtyRefresh('${pfx}')"></div>
     </div>
@@ -19572,7 +19576,7 @@ function _qtyRefresh(pfx){
 function _qtyCollect(pfx){
   const st=_qtyState[pfx];if(!st||!document.getElementById(pfx+'Qty'))return {};
   _qtyRefresh(pfx);
-  return {quantity:document.getElementById(pfx+'Qty').value.trim(),adjuster:document.getElementById(pfx+'Adj').value.trim(),exp:st.exp.slice()};
+  return {quantity:document.getElementById(pfx+'Qty').value.trim(),adjuster:document.getElementById(pfx+'Adj').value.trim(),exp:st.exp.slice(),start:(document.getElementById(pfx+'Start')||{}).value||'',finish:(document.getElementById(pfx+'Finish')||{}).value||''};
 }
 
 function toggleEditPrice(rid){
