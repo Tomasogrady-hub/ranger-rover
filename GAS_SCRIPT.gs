@@ -6,7 +6,7 @@
 // Script editor. Comparing this value against the date below is the fastest
 // way to tell whether a fix (e.g. the navVisibility KNOWN_TABS fix) is really
 // deployed or just sitting un-deployed in source.
-const GAS_BUILD = 'v11.82 | 2026-11-14 | Projects (Project Rover sheet) and Roles admin handlers';
+const GAS_BUILD = 'not stamped'; // the deploy Action replaces this line with the deploy date/time and commit on every release
 
 // ── SHEET IDs ────────────────────────────────────────────────────────────────
 const SITES_ID  = '1fs9T_fhevN-6_NgaDV941-RaQMC5mF52yc8eDitgsJc';
@@ -787,6 +787,7 @@ function _doPostRoute(e) {
       case 'addProgram':    return respond(handleAddProgram(p));
 
       // ── PRICES (Data tab → Items All, Type 3 = "Our Prices") ─────────────────
+      case 'getBackendVersion': return respond({ ok: true, build: GAS_BUILD });
       case 'getPrices':     return respond(handleGetPrices());
       case 'addPriceItem':  return respond(handleAddPriceItem(p));
       case 'updatePriceItem': return respond(handleUpdatePriceItem(p));

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.27 -->
+<!-- v12.28 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1004,7 +1004,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   <button class="hdr-btn" onclick="logout()" style="background:#E8473F;flex:0 0 52px;border-right:none">
     <span style="font-size:22px;pointer-events:none">✕</span>
   </button>
-  <div id="buildStampLabel" style="display:none;font-size:9px;color:rgba(255,255,255,.4);position:absolute;top:1px;left:130px;white-space:nowrap;pointer-events:none">Built: 2026-06-07 15:00 PT</div>
+  <div id="buildStampLabel" style="display:none;font-size:10px;color:rgba(255,255,255,.4);position:absolute;top:1px;left:130px;white-space:nowrap;pointer-events:none">Built: 2026-06-07 15:00 PT</div>
 </div>
 
 <div id="searchbar" style="display:none">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.27';
+const APP_VERSION='v12.28';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-18 17:20 PT - Prices and Items cards: Start and Finish dates added.';
+const BUILD_STAMP='2026-11-18 17:50 PT - Header now also shows which Apps Script release is deployed.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4002,6 +4002,7 @@ function showApp(){
 
   const bs=document.getElementById('buildStampLabel');if(bs)bs.style.display=lvl===1?'block':'none';
   if(bs)bs.textContent='Built: '+BUILD_STAMP;
+  if(lvl===1)_showBackendBuild();
   const flr=document.getElementById('forceLogoutRow');if(flr)flr.style.display=lvl===1?'block':'none';
   switchTab('notes');
   setGreeting();
@@ -5159,6 +5160,13 @@ async function _loadHumansBackgroundInner(){
 // row, so we piggyback here: compare it to SESSION.accessLevel and, if the
 // sheet has changed, correct SESSION in place and rebuild the level-dependent
 // UI — no re-login, no extra network call, no version bump involved.
+// Level 1: ask the Apps Script this app is talking to which release it is, so you can see the script deployed (not just the page)
+async function _showBackendBuild(){
+  const bs=document.getElementById('buildStampLabel');if(!bs)return;
+  let t='Script: unreachable';
+  try{const r=await gasPost({action:'getBackendVersion'});t=(r&&r.ok&&r.build)?'Script: '+r.build:'Script: OLD (no version yet)';}catch(e){}
+  bs.textContent='Built: '+BUILD_STAMP+'  |  '+t;
+}
 function _resyncOwnAccessLevel(){
   if(!SESSION||!DATA.humans||!DATA.humans.length)return;
   const meRec=DATA.humans.find(h=>String(h.Email||h.email||'').toLowerCase()===SESSION.email.toLowerCase());

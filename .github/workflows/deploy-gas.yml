@@ -52,6 +52,9 @@ jobs:
           cd gas_work
           rm -f "New Ranger Rover App.js" "New Ranger Rover App.gs"
           cp ../GAS_SCRIPT.gs "New Ranger Rover App.gs"
+          STAMP="$(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M') PT, ${GITHUB_SHA::7}"
+          sed -i "s|^const GAS_BUILD = .*|const GAS_BUILD = '${STAMP}';|" "New Ranger Rover App.gs"
+          grep -q "const GAS_BUILD = '${STAMP}'" "New Ranger Rover App.gs" || { echo 'GAS_BUILD stamp failed'; exit 1; }
           grep -q '"webapp"' appsscript.json || { echo "appsscript.json has no webapp block; refusing to deploy"; exit 1; }
           clasp push --force
           clasp status
