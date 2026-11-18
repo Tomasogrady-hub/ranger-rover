@@ -9806,14 +9806,13 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   // 1) Detail block: repeat name / image / description once per item
   _acctStage = 'detail pages';
   var nameP = paraOf('ITEM NAME'), imgP = paraOf('ITEM IMAGE'), descP = paraOf('ITEM DESCRIPTION');
-  if (!nameP || !imgP || !descP) throw new Error('template is missing {{ITEM NAME}} / {{ITEM IMAGE}} / {{ITEM DESCRIPTION}}');
-  var nameParas = [], n0 = body.getChildIndex(nameP);
-  for (var k = list.length - 1; k >= 1; k--) {
+  var hasDetail = !!(nameP && imgP && descP), nameParas = [], n0 = hasDetail ? body.getChildIndex(nameP) : 0;
+  for (var k = hasDetail ? list.length - 1 : 0; k >= 1; k--) {
     var at = n0 + 3;
     var c1 = body.insertParagraph(at, nameP.copy()), c2 = body.insertParagraph(at + 1, imgP.copy()), c3 = body.insertParagraph(at + 2, descP.copy());
     try { c1.setSpacingBefore(22); } catch (e) {}
   }
-  for (var k2 = list.length - 1; k2 >= 0; k2--) {  // last block first so extra description paragraphs never shift earlier blocks
+  for (var k2 = hasDetail ? list.length - 1 : -1; k2 >= 0; k2--) {  // last block first so extra description paragraphs never shift earlier blocks
     var it = list[k2], base = n0 + 3 * k2;
     var pn = body.getChild(base).asParagraph(), pi = body.getChild(base + 1).asParagraph(), pd = body.getChild(base + 2).asParagraph();
     fillTok(pn, 'ITEM NAME', it.name); nameParas.push(pn);
@@ -9884,6 +9883,9 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   for (var m2 = 0; m2 < list.length; m2++) {
     var rw = tbl.getRow(ri + m2);
     fillRow(rw, 'ITEM LINE', list[m2].name);
+    fillRow(rw, 'ITEM DESCRIPTION', String(list[m2].desc || '').trim());
+    fillRow(rw, 'ITEM QTY', _acctQtyText(lines[m2]));
+    fillRow(rw, 'ITEM AMOUNT', list.length === 1 ? _acctMoney(total) : 'Included');
     try { if (rw.getNumCells() > 1) fillRaw(rw.getCell(1), 'Included', _acctQtyText(lines[m2])); } catch (eQ) { _acctBuildNote += ' Quantity cell: ' + eQ.message + '.'; }
   }
   try { if (ri > 0 && tbl.getRow(ri - 1).getNumCells() > 1) fillRaw(tbl.getRow(ri - 1).getCell(1), 'AMOUNT', 'QUANTITY'); } catch (eH2) {}
@@ -9933,6 +9935,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   _acctStage = 'our work';
   var owHead = null;
   try {
+    if (!hasDetail) throw new Error('skipped');
     owHead = body.appendParagraph('OUR WORK');
     try { owHead.setHeading(DocumentApp.ParagraphHeading.NORMAL); owHead.setAlignment(DocumentApp.HorizontalAlignment.LEFT); owHead.setSpacingBefore(28); owHead.setSpacingAfter(8); owHead.setKeepWithNext(true); } catch (e1) {}
     try { owHead.editAsText().setBold(true); owHead.editAsText().setFontSize(18); owHead.editAsText().setForegroundColor('#000000'); } catch (e2) {}
@@ -9950,12 +9953,12 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
         try { capP.setHeading(DocumentApp.ParagraphHeading.NORMAL); capP.setSpacingBefore(3); capP.setSpacingAfter(10); capP.editAsText().setFontSize(10).setBold(false).setForegroundColor('#444444'); } catch (e4) {}
       } catch (eW) { _acctBuildNote += ' Our Work photo ' + (wi + 1) + ' skipped: ' + eW.message + '.'; }
     });
-  } catch (eOW) { _acctBuildNote += ' Our Work section failed: ' + eOW.message + '.'; }
+  } catch (eOW) { if (eOW.message !== 'skipped') _acctBuildNote += ' Our Work section failed: ' + eOW.message + '.'; }
 
   // 5) Fonts used in the app and on the website: Outfit for text, Cormorant Garamond for headlines
   _acctStage = 'fonts';
-  try { body.editAsText().setFontFamily(ACCT_FONT_BODY); } catch (eF) { _acctBuildNote += ' Body font not applied.'; }
-  [sumP, schP, owHead, (typeof hd !== 'undefined' ? hd : null)].concat(nameParas).forEach(function (pp) {
+  if (hasDetail) { try { body.editAsText().setFontFamily(ACCT_FONT_BODY); } catch (eF) { _acctBuildNote += ' Body font not applied.'; } }
+  (hasDetail ? [sumP, schP, owHead, (typeof hd !== 'undefined' ? hd : null)].concat(nameParas) : []).forEach(function (pp) {
     if (!pp) return; try { pp.editAsText().setFontFamily(ACCT_FONT_HEAD); } catch (eH) {}
   });
   _acctStage = 'save and PDF';
