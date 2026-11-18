@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.20 -->
+<!-- v12.21 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1350,12 +1350,12 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <span class="page-title">Quotes</span>
       <span class="page-count" id="quotesCount"></span>
     </div>
-    <div style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
+    <div id="qtTopRow" style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
       <input id="qtSearch" type="search" placeholder="Search quotes…" autocomplete="off" oninput="renderQuotes()"
         style="flex:1;min-width:0;padding:12px 14px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;color:var(--ink);outline:none">
       <button type="button" class="settings-btn" style="margin:0;width:auto;padding:12px 16px;white-space:nowrap" onclick="qtNewToggle()">＋ New quote</button>
     </div>
-    <div style="padding:0 16px 4px;display:flex;gap:8px">
+    <div id="qtFilterRow" style="padding:0 16px 4px;display:flex;gap:8px">
       <select id="qtSort" class="settings-input" style="margin:0;flex:1;min-width:0" onchange="renderQuotes()">
         <option value="new">Sort: Newest</option><option value="old">Sort: Oldest</option><option value="site">Sort: School A–Z</option><option value="amt">Sort: Amount (high first)</option>
       </select>
@@ -2320,13 +2320,18 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--silver);margin-bottom:10px">Add New Item</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <input id="itNewName" class="settings-input" style="flex:2;min-width:140px;margin:0" placeholder="Name" type="text">
-            <input id="itNewAmount" class="settings-input" style="flex:1;min-width:100px;margin:0" placeholder="Amount (optional)" type="number" step="0.01" inputmode="decimal">
+            <div style="flex:2;min-width:140px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">Name</label><input id="itNewName" class="settings-input" style="margin:0" placeholder="Item name" type="text"></div>
+            <div style="flex:1;min-width:100px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">Amount (optional)</label><input id="itNewAmount" class="settings-input" style="margin:0" placeholder="Amount" type="number" step="0.01" inputmode="decimal"></div>
           </div>
           <div id="itNewTypes" style="display:flex;flex-direction:column;gap:10px"></div>
-          <div id="itNewAInfoWrap"></div><div id="itNewBInfoWrap"></div><div id="itNewCInfoWrap"></div>
           <div id="itNewImgs" style="display:flex;gap:10px;flex-wrap:wrap"></div>
-          <textarea id="itNewDesc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description (optional)"></textarea>
+          <div><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">Description</label><textarea id="itNewDesc" class="settings-input" style="margin:0;min-height:150px;resize:vertical" placeholder="Description (optional)"></textarea></div>
+          <div onclick="_itMoreToggle('itNew')" style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)"><span id="itNewMoreArrow" style="font-size:15px;width:14px">&#9656;</span>More: Type 2, Type 3, information files, more photos</div>
+          <div id="itNewMore" style="display:none;flex-direction:column;gap:10px">
+            <div id="itNewTypes2" style="display:flex;flex-direction:column;gap:10px"></div>
+            <div id="itNewAInfoWrap"></div><div id="itNewBInfoWrap"></div><div id="itNewCInfoWrap"></div>
+            <div id="itNewImgsMore" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+          </div>
         </div>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button id="itAddBtn" type="button" class="settings-btn" style="flex:1" onclick="submitNewItem()">+ Add Item</button>
@@ -2519,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.20';
+const APP_VERSION='v12.21';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-17 PT - Quotes: quantity is a dropdown (numbers and N/A), Level 1 users in the send picker, Valid Until removed from the quote and email.';
+const BUILD_STAMP='2026-11-18 10:05 PT - Quotes: list hides while editing, clear field names, Internal Comments column, location behind an arrow, tighter map; Items editor: labels, taller description, extras behind an arrow; Our Work full width.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4309,7 +4314,7 @@ function qtLocOpen(){
   qtLocMode('arrow');
   _loadLeaflet(()=>{
     if(_qtLocMap){try{_qtLocMap.remove();}catch(e){}}
-    const map=_qtLocMap=L.map('qtLocMap',{zoomControl:true,maxZoom:19}).setView(has?[ll[0],ll[1]]:[34.05,-118.35],has?18:10);
+    const map=_qtLocMap=L.map('qtLocMap',{zoomControl:true,maxZoom:19}).setView(has?[ll[0],ll[1]]:[34.05,-118.35],has?19:10);
     L.tileLayer(_QT_ESRI,{maxZoom:19,crossOrigin:true,attribution:'Imagery © Esri'}).addTo(map);
     map.on('click',e=>qtLocTap(e.latlng));
     _qtLocFrameFit();setTimeout(()=>{try{map.invalidateSize();}catch(e){}_qtLocFrameFit();},120);
@@ -4327,7 +4332,7 @@ function _qtLocStatus(){
 }
 function _qtLocFrameSize(){
   const el=document.getElementById('qtLocMap');if(!el)return null;
-  const mw=el.clientWidth,mh=el.clientHeight,fw=Math.max(120,Math.min(mw-24,(mh-24)*1.5)),fh=Math.round(fw/1.5);
+  const mw=el.clientWidth,mh=el.clientHeight,fw=Math.max(110,Math.min(mw-24,(mh-24)*1.5)*0.6),fh=Math.round(fw/1.5);
   return {w:Math.round(fw),h:fh};
 }
 function _qtLocFrameFit(){
@@ -4368,7 +4373,7 @@ async function qtLocDone(){
     const fz=_qtLocFrameSize()||map.getSize(),z=map.getZoom(),zE=Math.min(z+1,19),sc=Math.pow(2,zE-z);
     const W=Math.round((fz.w||fz.x)*sc),H=Math.round((fz.h||fz.y)*sc);
     const c=map.project(map.getCenter(),zE),tl={x:c.x-W/2,y:c.y-H/2};
-    const cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
+    const up=sc<2?2:1,cv=document.createElement('canvas');cv.width=W*up;cv.height=H*up;const ctx=cv.getContext('2d');ctx.scale(up,up);
     ctx.fillStyle='#222';ctx.fillRect(0,0,W,H);
     const x0=Math.floor(tl.x/256),x1=Math.floor((tl.x+W)/256),y0=Math.floor(tl.y/256),y1=Math.floor((tl.y+H)/256),jobs=[];
     for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)jobs.push(_qtLoadImg(_QT_ESRI.replace('{z}',zE).replace('{y}',y).replace('{x}',x)).then(im=>{if(im)ctx.drawImage(im,x*256-tl.x,y*256-tl.y,256,256);}));
@@ -4481,24 +4486,27 @@ function qtNewToggle(show,edit){
     b.innerHTML=`<div class="th-card">
       ${dup?`<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:4px">Duplicate of ${escHtml(e.id)}</div><div class="sub-meta" style="margin:0 0 8px">Change the school and anything else, then save. This creates a new quote with its own number.</div>`:''}
       ${isEdit?`<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px">Edit ${escHtml(e.id)}</div><div class="sub-meta" style="margin:-4px 0 8px">Saving rebuilds the quote and replaces the old PDF. ${e.status==='Sent'?'This quote was already emailed - use Email quote afterwards to send the new PDF.':''}</div>`:''}
-      <label ${lab}>Summary (the headline at the top of the quote)</label>
+      <label ${lab}>Summary (headline at the top of the quote)</label>
       <input id="qtNSummary" ${inp} maxlength="300" placeholder="e.g. An extreme makeover of the edible garden" value="${ea(e.summary||'')}">
-      <div style="display:flex;gap:8px"><select id="qtNCat" ${inp} onchange="_qtTypeChanged()"><option value=""${e.category?'':' selected'}>Choose type (required)</option><option value="Program"${e.category==='Program'?' selected':''}>Program</option><option value="Maker"${e.category==='Maker'?' selected':''}>Maker</option><option value="Miscellaneous"${e.category==='Miscellaneous'?' selected':''}>Miscellaneous</option></select>
-        <select id="qtNForm" ${inp}${e.category?'':' disabled'}>${_qtFormOpts(e.category,e.form)}</select></div>
-      <div style="display:flex;gap:8px">
-        <input id="qtNSite" ${inp} list="qtSchools" maxlength="200" placeholder="School (start typing)" autocomplete="off" oninput="_qtSchoolPicked()" onchange="_qtSchoolPicked()" value="${ea(e.site||'')}"></div>
+      <div style="display:flex;gap:8px"><div style="flex:1;min-width:0"><label ${lab}>Quote Type</label><select id="qtNCat" ${inp} onchange="_qtTypeChanged()"><option value=""${e.category?'':' selected'}>Choose type (required)</option><option value="Program"${e.category==='Program'?' selected':''}>Program</option><option value="Maker"${e.category==='Maker'?' selected':''}>Maker</option><option value="Miscellaneous"${e.category==='Miscellaneous'?' selected':''}>Miscellaneous</option></select></div>
+        <div style="flex:1;min-width:0"><label ${lab}>Template</label><select id="qtNForm" ${inp}${e.category?'':' disabled'}>${_qtFormOpts(e.category,e.form)}</select></div></div>
+      <label ${lab}>School</label>
+      <input id="qtNSite" ${inp} list="qtSchools" maxlength="200" placeholder="School (start typing)" autocomplete="off" oninput="_qtSchoolPicked()" onchange="_qtSchoolPicked()" value="${ea(e.site||'')}">
       <datalist id="qtSchools">${_qtSchoolNames().map(n=>`<option value="${ea(n)}">`).join('')}</datalist>
-      <div style="display:flex;gap:8px"><input id="qtNName" ${inp} maxlength="120" placeholder="Contact name" value="${ea(e.contactName||'')}"><input id="qtNEmail" ${inp} type="email" maxlength="200" placeholder="Contact email" value="${ea(e.contactEmail||'')}"></div>
+      <div style="display:flex;gap:8px"><div style="flex:1;min-width:0"><label ${lab}>Principal</label><input id="qtNName" ${inp} maxlength="120" placeholder="Principal name" value="${ea(e.contactName||'')}"></div><div style="flex:1;min-width:0"><label ${lab}>Principal email</label><input id="qtNEmail" ${inp} type="email" maxlength="200" placeholder="Principal email" value="${ea(e.contactEmail||'')}"></div></div>
       <div id="qtNHint" class="sub-meta" style="margin:-4px 0 8px"></div>
-      <textarea id="qtNScope" ${inp} rows="2" maxlength="2000" placeholder="Scope / what this quote covers (optional)">${escHtml(e.scope||'')}</textarea>
+      <label ${lab}>Paragraph about scope of work</label>
+      <textarea id="qtNScope" ${inp} rows="3" maxlength="2000" placeholder="A short paragraph describing the scope of work (optional)">${escHtml(e.scope||'')}</textarea>
+      <label ${lab}>Quote Items</label>
       <input id="qtNItemSearch" ${inp} type="search" placeholder="Search quote items" oninput="_qtItemFilter()">
       <div id="qtNItemList" style="max-height:260px;overflow:auto;border:1px solid var(--mist);border-radius:10px;padding:4px 10px;margin-bottom:8px">${_qtQItemsHtml()}</div>
       <div id="qtNItemCount" class="sub-meta" style="margin:-2px 0 8px">0 items chosen</div>
       <div style="display:flex;gap:8px"><div style="flex:1"><label ${lab}>Total price ($)</label><input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${ea(edit&&e.total!==undefined?e.total:'')}"></div>
         <div style="flex:1"><label ${lab}>Build date</label><input id="qtNBuild" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.buildDate||'')?e.buildDate:'')}"></div></div>
-      <label ${lab}>Garden location (a map picture added to the end of the quote)</label>
-      <div id="qtNLocBox" style="margin-bottom:8px"></div>
-      <textarea id="qtNNotes" ${inp} rows="2" maxlength="2000" placeholder="Internal notes (not on the quote)">${escHtml(e.notes||'')}</textarea>
+      <div onclick="_qtLocToggle()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin:2px 0 8px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)"><span id="qtNLocArrow" style="font-size:15px;width:14px">${(isEdit&&e.location)?'▾':'▸'}</span>Garden location (map picture at the end of the quote)</div>
+      <div id="qtNLocWrap" style="display:${(isEdit&&e.location)?'block':'none'}"><div id="qtNLocBox" style="margin-bottom:8px"></div></div>
+      <label ${lab}>Internal comments (not on the quote)</label>
+      <textarea id="qtNNotes" ${inp} rows="2" maxlength="2000" placeholder="Internal comments">${escHtml(e.notes||'')}</textarea>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${isEdit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; choose recipients</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
     _qtLocRender();
     if(edit){
@@ -4510,7 +4518,13 @@ function qtNewToggle(show,edit){
     }
   }
   b.style.display=open?'block':'none';
+  ['qtTopRow','qtFilterRow','qtFilterNote','qtList'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=open?'none':(id==='qtTopRow'||id==='qtFilterRow'?'flex':'');});
+  if(open)window.scrollTo&&(()=>{try{b.scrollIntoView({block:'start'});}catch(e){}})();
   if(open&&!isEdit)setTimeout(()=>{const n=document.getElementById('qtNSite');if(n)n.focus();},50);
+}
+function _qtLocToggle(){
+  const w=document.getElementById('qtNLocWrap'),a=document.getElementById('qtNLocArrow');if(!w)return;
+  const show=w.style.display==='none';w.style.display=show?'block':'none';if(a)a.textContent=show?'▾':'▸';
 }
 async function qtEdit(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
@@ -4545,7 +4559,7 @@ async function qtSubmit(sendNow){
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
   const editing=_qtEditId;
   try{
-    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,itemQty:itemQty,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes')};
+    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,itemQty:itemQty,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes'),internalComments:v('qtNNotes')};
     let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items'},payload));
     if(r&&r.ok){
       let msg;
@@ -18666,9 +18680,9 @@ async function itemPhotoUpload(rid,pfx,n,input){
 }
 // Add New Item: photos are chosen first, then uploaded (to Item Images 1/2/3) right after the row is created.
 let _itNewFiles={1:null,2:null,3:null};
-function _itNewImgsHtml(){
+function _itNewImgsHtml(slots){
   const bs='border:none;background:none;color:var(--grove);font-size:13px;cursor:pointer;padding:0;font-family:var(--font-b);text-align:left';
-  return [1,2,3].map(n=>`<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:110px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Image ${n}</label>
+  return (slots||[1,2,3]).map(n=>`<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:110px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Image ${n}</label>
     <div id="itNewImg${n}Box"><span class="sub-meta">No photo</span></div>
     <button type="button" style="${bs}" onclick="document.getElementById('itNewImg${n}In').click()">\u2b06 Choose photo</button>
     <input type="file" accept="image/*" id="itNewImg${n}In" style="display:none" onchange="itNewPickPhoto(${n},this)"></div>`).join('');
@@ -18676,7 +18690,8 @@ function _itNewImgsHtml(){
 function _itNewResetImgs(){
   Object.values(_itNewFiles).forEach(f=>{if(f&&f._u)try{URL.revokeObjectURL(f._u);}catch(e){}});
   _itNewFiles={1:null,2:null,3:null};
-  const w=document.getElementById('itNewImgs');if(w)w.innerHTML=_itNewImgsHtml();
+  const w=document.getElementById('itNewImgs');if(w)w.innerHTML=_itNewImgsHtml([1]);
+  const w2=document.getElementById('itNewImgsMore');if(w2)w2.innerHTML=_itNewImgsHtml([2,3]);
 }
 function itNewPickPhoto(n,input){
   const f=input.files&&input.files[0];input.value='';if(!f)return;
@@ -18775,16 +18790,27 @@ const _INFO_SLOTS=['A','B','C'];
 function _infoWrapsHtml(pfx){return _INFO_SLOTS.map(k=>`<div id="${pfx}${k}InfoWrap"></div>`).join('');}
 function _mountInfoSlots(pfx,vals){_INFO_SLOTS.forEach((k,n)=>_mountInfoField(pfx+k,(vals&&vals[k])||'','Information file '+(n+1)));}
 function _infoSlotValues(pfx){return _INFO_SLOTS.map(k=>_infoFieldValue(pfx+k));}
+function _itNewRenderTypes(){
+  document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','');
+  document.getElementById('itNewTypes2').innerHTML=_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
+}
+function _itMoreToggle(pfx){
+  const m=document.getElementById(pfx+'More'),a=document.getElementById(pfx+'MoreArrow');if(!m)return;
+  const show=m.style.display==='none';m.style.display=show?'flex':'none';if(a)a.innerHTML=show?'&#9662;':'&#9656;';
+}
 async function toggleNewItemForm(){
   const f=document.getElementById('itNewForm');if(!f)return;
   const open=f.style.display==='none';
   if(open){
     if(!_itemsCache&&!(await _loadItems()))return;
-    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
+    _itNewRenderTypes();
     _mountInfoSlots('itNew',{});
     _itNewResetImgs();
   }
   f.style.display=open?'block':'none';
+  const lst=document.getElementById('dataItemsList');if(lst)lst.style.display=open?'none':'';
+  const mr=document.getElementById('itNewMore'),ma=document.getElementById('itNewMoreArrow');if(open&&mr){mr.style.display='none';if(ma)ma.innerHTML='&#9656;';}
+  if(open){try{f.scrollIntoView({block:'start'});}catch(e){}}
 }
 function _itemTypeValue(pfx,n){
   const sel=document.getElementById(pfx+'Type'+n);if(!sel)return '';
@@ -18822,12 +18848,12 @@ async function submitNewItem(){
     _itemOpts.type1.sort();_itemOpts.type2.sort();_itemOpts.type3.sort();
     _prices_invalidateIfNeeded(type3);
     nameEl.value='';if(amtEl)amtEl.value='';if(descEl)descEl.value='';
-    document.getElementById('itNewTypes').innerHTML=_itemTypeSelectHtml(1,'itNew','')+_itemTypeSelectHtml(2,'itNew','')+_itemTypeSelectHtml(3,'itNew','');
+    _itNewRenderTypes();
     _mountInfoSlots('itNew',{});
     _itNewResetImgs();
     _fillItemFilterSelects();
-    statusEl.style.color='var(--sage)';statusEl.textContent='Added!';
-    renderDataItems();
+    statusEl.style.color='var(--sage)';statusEl.textContent='';
+    toggleNewItemForm();renderDataItems();showSaveToast('Item added');
     setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000);
   }catch(e){
     statusEl.style.color='var(--danger)';statusEl.textContent='Connection error.';
@@ -18847,13 +18873,18 @@ async function toggleEditItem(rid){
   box.style.cssText='display:block;margin-top:10px;padding-top:10px;border-top:1px solid var(--mist)';
   box.innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <input id="${pfx}Name" class="settings-input" style="flex:2;min-width:140px;margin:0" type="text" placeholder="Name" value="${ea(it.name)}">
-      <input id="${pfx}Amount" class="settings-input" style="flex:1;min-width:100px;margin:0" type="number" step="0.01" inputmode="decimal" placeholder="Amount" value="${ea(it.amount===null||it.amount===undefined?'':it.amount)}">
+      <div style="flex:2;min-width:140px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">Name</label><input id="${pfx}Name" class="settings-input" style="margin:0" type="text" placeholder="Name" value="${ea(it.name)}"></div>
+      <div style="flex:1;min-width:100px"><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">Amount</label><input id="${pfx}Amount" class="settings-input" style="margin:0" type="number" step="0.01" inputmode="decimal" placeholder="Amount" value="${ea(it.amount===null||it.amount===undefined?'':it.amount)}"></div>
     </div>
-    ${_itemTypeSelectHtml(1,pfx,it.type1)}${_itemTypeSelectHtml(2,pfx,it.type2)}${_itemTypeSelectHtml(3,pfx,it.type3)}
-    ${_infoWrapsHtml(pfx)}
-    <div style="display:flex;gap:10px;flex-wrap:wrap">${_itemImgSlotHtml(rid,pfx,1,it.img1)}${_itemImgSlotHtml(rid,pfx,2,it.img2)}${_itemImgSlotHtml(rid,pfx,3,it.img3)}</div>
-    <textarea id="${pfx}Desc" class="settings-input" style="margin:0;min-height:60px;resize:vertical" placeholder="Description">${escHtml(it.description||'')}</textarea>
+    ${_itemTypeSelectHtml(1,pfx,it.type1)}
+    <div style="display:flex;gap:10px;flex-wrap:wrap">${_itemImgSlotHtml(rid,pfx,1,it.img1)}</div>
+    <div><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">Description</label><textarea id="${pfx}Desc" class="settings-input" style="margin:0;min-height:150px;resize:vertical" placeholder="Description">${escHtml(it.description||'')}</textarea></div>
+    <div onclick="_itMoreToggle('${pfx}')" style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)"><span id="${pfx}MoreArrow" style="font-size:15px;width:14px">&#9656;</span>More: Type 2, Type 3, information files, more photos</div>
+    <div id="${pfx}More" style="display:none;flex-direction:column;gap:10px">
+      ${_itemTypeSelectHtml(2,pfx,it.type2)}${_itemTypeSelectHtml(3,pfx,it.type3)}
+      ${_infoWrapsHtml(pfx)}
+      <div style="display:flex;gap:10px;flex-wrap:wrap">${_itemImgSlotHtml(rid,pfx,2,it.img2)}${_itemImgSlotHtml(rid,pfx,3,it.img3)}</div>
+    </div>
     <div style="display:flex;gap:8px">
       <button type="button" class="settings-btn" style="flex:1" onclick="saveEditItem('${ea(rid)}','${pfx}')">Save</button>
       <button type="button" class="settings-btn" style="flex:1;background:var(--mist);color:var(--stone)" onclick="toggleEditItem('${ea(rid)}')">Cancel</button>

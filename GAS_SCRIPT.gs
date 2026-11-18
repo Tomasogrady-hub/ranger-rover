@@ -9413,7 +9413,7 @@ function _acctQuoteShape(o) {
     category: String(o['Category'] || ''), site: String(o['Site'] || ''), contactName: String(o['Contact Name'] || ''),
     contactEmail: String(o['Contact Email'] || ''), scope: String(o['Scope'] || ''), total: Number(o['Total']) || 0,
     status: String(o['Status'] || ''), sentDate: _acctIso(o['Sent Date']), approvedDate: _acctIso(o['Approved Date']),
-    po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Notes'] || ''),
+    po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Internal Comments'] || o['Notes'] || ''),
     summary: String(o['Summary'] || ''), form: String(o['Form'] || ''), location: String(o['Location'] || ''),
     format: String(o['Format'] || ''), docLink: String(o['Doc Link'] || ''), items: String(o['Items'] || ''),
     buildDate: (o['Build Date'] instanceof Date) ? _acctIso(o['Build Date']) : String(o['Build Date'] || ''),
@@ -9509,9 +9509,10 @@ function handleAcctCreateQuote(p) {
       'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email, 'Scope': _acctText(p.scope, 2000),
       'Total': itemsMode ? Math.round(bulk * 100) / 100 : "=SUMIF('Quote Lines'!" + qa + ':' + qa + ',' + _acctLetter(qm['Quote #']) + qr + ",'Quote Lines'!" + am + ':' + am + ')',
       'Format': itemsMode ? 'Items' : '',
-      'Status': 'Draft', 'Notes': _acctText(p.notes, 2000), 'Token': Utilities.getUuid()
+      'Status': 'Draft', 'Notes': qm['Internal Comments'] ? '' : _acctText(p.notes, 2000), 'Token': Utilities.getUuid()
     });
     var extra = {};
+    if (qm['Internal Comments']) extra['Internal Comments'] = _acctText(p.internalComments !== undefined ? p.internalComments : p.notes, 2000);
     if (qm['Build Date']) extra['Build Date'] = _acctParseDate(p.buildDate);
     if (qm['Items']) extra['Items'] = _acctItemsText(lines);
     if (qm['Summary']) extra['Summary'] = _acctText(p.summary, 300);
@@ -9806,7 +9807,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   // 1) Detail block: repeat name / image / description once per item
   _acctStage = 'detail pages';
   var nameP = paraOf('ITEM NAME'), imgP = paraOf('ITEM IMAGE'), descP = paraOf('ITEM DESCRIPTION');
-  var hasDetail = !!(nameP && imgP && descP), nameParas = [], n0 = hasDetail ? body.getChildIndex(nameP) : 0;
+  var hasDetail = !!(nameP && imgP && descP), nameParas = [], descParas = [], capParas = [], n0 = hasDetail ? body.getChildIndex(nameP) : 0;
   for (var k = hasDetail ? list.length - 1 : 0; k >= 1; k--) {
     var at = n0 + 3;
     var c1 = body.insertParagraph(at, nameP.copy()), c2 = body.insertParagraph(at + 1, imgP.copy()), c3 = body.insertParagraph(at + 2, descP.copy());
@@ -9831,9 +9832,10 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       try { pi.setSpacingAfter(6); pi.setKeepWithNext(true); } catch (e2) {}
     }
     var parts = String(it.desc || '').split(/\n+/).map(function (x) { return x.trim(); }).filter(String);
-    fillTok(pd, 'ITEM DESCRIPTION', parts.length ? parts[0] : '');
+    fillTok(pd, 'ITEM DESCRIPTION', parts.length ? parts[0] : ''); descParas.push(pd);
     for (var pj = parts.length - 1; pj >= 1; pj--) {
       var extra = body.insertParagraph(base + 3, parts[pj]);
+      descParas.push(extra);
       try { extra.setHeading(DocumentApp.ParagraphHeading.NORMAL); extra.setFontSize(10.5); extra.setBold(false); extra.setSpacingBefore(0); extra.setSpacingAfter(6); } catch (e) {}
     }
   }
@@ -9939,18 +9941,18 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     owHead = body.appendParagraph('OUR WORK');
     try { owHead.setHeading(DocumentApp.ParagraphHeading.NORMAL); owHead.setAlignment(DocumentApp.HorizontalAlignment.LEFT); owHead.setSpacingBefore(28); owHead.setSpacingAfter(8); owHead.setKeepWithNext(true); } catch (e1) {}
     try { owHead.editAsText().setBold(true); owHead.editAsText().setFontSize(18); owHead.editAsText().setForegroundColor('#000000'); } catch (e2) {}
-    var owW = 216, grid = [['', ''], ['', '']], owT = body.appendTable(grid);
-    try { owT.setBorderWidth(0); } catch (e3) {}
+    var owW = 468;
+    try { owW = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eW0) {}
     ACCT_OUR_WORK.forEach(function (w, wi) {
-      var cell = owT.getRow(Math.floor(wi / 2)).getCell(wi % 2);
       try {
         var wb = DriveApp.getFileById(w.id).getBlob(), by = wb.getBytes();
         var isPng = by.length > 4 && by[0] === -119 && by[1] === 80;
         var blob = Utilities.newBlob(by, isPng ? 'image/png' : 'image/jpeg', 'work' + wi + (isPng ? '.png' : '.jpg'));
-        var cp = cell.getChild(0).asParagraph(), wim = cp.appendInlineImage(blob), ww = wim.getWidth(), wh = wim.getHeight();
+        var ip = body.appendParagraph(''), wim = ip.appendInlineImage(blob), ww = wim.getWidth(), wh = wim.getHeight();
         wim.setWidth(owW); wim.setHeight(Math.round(wh * owW / ww));
-        var capP = cell.appendParagraph(w.cap);
-        try { capP.setHeading(DocumentApp.ParagraphHeading.NORMAL); capP.setSpacingBefore(3); capP.setSpacingAfter(10); capP.editAsText().setFontSize(10).setBold(false).setForegroundColor('#444444'); } catch (e4) {}
+        try { ip.setAlignment(DocumentApp.HorizontalAlignment.LEFT); ip.setSpacingBefore(10); ip.setSpacingAfter(4); ip.setKeepWithNext(true); } catch (e5) {}
+        var capP = body.appendParagraph(w.cap); capParas.push(capP);
+        try { capP.setHeading(DocumentApp.ParagraphHeading.NORMAL); capP.setSpacingBefore(0); capP.setSpacingAfter(14); } catch (e4) {}
       } catch (eW) { _acctBuildNote += ' Our Work photo ' + (wi + 1) + ' skipped: ' + eW.message + '.'; }
     });
   } catch (eOW) { if (eOW.message !== 'skipped') _acctBuildNote += ' Our Work section failed: ' + eOW.message + '.'; }
@@ -9960,6 +9962,13 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   if (hasDetail) { try { body.editAsText().setFontFamily(ACCT_FONT_BODY); } catch (eF) { _acctBuildNote += ' Body font not applied.'; } }
   (hasDetail ? [sumP, schP, owHead, (typeof hd !== 'undefined' ? hd : null)].concat(nameParas) : []).forEach(function (pp) {
     if (!pp) return; try { pp.editAsText().setFontFamily(ACCT_FONT_HEAD); } catch (eH) {}
+  });
+  // One consistent look for every item description, and Playfair Display 18 for the Our Work captions
+  descParas.forEach(function (dp) {
+    try { var dt = dp.editAsText(); dt.setFontFamily(ACCT_FONT_BODY).setFontSize(10.5).setBold(false).setItalic(false).setUnderline(false).setForegroundColor('#222222'); } catch (eD) {}
+  });
+  capParas.forEach(function (cp) {
+    try { cp.editAsText().setFontFamily('Playfair Display').setFontSize(18).setBold(false).setItalic(false).setForegroundColor('#222222'); } catch (eC) { _acctBuildNote += ' Caption font not applied.'; }
   });
   _acctStage = 'save and PDF';
   doc.saveAndClose();
@@ -10027,8 +10036,10 @@ function handleAcctUpdateQuote(p) {
     });
     var set = {
       'Category': cat, 'Site': _acctText(site, 200), 'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email,
-      'Scope': _acctText(p.scope, 2000), 'Total': Math.round(bulk * 100) / 100, 'Notes': _acctText(p.notes, 2000), 'Format': 'Items'
+      'Scope': _acctText(p.scope, 2000), 'Total': Math.round(bulk * 100) / 100, 'Format': 'Items'
     };
+    if (qm['Internal Comments']) { set['Internal Comments'] = _acctText(p.internalComments !== undefined ? p.internalComments : p.notes, 2000); set['Notes'] = ''; }
+    else set['Notes'] = _acctText(p.notes, 2000);
     if (qm['Build Date']) set['Build Date'] = _acctParseDate(p.buildDate);
     if (qm['Items']) set['Items'] = _acctItemsText(lines);
     if (qm['Summary']) set['Summary'] = _acctText(p.summary, 300);
