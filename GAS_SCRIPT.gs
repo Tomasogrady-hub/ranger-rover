@@ -3338,6 +3338,41 @@ function getRoles() {
   } catch(e) { return []; }
 }
 
+// ── Items All: unit-based pricing columns (Quantity, Adjuster, Derived Amount, Derived Description from quantity,
+// "1".."8 Unit Expanded Description"). Derived Amount = Quantity x Adjuster x Amount; Derived Description = Description + the
+// expanded description for that Quantity.
+function _itemsQtyIdx(h) {
+  return { qty: h.indexOf('Quantity'), adj: h.indexOf('Adjuster'), amt: h.indexOf('Derived Amount'), dd: h.indexOf('Derived Description from quantity'),
+           exp: [1,2,3,4,5,6,7,8].map(function (n) { return h.indexOf(n + ' Unit Expanded Description'); }) };
+}
+function _itemsQtyRead(h, row) {
+  var x = _itemsQtyIdx(h);
+  function c(i) { return i > -1 ? String(row[i] === null || row[i] === undefined ? '' : row[i]).trim() : ''; }
+  return { quantity: c(x.qty), adjuster: c(x.adj), derivedAmount: x.amt > -1 ? row[x.amt] : '', derivedDesc: c(x.dd), exp: x.exp.map(c) };
+}
+// Writes whichever of quantity / adjuster / exp[] were sent, then recomputes Derived Amount and Derived Description.
+function _itemsQtyWrite(sheet, h, target, p, amount, description) {
+  var x = _itemsQtyIdx(h);
+  if (x.qty < 0 && x.adj < 0 && x.amt < 0) return {};
+  function put(i, v) { if (i > -1) sheet.getRange(target, i + 1).setValue(v); }
+  var cur = _itemsQtyRead(h, sheet.getRange(target, 1, 1, sheet.getLastColumn()).getValues()[0]);
+  var q = p.quantity !== undefined ? String(p.quantity).trim() : cur.quantity;
+  var adj = p.adjuster !== undefined ? String(p.adjuster).trim() : cur.adjuster;
+  var exp = cur.exp.slice();
+  if (p.exp && p.exp.length) for (var k = 0; k < 8; k++) { if (p.exp[k] !== undefined && p.exp[k] !== null) { exp[k] = String(p.exp[k]).trim(); put(x.exp[k], exp[k]); } }
+  if (p.quantity !== undefined) put(x.qty, q === '' ? '' : Number(q));
+  if (p.adjuster !== undefined) put(x.adj, adj === '' ? '' : Number(adj));
+  var n = Math.round(Number(q)), a = Number(adj), amt = Number(amount);
+  var out = { quantity: q, adjuster: adj, exp: exp, derivedAmount: '', derivedDesc: '' };
+  if (n >= 1 && isFinite(amt)) {
+    out.derivedAmount = Math.round(n * (isFinite(a) && adj !== '' ? a : 1) * amt * 100) / 100;
+    var ex = n <= 8 ? exp[n - 1] : '';
+    out.derivedDesc = (String(description || '').trim() + (ex ? ' ' + ex : '')).trim();
+  }
+  put(x.amt, out.derivedAmount); put(x.dd, out.derivedDesc);
+  return out;
+}
+
 // ── PRICES (Items All → Data tab, Type 3 = "Our Prices") ────────────────────
 // Returns every Items All row tagged Type 3 = "Our Prices" for the Data > Prices
 // list, including ID (col 1), Description, Full day multiplier/Amount, and the
@@ -3369,7 +3404,8 @@ function handleGetPrices() {
       description:       di  > -1 ? String(data[r][di]  || '') : '',
       fullDayMultiplier: mi  > -1 ? data[r][mi]  : '',
       fullDayAmount:     fdi > -1 ? data[r][fdi] : '',
-      dateStamp:         dti > -1 ? data[r][dti] : ''
+      dateStamp:         dti > -1 ? data[r][dti] : '',
+      qty:               _itemsQtyRead(headers, data[r])
     });
   }
   return { ok: true, prices: out };
@@ -3950,7 +3986,8 @@ function handleGetItems() {
       info1: cell(r, lki[0]), info2: cell(r, lki[1]), info3: cell(r, lki[2]),
       infoLink: cell(r, lki[0]),
       img1: cell(r, imi[0]), img2: cell(r, imi[1]), img3: cell(r, imi[2]),
-      dateStamp: dti > -1 ? data[r][dti] : ''
+      dateStamp: dti > -1 ? data[r][dti] : '',
+      qty: _itemsQtyRead(headers, data[r])
     });
   }
   function keys(o) { return Object.keys(o).sort(function(a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }); }
@@ -4026,11 +4063,13 @@ function handleUpdateItem(p) {
   if (p.description !== undefined) put(headers.indexOf('Description'), String(p.description || '').trim());
   var inf = [p.info1 !== undefined ? p.info1 : p.infoLink, p.info2, p.info3];
   for (var q = 0; q < 3; q++) { if (inf[q] !== undefined) put(lki[q], String(inf[q] || '').trim()); }
+  var curRow = sheet.getRange(target, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var qres2 = _itemsQtyWrite(sheet, headers, target, p, p.amount !== undefined ? amount : curRow[headers.indexOf('Amount')], p.description !== undefined ? String(p.description || '') : curRow[headers.indexOf('Description')]);
   var dti = headers.indexOf('Date added or last edited');
   sheet.getRange(target, (dti > -1 ? dti : 7) + 1).setValue(new Date());
   logActivity(p.actor || '', 'edited item', name || String(data[target - 1][headers.indexOf('Name')] || ''), 'item', 'Items All row ' + target);
   _itemsChanged();
-  return { ok: true, row: target };
+  return { ok: true, row: target, qty: qres2 };
 }
 
 // ── INFORMATION FILES (Drive folder INFO_FILES_FOLDER → Items All "Link to information file") ──
@@ -4548,11 +4587,12 @@ function handleUpdatePriceItem(p) {
   if (di > -1)  sheet.getRange(targetRow, di + 1).setValue(description);
   if (mi > -1)  sheet.getRange(targetRow, mi + 1).setValue(multiplier);
   if (fdi > -1) sheet.getRange(targetRow, fdi + 1).setValue(fullDayAmount);
+  var qres = _itemsQtyWrite(sheet, headers, targetRow, p, amount, description);
   _setPriceDateStamp(sheet, headers, targetRow);
 
   logActivity(p.actor || '', 'edited price', id || String(targetRow), 'price', name + (amount !== '' ? (' — ' + amount) : ''));
   _itemsChanged();
-  return { ok: true, fullDayAmount: fullDayAmount };
+  return { ok: true, fullDayAmount: fullDayAmount, qty: qres };
 }
 
 // ── ITEMS ALL MAINTENANCE (one-time / occasional manual cleanup) ────────────
@@ -9406,6 +9446,8 @@ function _acctSum(lines) {
   var t = 0; lines.forEach(function (l) { t += l.amount; });
   return Math.round(t * 100) / 100;
 }
+function _acctAdj(p) { var a = Number(p && p.adjustment); return isFinite(a) && Math.abs(a) <= 10000000 ? Math.round(a * 100) / 100 : 0; }
+function _acctDateField(v) { return (v instanceof Date) ? _acctIso(v) : String(v || ''); }
 function _acctQuoteShape(o) {
   var tok = String(o['Token'] || '');
   return {
@@ -9416,7 +9458,10 @@ function _acctQuoteShape(o) {
     po: String(o['PO #'] || ''), pdf: String(o['PDF Link'] || ''), notes: String(o['Internal Comments'] || o['Notes'] || ''),
     summary: String(o['Summary'] || ''), form: String(o['Form'] || ''), location: String(o['Location'] || ''),
     format: String(o['Format'] || ''), docLink: String(o['Doc Link'] || ''), items: String(o['Items'] || ''),
-    buildDate: (o['Build Date'] instanceof Date) ? _acctIso(o['Build Date']) : String(o['Build Date'] || ''),
+    startDate: _acctDateField(o['Date Start'] !== undefined ? o['Date Start'] : o['Build Date']),
+    finishDate: _acctDateField(o['Date Finish']),
+    buildDate: _acctDateField(o['Date Start'] !== undefined ? o['Date Start'] : o['Build Date']),
+    adjustment: Number(o['Adjustment']) || 0,
     link: tok ? ACCT_PUBLIC_PAGE + '?q=' + encodeURIComponent(String(o['Quote #'])) + '&t=' + encodeURIComponent(tok) : ''
   };
 }
@@ -9514,13 +9559,16 @@ function handleAcctCreateQuote(p) {
     _acctPut(Q, qr, qm, {
       'Quote #': q, 'Date': now, 'Valid Until': valid, 'Category': cat, 'Site': _acctText(site, 200),
       'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email, 'Scope': _acctText(p.scope, 2000),
-      'Total': itemsMode ? Math.round(bulk * 100) / 100 : "=SUMIF('Quote Lines'!" + qa + ':' + qa + ',' + _acctLetter(qm['Quote #']) + qr + ",'Quote Lines'!" + am + ':' + am + ')',
+      'Total': itemsMode ? Math.round((bulk + _acctAdj(p)) * 100) / 100 : "=SUMIF('Quote Lines'!" + qa + ':' + qa + ',' + _acctLetter(qm['Quote #']) + qr + ",'Quote Lines'!" + am + ':' + am + ')',
       'Format': itemsMode ? 'Items' : '',
       'Status': 'Draft', 'Notes': qm['Internal Comments'] ? '' : _acctText(p.notes, 2000), 'Token': Utilities.getUuid()
     });
     var extra = {};
     if (qm['Internal Comments']) extra['Internal Comments'] = _acctText(p.internalComments !== undefined ? p.internalComments : p.notes, 2000);
-    if (qm['Build Date']) extra['Build Date'] = _acctParseDate(p.buildDate);
+    var sdKey = qm['Date Start'] ? 'Date Start' : (qm['Build Date'] ? 'Build Date' : '');
+    if (sdKey) extra[sdKey] = _acctParseDate(p.startDate !== undefined ? p.startDate : p.buildDate);
+    if (qm['Date Finish']) extra['Date Finish'] = _acctParseDate(p.finishDate);
+    if (qm['Adjustment']) extra['Adjustment'] = _acctAdj(p) || '';
     if (qm['Items']) extra['Items'] = _acctItemsText(lines);
     if (qm['Summary']) extra['Summary'] = _acctText(p.summary, 300);
     if (qm['Form']) extra['Form'] = _acctForm(cat, p.form).name;
@@ -9705,14 +9753,16 @@ const ACCT_QUOTE_TEMPLATE_ID = '1-siKS7iFwpTcKSjyBu41KZHCErXEQQIPmVp2kjRs5JA';
 function _acctQuoteItems() {
   var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sh) return [];
-  var v = sh.getDataRange().getValues(), h = v[0], ii = h.indexOf('ID'), ni = h.indexOf('Name'), t1 = _itemsTypeIdx(h), t2 = h.indexOf('Type 2'), ai = h.indexOf('Amount'), di = h.indexOf('Description'), im = _itemsImgIdxs(h), out = [];
+  var v = sh.getDataRange().getValues(), h = v[0], ii = h.indexOf('ID'), ni = h.indexOf('Name'), t1 = _itemsTypeIdx(h), t2 = h.indexOf('Type 2'), ai = h.indexOf('Amount'), di = h.indexOf('Description'), im = _itemsImgIdxs(h), out = [], adji = h.indexOf('Adjuster'), exi = [1,2,3,4,5,6,7,8].map(function (n) { return h.indexOf(n + ' Unit Expanded Description'); });
   for (var r = 1; r < v.length; r++) {
     var isProg = t2 > -1 && String(v[r][t2] || '').trim().toLowerCase() === 'program';
     if (String(v[r][t1] || '').trim().toLowerCase() !== 'quote item' && !isProg) continue;
     var id = String(v[r][ii] || '').trim(), name = String(v[r][ni] || '').trim();
     if (!id || !name) continue;
     var imgs = im.map(function (ix) { return ix > -1 ? String(v[r][ix] || '').trim() : ''; }).filter(String).slice(0, 3);
-    out.push({ id: id, name: name, isProgram: isProg, amount: ai > -1 ? (Number(String(v[r][ai] || '').replace(/[^0-9.\-]/g, '')) || 0) : 0, desc: String(v[r][di] || '').trim(), img: imgs[0] || '', imgs: imgs, hasImg: imgs.length > 0 });
+    out.push({ id: id, name: name, isProgram: isProg, amount: ai > -1 ? (Number(String(v[r][ai] || '').replace(/[^0-9.\-]/g, '')) || 0) : 0, desc: String(v[r][di] || '').trim(), img: imgs[0] || '', imgs: imgs, hasImg: imgs.length > 0,
+      adjuster: adji > -1 ? (Number(String(v[r][adji] || '').replace(/[^0-9.\-]/g, '')) || 1) : 1,
+      exp: exi.map(function (ix) { return ix > -1 ? String(v[r][ix] || '').trim() : ''; }) });
   }
   return out;
 }
@@ -9751,13 +9801,20 @@ function _acctQty(p, id) {
 }
 // Program quotes: exactly one Type 2 = Program item and a number of units. The line is named e.g.
 // "Garden Ranger Program 2026/2027 3 units" (unit 'Program' marks it so the name is not suffixed again).
+// Program pricing from Items All: Derived Amount = units x Adjuster x Amount; the description is the item Description followed
+// by that unit count's "N Unit Expanded Description" (the same two formulas as the Items card).
+function _acctDerivedAmount(it, u) { return Math.round(u * (Number(it.adjuster) || 1) * (Number(it.amount) || 0) * 100) / 100; }
+function _acctDerivedDesc(it, u) {
+  var ex = (u >= 1 && u <= 8) ? String((it.exp || [])[u - 1] || '').trim() : '';
+  return (String(it.desc || '').trim() + (ex ? ' ' + ex : '')).trim();
+}
 function _acctProgramLines(p, ids, byId) {
   if (ids.length !== 1) return { error: 'A Program quote takes exactly one Program item.' };
   var it = byId[ids[0]];
   if (!it || !it.isProgram) return { error: 'Choose one of the Program items (Type 2 = Program).' };
   var u = Math.round(Number(p.programUnits !== undefined && p.programUnits !== '' ? p.programUnits : (p.itemQty ? p.itemQty[ids[0]] : 1)));
   if (!(u >= 1 && u <= 100000)) return { error: 'Enter the number of units (1 or more).' };
-  return { lines: [{ itemId: it.id, desc: it.name + ' ' + u + ' unit' + (u === 1 ? '' : 's'), qty: u, unit: 'Program', price: 0 }], units: u, item: it };
+  return { lines: [{ itemId: it.id, desc: it.name + ' ' + u + ' unit' + (u === 1 ? '' : 's'), qty: u, unit: 'Program', price: 0 }], units: u, item: it, derived: _acctDerivedAmount(it, u) };
 }
 function _acctQtyText(l) { return String(l.unit) === 'N/A' ? 'N/A' : String(l.qty || 1); }
 function _acctLineName(l) { return String(l.unit) === 'Program' ? l.desc : String(l.unit) !== 'N/A' && Number(l.qty) > 1 ? l.desc + ' (x' + l.qty + ')' : l.desc; }
@@ -9799,6 +9856,25 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   _acctCopyId = copy.getId();
   _acctStage = 'open template';
   var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
+  var isProgramQ = String(o['Category'] || '') === 'Program';
+  // Program forms get the same Enrich LA masthead (logo / tagline / non-profit line) as the Maker proposal, copied from Quote Maker Form 1
+  if (isProgramQ && tplId !== ACCT_QUOTE_TEMPLATE_ID) {
+    _acctStage = 'enrich la masthead';
+    try {
+      var srcDoc = DocumentApp.openById(ACCT_QUOTE_TEMPLATE_ID), srcBody = srcDoc.getBody(), at0 = 0;
+      for (var k0 = 0; k0 < srcBody.getNumChildren(); k0++) {
+        var ch0 = srcBody.getChild(k0);
+        if (ch0.getType() !== DocumentApp.ElementType.PARAGRAPH) break;
+        if (/^\s*PROPOSAL/i.test(ch0.asParagraph().getText())) break;
+        body.insertParagraph(at0++, ch0.asParagraph().copy());
+      }
+      var srcHead = srcDoc.getHeader();
+      if (srcHead && (srcHead.getText().trim() || (srcHead.getNumChildren() > 0 && srcHead.getChild(0).getType() === DocumentApp.ElementType.PARAGRAPH && srcHead.getChild(0).asParagraph().getNumChildren() > 0)) && !doc.getHeader()) {
+        var nh = doc.addHeader(); nh.clear();
+        for (var k1 = 0; k1 < srcHead.getNumChildren(); k1++) { var hc = srcHead.getChild(k1); if (hc.getType() === DocumentApp.ElementType.PARAGRAPH) nh.appendParagraph(hc.asParagraph().copy()); }
+      }
+    } catch (eTop) { _acctBuildNote += ' Enrich LA masthead not added: ' + eTop.message + '.'; }
+  }
   // Inserts the value as plain text right after the token, then deletes the token (no replacement-string rules, so "$" and "\\" stay literal and the token's styling is kept).
   function fillTok(el, tok, val) {
     val = String(val == null ? '' : val);
@@ -9822,7 +9898,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   function paraOf(tok) { var f = body.findText(pat(tok)); return f ? f.getElement().getParent() : null; }
   var list = lines.map(function (ln) {
     var base = items[ln.itemId] || { name: ln.desc, desc: '', img: '', imgs: [] };
-    if (String(ln.unit) === 'Program') { var cp = {}; for (var kk in base) cp[kk] = base[kk]; cp.name = ln.desc; return cp; }
+    if (String(ln.unit) === 'Program') { var cp = {}; for (var kk in base) cp[kk] = base[kk]; cp.name = ln.desc; cp.desc = _acctDerivedDesc(base, Math.round(Number(ln.qty)) || 1); return cp; }
     return base;
   });
 
@@ -9911,7 +9987,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     fillRow(rw, 'ITEM LINE', list[m2].name);
     fillRow(rw, 'ITEM DESCRIPTION', String(list[m2].desc || '').trim());
     fillRow(rw, 'ITEM QTY', _acctQtyText(lines[m2]));
-    fillRow(rw, 'ITEM AMOUNT', list.length === 1 ? _acctMoney(total) : 'Included');
+    fillRow(rw, 'ITEM AMOUNT', list.length === 1 ? _acctMoney((Number(o['Adjustment']) || 0) ? Math.round((Number(total) - Number(o['Adjustment'])) * 100) / 100 : total) : 'Included');
     try { if (rw.getNumCells() > 1) fillRaw(rw.getCell(1), 'Included', _acctQtyText(lines[m2])); } catch (eQ) { _acctBuildNote += ' Quantity cell: ' + eQ.message + '.'; }
   }
   try { if (ri > 0 && tbl.getRow(ri - 1).getNumCells() > 1) fillRaw(tbl.getRow(ri - 1).getCell(1), 'AMOUNT', 'QUANTITY'); } catch (eH2) {}
@@ -9944,6 +10020,38 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     }
     fillTok(body, tok, val);
   }
+  var startV = _acctDateText(o['Date Start'] !== undefined ? o['Date Start'] : o['Build Date']), finV = _acctDateText(o['Date Finish']);
+  var adjV = Number(o['Adjustment']) || 0, subV = Math.round(((Number(total) || 0) - adjV) * 100) / 100;
+  var dWord = isProgramQ ? 'Program' : 'Build';
+  _acctStage = 'dates';
+  try {
+    if (body.findText(pat('Build Date'))) {
+      // Maker / Misc layout: "Build Date: {{Build Date}}" becomes "Build Start: ..." and "Build Finish: ..." (Program: "Program Start / Program Finish")
+      body.replaceText('Build Date:', (startV || !finV) ? dWord + ' Start:' : dWord + ' Finish:');
+      var bdVal = startV ? startV + (finV ? '\n' + dWord + ' Finish: ' + finV : '') : finV;
+      setTok('Build Date', bdVal, true);
+    } else if (isProgramQ && (startV || finV)) {
+      // Program Form 1 has no date line: add Program Start / Program Finish after the Date of issue
+      var fd = body.findText(pat('Date'));
+      if (fd) {
+        var td = fd.getElement().asText();
+        td.insertText(fd.getEndOffsetInclusive() + 1, (startV ? '\nPROGRAM START\n' + startV : '') + (finV ? '\nPROGRAM FINISH\n' + finV : ''));
+        ['PROGRAM START', 'PROGRAM FINISH'].forEach(function (lbl) { var lf2 = body.findText(lbl); if (lf2) { try { lf2.getElement().asText().setBold(lf2.getStartOffset(), lf2.getEndOffsetInclusive(), true); } catch (eB) {} } });
+      }
+    }
+  } catch (eDates) { _acctBuildNote += ' Dates not fully placed: ' + eDates.message + '.'; }
+  // Adjustment: the SUBTOTAL cell shows the price before it, with the adjustment under it; otherwise a note follows the total
+  if (adjV) {
+    try {
+      var tf0 = body.findText(pat('Total'));
+      if (tf0) {
+        var tel = tf0.getElement().asText(), adjTxt = (adjV > 0 ? '+' : '-') + _acctMoney(Math.abs(adjV)), isSub = false;
+        try { isSub = /SUBTOTAL/i.test(tel.getParent().getParent().getParent().asTableRow().getText()); } catch (eS) {}
+        if (isSub) { tel.insertText(tf0.getEndOffsetInclusive() + 1, _acctMoney(subV) + '\nAdjustment: ' + adjTxt); tel.deleteText(tf0.getStartOffset(), tf0.getEndOffsetInclusive()); }
+        else tel.insertText(tf0.getEndOffsetInclusive() + 1, '\n(includes an adjustment of ' + adjTxt + ')');
+      }
+    } catch (eAdj) { _acctBuildNote += ' Adjustment not placed: ' + eAdj.message + '.'; }
+  }
   setTok('Summary', o['Summary'], true);
   setTok('School', site);
   setTok('Contact Name', o['Contact Name'], true);
@@ -9953,7 +10061,6 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   setTok('Quote #', q);
   setTok('Date', _acctDateText(o['Date']));
   setTok('Valid Until', _acctFmtDate(valid));
-  setTok('Build Date', _acctDateText(o['Build Date']), true);
   setTok('Prepared By', ACCT_ORG_NAME);
   setTok('Total', _acctMoney(total));
   setTok('Scope', o['Scope'], true);
@@ -10070,11 +10177,14 @@ function handleAcctUpdateQuote(p) {
     });
     var set = {
       'Category': cat, 'Site': _acctText(site, 200), 'Contact Name': _acctText(p.contactName, 120), 'Contact Email': email,
-      'Scope': _acctText(p.scope, 2000), 'Total': Math.round(bulk * 100) / 100, 'Format': 'Items'
+      'Scope': _acctText(p.scope, 2000), 'Total': Math.round((bulk + _acctAdj(p)) * 100) / 100, 'Format': 'Items'
     };
     if (qm['Internal Comments']) { set['Internal Comments'] = _acctText(p.internalComments !== undefined ? p.internalComments : p.notes, 2000); set['Notes'] = ''; }
     else set['Notes'] = _acctText(p.notes, 2000);
-    if (qm['Build Date']) set['Build Date'] = _acctParseDate(p.buildDate);
+    var sdKey2 = qm['Date Start'] ? 'Date Start' : (qm['Build Date'] ? 'Build Date' : '');
+    if (sdKey2) set[sdKey2] = _acctParseDate(p.startDate !== undefined ? p.startDate : p.buildDate);
+    if (qm['Date Finish']) set['Date Finish'] = _acctParseDate(p.finishDate);
+    if (qm['Adjustment']) set['Adjustment'] = _acctAdj(p) || '';
     if (qm['Items']) set['Items'] = _acctItemsText(lines);
     if (qm['Summary']) set['Summary'] = _acctText(p.summary, 300);
     if (qm['Form']) set['Form'] = _acctForm(cat, p.form).name;

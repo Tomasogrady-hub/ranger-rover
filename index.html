@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.24 -->
+<!-- v12.25 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.24';
+const APP_VERSION='v12.25';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-18 14:40 PT - App now always uses the automatically updated Apps Script URL (no more pasting in Settings).';
+const BUILD_STAMP='2026-11-18 16:10 PT - Quotes: start/finish dates and adjustment; Program pricing by units from Items (quantity, adjuster, expanded descriptions).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4171,7 +4171,7 @@ function _qtCardHtml(x){
       ${x.contactName||x.contactEmail?`<div><b>To:</b> ${escHtml(x.contactName)}${x.contactEmail?' &lt;'+escHtml(x.contactEmail)+'&gt;':''}</div>`:'<div><b>To:</b> no contact email yet</div>'}
       ${x.scope?`<div style="margin-top:4px;white-space:pre-wrap">${escHtml(x.scope)}</div>`:''}
       ${lines}
-      <div style="margin-top:6px;font-size:13px;color:var(--silver)">${x.buildDate?'Build date '+(/^\d{4}-\d{2}-\d{2}$/.test(x.buildDate)?_qtDate(x.buildDate):escHtml(x.buildDate))+' · ':''}${x.validUntil?'Valid through '+_qtDate(x.validUntil)+' · ':''}${x.sentDate?'Emailed '+_qtDate(x.sentDate)+' · ':''}${x.approvedDate?'Approved '+_qtDate(x.approvedDate)+(x.po?' · PO '+escHtml(x.po):''):''}</div>
+      <div style="margin-top:6px;font-size:13px;color:var(--silver)">${_qtDatesLine(x)}${x.adjustment?'Adjustment '+(x.adjustment>0?'+':'-')+'$'+Math.abs(x.adjustment).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' · ':''}${x.validUntil?'Valid through '+_qtDate(x.validUntil)+' · ':''}${x.sentDate?'Emailed '+_qtDate(x.sentDate)+' · ':''}${x.approvedDate?'Approved '+_qtDate(x.approvedDate)+(x.po?' · PO '+escHtml(x.po):''):''}</div>
       ${x.notes?`<div style="margin-top:4px"><b>Notes:</b> ${escHtml(x.notes)}</div>`:''}</div>`;
   }
   const acts=[`<button type="button" class="settings-btn" style="${btn}" onclick="qtToggle('${i}')">${open?'▴ Collapse':'▾ Expand'}</button>`];
@@ -4434,6 +4434,8 @@ function _qtItemOpts(cat,sel){
   return '<option value="">Custom line</option>'+_qtItemsFor(cat).map(i=>`<option value="${ea(i.id)}"${i.id===sel?' selected':''}>${escHtml(i.name)}</option>`).join('');
 }
 let _qtEditId='';
+function _qtDF(v){return /^\d{4}-\d{2}-\d{2}$/.test(v||'')?_qtDate(v):escHtml(v||'');}
+function _qtDatesLine(x){const w=x.category==='Program'?'Program':'Build';return (x.startDate?w+' start '+_qtDF(x.startDate)+' · ':'')+(x.finishDate?w+' finish '+_qtDF(x.finishDate)+' · ':'');}
 let _qtForms={Maker:['Quote Maker Form 1','Quote Maker Form 2'],Program:['Quote Program Form 1','Quote Program Form 2'],Miscellaneous:['Quote Misc Form 1','Quote Misc Form 2']};
 function _qtFormOpts(cat,sel){
   const l=_qtForms[cat];if(!l)return '<option value="">Choose a type first</option>';
@@ -4453,17 +4455,27 @@ function _qtApplyType(){
   const prog=((document.getElementById('qtNCat')||{}).value)==='Program';
   const a=document.getElementById('qtNProg'),m=document.getElementById('qtNMaker');
   if(a)a.style.display=prog?'block':'none';if(m)m.style.display=prog?'none':'block';
+  const w=prog?'Program':'Build',l1=document.getElementById('qtNStartLab'),l2=document.getElementById('qtNFinishLab');
+  if(l1)l1.textContent=w+' start';if(l2)l2.textContent=w+' finish';
   _qtProgCalc();
 }
 function _qtProgCalc(){
   const sel=document.getElementById('qtNProgItem');if(!sel)return;
   const it=_qtQItems.find(i=>i.id===sel.value),u=Math.round(Number((document.getElementById('qtNUnits')||{}).value)||0);
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
-  const amt=it?Number(it.amount)||0:0,sub=Math.round(amt*u*100)/100;
+  const adj=it?(Number(it.adjuster)||1):1,amt=it?(Number(it.amount)||0)*adj:0,sub=Math.round((it?(Number(it.amount)||0):0)*adj*u*100)/100;
   set('qtNUnitPrice',it?'$'+amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'');
   set('qtNSubtotal',(it&&u>0)?'$'+sub.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'');
   set('qtNLineName',(it&&u>0)?it.name+' '+u+' unit'+(u===1?'':'s'):'');
+  const ex=(it&&u>=1&&u<=8&&it.exp)?String(it.exp[u-1]||'').trim():'';
+  const dd=document.getElementById('qtNProgDesc');if(dd)dd.textContent=it&&u>0?(String(it.desc||'').trim()+(ex?' '+ex:'')).trim():'';
   if(it&&u>0)set('qtNBulk',String(sub));
+  _qtTotalCalc();
+}
+function _qtTotalCalc(){
+  const b=(document.getElementById('qtNBulk')||{}).value,a=Number((document.getElementById('qtNAdj')||{}).value)||0,f=document.getElementById('qtNFinal');
+  if(!f)return;
+  f.value=(b===''||isNaN(Number(b)))?'':'$'+(Math.round((Number(b)+a)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function _qtQtyOpts(sel){
   const vals=['N/A'];for(let n=1;n<=30;n++)vals.push(String(n));[40,50,60,75,100,150,200,300,500].forEach(n=>vals.push(String(n)));
@@ -4523,8 +4535,10 @@ function qtNewToggle(show,edit){
         <label ${lab}>Program item (choose one)</label>
         <select id="qtNProgItem" ${inp} onchange="_qtProgCalc()">${_qtProgOpts()}</select>
         <div style="display:flex;gap:8px"><div style="flex:1;min-width:0"><label ${lab}># of units</label><input id="qtNUnits" ${inp} type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 1" oninput="_qtProgCalc()"></div>
-          <div style="flex:1;min-width:0"><label ${lab}>Price per unit</label><input id="qtNUnitPrice" ${inp} readonly placeholder="-" style="background:var(--mist)"></div>
+          <div style="flex:1;min-width:0"><label ${lab}>Price per unit (amount × adjuster)</label><input id="qtNUnitPrice" ${inp} readonly placeholder="-" style="background:var(--mist)"></div>
           <div style="flex:1;min-width:0"><label ${lab}>Subtotal</label><input id="qtNSubtotal" ${inp} readonly placeholder="-" style="background:var(--mist)"></div></div>
+        <label ${lab}>Description for this many units</label>
+        <div id="qtNProgDesc" style="font-size:13px;line-height:1.45;color:var(--stone);background:var(--mist);border-radius:10px;padding:8px 10px;margin-bottom:8px;min-height:20px"></div>
         <label ${lab}>Quote line name (as it appears on the quote)</label>
         <input id="qtNLineName" ${inp} readonly placeholder="Choose an item and enter the units" style="background:var(--mist)">
       </div>
@@ -4534,8 +4548,11 @@ function qtNewToggle(show,edit){
       <div id="qtNItemList" style="max-height:260px;overflow:auto;border:1px solid var(--mist);border-radius:10px;padding:4px 10px;margin-bottom:8px">${_qtQItemsHtml()}</div>
       <div id="qtNItemCount" class="sub-meta" style="margin:-2px 0 8px">0 items chosen</div>
       </div>
-      <div style="display:flex;gap:8px"><div style="flex:1"><label ${lab}>Total price ($)</label><input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${ea(edit&&e.total!==undefined?e.total:'')}"></div>
-        <div style="flex:1"><label ${lab}>Build date</label><input id="qtNBuild" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.buildDate||'')?e.buildDate:'')}"></div></div>
+      <div style="display:flex;gap:8px"><div style="flex:1;min-width:0"><label ${lab}>Price ($)</label><input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" oninput="_qtTotalCalc()" value="${ea(edit&&e.total!==undefined?Math.round((Number(e.total)-(Number(e.adjustment)||0))*100)/100:'')}"></div>
+        <div style="flex:1;min-width:0"><label ${lab}>Adjustment (+ or -)</label><input id="qtNAdj" ${inp} type="number" inputmode="decimal" step="0.01" placeholder="0.00" oninput="_qtTotalCalc()" value="${ea(edit&&e.adjustment?e.adjustment:'')}"></div>
+        <div style="flex:1;min-width:0"><label ${lab}>Quote total</label><input id="qtNFinal" ${inp} readonly style="background:var(--mist)" placeholder="-"></div></div>
+      <div style="display:flex;gap:8px"><div style="flex:1;min-width:0"><label ${lab} id="qtNStartLab">Build start</label><input id="qtNBuild" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.startDate||e.buildDate||'')?(e.startDate||e.buildDate):'')}"></div>
+        <div style="flex:1;min-width:0"><label ${lab} id="qtNFinishLab">Build finish</label><input id="qtNFinish" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.finishDate||'')?e.finishDate:'')}"></div></div>
       <div onclick="_qtLocToggle()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin:2px 0 8px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)"><span id="qtNLocArrow" style="font-size:15px;width:14px">${(isEdit&&e.location)?'▾':'▸'}</span>Garden location (map picture at the end of the quote)</div>
       <div id="qtNLocWrap" style="display:${(isEdit&&e.location)?'block':'none'}"><div id="qtNLocBox" style="margin-bottom:8px"></div></div>
       <label ${lab}>Internal comments (not on the quote)</label>
@@ -4549,7 +4566,7 @@ function qtNewToggle(show,edit){
       document.querySelectorAll('#qtNItemList input[type=checkbox]').forEach(c=>{if(ids.has(c.value))c.checked=true;});
       document.querySelectorAll('#qtNItemList .qt-qty').forEach(q=>{if(qm[q.dataset.id])_qtSetQty(q,qm[q.dataset.id]);});
       _qtItemCount();
-      if(e.category==='Program'&&ids.size){const pid=[...ids][0],ps=document.getElementById('qtNProgItem'),un=document.getElementById('qtNUnits');if(ps)ps.value=pid;if(un)un.value=String((qm[pid]&&qm[pid]!=='N/A')?qm[pid]:1);_qtProgCalc();if(edit&&e.total!==undefined){const tb=document.getElementById('qtNBulk');if(tb)tb.value=String(e.total);}}
+      if(e.category==='Program'&&ids.size){const pid=[...ids][0],ps=document.getElementById('qtNProgItem'),un=document.getElementById('qtNUnits');if(ps)ps.value=pid;if(un)un.value=String((qm[pid]&&qm[pid]!=='N/A')?qm[pid]:1);_qtProgCalc();if(edit&&e.total!==undefined){const tb=document.getElementById('qtNBulk');if(tb)tb.value=String(Math.round((Number(e.total)-(Number(e.adjustment)||0))*100)/100);_qtTotalCalc();}}
     }
   }
   b.style.display=open?'block':'none';
@@ -4602,7 +4619,7 @@ async function qtSubmit(sendNow){
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
   const editing=_qtEditId;
   try{
-    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,itemQty:itemQty,programUnits:programUnits,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes'),internalComments:v('qtNNotes')};
+    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,itemQty:itemQty,programUnits:programUnits,bulkTotal:v('qtNBulk'),adjustment:v('qtNAdj')||0,startDate:v('qtNBuild'),buildDate:v('qtNBuild'),finishDate:v('qtNFinish'),notes:v('qtNNotes'),internalComments:v('qtNNotes')};
     let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items'},payload));
     if(r&&r.ok){
       let msg;
@@ -18922,6 +18939,7 @@ async function toggleEditItem(rid){
     ${_itemTypeSelectHtml(1,pfx,it.type1)}
     <div style="display:flex;gap:10px;flex-wrap:wrap">${_itemImgSlotHtml(rid,pfx,1,it.img1)}</div>
     <div><label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">Description</label><textarea id="${pfx}Desc" class="settings-input" style="margin:0;min-height:150px;resize:vertical" placeholder="Description">${escHtml(it.description||'')}</textarea></div>
+    ${_qtyBlockHtml(pfx+'Q',it.qty,pfx+'Amount',pfx+'Desc')}
     <div onclick="_itMoreToggle('${pfx}')" style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)"><span id="${pfx}MoreArrow" style="font-size:15px;width:14px">&#9656;</span>More: Type 2, Type 3, information files, more photos</div>
     <div id="${pfx}More" style="display:none;flex-direction:column;gap:10px">
       ${_itemTypeSelectHtml(2,pfx,it.type2)}${_itemTypeSelectHtml(3,pfx,it.type3)}
@@ -18934,6 +18952,7 @@ async function toggleEditItem(rid){
     </div>
     <div id="${pfx}Status" style="font-size:13px;min-height:16px"></div></div>`;
   _mountInfoSlots(pfx,{A:_itemInfoUrls(it)[0],B:_itemInfoUrls(it)[1],C:_itemInfoUrls(it)[2]});
+  _qtyRefresh(pfx+'Q');
 }
 async function saveEditItem(rid,pfx){
   const it=_itemByRid(rid);if(!it)return;
@@ -18946,9 +18965,9 @@ async function saveEditItem(rid,pfx){
   const type1=_itemTypeValue(pfx,1),type2=_itemTypeValue(pfx,2),type3=_itemTypeValue(pfx,3),[info1,info2,info3]=_infoSlotValues(pfx),infoLink=info1;
   if(st){st.style.color='var(--sage)';st.textContent='Saving…';}
   try{
-    const res=await gasPost({action:'updateItem',id:it.id,row:it.row,name,amount,description,type1,type2,type3,info1,info2,info3,infoLink,actor:SESSION?SESSION.email:''});
+    const res=await gasPost(Object.assign({action:'updateItem',id:it.id,row:it.row,name,amount,description,type1,type2,type3,info1,info2,info3,infoLink,actor:SESSION?SESSION.email:''},_qtyCollect(pfx+'Q')));
     if(!res||!res.ok){if(st){st.style.color='var(--danger)';st.textContent=(res&&res.error)||'Could not save.';}return;}
-    Object.assign(it,{name,amount,description,type1,type2,type3,info1,info2,info3,infoLink,dateStamp:new Date().toISOString()});
+    Object.assign(it,{name,amount,description,type1,type2,type3,info1,info2,info3,infoLink,dateStamp:new Date().toISOString()});if(res.qty)it.qty=res.qty;
     [['type1',type1],['type2',type2],['type3',type3]].forEach(([k,v])=>{if(v&&(_itemOpts[k]||(_itemOpts[k]=[])).indexOf(v)===-1)_itemOpts[k].push(v);});
     _prices_invalidateIfNeeded(type3);
     _fillItemFilterSelects();
@@ -19486,8 +19505,8 @@ function _dataPriceRowHtml(pr){
     <div id="dataPriceEdit-${rid}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--mist)">
       <div style="display:flex;flex-direction:column;gap:8px">
         <input class="settings-input" id="dpEditName-${rid}" style="margin:0" value="${ea(pr.name)}" placeholder="Name">
-        <input class="settings-input" id="dpEditAmount-${rid}" style="margin:0" type="number" step="0.01" value="${ea(amtVal)}" placeholder="Amount" oninput="_recalcEditFullDayAmount('${rid}')">
-        <textarea class="settings-input" id="dpEditDesc-${rid}" style="margin:0;min-height:60px;resize:vertical" placeholder="Description">${ea(desc)}</textarea>
+        <input class="settings-input" id="dpEditAmount-${rid}" style="margin:0" type="number" step="0.01" value="${ea(amtVal)}" placeholder="Amount" oninput="_recalcEditFullDayAmount('${rid}');_qtyRefresh('dpq${rid.replace(/[^A-Za-z0-9]/g,'')}')">
+        <textarea class="settings-input" id="dpEditDesc-${rid}" style="margin:0;min-height:60px;resize:vertical" placeholder="Description" oninput="_qtyRefresh('dpq${rid.replace(/[^A-Za-z0-9]/g,'')}')">${ea(desc)}</textarea>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:4px">
             <label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)">Full Day Multiplier</label>
@@ -19498,6 +19517,7 @@ function _dataPriceRowHtml(pr){
             <input class="settings-input" id="dpEditFullDayAmount-${rid}" style="margin:0;background:var(--mist);color:var(--stone)" type="text" readonly value="${fdaDisplay==='—'?'':fdaDisplay}">
           </div>
         </div>
+        ${_qtyBlockHtml('dpq'+rid.replace(/[^A-Za-z0-9]/g,''),pr.qty,'dpEditAmount-'+rid,'dpEditDesc-'+rid)}
         <div style="display:flex;gap:8px">
           <button type="button" class="settings-btn" style="flex:1" onclick="saveEditPrice('${rid}','${ea(String(pr.id||''))}',${parseInt(pr.row,10)||0})">Save</button>
           <button type="button" class="settings-btn" style="flex:1;background:var(--mist);color:var(--stone)" onclick="toggleEditPrice('${rid}')">Cancel</button>
@@ -19508,10 +19528,52 @@ function _dataPriceRowHtml(pr){
   </div>`;
 }
 
+
+// ── Unit pricing block (Items All: Quantity, Adjuster, Derived Amount, N Unit Expanded Description) ──────────
+// Quantity N shows only the "N Unit Expanded Description" box. Derived Amount = Quantity x Adjuster x Amount, and the derived
+// description is the item Description followed by that expanded description.
+const _qtyState={};
+function _qtyLab(t){return `<label style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:0 0 3px">${t}</label>`;}
+function _qtyBlockHtml(pfx,q,amtId,descId){
+  q=q||{};
+  _qtyState[pfx]={exp:(q.exp||[]).concat(['','','','','','','','']).slice(0,8),prev:0,amtId,descId};
+  return `<div style="border:1px solid var(--mist);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--stone)">Units (Garden Ranger Program pricing)</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:110px">${_qtyLab('Quantity')}<input id="${pfx}Qty" class="settings-input" style="margin:0" type="number" step="1" min="1" max="8" inputmode="numeric" placeholder="e.g. 1" value="${ea(q.quantity||'')}" oninput="_qtyRefresh('${pfx}')"></div>
+      <div style="flex:1;min-width:110px">${_qtyLab('Adjuster')}<input id="${pfx}Adj" class="settings-input" style="margin:0" type="number" step="0.0001" inputmode="decimal" placeholder="1" value="${ea(q.adjuster||'')}" oninput="_qtyRefresh('${pfx}')"></div>
+    </div>
+    <div id="${pfx}QBox" style="display:none;flex-direction:column;gap:8px">
+      <div>${_qtyLab('<span id="'+pfx+'ExpLab">1 Unit Expanded Description</span>')}<textarea id="${pfx}Exp" class="settings-input" style="margin:0;min-height:70px;resize:vertical" placeholder="Describe the days / schedule for this many units" oninput="_qtyRefresh('${pfx}')"></textarea></div>
+      <div>${_qtyLab('Derived Amount (Quantity × Adjuster × Amount)')}<input id="${pfx}DAmt" class="settings-input" style="margin:0;background:var(--mist);color:var(--stone)" readonly></div>
+      <div>${_qtyLab('Derived Description from quantity')}<div id="${pfx}DDesc" style="font-size:13px;line-height:1.45;color:var(--stone);background:var(--mist);border-radius:10px;padding:8px 10px;min-height:20px"></div></div>
+    </div></div>`;
+}
+function _qtyRefresh(pfx){
+  const st=_qtyState[pfx];if(!st)return;
+  const g=id=>document.getElementById(pfx+id),box=g('QBox');if(!box)return;
+  const n=Math.round(Number((g('Qty')||{}).value)||0);
+  // keep what was typed for the previous quantity before switching
+  if(st.prev>=1&&st.prev<=8&&g('Exp'))st.exp[st.prev-1]=g('Exp').value;
+  if(!(n>=1&&n<=8)){box.style.display='none';st.prev=0;return;}
+  if(st.prev!==n){g('Exp').value=st.exp[n-1]||'';g('ExpLab').textContent=n+' Unit Expanded Description';st.prev=n;}
+  box.style.display='flex';
+  const amt=parseFloat((document.getElementById(st.amtId)||{}).value),adjRaw=(g('Adj')||{}).value,adj=adjRaw===''?1:parseFloat(adjRaw);
+  g('DAmt').value=isNaN(amt)?'':'$'+(Math.round(n*(isNaN(adj)?1:adj)*amt*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const d=((document.getElementById(st.descId)||{}).value||'').trim(),ex=(st.exp[n-1]||'').trim();
+  g('DDesc').textContent=(d+(ex?' '+ex:'')).trim();
+}
+function _qtyCollect(pfx){
+  const st=_qtyState[pfx];if(!st||!document.getElementById(pfx+'Qty'))return {};
+  _qtyRefresh(pfx);
+  return {quantity:document.getElementById(pfx+'Qty').value.trim(),adjuster:document.getElementById(pfx+'Adj').value.trim(),exp:st.exp.slice()};
+}
+
 function toggleEditPrice(rid){
   const el=document.getElementById('dataPriceEdit-'+rid);
   if(!el)return;
   el.style.display = el.style.display==='none' ? 'block' : 'none';
+  _qtyRefresh('dpq'+rid.replace(/[^A-Za-z0-9]/g,''));
 }
 
 async function saveEditPrice(rid,id,row){
@@ -19528,14 +19590,14 @@ async function saveEditPrice(rid,id,row){
   if(!name){if(statusEl){statusEl.style.color='var(--danger)';statusEl.textContent='Name required.';}return;}
   if(statusEl){statusEl.style.color='var(--sage)';statusEl.textContent='Saving…';}
   try{
-    const res=await gasPost({action:'updatePriceItem',id,row,name,amount,description,fullDayMultiplier,actor:SESSION?SESSION.email:''});
+    const res=await gasPost(Object.assign({action:'updatePriceItem',id,row,name,amount,description,fullDayMultiplier,actor:SESSION?SESSION.email:''},_qtyCollect('dpq'+rid.replace(/[^A-Za-z0-9]/g,''))));
     if(!res||!res.ok){
       if(statusEl){statusEl.style.color='var(--danger)';statusEl.textContent=(res&&res.error)||'Could not save.';}
       return;
     }
     if(_dataPricesCache){
       const item=_dataPricesCache.find(p=>(id&&String(p.id)===String(id))||(!id&&p.row===row));
-      if(item){item.name=name;item.amount=amount;item.description=description;item.fullDayMultiplier=fullDayMultiplier;item.fullDayAmount=res.fullDayAmount;item.dateStamp=new Date().toISOString();}
+      if(item){item.name=name;item.amount=amount;item.description=description;item.fullDayMultiplier=fullDayMultiplier;item.fullDayAmount=res.fullDayAmount;item.dateStamp=new Date().toISOString();if(res.qty)item.qty=res.qty;}
     }
     toggleEditPrice(rid);
     renderDataPrices();
