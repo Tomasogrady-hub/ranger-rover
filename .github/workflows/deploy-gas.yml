@@ -52,6 +52,20 @@ jobs:
           clasp push --force
           clasp status
 
+      - name: Make room - delete ONLY the oldest deployments (Google allows 20; keep newest 18)
+        run: |
+          cd gas_work
+          clasp deployments | tee dep.txt
+          grep -E 'AKfycb[A-Za-z0-9_-]+ +@[0-9]+' dep.txt \
+            | sed -E 's/^.*(AKfycb[A-Za-z0-9_-]+) +@([0-9]+).*$/\2 \1/' | sort -n > vers.txt || true
+          N=$(wc -l < vers.txt)
+          echo "Versioned deployments: $N"
+          if [ "$N" -ge 19 ]; then
+            DEL=$((N-18))
+            echo "Deleting the $DEL oldest:"
+            head -n "$DEL" vers.txt | while read -r v d; do echo "  version $v $d"; clasp undeploy "$d"; done
+          fi
+
       - name: Create a new deployment
         id: deploy
         run: |
@@ -64,16 +78,3 @@ jobs:
           echo "New web app URL: https://script.google.com/macros/s/$ID/exec"
           echo "## New deployment" >> "$GITHUB_STEP_SUMMARY"
           echo "https://script.google.com/macros/s/$ID/exec" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Prune only the oldest deployments (keeps the newest 150)
-        continue-on-error: true
-        run: |
-          cd gas_work
-          clasp deployments | grep -oE 'AKfycb[A-Za-z0-9_-]+' > all.txt || true
-          TOTAL=$(wc -l < all.txt)
-          echo "Deployments found: $TOTAL"
-          if [ "$TOTAL" -gt 190 ]; then
-            # clasp lists oldest first; delete the oldest down to 150 (never the newest)
-            DEL=$((TOTAL-150))
-            head -n "$DEL" all.txt | while read -r d; do clasp undeploy "$d" || true; done
-          fi
