@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.22 -->
+<!-- v12.23 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.22';
+const APP_VERSION='v12.23';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-18 12:02 PT - Quote PDF: item photos fill the page width, Our Work starts on a new page with a Playfair 42 bold heading.';
+const BUILD_STAMP='2026-11-18 12:56 PT - Program quotes: choose one Type 2 = Program item, enter # of units, subtotal and line name fill in automatically.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4442,6 +4442,28 @@ function _qtFormOpts(cat,sel){
 function _qtTypeChanged(){
   const c=(document.getElementById('qtNCat')||{}).value,f=document.getElementById('qtNForm');
   if(f){f.innerHTML=_qtFormOpts(c,'');f.disabled=!c;}
+  _qtApplyType();
+}
+function _qtProgItems(){return _qtQItems.filter(i=>i.isProgram);}
+function _qtProgOpts(sel){
+  const l=_qtProgItems();
+  return '<option value="">'+(l.length?'Choose a Program item':'No items with Type 2 = Program')+'</option>'+l.map(i=>`<option value="${ea(i.id)}"${i.id===sel?' selected':''}>${escHtml(i.name)}</option>`).join('');
+}
+function _qtApplyType(){
+  const prog=((document.getElementById('qtNCat')||{}).value)==='Program';
+  const a=document.getElementById('qtNProg'),m=document.getElementById('qtNMaker');
+  if(a)a.style.display=prog?'block':'none';if(m)m.style.display=prog?'none':'block';
+  _qtProgCalc();
+}
+function _qtProgCalc(){
+  const sel=document.getElementById('qtNProgItem');if(!sel)return;
+  const it=_qtQItems.find(i=>i.id===sel.value),u=Math.round(Number((document.getElementById('qtNUnits')||{}).value)||0);
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
+  const amt=it?Number(it.amount)||0:0,sub=Math.round(amt*u*100)/100;
+  set('qtNUnitPrice',it?'$'+amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'');
+  set('qtNSubtotal',(it&&u>0)?'$'+sub.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'');
+  set('qtNLineName',(it&&u>0)?it.name+' '+u+' unit'+(u===1?'':'s'):'');
+  if(it&&u>0)set('qtNBulk',String(sub));
 }
 function _qtQtyOpts(sel){
   const vals=['N/A'];for(let n=1;n<=30;n++)vals.push(String(n));[40,50,60,75,100,150,200,300,500].forEach(n=>vals.push(String(n)));
@@ -4453,8 +4475,8 @@ function _qtSetQty(sel,val){
   sel.value=val;
 }
 function _qtQItemsHtml(){
-  if(!_qtQItems.length)return '<div class="sub-meta" style="padding:8px 0">No Quote Items yet. In Bulk Data > Items, set Type 1 to "Quote Item".</div>';
-  return _qtQItems.map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span><span style="display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--silver);letter-spacing:.04em;text-transform:uppercase">Qty<select class="qt-qty" data-id="${ea(i.id)}" onclick="event.stopPropagation()" onchange="var c=this.closest('label').querySelector('input[type=checkbox]');if(c&&!c.checked){c.checked=true;_qtItemCount();}" style="width:68px;padding:6px 2px;font-size:15px;text-align:center;border:1px solid var(--mist);border-radius:8px;background:#fff;color:var(--ink)">${_qtQtyOpts('1')}</select></span></label>`).join('');
+  if(!_qtQItems.filter(i=>!i.isProgram).length)return '<div class="sub-meta" style="padding:8px 0">No Quote Items yet. In Bulk Data > Items, set Type 1 to "Quote Item".</div>';
+  return _qtQItems.filter(i=>!i.isProgram).map(i=>`<label class="qt-qi" data-n="${ea((i.name+' '+i.desc).toLowerCase())}" style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--mist);font-size:14px;color:var(--ink)"><input type="checkbox" value="${ea(i.id)}" onchange="_qtItemCount()" style="margin-top:3px"><span style="flex:1;min-width:0"><b>${escHtml(i.name)}</b>${i.hasImg?' <span title="has photo">🖼</span>':''}<span style="display:block;font-size:12px;color:var(--stone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(i.desc.split('\n')[0]||'')}</span></span><span style="display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--silver);letter-spacing:.04em;text-transform:uppercase">Qty<select class="qt-qty" data-id="${ea(i.id)}" onclick="event.stopPropagation()" onchange="var c=this.closest('label').querySelector('input[type=checkbox]');if(c&&!c.checked){c.checked=true;_qtItemCount();}" style="width:68px;padding:6px 2px;font-size:15px;text-align:center;border:1px solid var(--mist);border-radius:8px;background:#fff;color:var(--ink)">${_qtQtyOpts('1')}</select></span></label>`).join('');
 }
 function _qtRefreshQItems(){
   const l=document.getElementById('qtNItemList');if(!l)return;
@@ -4497,10 +4519,21 @@ function qtNewToggle(show,edit){
       <div id="qtNHint" class="sub-meta" style="margin:-4px 0 8px"></div>
       <label ${lab}>Paragraph about scope of work</label>
       <textarea id="qtNScope" ${inp} rows="3" maxlength="2000" placeholder="A short paragraph describing the scope of work (optional)">${escHtml(e.scope||'')}</textarea>
+      <div id="qtNProg" style="display:none">
+        <label ${lab}>Program item (choose one)</label>
+        <select id="qtNProgItem" ${inp} onchange="_qtProgCalc()">${_qtProgOpts()}</select>
+        <div style="display:flex;gap:8px"><div style="flex:1;min-width:0"><label ${lab}># of units</label><input id="qtNUnits" ${inp} type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 1" oninput="_qtProgCalc()"></div>
+          <div style="flex:1;min-width:0"><label ${lab}>Price per unit</label><input id="qtNUnitPrice" ${inp} readonly placeholder="-" style="background:var(--mist)"></div>
+          <div style="flex:1;min-width:0"><label ${lab}>Subtotal</label><input id="qtNSubtotal" ${inp} readonly placeholder="-" style="background:var(--mist)"></div></div>
+        <label ${lab}>Quote line name (as it appears on the quote)</label>
+        <input id="qtNLineName" ${inp} readonly placeholder="Choose an item and enter the units" style="background:var(--mist)">
+      </div>
+      <div id="qtNMaker">
       <label ${lab}>Quote Items</label>
       <input id="qtNItemSearch" ${inp} type="search" placeholder="Search quote items" oninput="_qtItemFilter()">
       <div id="qtNItemList" style="max-height:260px;overflow:auto;border:1px solid var(--mist);border-radius:10px;padding:4px 10px;margin-bottom:8px">${_qtQItemsHtml()}</div>
       <div id="qtNItemCount" class="sub-meta" style="margin:-2px 0 8px">0 items chosen</div>
+      </div>
       <div style="display:flex;gap:8px"><div style="flex:1"><label ${lab}>Total price ($)</label><input id="qtNBulk" ${inp} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${ea(edit&&e.total!==undefined?e.total:'')}"></div>
         <div style="flex:1"><label ${lab}>Build date</label><input id="qtNBuild" ${inp} type="date" value="${ea(/^\d{4}-\d{2}-\d{2}$/.test(e.buildDate||'')?e.buildDate:'')}"></div></div>
       <div onclick="_qtLocToggle()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin:2px 0 8px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver)"><span id="qtNLocArrow" style="font-size:15px;width:14px">${(isEdit&&e.location)?'▾':'▸'}</span>Garden location (map picture at the end of the quote)</div>
@@ -4509,12 +4542,14 @@ function qtNewToggle(show,edit){
       <textarea id="qtNNotes" ${inp} rows="2" maxlength="2000" placeholder="Internal comments">${escHtml(e.notes||'')}</textarea>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${isEdit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; choose recipients</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
     _qtLocRender();
+    _qtApplyType();
     if(edit){
       const ids=new Set((edit.itemIds||[]).map(String));
       const qm=edit.itemQty||{};
       document.querySelectorAll('#qtNItemList input[type=checkbox]').forEach(c=>{if(ids.has(c.value))c.checked=true;});
       document.querySelectorAll('#qtNItemList .qt-qty').forEach(q=>{if(qm[q.dataset.id])_qtSetQty(q,qm[q.dataset.id]);});
       _qtItemCount();
+      if(e.category==='Program'&&ids.size){const pid=[...ids][0],ps=document.getElementById('qtNProgItem'),un=document.getElementById('qtNUnits');if(ps)ps.value=pid;if(un)un.value=String((qm[pid]&&qm[pid]!=='N/A')?qm[pid]:1);_qtProgCalc();if(edit&&e.total!==undefined){const tb=document.getElementById('qtNBulk');if(tb)tb.value=String(e.total);}}
     }
   }
   b.style.display=open?'block':'none';
@@ -4549,8 +4584,16 @@ function _qtSchoolPicked(){
 }
 async function qtSubmit(sendNow){
   const v=id=>((document.getElementById(id)||{}).value||'').trim();
-  const itemIds=[...document.querySelectorAll('#qtNItemList input[type=checkbox]:checked')].map(c=>c.value);
+  const isProg=v('qtNCat')==='Program';
+  let itemIds=[...document.querySelectorAll('#qtNItemList input[type=checkbox]:checked')].map(c=>c.value);
   const itemQty={};document.querySelectorAll('#qtNItemList .qt-qty').forEach(q=>{if(itemIds.indexOf(q.dataset.id)>-1)itemQty[q.dataset.id]=/^n\/?a$/i.test(String(q.value).trim())?'N/A':Math.max(1,Math.round(Number(q.value)||1));});
+  let programUnits='';
+  if(isProg){
+    const pid=v('qtNProgItem');programUnits=Math.round(Number(v('qtNUnits'))||0);
+    if(!pid){showSaveToast('Choose the Program item');return;}
+    if(!(programUnits>=1)){showSaveToast('Enter the # of units');return;}
+    itemIds=[pid];Object.keys(itemQty).forEach(k=>delete itemQty[k]);itemQty[pid]=programUnits;
+  }
   if(!v('qtNCat')){showSaveToast('Choose a quote type: Program, Maker or Miscellaneous');return;}
   if(!v('qtNSite')){showSaveToast('Choose a school');return;}
   if(!itemIds.length){showSaveToast('Choose at least one item');return;}
@@ -4559,7 +4602,7 @@ async function qtSubmit(sendNow){
   [b1,b2].forEach(b=>{if(b)b.disabled=true;});
   const editing=_qtEditId;
   try{
-    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,itemQty:itemQty,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes'),internalComments:v('qtNNotes')};
+    const payload={locationImage:_qtLoc.img||'',locationClear:!!(_qtLoc.clear&&!_qtLoc.img),summary:v('qtNSummary'),form:v('qtNForm'),category:v('qtNCat'),site:v('qtNSite'),contactName:v('qtNName'),contactEmail:v('qtNEmail'),scope:v('qtNScope'),itemIds:itemIds,itemQty:itemQty,programUnits:programUnits,bulkTotal:v('qtNBulk'),buildDate:v('qtNBuild'),notes:v('qtNNotes'),internalComments:v('qtNNotes')};
     let r=editing?await _qtCall('acctUpdateQuote',Object.assign({id:editing},payload)):await _qtCall('acctCreateQuote',Object.assign({format:'Items'},payload));
     if(r&&r.ok){
       let msg;

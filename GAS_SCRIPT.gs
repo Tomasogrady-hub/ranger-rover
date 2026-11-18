@@ -9478,7 +9478,14 @@ function handleAcctCreateQuote(p) {
     if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
     bulk = Number(p.bulkTotal);
     if (!(bulk >= 0) || bulk > 10000000 || p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined) return { ok: false, error: 'Enter the total price for this quote.' };
-    lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id).qty, unit: _acctQty(p, id).unit, price: 0 }; });
+    if (cat === 'Program') {
+      var pl = _acctProgramLines(p, ids, byId);
+      if (pl.error) return { ok: false, error: pl.error };
+      lines = pl.lines;
+    } else {
+      if (ids.some(function (id) { return byId[id].isProgram; })) return { ok: false, error: 'Program items can only be used on a Program quote.' };
+      lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id).qty, unit: _acctQty(p, id).unit, price: 0 }; });
+    }
   } else {
     lines = (p.lines || []).filter(function (l) { return l && String(l.desc || '').trim(); });
     if (!lines.length) return { ok: false, error: 'Add at least one line item.' };
@@ -9698,13 +9705,14 @@ const ACCT_QUOTE_TEMPLATE_ID = '1-siKS7iFwpTcKSjyBu41KZHCErXEQQIPmVp2kjRs5JA';
 function _acctQuoteItems() {
   var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sh) return [];
-  var v = sh.getDataRange().getValues(), h = v[0], ii = h.indexOf('ID'), ni = h.indexOf('Name'), t1 = _itemsTypeIdx(h), di = h.indexOf('Description'), im = _itemsImgIdxs(h), out = [];
+  var v = sh.getDataRange().getValues(), h = v[0], ii = h.indexOf('ID'), ni = h.indexOf('Name'), t1 = _itemsTypeIdx(h), t2 = h.indexOf('Type 2'), ai = h.indexOf('Amount'), di = h.indexOf('Description'), im = _itemsImgIdxs(h), out = [];
   for (var r = 1; r < v.length; r++) {
-    if (String(v[r][t1] || '').trim().toLowerCase() !== 'quote item') continue;
+    var isProg = t2 > -1 && String(v[r][t2] || '').trim().toLowerCase() === 'program';
+    if (String(v[r][t1] || '').trim().toLowerCase() !== 'quote item' && !isProg) continue;
     var id = String(v[r][ii] || '').trim(), name = String(v[r][ni] || '').trim();
     if (!id || !name) continue;
     var imgs = im.map(function (ix) { return ix > -1 ? String(v[r][ix] || '').trim() : ''; }).filter(String).slice(0, 3);
-    out.push({ id: id, name: name, desc: String(v[r][di] || '').trim(), img: imgs[0] || '', imgs: imgs, hasImg: imgs.length > 0 });
+    out.push({ id: id, name: name, isProgram: isProg, amount: ai > -1 ? (Number(String(v[r][ai] || '').replace(/[^0-9.\-]/g, '')) || 0) : 0, desc: String(v[r][di] || '').trim(), img: imgs[0] || '', imgs: imgs, hasImg: imgs.length > 0 });
   }
   return out;
 }
@@ -9741,8 +9749,18 @@ function _acctQty(p, id) {
   var n = Math.round(Number(raw));
   return { qty: n >= 1 && n <= 100000 ? n : 1, unit: '' };
 }
+// Program quotes: exactly one Type 2 = Program item and a number of units. The line is named e.g.
+// "Garden Ranger Program 2026/2027 3 units" (unit 'Program' marks it so the name is not suffixed again).
+function _acctProgramLines(p, ids, byId) {
+  if (ids.length !== 1) return { error: 'A Program quote takes exactly one Program item.' };
+  var it = byId[ids[0]];
+  if (!it || !it.isProgram) return { error: 'Choose one of the Program items (Type 2 = Program).' };
+  var u = Math.round(Number(p.programUnits !== undefined && p.programUnits !== '' ? p.programUnits : (p.itemQty ? p.itemQty[ids[0]] : 1)));
+  if (!(u >= 1 && u <= 100000)) return { error: 'Enter the number of units (1 or more).' };
+  return { lines: [{ itemId: it.id, desc: it.name + ' ' + u + ' unit' + (u === 1 ? '' : 's'), qty: u, unit: 'Program', price: 0 }], units: u, item: it };
+}
 function _acctQtyText(l) { return String(l.unit) === 'N/A' ? 'N/A' : String(l.qty || 1); }
-function _acctLineName(l) { return String(l.unit) !== 'N/A' && Number(l.qty) > 1 ? l.desc + ' (x' + l.qty + ')' : l.desc; }
+function _acctLineName(l) { return String(l.unit) === 'Program' ? l.desc : String(l.unit) !== 'N/A' && Number(l.qty) > 1 ? l.desc + ' (x' + l.qty + ')' : l.desc; }
 function _acctItemsText(lines) { return lines.map(_acctLineName).join('; '); }
 function _acctFillCell(cell, rows, align) {
   cell.clear();
@@ -9802,7 +9820,11 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   function fillRow(row, tok, val) { for (var ci = 0; ci < row.getNumCells(); ci++) fillTok(row.getCell(ci), tok, val); }
   function pat(tok) { return '\\{\\{' + tok.replace(/[#]/g, '\\#') + '\\}\\}'; }
   function paraOf(tok) { var f = body.findText(pat(tok)); return f ? f.getElement().getParent() : null; }
-  var list = lines.map(function (ln) { return items[ln.itemId] || { name: ln.desc, desc: '', img: '', imgs: [] }; });
+  var list = lines.map(function (ln) {
+    var base = items[ln.itemId] || { name: ln.desc, desc: '', img: '', imgs: [] };
+    if (String(ln.unit) === 'Program') { var cp = {}; for (var kk in base) cp[kk] = base[kk]; cp.name = ln.desc; return cp; }
+    return base;
+  });
 
   // 1) Detail block: repeat name / image / description once per item
   _acctStage = 'detail pages';
@@ -10022,7 +10044,15 @@ function handleAcctUpdateQuote(p) {
   if (ids.length > 40) return { ok: false, error: 'Too many items (40 max).' };
   var bulk = Number(p.bulkTotal);
   if (p.bulkTotal === '' || p.bulkTotal === null || p.bulkTotal === undefined || !(bulk >= 0) || bulk > 10000000) return { ok: false, error: 'Enter the total price for this quote.' };
-  var lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id).qty, unit: _acctQty(p, id).unit, price: 0 }; });
+  var lines;
+  if (cat === 'Program') {
+    var pl2 = _acctProgramLines(p, ids, byId);
+    if (pl2.error) return { ok: false, error: pl2.error };
+    lines = pl2.lines;
+  } else {
+    if (ids.some(function (id) { return byId[id].isProgram; })) return { ok: false, error: 'Program items can only be used on a Program quote.' };
+    lines = ids.map(function (id) { return { itemId: id, desc: byId[id].name, qty: _acctQty(p, id).qty, unit: _acctQty(p, id).unit, price: 0 }; });
+  }
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   var status;
   try {
