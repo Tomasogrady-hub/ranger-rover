@@ -9598,12 +9598,12 @@ function _acctMailParts(q) {
     '<p>Attached is quote <b>' + _acctEsc(q) + '</b> for <b>' + _acctEsc(site) + '</b>.</p>' +
     (summary ? '<p style="font-size:16px;margin:8px 0"><b>' + _acctEsc(summary) + '</b></p>' : '') +
     (scope ? '<p>' + _acctEsc(scope) + '</p>' : '') + list +
-    '<p style="font-size:15px">Total: <b>' + _acctMoney(total) + '</b><br><span style="color:#666">Valid through ' + _acctFmtDate(valid) + '</span></p>' +
+    '<p style="font-size:15px">Total: <b>' + _acctMoney(total) + '</b></p>' +
     '<p><a href="' + link + '" style="background:#2f6b35;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:bold">Review &amp; approve this quote</a></p>' +
     '<p>You can also just reply to this email with your purchase order or written approval.</p>' +
     '<p>Thank you,<br>' + _acctEsc(ACCT_ORG_NAME) + '</p>';
   var text = 'Quote ' + q + ' for ' + site + (summary ? ' - ' + summary : '') + '\n' + (names.length ? 'Includes: ' + names.join('; ') + '\n' : '') +
-    'Total ' + _acctMoney(total) + ', valid through ' + _acctFmtDate(valid) + '.\nApprove here: ' + link;
+    'Total ' + _acctMoney(total) + '.\nApprove here: ' + link;
   return { Q: Q, qm: qm, r: r, o: o, file: file, docUrl: docUrl, subject: 'Quote ' + q + ' from ' + ACCT_ORG_NAME + ' - ' + site, html: body, text: text };
 }
 function _acctMarkSent(m) {
@@ -9893,6 +9893,13 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     var tf = body.findText('This quote is an offer only');
     if (tf) { var tp = tf.getElement().getParent(); try { tp.removeFromParent(); } catch (eT) { try { tp.asParagraph().clear(); } catch (eT2) {} } }
   } catch (eTerms) {}
+  try {  // no "Valid Until" / "valid through" anywhere on the quote
+    var vg = 0, vf;
+    while ((vf = body.findText('(?i)valid (until|through)')) && vg++ < 20) {
+      var vp = vf.getElement().getParent();
+      try { vp.removeFromParent(); } catch (eV) { try { vp.asParagraph().clear(); } catch (eV2) { break; } }
+    }
+  } catch (eValid) {}
   var sumP = null, schP = null;
   try { sumP = paraOf('Summary'); schP = paraOf('School'); } catch (eSP) {}
 
