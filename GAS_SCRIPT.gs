@@ -9821,12 +9821,14 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     fillTok(pi, 'ITEM IMAGE', '');
     var blobs = (it.imgs || []).map(function (u) { return _acctImageBlob(u); }).filter(function (b) { return b; });
     if (blobs.length) {
-      var maxW = blobs.length === 1 ? 360 : (blobs.length === 2 ? 228 : 150);
+      var usableW = 468;
+      try { usableW = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eUW) {}
+      var maxW = blobs.length === 1 ? Math.min(360, usableW) : Math.floor((usableW - 7 * (blobs.length - 1)) / blobs.length);
       blobs.forEach(function (blob, bi) {
         try {
           var im = pi.appendInlineImage(blob), w = im.getWidth(), h = im.getHeight();
           if (w !== maxW) { im.setWidth(maxW); im.setHeight(Math.round(h * maxW / w)); }
-          if (bi < blobs.length - 1) pi.appendText('  ');
+          if (bi < blobs.length - 1) pi.appendText(' ');
         } catch (e) {}
       });
       try { pi.setSpacingAfter(6); pi.setKeepWithNext(true); } catch (e2) {}
@@ -9938,9 +9940,10 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   var owHead = null;
   try {
     if (!hasDetail) throw new Error('skipped');
+    body.appendPageBreak();
     owHead = body.appendParagraph('OUR WORK');
     try { owHead.setHeading(DocumentApp.ParagraphHeading.NORMAL); owHead.setAlignment(DocumentApp.HorizontalAlignment.LEFT); owHead.setSpacingBefore(28); owHead.setSpacingAfter(8); owHead.setKeepWithNext(true); } catch (e1) {}
-    try { owHead.editAsText().setBold(true); owHead.editAsText().setFontSize(18); owHead.editAsText().setForegroundColor('#000000'); } catch (e2) {}
+    try { owHead.editAsText().setBold(true); owHead.editAsText().setFontSize(42); owHead.editAsText().setForegroundColor('#000000'); } catch (e2) {}
     var owW = 468;
     try { owW = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eW0) {}
     ACCT_OUR_WORK.forEach(function (w, wi) {
@@ -9967,6 +9970,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   descParas.forEach(function (dp) {
     try { var dt = dp.editAsText(); dt.setFontFamily(ACCT_FONT_BODY).setFontSize(10.5).setBold(false).setItalic(false).setUnderline(false).setForegroundColor('#222222'); } catch (eD) {}
   });
+  if (owHead) { try { owHead.editAsText().setFontFamily('Playfair Display').setFontSize(42).setBold(true).setForegroundColor('#000000'); } catch (eOH) { _acctBuildNote += ' Our Work heading font not applied.'; } }
   capParas.forEach(function (cp) {
     try { cp.editAsText().setFontFamily('Playfair Display').setFontSize(18).setBold(false).setItalic(false).setForegroundColor('#222222'); } catch (eC) { _acctBuildNote += ' Caption font not applied.'; }
   });
