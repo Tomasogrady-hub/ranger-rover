@@ -2546,7 +2546,7 @@ if(window.visualViewport){
 }
 // Built-in Apps Script address. Whenever this changes in a new app version, every device switches to it once
 // (replacing a stale saved address); after that, the Settings > Apps Script API URL field still overrides it as before.
-const GAS_DEFAULT_URL='https://script.google.com/macros/s/AKfycbzz5sVMvvxF6k0Su5N1P1ZbnymOt1GFXgeZ8ya2NOPKcY26KqrJAwPWK9ZMQ_C_LQR-/exec';
+const GAS_DEFAULT_URL='https://script.google.com/macros/s/AKfycbxK_NmaVBC_1GZXYbB8ryZczv17d14w1DSJrCLUoMQZcSC9eBy7E4pkffvDZpwcMgfw/exec';
 try{if(localStorage.getItem('rr_gas_default')!==GAS_DEFAULT_URL){localStorage.setItem('rr_gas_url',GAS_DEFAULT_URL);localStorage.setItem('rr_gas_default',GAS_DEFAULT_URL);}}catch(e){}
 const CFG={
   URL:localStorage.getItem('rr_gas_url')||GAS_DEFAULT_URL,
