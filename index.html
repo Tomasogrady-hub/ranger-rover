@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.25 -->
+<!-- v12.26 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.25';
+const APP_VERSION='v12.26';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-18 16:10 PT - Quotes: start/finish dates and adjustment; Program pricing by units from Items (quantity, adjuster, expanded descriptions).';
+const BUILD_STAMP='2026-11-18 17:05 PT - Program item START/FINISH fill the quote dates; item name shown wherever the quote form had a raw item token.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4459,6 +4459,12 @@ function _qtApplyType(){
   if(l1)l1.textContent=w+' start';if(l2)l2.textContent=w+' finish';
   _qtProgCalc();
 }
+// Choosing a Program item fills Program start / finish from the item's START / FINISH columns (still editable afterwards)
+function _qtProgPick(){
+  const it=_qtQItems.find(i=>i.id===(document.getElementById('qtNProgItem')||{}).value);
+  if(it){const a=document.getElementById('qtNBuild'),b=document.getElementById('qtNFinish');if(a&&it.startDate)a.value=it.startDate;if(b&&it.finishDate)b.value=it.finishDate;}
+  _qtProgCalc();
+}
 function _qtProgCalc(){
   const sel=document.getElementById('qtNProgItem');if(!sel)return;
   const it=_qtQItems.find(i=>i.id===sel.value),u=Math.round(Number((document.getElementById('qtNUnits')||{}).value)||0);
@@ -4533,7 +4539,7 @@ function qtNewToggle(show,edit){
       <textarea id="qtNScope" ${inp} rows="3" maxlength="2000" placeholder="A short paragraph describing the scope of work (optional)">${escHtml(e.scope||'')}</textarea>
       <div id="qtNProg" style="display:none">
         <label ${lab}>Program item (choose one)</label>
-        <select id="qtNProgItem" ${inp} onchange="_qtProgCalc()">${_qtProgOpts()}</select>
+        <select id="qtNProgItem" ${inp} onchange="_qtProgPick()">${_qtProgOpts()}</select>
         <div style="display:flex;gap:8px"><div style="flex:1;min-width:0"><label ${lab}># of units</label><input id="qtNUnits" ${inp} type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 1" oninput="_qtProgCalc()"></div>
           <div style="flex:1;min-width:0"><label ${lab}>Price per unit (amount × adjuster)</label><input id="qtNUnitPrice" ${inp} readonly placeholder="-" style="background:var(--mist)"></div>
           <div style="flex:1;min-width:0"><label ${lab}>Subtotal</label><input id="qtNSubtotal" ${inp} readonly placeholder="-" style="background:var(--mist)"></div></div>

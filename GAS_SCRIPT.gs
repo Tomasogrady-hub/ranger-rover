@@ -9753,7 +9753,7 @@ const ACCT_QUOTE_TEMPLATE_ID = '1-siKS7iFwpTcKSjyBu41KZHCErXEQQIPmVp2kjRs5JA';
 function _acctQuoteItems() {
   var sh = SpreadsheetApp.openById(SITES_ID).getSheetByName('Items All');
   if (!sh) return [];
-  var v = sh.getDataRange().getValues(), h = v[0], ii = h.indexOf('ID'), ni = h.indexOf('Name'), t1 = _itemsTypeIdx(h), t2 = h.indexOf('Type 2'), ai = h.indexOf('Amount'), di = h.indexOf('Description'), im = _itemsImgIdxs(h), out = [], adji = h.indexOf('Adjuster'), exi = [1,2,3,4,5,6,7,8].map(function (n) { return h.indexOf(n + ' Unit Expanded Description'); });
+  var v = sh.getDataRange().getValues(), h = v[0], ii = h.indexOf('ID'), ni = h.indexOf('Name'), t1 = _itemsTypeIdx(h), t2 = h.indexOf('Type 2'), ai = h.indexOf('Amount'), di = h.indexOf('Description'), im = _itemsImgIdxs(h), out = [], adji = h.indexOf('Adjuster'), exi = [1,2,3,4,5,6,7,8].map(function (n) { return h.indexOf(n + ' Unit Expanded Description'); }), sti = _itemsHdrCI(h, 'START'), fni = _itemsHdrCI(h, 'FINISH');
   for (var r = 1; r < v.length; r++) {
     var isProg = t2 > -1 && String(v[r][t2] || '').trim().toLowerCase() === 'program';
     if (String(v[r][t1] || '').trim().toLowerCase() !== 'quote item' && !isProg) continue;
@@ -9762,7 +9762,8 @@ function _acctQuoteItems() {
     var imgs = im.map(function (ix) { return ix > -1 ? String(v[r][ix] || '').trim() : ''; }).filter(String).slice(0, 3);
     out.push({ id: id, name: name, isProgram: isProg, amount: ai > -1 ? (Number(String(v[r][ai] || '').replace(/[^0-9.\-]/g, '')) || 0) : 0, desc: String(v[r][di] || '').trim(), img: imgs[0] || '', imgs: imgs, hasImg: imgs.length > 0,
       adjuster: adji > -1 ? (Number(String(v[r][adji] || '').replace(/[^0-9.\-]/g, '')) || 1) : 1,
-      exp: exi.map(function (ix) { return ix > -1 ? String(v[r][ix] || '').trim() : ''; }) });
+      exp: exi.map(function (ix) { return ix > -1 ? String(v[r][ix] || '').trim() : ''; }),
+      startDate: sti > -1 ? _acctAnyDateIso(v[r][sti]) : '', finishDate: fni > -1 ? _acctAnyDateIso(v[r][fni]) : '' });
   }
   return out;
 }
@@ -9803,6 +9804,16 @@ function _acctQty(p, id) {
 // "Garden Ranger Program 2026/2027 3 units" (unit 'Program' marks it so the name is not suffixed again).
 // Program pricing from Items All: Derived Amount = units x Adjuster x Amount; the description is the item Description followed
 // by that unit count's "N Unit Expanded Description" (the same two formulas as the Items card).
+function _itemsHdrCI(h, name) { for (var i = 0; i < h.length; i++) { if (String(h[i]).trim().toUpperCase() === name) return i; } return -1; }
+// A START / FINISH cell as yyyy-mm-dd: a real date, or text such as 11/5/2026 or "Nov 5, 2026"; '' when it is not a date.
+function _acctAnyDateIso(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return _acctIso(v);
+  var t = String(v || '').trim();
+  if (!t) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  var d = new Date(t);
+  return isNaN(d.getTime()) ? '' : _acctIso(d);
+}
 function _acctDerivedAmount(it, u) { return Math.round(u * (Number(it.adjuster) || 1) * (Number(it.amount) || 0) * 100) / 100; }
 function _acctDerivedDesc(it, u) {
   var ex = (u >= 1 && u <= 8) ? String((it.exp || [])[u - 1] || '').trim() : '';
@@ -9991,6 +10002,14 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     try { if (rw.getNumCells() > 1) fillRaw(rw.getCell(1), 'Included', _acctQtyText(lines[m2])); } catch (eQ) { _acctBuildNote += ' Quantity cell: ' + eQ.message + '.'; }
   }
   try { if (ri > 0 && tbl.getRow(ri - 1).getNumCells() > 1) fillRaw(tbl.getRow(ri - 1).getCell(1), 'AMOUNT', 'QUANTITY'); } catch (eH2) {}
+  // Any other {{ITEM LINE}} (e.g. the Memorandum of Understanding heading on Program forms) shows the item name(s) instead of the raw token
+  try {
+    var allNames = list.map(function (x) { return x.name; }).join('; ');
+    fillTok(body, 'ITEM LINE', allNames);
+    fillTok(body, 'ITEM DESCRIPTION', String(list[0].desc || '').trim());
+    fillTok(body, 'ITEM AMOUNT', list.length === 1 ? _acctMoney(total) : 'Included');
+    fillTok(body, 'ITEM QTY', _acctQtyText(lines[0]));
+  } catch (eLeft) { _acctBuildNote += ' Leftover item tokens: ' + eLeft.message + '.'; }
 
   // Remove the old terms sentence, and remember the headline paragraphs (for fonts) before their tokens are filled
   try {
