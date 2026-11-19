@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.29 -->
+<!-- v12.30 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.29';
+const APP_VERSION='v12.30';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-19 11:40 PT - Document Types 1-3; attach Quote Item documents when emailing a quote; Save label; Opening-quote spinner.';
+const BUILD_STAMP='2026-11-19 11:25 PT - Document Types are now dropdowns with Add new type.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -19020,12 +19020,20 @@ function _docTypeVals(k){
 }
 function _docTypesHtml(f,t){
   const lab='font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:6px 0 3px';
-  return [1,2,3].map(n=>`<label style="${lab}">Type ${n}${n===2?' (Quote Item = can be attached to quotes)':''}</label><input id="docT${n}-${t}" class="settings-input" style="margin:0" list="docTL${n}-${t}" value="${ea(f['type'+n]||'')}" placeholder="Choose or type"><datalist id="docTL${n}-${t}">${_docTypeVals('type'+n).map(v=>`<option value="${ea(v)}">`).join('')}</datalist>`).join('')+
+  return [1,2,3].map(n=>{
+    const cur=f['type'+n]||'';
+    const opts=_docTypeVals('type'+n);if(cur&&opts.indexOf(cur)===-1)opts.push(cur);
+    return `<label style="${lab}">Type ${n}${n===2?' (Quote Item = can be attached to quotes)':''}</label><select id="docT${n}-${t}" class="settings-input" style="margin:0" onchange="docTypeSel(${n},'${t}')"><option value=""${cur?'':' selected'}>(none)</option>${opts.map(v=>`<option value="${ea(v)}"${v===cur?' selected':''}>${escHtml(v)}</option>`).join('')}<option value="__new__">＋ Add new type…</option></select><input id="docT${n}N-${t}" class="settings-input" style="margin:6px 0 0;display:none" placeholder="Type the new Type ${n}">`;
+  }).join('')+
     `<button type="button" class="settings-btn" style="margin:8px 0 0" onclick="docSaveTypes('${t}')">Save types</button>`;
+}
+function docTypeSel(n,t){
+  const sel=document.getElementById('docT'+n+'-'+t),inp=document.getElementById('docT'+n+'N-'+t);if(!sel||!inp)return;
+  const on=sel.value==='__new__';inp.style.display=on?'':'none';if(on)inp.focus();
 }
 async function docSaveTypes(t){
   const f=_docByTid(t);if(!f)return;
-  const v=n=>((document.getElementById('docT'+n+'-'+t)||{}).value||'').trim();
+  const v=n=>{const sel=document.getElementById('docT'+n+'-'+t);if(!sel)return '';if(sel.value==='__new__')return ((document.getElementById('docT'+n+'N-'+t)||{}).value||'').trim();return (sel.value||'').trim();};
   _docMsg(t,'Saving…',false);
   try{
     const r=await gasPost({action:'updateInfoFileTypes',fileId:f.templateId,type1:v(1),type2:v(2),type3:v(3),actor:SESSION?SESSION.email:''});

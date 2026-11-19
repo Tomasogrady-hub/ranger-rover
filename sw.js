@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ranger-rover-v12-29-a5306f43';
+const CACHE_NAME = 'ranger-rover-v12-30';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
