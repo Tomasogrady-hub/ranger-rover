@@ -9901,9 +9901,22 @@ function _acctQuoteItems() {
   }
   return out;
 }
+// Returns a downsized JPEG/PNG copy of a Drive image (keeps quote PDFs small). Falls back to null.
+function _acctSmallBlob_(fileId, maxW) {
+  try {
+    var rsp = UrlFetchApp.fetch('https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w' + (maxW || 1000),
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true, followRedirects: true });
+    if (rsp.getResponseCode() === 200) {
+      var b = rsp.getBlob(), ct = String(b.getContentType() || '');
+      if (/^image\//.test(ct) && b.getBytes().length > 1000) return b;
+    }
+  } catch (e) {}
+  return null;
+}
 function _acctImageBlob(url) {
   var id = _driveIdFromUrl(url);
   if (!id) return null;
+  var sm = _acctSmallBlob_(id, 1000); if (sm) return sm;
   try { return DriveApp.getFileById(id).getBlob(); } catch (e) {}
   try { var rsp = UrlFetchApp.fetch('https://lh3.googleusercontent.com/d/' + id + '=w900', { muteHttpExceptions: true }); if (rsp.getResponseCode() === 200) return rsp.getBlob(); } catch (e2) {}
   return null;
@@ -10107,7 +10120,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     if (String(o['Location'] || '').trim() && !locId) _acctBuildNote += ' Location link could not be read.';
     if (locId) {
       try {
-        var lb = DriveApp.getFileById(locId).getBlob(), by = lb.getBytes();
+        var lb = _acctSmallBlob_(locId, 1200) || DriveApp.getFileById(locId).getBlob(), by = lb.getBytes();
         var isPng = by.length > 4 && by[0] === -119 && by[1] === 80;
         locBlob = Utilities.newBlob(by, isPng ? 'image/png' : 'image/jpeg', 'location.' + (isPng ? 'png' : 'jpg'));
       } catch (eL) { _acctBuildNote += ' Location picture could not be read: ' + eL.message + '.'; }
@@ -10340,7 +10353,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     try { owW = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eW0) {}
     ACCT_OUR_WORK.forEach(function (w, wi) {
       try {
-        var wb = DriveApp.getFileById(w.id).getBlob(), by = wb.getBytes();
+        var wb = _acctSmallBlob_(w.id, 1000) || DriveApp.getFileById(w.id).getBlob(), by = wb.getBytes();
         var isPng = by.length > 4 && by[0] === -119 && by[1] === 80;
         var blob = Utilities.newBlob(by, isPng ? 'image/png' : 'image/jpeg', 'work' + wi + (isPng ? '.png' : '.jpg'));
         var ip = body.appendParagraph(''), wim = ip.appendInlineImage(blob), ww = wim.getWidth(), wh = wim.getHeight();
