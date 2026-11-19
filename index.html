@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.28 -->
+<!-- v12.29 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.28';
+const APP_VERSION='v12.29';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-18 17:50 PT - Header now also shows which Apps Script release is deployed.';
+const BUILD_STAMP='2026-11-19 11:40 PT - Document Types 1-3; attach Quote Item documents when emailing a quote; Save label; Opening-quote spinner.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4221,6 +4221,7 @@ async function qtSend(id){
   document.body.appendChild(m);
   let r=null,cr=null;
   try{[r,cr]=await Promise.all([_qtCall('acctGetPdf',{id:id}),_qtCall('acctQuoteContacts',{id:id}).catch(()=>null)]);}catch(e){}
+  try{if(typeof _docsHydrate==='function')_docsHydrate();if(!(_infoFilesCache&&_infoFilesCache.length))await _loadInfoFiles();}catch(e){}
   const body=document.getElementById('qtMailBody');if(!body)return;
   if(!r||!r.ok){body.innerHTML='<div class="sub-meta" style="color:var(--danger)">'+escHtml((r&&r.error)||'Could not prepare the PDF.')+'</div>';return;}
   if(!r.fileId){body.innerHTML='<div class="sub-meta" style="color:var(--danger)">The PDF has no file id - redeploy the Apps Script (new version), then try again.</div>';return;}
@@ -4229,23 +4230,35 @@ async function qtSend(id){
   body.innerHTML=`<div class="sub-meta" style="margin-bottom:8px">📎 ${escHtml(_qtShare.name)} will be attached in Reach, just as if you picked it there.</div>
     ${_qtShare.contacts.length?`<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:6px 0 4px">People at this school</div>`+_qtShare.contacts.map(c=>`<label style="${lbl}"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}"${c.email===_qtShare.pre?' checked':''} style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label||c.email)}</b> <span style="font-size:12px;color:var(--silver)">${escHtml(c.role)}</span><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join(''):'<div class="sub-meta">No contacts found for this school. You can pick people in Reach.</div>'}
     ${(()=>{const have=new Set(_qtShare.contacts.map(c=>String(c.email).toLowerCase()));const st=(DATA.humans||[]).filter(h=>(parseFloat(h['Access Level'])===1||parseFloat(h['Access Level'])===2)).map(h=>({email:String(h.Email||h.email||'').trim(),label:fullName(h)||h.Email||''})).filter(h=>h.email&&!have.has(h.email.toLowerCase())).sort((a,b)=>a.label.localeCompare(b.label));return st.length?`<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:12px 0 4px">Enrich LA team (Level 1 and 2)</div>`+st.map(c=>`<label style="${lbl}"><input type="checkbox" class="qtMailTo" value="${ea(c.email)}" style="margin-top:3px"><span style="min-width:0"><b>${escHtml(c.label)}</b><span style="display:block;font-size:12px;color:var(--stone);overflow-wrap:anywhere">${escHtml(c.email)}</span></span></label>`).join(''):'';})()}
+    ${(()=>{const dl=(_infoFilesCache||[]).filter(f=>String(f.type2||'').trim().toLowerCase()==='quote item');if(!dl.length)return '';return `<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);margin:10px 0 4px">Also attach documents</div>`+dl.map(f=>`<label style="${lbl}"><input type="checkbox" class="qtMailDoc" value="${ea(f.templateId)}" style="margin-top:3px"><span>${f.dynamic?'⚡':'📄'} ${escHtml(f.name)}<span class="sub-meta"> · ${f.dynamic?'dynamic (sent as a PDF)':'static'}</span></span></label>`).join('');})()}
     ${_qtShare.wasDraft?`<label style="${lbl};border:none"><input type="checkbox" id="qtMarkSent" checked style="margin-top:3px"><span>Mark this quote as Sent</span></label>`:''}
     <div style="margin-top:10px"><button type="button" class="settings-btn" style="margin:0" onclick="qtSendToReach()">Continue in Reach ›</button></div>`;
 }
-function qtSendToReach(){
+async function qtSendToReach(){
   const s=_qtShare;if(!s)return;
+  const docIds=[...document.querySelectorAll('.qtMailDoc:checked')].map(c=>c.value);
   const picked=[...document.querySelectorAll('.qtMailTo:checked')].map(c=>c.value);
   const known=new Set((DATA.humans||[]).map(h=>h.Email||h.email||''));
   const inApp=picked.filter(e=>known.has(e)),extra=picked.filter(e=>!known.has(e));
   const mark=!!(document.getElementById('qtMarkSent')&&document.getElementById('qtMarkSent').checked);
   const mb=document.getElementById('qtMailBox');if(mb)mb.remove();
+  const extra2=[];
+  if(docIds.length){
+    _showLoadOv('Getting the documents ready…');
+    for(const tid of docIds){
+      let f=_docByTid(tid);if(!f)continue;
+      try{if(_docStale(f))f=await _docRebuild(f,tid);}catch(e){}
+      extra2.push({name:f.isDoc?(f.name.replace(/\.pdf$/i,'')+'.pdf'):f.name,fileId:f.id,kind:'file'});
+    }
+    _hideLoadOv();
+  }
   _schoolReachSiteName=s.site;
   _reachSelected.clear();inApp.forEach(e=>_reachSelected.add(e));
-  _reachPendingAttach=[{name:s.name,fileId:s.fileId,kind:'file'}];
+  _reachPendingAttach=[{name:s.name,fileId:s.fileId,kind:'file'}].concat(extra2);
   _reachForwardPrefill={subject:s.subject,message:s.text,cc:extra.join(', ')};
   if(mark){_qtCall('acctMarkSent',{id:s.id}).then(r=>{if(r&&r.ok){_qtReplace(r.quote);renderQuotes();}}).catch(()=>{});}
   switchTab('reach');showReachPage('schoolask');
-  if(inApp.length){_subAskReachMode(inApp.length,'The quote PDF is attached. Choose Email to send it'+(extra.length?' (people not in the app are in CC).':'.'),false);}
+  if(inApp.length){_subAskReachMode(inApp.length,'The quote PDF'+(extra2.length?' and '+extra2.length+' document'+(extra2.length===1?'':'s'):'')+' attached. Choose Email to send it'+(extra.length?' (people not in the app are in CC).':'.'),false);}
   else showToast(extra.length?'📎 Quote attached. Pick who to send it to (outside contacts are in CC).':'📎 Quote attached. Pick who to send it to.');
 }
 async function qtDuplicate(id){
@@ -4564,7 +4577,7 @@ function qtNewToggle(show,edit){
       <div id="qtNLocWrap" style="display:${(isEdit&&e.location)?'block':'none'}"><div id="qtNLocBox" style="margin-bottom:8px"></div></div>
       <label ${lab}>Internal comments (not on the quote)</label>
       <textarea id="qtNNotes" ${inp} rows="2" maxlength="2000" placeholder="Internal comments">${escHtml(e.notes||'')}</textarea>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${isEdit?'Save changes':'Save draft'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; choose recipients</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="settings-btn" style="margin:0" id="qtSaveBtn" onclick="qtSubmit(false)">${isEdit?'Save changes':'Save'}</button><button type="button" class="settings-btn" style="margin:0" id="qtSendBtn" onclick="qtSubmit(true)">Save &amp; choose recipients</button><button type="button" class="settings-btn" style="margin:0;background:var(--mist);color:var(--ink)" onclick="qtNewToggle(false)">Cancel</button></div></div>`;
     _qtLocRender();
     _qtApplyType();
     if(edit){
@@ -4589,10 +4602,15 @@ async function qtEdit(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
   if(x.status==='Approved'){showSaveToast('Approved quotes cannot be edited');return;}
   let ln=_qtLines[id];
-  if(ln===undefined){
-    try{const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;}catch(e){showSaveToast('Connection error');return;}
-  }
-  qtNewToggle(true,Object.assign({},x,{itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.unit==='N/A'?'N/A':(l.qty||1)]))}));
+  _showLoadOv('Opening '+id+' - it takes a few seconds');
+  try{
+    if(ln===undefined){
+      const r=await _qtCall('acctGetQuote',{id:id});ln=(r&&r.ok&&Array.isArray(r.lines))?r.lines:[];_qtLines[id]=ln;
+    }
+    await new Promise(r=>setTimeout(r,60));
+    qtNewToggle(true,Object.assign({},x,{itemIds:ln.map(l=>l.itemId).filter(Boolean),itemQty:Object.fromEntries(ln.filter(l=>l.itemId).map(l=>[l.itemId,l.unit==='N/A'?'N/A':(l.qty||1)]))}));
+  }catch(e){_hideLoadOv();showSaveToast('Connection error');return;}
+  _hideLoadOv();
   const b=document.getElementById('qtAddBox');if(b)b.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function _qtSchoolPicked(){
@@ -18994,11 +19012,33 @@ async function saveEditItem(rid,pfx){
 // rename / replace the selected one, and mark it public (anyone with the link) or not.
 let _infoFilesCache=null;
 let _infoDataVer='0';
+let _docTypeOpts={type1:[],type2:['Quote Item'],type3:[]};
+function _docTypeVals(k){
+  const s=new Set((_docTypeOpts&&_docTypeOpts[k])||[]);(_infoFilesCache||[]).forEach(f=>{if(f[k])s.add(f[k]);});
+  if(k==='type1'){s.add('static');s.add('dynamic');}if(k==='type2')s.add('Quote Item');
+  return [...s].sort((a,b)=>a.toLowerCase()<b.toLowerCase()?-1:1);
+}
+function _docTypesHtml(f,t){
+  const lab='font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--silver);display:block;margin:6px 0 3px';
+  return [1,2,3].map(n=>`<label style="${lab}">Type ${n}${n===2?' (Quote Item = can be attached to quotes)':''}</label><input id="docT${n}-${t}" class="settings-input" style="margin:0" list="docTL${n}-${t}" value="${ea(f['type'+n]||'')}" placeholder="Choose or type"><datalist id="docTL${n}-${t}">${_docTypeVals('type'+n).map(v=>`<option value="${ea(v)}">`).join('')}</datalist>`).join('')+
+    `<button type="button" class="settings-btn" style="margin:8px 0 0" onclick="docSaveTypes('${t}')">Save types</button>`;
+}
+async function docSaveTypes(t){
+  const f=_docByTid(t);if(!f)return;
+  const v=n=>((document.getElementById('docT'+n+'-'+t)||{}).value||'').trim();
+  _docMsg(t,'Saving…',false);
+  try{
+    const r=await gasPost({action:'updateInfoFileTypes',fileId:f.templateId,type1:v(1),type2:v(2),type3:v(3),actor:SESSION?SESSION.email:''});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'Could not save');
+    Object.assign(f,{type1:v(1),type2:v(2),type3:v(3)});if(r.options)_docTypeOpts=r.options;
+    _docsPersist();_paintDocs();_docMsg(t,'Saved',false);
+  }catch(e){_docMsg(t,e.message,true);}
+}
 async function _loadInfoFiles(force){
   if(_infoFilesCache&&!force)return _infoFilesCache;
   try{
     const r=await gasPost({action:'getInfoFiles'});
-    if(r&&r.ok){_infoFilesCache=r.files||[];_infoDataVer=String(r.dataVer||'0');_docsPersist();}
+    if(r&&r.ok){_infoFilesCache=r.files||[];_infoDataVer=String(r.dataVer||'0');if(r.typeOptions)_docTypeOpts=r.typeOptions;_docsPersist();}
   }catch(e){}
   return _infoFilesCache||[];
 }
@@ -19201,7 +19241,7 @@ function _docRowHtml(f){
   let sub='';
   if(docView!=='simple'){
     const when=f.dynamic?('Updated '+(f.refreshed||'not yet')):(f.modified?'Edited '+fmtDate(f.modified):'');
-    sub=`<div style="margin:2px 0 0 28px;font-size:12px;color:var(--silver)">${f.dynamic?'Dynamic':'Static'}${when?' · '+escHtml(when):''}</div>`;
+    sub=`<div style="margin:2px 0 0 28px;font-size:12px;color:var(--silver)">${f.dynamic?'Dynamic':'Static'}${when?' · '+escHtml(when):''}${[f.type2,f.type3].filter(Boolean).length?' · '+escHtml([f.type2,f.type3].filter(Boolean).join(' / ')):''}</div>`;
   }
   if(docView==='detailed'){
     const used=_docUsedBy(f);
@@ -19220,6 +19260,7 @@ function _docRowHtml(f){
       <button type="button" class="settings-btn" style="${ab}" onclick="docShare('${t}')">🔗 Share</button>
       <button type="button" class="settings-btn" style="${ab};color:var(--danger)" onclick="docDelete('${t}')">🗑 Delete</button>
       <button type="button" class="settings-btn" style="${ab}" onclick="docDuplicate('${t}')">⧉ Duplicate</button>
+      <div style="border-top:1px solid var(--mist);margin-top:4px;padding-top:4px">${_docTypesHtml(f,t)}</div>
       <div id="docMsg-${t}" style="font-size:12px;min-height:14px"></div>
     </div>
     <div style="height:${docView==='simple'?'8':'12'}px"></div></div>`;

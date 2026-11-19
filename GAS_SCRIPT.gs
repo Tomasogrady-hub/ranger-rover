@@ -88,7 +88,7 @@ const SCHEDULES_FOLDER  = '1QJ9PxuI9o1MoBd-_89B36xP4NSwa4KpN';
 const ITEM_IMG_FOLDER   = '1cbPd2FInZJvZY2pDiWBmwDRd4u_H-PlB'; // "Item Images" (parent)
 // One subfolder per Items All image column: Image 1 -> "Item Images 1", Image 2 -> "Item Images 2", Image 3 -> "Item Images 3"
 const ITEM_IMG_FOLDERS  = ['1qcKSbRCk7QtH_9CKS8rhRmxTfNRHxq4q', '1V8QbP-5uqLzPtFX718hVdJVoSjPMNil8', '1vsf3Bt4e7LT5ocVaP2ZTIZGbQqw3WPdf'];
-const INFO_SHEET_ID     = '14Z6I1lPXGlI83NKo1ko7KX1S8GqxDCajv6EbQTyS690'; // "Information Files" tracking sheet (ID, Name, Description, Type)
+const INFO_SHEET_ID     = '14Z6I1lPXGlI83NKo1ko7KX1S8GqxDCajv6EbQTyS690'; // "Information Files" tracking sheet (ID, Name, Description, Type 1, Type 2, Type 3)
 const PROJECTS_ID       = '1i0cUEIzd8M_5LXSvc8NgDcUeGPYEuCJYRCSOqhNjYcg'; // Project Rover sheet, tab "Projects"
 const INFO_FILES_FOLDER = '1x8zbWU-t4KJHtNuoj5VqpBtvcJRdMHDI'; // Items All > "Link to information file"
 // Inside it: "Static Documents" and "Dynamic Documents", each with a "Templates" subfolder
@@ -827,6 +827,7 @@ function _doPostRoute(e) {
       case 'uploadInfoFile':  return respond(handleUploadInfoFile(p));
       case 'uploadItemImage': return respond(handleUploadItemImage(p));
       case 'updateInfoFile':  return respond(handleUpdateInfoFile(p));
+      case 'updateInfoFileTypes': return respond(handleUpdateInfoFileTypes(p));
       case 'replaceInfoFile': return respond(handleReplaceInfoFile(p));
       case 'refreshDynamicDocs': return respond(handleRefreshDynamicDocs(p));
       case 'createDocFromTemplate': return respond(handleCreateDocFromTemplate(p));
@@ -4174,26 +4175,58 @@ function handleGetInfoFiles() {
     _eachInfoFile(function(f0, kind, path) { if ((kind === 'other' && path) || _isLiveCopy(f0)) return; var j = _infoFileJson(f0, kind); j.kind = kind; j.folder = path || ''; out.push(j); });
     out.sort(function(a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
     try { _syncInfoFilesSheet(out); } catch (e2) { Logger.log('info sheet sync: ' + e2.message); }
-    return { ok: true, files: out, dataVer: _dataVer() };
+    var tm = { map: {}, options: { type1: [], type2: ['Quote Item'], type3: [] } };
+    try { tm = _infoTypesMap(); } catch (e3) { Logger.log('info types: ' + e3.message); }
+    out.forEach(function(f) { var t = tm.map[f.templateId] || {}; f.type1 = t.type1 || (f.dynamic ? 'dynamic' : 'static'); f.type2 = t.type2 || ''; f.type3 = t.type3 || ''; });
+    return { ok: true, files: out, dataVer: _dataVer(), typeOptions: tm.options };
   } catch (e) { return { ok: false, error: e.message }; }
 }
-// Keeps the "Information Files" tracking sheet (ID | Name | Description | Type) in step with the
-// Static / Dynamic folders. ID = the file's template id. Description is typed by people and is kept.
-// Only rewrites when something changed (signature stored in Script Properties).
+// The "Information Files" tracking sheet: ID | Name | Description | Type 1 | Type 2 | Type 3.
+// ID = the file's template id. Description and Types 1-3 are typed by people (Documents tab) and are kept; Type 1 starts
+// as static / dynamic. The sheet is kept in step with the Static / Dynamic folders (only rewritten when the file list changes).
+function _infoSheetRows() {
+  var sh = SpreadsheetApp.openById(INFO_SHEET_ID).getSheets()[0], last = sh.getLastRow();
+  return { sh: sh, rows: last > 1 ? sh.getRange(2, 1, last - 1, 6).getValues() : [] };
+}
 function _syncInfoFilesSheet(files) {
   var rows = files.map(function(f) { return [f.templateId, f.name, f.dynamic ? 'dynamic' : 'static']; });
-  var sig = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(rows)));
+  var sig = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(rows) + '|v2'));
   var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('INFO_SHEET_SIG') === sig) return;
-  var ss = SpreadsheetApp.openById(INFO_SHEET_ID), sh = ss.getSheets()[0];
-  var last = sh.getLastRow(), old = last > 1 ? sh.getRange(2, 1, last - 1, 4).getValues() : [];
-  var desc = {};
-  old.forEach(function(r) { if (r[0]) desc[String(r[0])] = r[2]; });
-  var out = rows.map(function(r) { return [r[0], r[1], desc[r[0]] || '', r[2]]; });
-  sh.getRange(1, 1, 1, 4).setValues([['ID', 'Name', 'Description', 'Type']]).setFontWeight('bold');
-  if (last > 1) sh.getRange(2, 1, last - 1, 4).clearContent();
-  if (out.length) sh.getRange(2, 1, out.length, 4).setValues(out);
-  props.setProperty('INFO_SHEET_SIG', sig);
+  if (props.getProperty('INFO_SHEET_SIG2') === sig) return;
+  var cur = _infoSheetRows(), sh = cur.sh, old = {};
+  cur.rows.forEach(function(r) { if (r[0]) old[String(r[0])] = r; });
+  var out = rows.map(function(r) { var o = old[r[0]] || []; return [r[0], r[1], o[2] || '', o[3] || r[2], o[4] || '', o[5] || '']; });
+  sh.getRange(1, 1, 1, 6).setValues([['ID', 'Name', 'Description', 'Type 1', 'Type 2', 'Type 3']]).setFontWeight('bold');
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 6).clearContent();
+  if (out.length) sh.getRange(2, 1, out.length, 6).setValues(out);
+  props.setProperty('INFO_SHEET_SIG2', sig);
+}
+function _infoTypesMap() {
+  var m = {}, opts = { type1: {}, type2: { 'Quote Item': true }, type3: {} };
+  _infoSheetRows().rows.forEach(function(r) {
+    if (!r[0]) return;
+    m[String(r[0])] = { type1: String(r[3] || '').trim(), type2: String(r[4] || '').trim(), type3: String(r[5] || '').trim() };
+    if (r[3]) opts.type1[String(r[3]).trim()] = true; if (r[4]) opts.type2[String(r[4]).trim()] = true; if (r[5]) opts.type3[String(r[5]).trim()] = true;
+  });
+  function keys(o) { return Object.keys(o).sort(function(a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }); }
+  return { map: m, options: { type1: keys(opts.type1), type2: keys(opts.type2), type3: keys(opts.type3) } };
+}
+// Saves Type 1 / Type 2 / Type 3 for one document (p.fileId = the document's template id).
+function handleUpdateInfoFileTypes(p) {
+  try {
+    var id = String(p.fileId || '').trim();
+    if (!id) return { ok: false, error: 'Missing file' };
+    var cur = _infoSheetRows(), sh = cur.sh, row = -1;
+    for (var i = 0; i < cur.rows.length; i++) { if (String(cur.rows[i][0]) === id) { row = i + 2; break; } }
+    if (row === -1) { var nm = ''; try { nm = DriveApp.getFileById(id).getName(); } catch (e0) {} row = Math.max(2, sh.getLastRow() + 1); sh.getRange(row, 1, 1, 2).setValues([[id, nm]]); }
+    function clean(v) { return String(v === undefined || v === null ? '' : v).trim().substring(0, 80); }
+    if (p.type1 !== undefined) sh.getRange(row, 4).setValue(clean(p.type1));
+    if (p.type2 !== undefined) sh.getRange(row, 5).setValue(clean(p.type2));
+    if (p.type3 !== undefined) sh.getRange(row, 6).setValue(clean(p.type3));
+    logActivity(p.actor || '', 'edited information file types', id, 'item', '');
+    var t = _infoTypesMap();
+    return { ok: true, types: t.map[id] || {}, options: t.options };
+  } catch (e) { return { ok: false, error: e.message }; }
 }
 // Uploads a photo for an Items All row into the matching "Item Images 1/2/3" Drive subfolder and writes
 // its URL into Image 1 / 2 / 3. p.itemId (or p.row), p.slot = 1 | 2 | 3.
@@ -9912,6 +9945,8 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   function fillRow(row, tok, val) { for (var ci = 0; ci < row.getNumCells(); ci++) fillTok(row.getCell(ci), tok, val); }
   function pat(tok) { return '\\{\\{' + tok.replace(/[#]/g, '\\#') + '\\}\\}'; }
   function paraOf(tok) { var f = body.findText(pat(tok)); return f ? f.getElement().getParent() : null; }
+  var addrP0 = null, scopeP0 = null;
+  try { addrP0 = paraOf('Address'); scopeP0 = paraOf('Scope'); } catch (eP0) {}
   var list = lines.map(function (ln) {
     var base = items[ln.itemId] || { name: ln.desc, desc: '', img: '', imgs: [] };
     if (String(ln.unit) === 'Program') { var cp = {}; for (var kk in base) cp[kk] = base[kk]; cp.name = ln.desc; cp.desc = _acctDerivedDesc(base, Math.round(Number(ln.qty)) || 1); return cp; }
@@ -10028,6 +10063,45 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       try { vp.removeFromParent(); } catch (eV) { try { vp.asParagraph().clear(); } catch (eV2) { break; } }
     }
   } catch (eValid) {}
+  // Page layout: Program form - page break after the terms (before the Memorandum of Understanding).
+  // Maker / Misc form - page break after the school address, then Description first, a page break, then the items.
+  _acctStage = 'page breaks';
+  function hasPB(el) {
+    try { if (el.getType() !== DocumentApp.ElementType.PARAGRAPH) return false; var pp = el.asParagraph(); for (var pi = 0; pi < pp.getNumChildren(); pi++) { if (pp.getChild(pi).getType() === DocumentApp.ElementType.PAGE_BREAK) return true; } } catch (e) {}
+    return false;
+  }
+  function topIndex(el) {
+    var c = el, g = 0;
+    while (c && c.getParent() && c.getParent().getType() !== DocumentApp.ElementType.BODY_SECTION && g++ < 14) c = c.getParent();
+    return (c && c.getParent()) ? body.getChildIndex(c) : -1;
+  }
+  function pbAfter(idx) {
+    if (idx < 0) return;
+    for (var d = 1; d <= 2; d++) { if (idx + d < body.getNumChildren() && hasPB(body.getChild(idx + d))) return; }
+    body.insertPageBreak(idx + 1);
+  }
+  try {
+    if (isProgramQ) {
+      var jf = body.findText('johannarecalde@enrichla\\.org');
+      if (jf) pbAfter(topIndex(jf.getElement()));
+    } else {
+      if (addrP0) pbAfter(topIndex(addrP0));
+      var ti = tbl ? topIndex(tbl) : -1, si = scopeP0 ? topIndex(scopeP0) : -1;
+      if (ti > -1 && si > ti) {
+        var hi = -1;
+        for (var kk = si - 1; kk > ti && kk >= si - 4; kk--) {
+          var ce = body.getChild(kk);
+          if (ce.getType() === DocumentApp.ElementType.PARAGRAPH && /^\s*description\s*$/i.test(ce.asParagraph().getText())) { hi = kk; break; }
+        }
+        if (hi > -1) {
+          var hp = body.getChild(hi).asParagraph().copy(), sp = body.getChild(si).asParagraph().copy();
+          body.insertParagraph(ti, hp); body.insertParagraph(ti + 1, sp);
+          body.getChild(si + 2).removeFromParent(); body.getChild(hi + 2).removeFromParent();
+          body.insertPageBreak(ti + 2);
+        }
+      }
+    }
+  } catch (ePB) { _acctBuildNote += ' Page breaks not fully applied: ' + ePB.message + '.'; }
   var sumP = null, schP = null;
   try { sumP = paraOf('Summary'); schP = paraOf('School'); } catch (eSP) {}
 
