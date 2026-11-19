@@ -3261,7 +3261,18 @@ function handleSendMailMerge(p) {
             msgAttach.push(_reachBlob(m.attachFileId));
           } catch (attachErr) { /* send without the attachment */ }
         }
-        if (msgAttach.length) opts.attachments = msgAttach;
+        // Gmail refuses an email whose attachments total more than ~25 MB. Split them across
+        // several emails (each <= 18 MB) instead of failing the whole send.
+        var attGroups = _splitAttachments_(msgAttach, 18 * 1024 * 1024);
+        var tooBig = attGroups.tooBig;
+        if (tooBig.length) throw new Error('File too large to email (over 18 MB): ' + tooBig.join(', ') + '. Remove it or use a smaller file.');
+        var extraGroups = attGroups.groups.slice(1);
+        if (attGroups.groups.length) opts.attachments = attGroups.groups[0];
+        if (extraGroups.length) {
+          var note = 'Note: the attachments are too large for one email, so the rest follow in ' + extraGroups.length + ' more email' + (extraGroups.length > 1 ? 's' : '') + ' with the same subject.';
+          body = body + '\n\n' + note;
+          if (html) html = html + '<p><i>' + note + '</i></p>';
+        }
         if (html) {
           var usedInline = {};
           Object.keys(inlineImgs).forEach(function(k) { if (html.indexOf('cid:' + k) > -1) usedInline[k] = inlineImgs[k]; });
@@ -3275,6 +3286,12 @@ function handleSendMailMerge(p) {
         GmailApp.sendEmail(to, subject, body, opts);
         sentCount++;
         sentTo.push(to);
+        extraGroups.forEach(function (grp, gi) {
+          try {
+            GmailApp.sendEmail(to, subject + ' (attachments ' + (gi + 2) + ' of ' + (extraGroups.length + 1) + ')',
+              'Additional attachments for: ' + subject, { cc: msgCc || undefined, name: fromEmail, replyTo: replyTo, attachments: grp });
+          } catch (xe) { errors.push(to + ': follow-up attachments ' + (gi + 2) + ': ' + xe.message); }
+        });
       } catch (mailErr) {
         errors.push(to + ': ' + mailErr.message);
       }
@@ -10612,4 +10629,19 @@ function DIAG_rebuildLatestQuote() {
   Logger.log('Rebuilding latest quote: ' + q);
   try { _acctRebuild(q); Logger.log('DONE ok. Note: ' + (_acctBuildNote || 'none')); }
   catch (e) { Logger.log('FAILED at stage [' + _acctStage + ']: ' + e.message + (e.stack ? ' | ' + String(e.stack).split('\n').slice(0, 3).join(' / ') : '')); }
+}
+
+
+// Groups attachment blobs into batches whose total size stays under maxBytes.
+function _splitAttachments_(blobs, maxBytes) {
+  var groups = [], cur = [], curSize = 0, tooBig = [];
+  (blobs || []).forEach(function (b) {
+    var sz = 0;
+    try { sz = b.getBytes().length; } catch (e) {}
+    if (sz > maxBytes) { var nm = ''; try { nm = b.getName(); } catch (e2) {} tooBig.push((nm || 'file') + ' (' + Math.round(sz / 1048576) + ' MB)'); return; }
+    if (cur.length && curSize + sz > maxBytes) { groups.push(cur); cur = []; curSize = 0; }
+    cur.push(b); curSize += sz;
+  });
+  if (cur.length) groups.push(cur);
+  return { groups: groups, tooBig: tooBig };
 }
