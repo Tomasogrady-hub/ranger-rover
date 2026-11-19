@@ -4177,7 +4177,7 @@ function handleGetInfoFiles() {
     try { _syncInfoFilesSheet(out); } catch (e2) { Logger.log('info sheet sync: ' + e2.message); }
     var tm = { map: {}, options: { type1: [], type2: ['Quote Item'], type3: [] } };
     try { tm = _infoTypesMap(); } catch (e3) { Logger.log('info types: ' + e3.message); }
-    out.forEach(function(f) { var t = tm.map[f.templateId] || {}; f.type1 = t.type1 || (f.dynamic ? 'dynamic' : 'static'); f.type2 = t.type2 || ''; f.type3 = t.type3 || ''; });
+    out.forEach(function(f) { var t = tm.map[f.templateId] || {}; f.type1 = t.type1 || (f.dynamic ? 'dynamic' : 'static'); f.type2 = t.type2 || ''; f.type3 = t.type3 || ''; f.sheetDesc = t.desc || ''; });
     return { ok: true, files: out, dataVer: _dataVer(), typeOptions: tm.options };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -4205,7 +4205,7 @@ function _infoTypesMap() {
   var m = {}, opts = { type1: {}, type2: { 'Quote Item': true }, type3: {} };
   _infoSheetRows().rows.forEach(function(r) {
     if (!r[0]) return;
-    m[String(r[0])] = { type1: String(r[3] || '').trim(), type2: String(r[4] || '').trim(), type3: String(r[5] || '').trim() };
+    m[String(r[0])] = { type1: String(r[3] || '').trim(), type2: String(r[4] || '').trim(), type3: String(r[5] || '').trim(), desc: String(r[2] || '').trim() };
     if (r[3]) opts.type1[String(r[3]).trim()] = true; if (r[4]) opts.type2[String(r[4]).trim()] = true; if (r[5]) opts.type3[String(r[5]).trim()] = true;
   });
   function keys(o) { return Object.keys(o).sort(function(a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }); }
@@ -9917,6 +9917,16 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
         if (/^\s*PROPOSAL/i.test(ch0.asParagraph().getText())) break;
         body.insertParagraph(at0++, ch0.asParagraph().copy());
       }
+      // Compact the masthead so the whole Program quote (through the terms) fits on the first page
+      for (var mi = 0; mi < at0; mi++) {
+        try {
+          var mp = body.getChild(mi).asParagraph(); mp.setSpacingBefore(0); mp.setSpacingAfter(Math.min(4, mp.getSpacingAfter() || 0));
+          for (var ci = 0; ci < mp.getNumChildren(); ci++) {
+            var ce = mp.getChild(ci);
+            if (ce.getType() === DocumentApp.ElementType.INLINE_IMAGE) { var im = ce.asInlineImage(), iw = im.getWidth(), ih = im.getHeight(); im.setWidth(Math.round(iw * 0.6)); im.setHeight(Math.round(ih * 0.6)); }
+          }
+        } catch (eMp) {}
+      }
       var srcHead = srcDoc.getHeader();
       if (srcHead && (srcHead.getText().trim() || (srcHead.getNumChildren() > 0 && srcHead.getChild(0).getType() === DocumentApp.ElementType.PARAGRAPH && srcHead.getChild(0).asParagraph().getNumChildren() > 0)) && !doc.getHeader()) {
         var nh = doc.addHeader(); nh.clear();
@@ -9924,6 +9934,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       }
     } catch (eTop) { _acctBuildNote += ' Enrich LA masthead not added: ' + eTop.message + '.'; }
   }
+  if (isProgramQ) { try { body.setMarginTop(36); body.setMarginBottom(36); } catch (eMg) {} }
   // Inserts the value as plain text right after the token, then deletes the token (no replacement-string rules, so "$" and "\\" stay literal and the token's styling is kept).
   function fillTok(el, tok, val) {
     val = String(val == null ? '' : val);
@@ -10097,7 +10108,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
           var hp = body.getChild(hi).asParagraph().copy(), sp = body.getChild(si).asParagraph().copy();
           body.insertParagraph(ti, hp); body.insertParagraph(ti + 1, sp);
           body.getChild(si + 2).removeFromParent(); body.getChild(hi + 2).removeFromParent();
-          body.insertPageBreak(ti + 2);
+          // Description sits right above the items table on the same page (no page break between them)
         }
       }
     }
@@ -10133,8 +10144,9 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       var fd = body.findText(pat('Date'));
       if (fd) {
         var td = fd.getElement().asText();
-        td.insertText(fd.getEndOffsetInclusive() + 1, (startV ? '\nPROGRAM START\n' + startV : '') + (finV ? '\nPROGRAM FINISH\n' + finV : ''));
-        ['PROGRAM START', 'PROGRAM FINISH'].forEach(function (lbl) { var lf2 = body.findText(lbl); if (lf2) { try { lf2.getElement().asText().setBold(lf2.getStartOffset(), lf2.getEndOffsetInclusive(), true); } catch (eB) {} } });
+        var pdLab = (startV && finV) ? 'PROGRAM START / FINISH' : (startV ? 'PROGRAM START' : 'PROGRAM FINISH');
+        td.insertText(fd.getEndOffsetInclusive() + 1, '\n' + pdLab + '\n' + ((startV && finV) ? startV + ' - ' + finV : (startV || finV)));
+        [pdLab].forEach(function (lbl) { var lf2 = body.findText(lbl); if (lf2) { try { lf2.getElement().asText().setBold(lf2.getStartOffset(), lf2.getEndOffsetInclusive(), true); } catch (eB) {} } });
       }
     }
   } catch (eDates) { _acctBuildNote += ' Dates not fully placed: ' + eDates.message + '.'; }

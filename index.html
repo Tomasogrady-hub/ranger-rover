@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.30 -->
+<!-- v12.31 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.30';
+const APP_VERSION='v12.31';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-19 11:25 PT - Document Types are now dropdowns with Add new type.';
+const BUILD_STAMP='2026-11-19 11:56 PT - Quote emails: attached documents are described in the email text and prepared in the background; Maker page layout; compact Program first page.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4234,6 +4234,27 @@ async function qtSend(id){
     ${_qtShare.wasDraft?`<label style="${lbl};border:none"><input type="checkbox" id="qtMarkSent" checked style="margin-top:3px"><span>Mark this quote as Sent</span></label>`:''}
     <div style="margin-top:10px"><button type="button" class="settings-btn" style="margin:0" onclick="qtSendToReach()">Continue in Reach ›</button></div>`;
 }
+function _docNiceName(f){
+  const n=String((f&&f.name)||'').replace(/\.[a-z0-9]{2,4}$/i,'').replace(/^[\d\s_.\-]+/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/_+/g,' ').replace(/\s+/g,' ').trim();
+  return n||String((f&&f.name)||'document');
+}
+function _docEmailSentence(files){
+  if(!files.length)return '';
+  const items=files.map(f=>{const nice=_docNiceName(f),d=String(f.sheetDesc||'').trim().replace(/[.\s]+$/,'');return d?nice+' ('+d+')':nice;});
+  const list=items.length===1?items[0]:items.slice(0,-1).join('; ')+'; and '+items[items.length-1];
+  return 'I have also attached '+(files.length===1?'a document':files.length+' documents')+' for your reference: '+list+'.';
+}
+// A small card in the corner (not a blocking spinner) so people can keep working while documents are prepared.
+function _qtBgNote(kind,msg,onOpen){
+  let n=document.getElementById('qtBgNote');
+  if(!n){n=document.createElement('div');n.id='qtBgNote';n.style.cssText='position:fixed;right:14px;bottom:calc(var(--nav-h,120px) + var(--safe-bottom,0px) + 12px);max-width:340px;z-index:9998;background:var(--grove,#1e3a20);color:#fff;border-radius:14px;padding:12px 14px;font-family:var(--font-b);font-size:14px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.3)';document.body.appendChild(n);}
+  window._qtBgOpen=onOpen||null;
+  n.innerHTML=(kind==='working'?'<div style="display:flex;gap:10px;align-items:flex-start"><div class="spinner" style="width:18px;height:18px;margin:2px 0 0;flex:none"></div><div>'+msg+'</div></div>':
+    '<div style="display:flex;gap:10px;align-items:flex-start"><div style="flex:1">'+msg+'</div><button type="button" onclick="_qtBgClose()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 0 0 6px" aria-label="Dismiss">×</button></div>'+
+    (onOpen?'<button type="button" class="settings-btn" style="margin:10px 0 0;width:100%" onclick="_qtBgGo()">Open in Reach ›</button>':''));
+}
+function _qtBgClose(){const n=document.getElementById('qtBgNote');if(n)n.remove();window._qtBgOpen=null;}
+function _qtBgGo(){const f=window._qtBgOpen;_qtBgClose();if(f)f();}
 async function qtSendToReach(){
   const s=_qtShare;if(!s)return;
   const docIds=[...document.querySelectorAll('.qtMailDoc:checked')].map(c=>c.value);
@@ -4242,24 +4263,30 @@ async function qtSendToReach(){
   const inApp=picked.filter(e=>known.has(e)),extra=picked.filter(e=>!known.has(e));
   const mark=!!(document.getElementById('qtMarkSent')&&document.getElementById('qtMarkSent').checked);
   const mb=document.getElementById('qtMailBox');if(mb)mb.remove();
-  const extra2=[];
-  if(docIds.length){
-    _showLoadOv('Getting the documents ready…');
+  const finish=(extra2,docFiles)=>{
+    _schoolReachSiteName=s.site;
+    _reachSelected.clear();inApp.forEach(e=>_reachSelected.add(e));
+    _reachPendingAttach=[{name:s.name,fileId:s.fileId,kind:'file'}].concat(extra2);
+    const sentence=_docEmailSentence(docFiles||[]);
+    _reachForwardPrefill={subject:s.subject,message:(s.text||'')+(sentence?'\n\n'+sentence:''),cc:extra.join(', ')};
+    if(mark){_qtCall('acctMarkSent',{id:s.id}).then(r=>{if(r&&r.ok){_qtReplace(r.quote);renderQuotes();}}).catch(()=>{});}
+    switchTab('reach');showReachPage('schoolask');
+    if(inApp.length){_subAskReachMode(inApp.length,'The quote PDF'+(extra2.length?' and '+extra2.length+' document'+(extra2.length===1?'':'s'):'')+' attached. Choose Email to send it'+(extra.length?' (people not in the app are in CC).':'.'),false);}
+    else showToast(extra.length?'📎 Quote attached. Pick who to send it to (outside contacts are in CC).':'📎 Quote attached. Pick who to send it to.');
+  };
+  if(!docIds.length){finish([],[]);return;}
+  // Documents (especially live ones) take a moment: prepare them in the background and tell the person when ready.
+  const n=docIds.length;
+  _qtBgNote('working','Getting '+n+' document'+(n===1?'':'s')+' ready for '+escHtml(s.id)+'. <b>Carry on with your work.</b> We\'ll let you know when it\'s done.');
+  (async()=>{
+    const extra2=[],docFiles=[];
     for(const tid of docIds){
       let f=_docByTid(tid);if(!f)continue;
       try{if(_docStale(f))f=await _docRebuild(f,tid);}catch(e){}
-      extra2.push({name:f.isDoc?(f.name.replace(/\.pdf$/i,'')+'.pdf'):f.name,fileId:f.id,kind:'file'});
+      extra2.push({name:f.isDoc?(f.name.replace(/\.pdf$/i,'')+'.pdf'):f.name,fileId:f.id,kind:'file'});docFiles.push(f);
     }
-    _hideLoadOv();
-  }
-  _schoolReachSiteName=s.site;
-  _reachSelected.clear();inApp.forEach(e=>_reachSelected.add(e));
-  _reachPendingAttach=[{name:s.name,fileId:s.fileId,kind:'file'}].concat(extra2);
-  _reachForwardPrefill={subject:s.subject,message:s.text,cc:extra.join(', ')};
-  if(mark){_qtCall('acctMarkSent',{id:s.id}).then(r=>{if(r&&r.ok){_qtReplace(r.quote);renderQuotes();}}).catch(()=>{});}
-  switchTab('reach');showReachPage('schoolask');
-  if(inApp.length){_subAskReachMode(inApp.length,'The quote PDF'+(extra2.length?' and '+extra2.length+' document'+(extra2.length===1?'':'s'):'')+' attached. Choose Email to send it'+(extra.length?' (people not in the app are in CC).':'.'),false);}
-  else showToast(extra.length?'📎 Quote attached. Pick who to send it to (outside contacts are in CC).':'📎 Quote attached. Pick who to send it to.');
+    _qtBgNote('ready','✓ <b>'+escHtml(s.id)+'</b> is ready to send with '+extra2.length+' document'+(extra2.length===1?'':'s')+' attached.',()=>finish(extra2,docFiles));
+  })().catch(()=>_qtBgNote('ready','Could not prepare the documents. Please try again.',null));
 }
 async function qtDuplicate(id){
   const x=_qtQuotes.find(v=>v.id===id);if(!x)return;
