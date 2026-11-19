@@ -1,7 +1,7 @@
 <<<<<<< Updated upstream
-const CACHE_NAME = 'ranger-rover-v12-32-acfe7676';
+const CACHE_NAME = 'ranger-rover-v12-32-af9c7003';
 =======
-const CACHE_NAME = 'ranger-rover-v12-33-acfe7676';
+const CACHE_NAME = 'ranger-rover-v12-33-af9c7003';
 >>>>>>> Stashed changes
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
