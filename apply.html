@@ -148,7 +148,7 @@
 
 <script>
 (function(){
-  var FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbxoNzJQEy_7daOZAi-4bPJYqkiOzjcGqWVe6z6YnhOhfzkUvoEpri2DNsKgbGT9dPad/exec';
+  var FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbwMVLoVpHvEgo4AjRZC2X8X6kCFiAX4qV6IPAFVTZHGGDaQbPTzrdZ1wWeCHxOvvOve/exec';
   var GAS_URL = FALLBACK_URL;
   try { GAS_URL = localStorage.getItem('rr_gas_url') || FALLBACK_URL; } catch(e){}
   var posId = (new URLSearchParams(location.search).get('p') || '').trim();
