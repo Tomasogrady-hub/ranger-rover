@@ -558,6 +558,7 @@ function bumpLiveVersion(scopes) {
     var set = {};
     scopes.forEach(function(k) { set['rr_ver_' + k] = now; });
     props.setProperties(set, false);
+    try { CacheService.getScriptCache().remove('rr_vblob'); } catch (eC) {}
   } catch (e) { Logger.log('bumpLiveVersion failed: ' + e.message); }
 }
 
@@ -627,14 +628,96 @@ function _liveEnsureTrigger() {
   } catch (e) { Logger.log('live trigger install failed: ' + e.message); }
 }
 
+
+// ── SPEED: ready-made payload cache + per-viewer slimming (v12.32) ───────────────────────────────────────────
+// The big sheet reads (Sites, Chores, Humans+Roles) are stored gzipped in the script cache, keyed by the same
+// "live version" counters the app already uses, so a change (from the app, or an outside edit caught within a
+// minute) makes the next request rebuild it. A 5 minute cap protects against any write that does not bump a version.
+// ?fresh=1 (manual refresh) always rebuilds.
+function _payloadCached(scope, fresh, builder) {
+  var cache = CacheService.getScriptCache(), mk = 'pcm_' + scope, ver = '0';
+  try { ver = String(PropertiesService.getScriptProperties().getProperty('rr_ver_' + scope) || '0'); } catch (e0) {}
+  if (!fresh) {
+    try {
+      var meta = cache.get(mk);
+      if (meta) {
+        var m = JSON.parse(meta);
+        if (m.v === ver && m.n > 0) {
+          var keys = []; for (var i = 0; i < m.n; i++) keys.push('pcd_' + scope + '_' + i);
+          var got = cache.getAll(keys), b64 = '', ok = true;
+          for (var j = 0; j < keys.length; j++) { if (!got[keys[j]]) { ok = false; break; } b64 += got[keys[j]]; }
+          if (ok) return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), 'application/x-gzip')).getDataAsString());
+        }
+      }
+    } catch (e1) { Logger.log('payload cache read ' + scope + ': ' + e1.message); }
+  }
+  var data = builder();
+  try {
+    var gz = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(data), 'application/json', 'p.json')).getBytes());
+    var CH = 90000, n = Math.ceil(gz.length / CH);
+    if (n > 0 && n <= 20) {
+      var put = {}; for (var k = 0; k < n; k++) put['pcd_' + scope + '_' + k] = gz.substr(k * CH, CH);
+      cache.putAll(put, 300);
+      cache.put(mk, JSON.stringify({ v: ver, n: n }), 300);
+    }
+  } catch (e2) { Logger.log('payload cache write ' + scope + ': ' + e2.message); }
+  return data;
+}
+// Level 3 field staff (not 2.5 Garden Makers) only need their own schools in full. Other schools keep what the
+// Available / Future / All Active views use, minus contacts, long details and the heavy images.
+var L3_STRIP_OTHER_SITES = ['Site Details', 'Other Contacts', 'Teachers', 'Principal', 'School Administrative Assistant',
+  'Main Contact 1', 'Main Contact 2', 'Main Contact 3', 'Plant Manager', 'CPM', 'Helpful Image 1', 'Helpful Image 2',
+  'Helpful Before Image', 'Image 2', 'Image 3', 'Principal Email Raw', 'Principal First Name Raw', 'Principal Last Name Raw', 'Schedule'];
+var L3_STRIP_ALL_SITES = ['Financial Notes', 'Other Notes', 'Total Cost', 'Amount Owed', 'Amount Paid', 'Adjustment', 'Quote Number', 'Unit Description'];
+function _l3Viewer(me, humansPack) {
+  me = String(me || '').trim().toLowerCase();
+  if (!me || me.indexOf('@') < 1) return null;
+  var hs = (humansPack && humansPack.humans) || [];
+  for (var i = 0; i < hs.length; i++) {
+    if (String(hs[i]['Email'] || '').trim().toLowerCase() !== me) continue;
+    var lv = parseFloat(hs[i]['Access Level']); if (!(lv > 0)) lv = 3;
+    return { email: me, l3: lv >= 3 };
+  }
+  return null;
+}
+function _siteOwnedBy(row, me) {
+  return ['Ranger 1', 'Ranger 2', 'Garden Keeper'].some(function(c) { return String(row[c] || '').trim().toLowerCase() === me; });
+}
+function _slimSitesForL3(sites, me) {
+  return sites.map(function(r) {
+    var o = {}, own = _siteOwnedBy(r, me);
+    Object.keys(r).forEach(function(k) {
+      if (L3_STRIP_ALL_SITES.indexOf(k) > -1) return;
+      if (!own && L3_STRIP_OTHER_SITES.indexOf(k) > -1) return;
+      o[k] = r[k];
+    });
+    return o;
+  });
+}
+function _slimChoresForL3(chores, sites, me) {
+  var keys = {};
+  sites.forEach(function(r) { if (_siteOwnedBy(r, me)) keys[String(r['Key'] || '')] = true; });
+  return chores.filter(function(c) {
+    return keys[String(c.Site || '')] || String(c['Assigned to'] || '').trim().toLowerCase() === me || String(c['Asked by'] || '').trim().toLowerCase() === me;
+  });
+}
+// Heartbeat: answered from a 15 second cache, so the 20 second ping is nearly free.
+function _liveVersionsFast() {
+  var c = CacheService.getScriptCache();
+  try { var hit = c.get('rr_vblob'); if (hit) { var o = JSON.parse(hit); o.serverTime = Date.now(); return o; } } catch (e) {}
+  _liveEnsureTrigger();
+  var out = _liveGetVersions();
+  try { c.put('rr_vblob', JSON.stringify(out), 15); } catch (e2) {}
+  return out;
+}
+
 // ── doGet ─────────────────────────────────────────────────────────────────────
 function doGet(e) {
   var type = (e && e.parameter && e.parameter.type) || 'all';
 
   // Live-sync heartbeat — must stay tiny and fast (no sheet reads).
   if (type === 'ver') {
-    _liveEnsureTrigger();
-    var verOut = _liveGetVersions();
+    var verOut = _liveVersionsFast();
     try {
       var who = _presenceBeat(e.parameter.me, e.parameter.who === '1');
       if (who) verOut.online = who;
@@ -653,40 +736,36 @@ function doGet(e) {
   // type=humans → Humans + Roles only  (loaded in background)
   // (default)   → everything           (backward-compatible / cache warm-up)
 
+  var fresh = !!(e && e.parameter && e.parameter.fresh === '1');
+  var meQ = (e && e.parameter && e.parameter.me) || '';
+  function _sitesAll()  { return _payloadCached('sites',  fresh, function() { return readSheet(SITES_ID, 'Sites', BLOCKED_S, SITES_IMG_COLS, getFolderIndex(SITES_IMG_FOLDER)); }); }
+  function _choresAll() { return _payloadCached('chores', fresh, function() { return getOpenChores(getFolderIndex(CHORES_IMG_FOLDER)); }); }
+  function _humansPack() { return _payloadCached('humans', fresh, function() { return { humans: readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, getFolderIndex(HUMANS_IMG_FOLDER), HUMANS_FLAG_COLS), roles: getRoles() }; }); }
+  function _viewer() { return meQ ? _l3Viewer(meQ, _humansPack()) : null; }
+  function _sitesFor(v)  { var all = _sitesAll();  return (v && v.l3) ? _slimSitesForL3(all, v.email) : all; }
+  function _choresFor(v) { var all = _choresAll(); return (v && v.l3) ? _slimChoresForL3(all, _sitesAll(), v.email) : all; }
+
   if (type === 'sites') {
-    var sitesMapS = getFolderIndex(SITES_IMG_FOLDER);
-    return respond({ sites: readSheet(SITES_ID, 'Sites', BLOCKED_S, SITES_IMG_COLS, sitesMapS) });
+    return respond({ sites: _sitesFor(_viewer()) });
   }
 
   if (type === 'chores') {
-    var choresMapC = getFolderIndex(CHORES_IMG_FOLDER);
-    return respond({ chores: getOpenChores(choresMapC) });
+    return respond({ chores: _choresFor(_viewer()) });
   }
 
   if (type === 'core') {
-    var sitesMap  = getFolderIndex(SITES_IMG_FOLDER);
-    var choresMap = getFolderIndex(CHORES_IMG_FOLDER);
-    var sites  = readSheet(SITES_ID, 'Sites',  BLOCKED_S, SITES_IMG_COLS, sitesMap);
-    var chores = getOpenChores(choresMap);
-    return respond({ sites: sites, humans: [], roles: [], chores: chores });
+    var vC = _viewer();
+    return respond({ sites: _sitesFor(vC), humans: [], roles: [], chores: _choresFor(vC) });
   }
 
   if (type === 'humans') {
-    var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
-    var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap, HUMANS_FLAG_COLS);
-    var roles  = getRoles();
-    return respond({ humans: humans, roles: roles });
+    var hp = _humansPack();
+    return respond({ humans: hp.humans, roles: hp.roles });
   }
 
-  // 'all' — full payload (backward compat)
-  var sitesMap  = getFolderIndex(SITES_IMG_FOLDER);
-  var humansMap = getFolderIndex(HUMANS_IMG_FOLDER);
-  var choresMap = getFolderIndex(CHORES_IMG_FOLDER);
-  var sites  = readSheet(SITES_ID,  'Sites',  BLOCKED_S, SITES_IMG_COLS,  sitesMap);
-  var humans = readSheet(HUMANS_ID, 'Humans', BLOCKED_H, HUMANS_IMG_COLS, humansMap, HUMANS_FLAG_COLS);
-  var roles  = getRoles();
-  var chores = getOpenChores(choresMap);
-  return respond({ sites: sites, humans: humans, roles: roles, chores: chores });
+  // 'all' - full payload (backward compat)
+  var vA = _viewer(), hpA = _humansPack();
+  return respond({ sites: _sitesFor(vA), humans: hpA.humans, roles: hpA.roles, chores: _choresFor(vA) });
 }
 
 

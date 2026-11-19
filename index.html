@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.31 -->
+<!-- v12.32 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.31';
+const APP_VERSION='v12.32';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-19 11:56 PT - Quote emails: attached documents are described in the email text and prepared in the background; Maker page layout; compact Program first page.';
+const BUILD_STAMP='2026-11-19 12:13 PT - Speed: level 3 gets slimmed data, server caches payloads, lighter heartbeat, loading overlay only after 0.6s.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3640,9 +3640,9 @@ function _siteMissing(k){
 async function _refetchSitesForMissing(){
   if(_siteMissBusy)return;_siteMissBusy=true;
   try{
-    const j=await (await fetch(CFG.URL+'?t='+Date.now()+'&type=sites')).json();
+    const j=await (await fetch(_gq('sites'))).json();
     if(j&&j.sites&&j.sites.length){
-      DATA.sites=j.sites;
+      DATA.sites=j.sites;DATA._grp=_grp();
       try{localStorage.setItem(CFG.CK,JSON.stringify(DATA));}catch(e){}
       try{renderAll();}catch(e){}
       if(_activeTab==='sub'&&typeof renderSubs==='function')renderSubs();
@@ -5101,7 +5101,13 @@ async function roleDelete(row){
 
 // Ladybug loading screen — shown on a cold start (nothing cached yet) until sites, chores and people have all arrived.
 let _loadOvTimer=null;
+let _loadOvDelay=null;
+// The full-screen ladybug only appears if the wait is longer than ~0.6s; most loads finish before that and show nothing at all.
 function _showLoadOv(msg){
+  if(document.getElementById('rrLoadOv')||_loadOvDelay)return;
+  _loadOvDelay=setTimeout(()=>{_loadOvDelay=null;_buildLoadOv(msg);},600);
+}
+function _buildLoadOv(msg){
   if(document.getElementById('rrLoadOv'))return;
   const d=document.createElement('div');d.id='rrLoadOv';d.className='rr-load-ov';
   d.innerHTML=`<div class="rr-twirl" style="width:72px;height:72px">${lbSvg(72,false)}</div>${_threadBlock('rr-thread')}<div class="rr-load-t">${msg?`<b>${escHtml(msg)}</b><br>Going as fast as I can…`:`<b>Fetching everything.</b><br>Give me a moment. Going as fast as I can…`}</div>`;
@@ -5109,16 +5115,21 @@ function _showLoadOv(msg){
   clearTimeout(_loadOvTimer);_loadOvTimer=setTimeout(_hideLoadOv,30000); // never trap anyone behind it
 }
 function _hideLoadOv(){
-  clearTimeout(_loadOvTimer);
+  clearTimeout(_loadOvDelay);_loadOvDelay=null;clearTimeout(_loadOvTimer);
   const d=document.getElementById('rrLoadOv');if(!d)return;
   d.style.opacity='0';setTimeout(()=>{if(d.parentNode)d.remove();},260);
 }
+// GET URL for the data endpoints. Sends who is asking (so level 3 staff get only what they need) and, on a manual refresh, fresh=1.
+function _gq(type,fresh){return CFG.URL+'?t='+Date.now()+'&type='+type+(SESSION&&SESSION.email?'&me='+encodeURIComponent(SESSION.email):'')+(fresh?'&fresh=1':'');}
+// Cached data is stored per kind of viewer: level 3 staff get a slimmed copy, so never reuse it for anyone else (or vice versa).
+function _grp(){return (SESSION&&SESSION.accessLevel>=3&&!SESSION.l25)?'3':'x';}
+function _cacheGrpOk(c){const m=String(c).match(/"_grp":"(.)"/);return (m?m[1]:'x')===_grp();}
 async function loadData(force=false){
   // ── Cache hit: render immediately then return ──────────────────────────────
   if(!force){
     const c=localStorage.getItem(CFG.CK),ts=parseInt(localStorage.getItem(CFG.TK)||'0');
     const age=Date.now()-ts;
-    if(c&&age<CFG.STALE_TTL){
+    if(c&&age<CFG.STALE_TTL&&_cacheGrpOk(c)){
       try{
         DATA=JSON.parse(c);
         _humansLoaded=!!(DATA.humans&&DATA.humans.length);
@@ -5152,10 +5163,10 @@ async function loadData(force=false){
   try{
     setSync(true);
     const _vp=_liveFetchVer();
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const r=await fetch(_gq('core'));
     const j=await r.json();
     if(j.sites){
-      DATA.sites=j.sites;DATA.chores=j.chores||[];
+      DATA.sites=j.sites;DATA._grp=_grp();DATA.chores=j.chores||[];
       _vp.then(v=>{if(v)_liveAdopt(v,['sites','chores']);});
       // Render schools & chores tabs right away
       renderAll();
@@ -5173,7 +5184,7 @@ async function _loadHumansBackgroundInner(){
   if(!CFG.URL)return;
   try{
     const _vp=_liveFetchVer();
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
+    const r=await fetch(_gq('humans'));
     const j=await r.json();
     if(j.humans){
       DATA.humans=j.humans;DATA.roles=j.roles||[];
@@ -10417,9 +10428,9 @@ async function _refreshAndViewSite(siteKey,siteName){
   _showRefreshBlocker();
   try{
     showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const r=await fetch(_gq('core'));
     const j=await r.json();
-    if(j.sites&&j.sites.length)DATA.sites=j.sites;
+    if(j.sites&&j.sites.length)DATA.sites=j.sites;DATA._grp=_grp();
     if(j.chores&&j.chores.length)DATA.chores=j.chores;
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
   }catch(e){}
@@ -10439,9 +10450,9 @@ async function _refreshAndViewChore(choreId){
   _showRefreshBlocker();
   try{
     showSaveToast('One more second '+((SESSION?(SESSION.name||SESSION.email||'there'):'there').split(' ')[0])+', while we refresh…');
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const r=await fetch(_gq('core'));
     const j=await r.json();
-    if(j.sites&&j.sites.length)DATA.sites=j.sites;
+    if(j.sites&&j.sites.length)DATA.sites=j.sites;DATA._grp=_grp();
     if(j.chores&&j.chores.length)DATA.chores=j.chores;
     localStorage.setItem(CFG.CK,JSON.stringify(DATA));
   }catch(e){}
@@ -10471,11 +10482,11 @@ async function forceRefresh(){
   try{
     const _vp=_liveFetchVer();
     // Phase 1 — sites + chores
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const r=await fetch(_gq('core',true));
     const j=await r.json();
-    if(j.sites){DATA.sites=j.sites;DATA.chores=j.chores||[];}
+    if(j.sites){DATA.sites=j.sites;DATA._grp=_grp();DATA.chores=j.chores||[];}
     // Phase 2 — humans (background, don't block)
-    fetch(CFG.URL+'?t='+Date.now()+'&type=humans')
+    fetch(_gq('humans',true))
       .then(r2=>r2.json())
       .then(j2=>{if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;}
         const n=Date.now();localStorage.setItem(CFG.CK,JSON.stringify(DATA));localStorage.setItem(CFG.TK,n);syncTS(n);
@@ -10504,12 +10515,12 @@ async function _refreshAllBackground(){
   if(!CFG.URL)return;
   const _vp=_liveFetchVer();
   try{
-    const r=await fetch(CFG.URL+'?t='+Date.now()+'&type=core');
+    const r=await fetch(_gq('core'));
     const j=await r.json();
-    if(j.sites){DATA.sites=j.sites;DATA.chores=j.chores||[];}
+    if(j.sites){DATA.sites=j.sites;DATA._grp=_grp();DATA.chores=j.chores||[];}
   }catch(e){return;}
   try{
-    const r2=await fetch(CFG.URL+'?t='+Date.now()+'&type=humans');
+    const r2=await fetch(_gq('humans'));
     const j2=await r2.json();
     if(j2.humans){DATA.humans=j2.humans;DATA.roles=j2.roles||[];_humansLoaded=true;_resyncOwnAccessLevel();}
   }catch(e){}
@@ -10626,13 +10637,13 @@ async function _liveCheck(){
     const jobs=[];
     if(wantS||wantC){
       const type=(wantS&&wantC)?'core':(wantS?'sites':'chores');
-      jobs.push(fetch(CFG.URL+'?t='+Date.now()+'&type='+type).then(r=>r.json()).then(j=>{
+      jobs.push(fetch(_gq(type)).then(r=>r.json()).then(j=>{
         if(wantS&&j.sites&&j.sites.length)got.sites=j.sites;
         if(wantC&&j.chores)got.chores=j.chores;
       }));
     }
     if(need.includes('humans')){
-      jobs.push(fetch(CFG.URL+'?t='+Date.now()+'&type=humans').then(r=>r.json()).then(j=>{
+      jobs.push(fetch(_gq('humans')).then(r=>r.json()).then(j=>{
         if(j.humans&&j.humans.length){got.humans=j.humans;got.roles=j.roles||[];}
       }));
     }
