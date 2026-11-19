@@ -10002,8 +10002,9 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
           var mp = body.getChild(mi).asParagraph(); mp.setSpacingBefore(0); mp.setSpacingAfter(Math.min(4, mp.getSpacingAfter() || 0));
           for (var ci = 0; ci < mp.getNumChildren(); ci++) {
             var ce = mp.getChild(ci);
-            if (ce.getType() === DocumentApp.ElementType.INLINE_IMAGE) { var im = ce.asInlineImage(), iw = im.getWidth(), ih = im.getHeight(); im.setWidth(Math.round(iw * 0.6)); im.setHeight(Math.round(ih * 0.6)); }
+            if (ce.getType() === DocumentApp.ElementType.INLINE_IMAGE) { var im = ce.asInlineImage(), iw = im.getWidth(), ih = im.getHeight(); im.setWidth(Math.round(iw * 0.45)); im.setHeight(Math.round(ih * 0.45)); }
           }
+          if (!mp.getNumChildren() || mp.getText().trim()) { try { mp.editAsText().setFontSize(9); } catch (eFs) {} }
         } catch (eMp) {}
       }
       var srcHead = srcDoc.getHeader();
@@ -10173,6 +10174,62 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   try {
     if (isProgramQ) {
       var jf = body.findText('johannarecalde@enrichla\\.org');
+      // Squeeze page 1 (everything up to the terms) so the whole quote, totals and terms fit on one page
+      try {
+        var endIdx = jf ? topIndex(jf.getElement()) : -1;
+        if (endIdx > 0) {
+          var TT = DocumentApp.ElementType;
+          // a) blank rows of the items table: collapse to a sliver (kept, so the layout and shading stay)
+          for (var ri = 0; ri <= endIdx && ri < body.getNumChildren(); ri++) {
+            var tb = body.getChild(ri);
+            if (tb.getType() !== TT.TABLE) continue;
+            var tt = tb.asTable();
+            for (var rr2 = 0; rr2 < tt.getNumRows(); rr2++) {
+              var trw = tt.getRow(rr2);
+              if (trw.getText().trim()) continue;
+              try { trw.setMinimumHeight(2); } catch (eMh) {}
+              for (var cc = 0; cc < trw.getNumCells(); cc++) {
+                var tc = trw.getCell(cc);
+                try { tc.setPaddingTop(0); tc.setPaddingBottom(0); } catch (eP) {}
+                for (var pc = 0; pc < tc.getNumChildren(); pc++) {
+                  if (tc.getChild(pc).getType() !== TT.PARAGRAPH) continue;
+                  var cp = tc.getChild(pc).asParagraph();
+                  try { cp.setSpacingBefore(0); cp.setSpacingAfter(0); cp.setLineSpacing(1); cp.editAsText().setFontSize(2); } catch (eCp) {}
+                }
+              }
+            }
+          }
+          // b) tighter spacing on the other paragraphs before the end of page 1
+          for (var qi = 0; qi <= endIdx && qi < body.getNumChildren(); qi++) {
+            var qe = body.getChild(qi);
+            var paras = [];
+            if (qe.getType() === TT.PARAGRAPH) paras.push(qe.asParagraph());
+            else if (qe.getType() === TT.TABLE) {
+              var qt = qe.asTable();
+              for (var a1 = 0; a1 < qt.getNumRows(); a1++) for (var a2 = 0; a2 < qt.getRow(a1).getNumCells(); a2++) {
+                var qc = qt.getRow(a1).getCell(a2);
+                for (var a3 = 0; a3 < qc.getNumChildren(); a3++) if (qc.getChild(a3).getType() === TT.PARAGRAPH) paras.push(qc.getChild(a3).asParagraph());
+              }
+            }
+            paras.forEach(function (pp) {
+              if (!pp.getText().trim()) return;
+              try { pp.setSpacingBefore(Math.min(pp.getSpacingBefore() || 0, 2)); pp.setSpacingAfter(Math.min(pp.getSpacingAfter() || 0, 2)); } catch (eSp) {}
+            });
+          }
+          // c) remove empty paragraphs between blocks (never the last paragraph, and never one separating two tables)
+          for (var ei = endIdx - 1; ei >= 1; ei--) {
+            var pe = body.getChild(ei);
+            if (pe.getType() !== TT.PARAGRAPH) continue;
+            var pp2 = pe.asParagraph(), onlyText = true;
+            for (var ci2 = 0; ci2 < pp2.getNumChildren(); ci2++) { if (pp2.getChild(ci2).getType() !== TT.TEXT) onlyText = false; }
+            if (!onlyText || pp2.getText().trim()) continue;
+            var pv = body.getChild(ei - 1), nx = body.getChild(ei + 1);
+            if (pv.getType() === TT.TABLE && nx.getType() === TT.TABLE) continue;
+            try { pp2.removeFromParent(); } catch (eRm) {}
+          }
+        }
+      } catch (eSq) { _acctBuildNote += ' Page 1 not fully compacted: ' + eSq.message + '.'; }
+      jf = body.findText('johannarecalde@enrichla\\.org');
       if (jf) pbAfter(topIndex(jf.getElement()));
     } else {
       if (addrP0) pbAfter(topIndex(addrP0));
@@ -10223,7 +10280,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       var fd = body.findText(pat('Date'));
       if (fd) {
         var td = fd.getElement().asText();
-        var pdLab = (startV && finV) ? 'PROGRAM START / FINISH' : (startV ? 'PROGRAM START' : 'PROGRAM FINISH');
+        var pdLab = (startV && finV) ? 'PROGRAM DATES' : (startV ? 'PROGRAM START' : 'PROGRAM FINISH');
         td.insertText(fd.getEndOffsetInclusive() + 1, '\n' + pdLab + '\n' + ((startV && finV) ? startV + ' - ' + finV : (startV || finV)));
         [pdLab].forEach(function (lbl) { var lf2 = body.findText(lbl); if (lf2) { try { lf2.getElement().asText().setBold(lf2.getStartOffset(), lf2.getEndOffsetInclusive(), true); } catch (eB) {} } });
       }
