@@ -9881,9 +9881,9 @@ function _acctFillCell(cell, rows, align) {
 }
 // Builds the quote Google Doc from the template ("Quote Maker Form 1"): header block, one-line item list with the
 // single total, and detail pages (name, photo, description per item). Returns { docFile, pdf }.
-var _acctStage = '', _acctCopyId = '';
+var _acctStage = '', _acctCopyId = '', _acctT0 = 0;
 function _acctBuildItemsDoc(q, o, lines, total, valid, folderId) {
-  _acctStage = 'start'; _acctCopyId = '';
+  _acctStage = 'start'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms'); _acctCopyId = '';
   try { return _acctBuildItemsDoc_(q, o, lines, total, valid, folderId); }
   catch (e) {
     if (_acctCopyId) { try { DriveApp.getFileById(_acctCopyId).setTrashed(true); } catch (e2) {} }
@@ -9894,7 +9894,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   // The template Google Doc ("Quote Maker Form 1") holds ALL the layout, tables and formatting. This function only
   // substitutes {{tokens}}, repeats the {{ITEM LINE}} table row and the {{ITEM NAME}}/{{ITEM IMAGE}}/{{ITEM DESCRIPTION}} block.
   var site = String(o['Site'] || ''), folder = DriveApp.getFolderById(folderId);
-  _acctStage = 'copy template';
+  _acctStage = 'copy template'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   var items = {}; _acctQuoteItems().forEach(function (it) { items[it.id] = it; });
   var info = _acctSiteInfo(site);
   var form = _acctForm(o['Category'], o['Form']), tplId = form.id;
@@ -9903,12 +9903,12 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   catch (eTpl) { tplId = ACCT_QUOTE_TEMPLATE_ID; _acctBuildNote = 'Could not open ' + form.name + ', so Quote Maker Form 1 was used.'; }
   var copy = DriveApp.getFileById(tplId).makeCopy(q + ' - ' + site + ' (quote doc)', folder);
   _acctCopyId = copy.getId();
-  _acctStage = 'open template';
+  _acctStage = 'open template'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   var doc = DocumentApp.openById(copy.getId()), body = doc.getBody();
   var isProgramQ = String(o['Category'] || '') === 'Program';
   // Program forms get the same Enrich LA masthead (logo / tagline / non-profit line) as the Maker proposal, copied from Quote Maker Form 1
   if (isProgramQ && tplId !== ACCT_QUOTE_TEMPLATE_ID) {
-    _acctStage = 'enrich la masthead';
+    _acctStage = 'enrich la masthead'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
     try {
       var srcDoc = DocumentApp.openById(ACCT_QUOTE_TEMPLATE_ID), srcBody = srcDoc.getBody(), at0 = 0;
       for (var k0 = 0; k0 < srcBody.getNumChildren(); k0++) {
@@ -9954,7 +9954,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   });
 
   // 1) Detail block: repeat name / image / description once per item
-  _acctStage = 'detail pages';
+  _acctStage = 'detail pages'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   var nameP = paraOf('ITEM NAME'), imgP = paraOf('ITEM IMAGE'), descP = paraOf('ITEM DESCRIPTION');
   var hasDetail = !!(nameP && imgP && descP), nameParas = [], descParas = [], capParas = [], n0 = hasDetail ? body.getChildIndex(nameP) : 0;
   for (var k = hasDetail ? list.length - 1 : 0; k >= 1; k--) {
@@ -9994,7 +9994,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   // 1b) Garden location map at the end ({{LOCATION}} paragraph); removed when no map was chosen
   var locP = paraOf('LOCATION');
   if (locP) {
-    _acctStage = 'location map';
+    _acctStage = 'location map'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
     var locBlob = null, locId = _driveIdFromUrl(String(o['Location'] || ''));
     if (String(o['Location'] || '').trim() && !locId) _acctBuildNote += ' Location link could not be read.';
     if (locId) {
@@ -10028,7 +10028,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   }
 
   // 2) Item list table: clone the {{ITEM LINE}} row once per item
-  _acctStage = 'item list';
+  _acctStage = 'item list'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   var lf = body.findText(pat('ITEM LINE'));
   if (!lf) throw new Error('template is missing {{ITEM LINE}}');
   var row = lf.getElement().getParent().getParent().getParent().asTableRow(), tbl = row.getParent().asTable(), ri = tbl.getChildIndex(row);
@@ -10065,7 +10065,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   } catch (eValid) {}
   // Page layout: Program form - page break after the terms (before the Memorandum of Understanding).
   // Maker / Misc form - page break after the school address, then Description first, a page break, then the items.
-  _acctStage = 'page breaks';
+  _acctStage = 'page breaks'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   function hasPB(el) {
     try { if (el.getType() !== DocumentApp.ElementType.PARAGRAPH) return false; var pp = el.asParagraph(); for (var pi = 0; pi < pp.getNumChildren(); pi++) { if (pp.getChild(pi).getType() === DocumentApp.ElementType.PAGE_BREAK) return true; } } catch (e) {}
     return false;
@@ -10106,7 +10106,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   try { sumP = paraOf('Summary'); schP = paraOf('School'); } catch (eSP) {}
 
   // 3) Plain tokens (lines whose value is empty are removed)
-  _acctStage = 'header block';
+  _acctStage = 'header block'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   function setTok(tok, val, dropIfEmpty) {
     val = String(val == null ? '' : val).trim();
     var f = body.findText(pat(tok));
@@ -10121,7 +10121,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   var startV = _acctDateText(o['Date Start'] !== undefined ? o['Date Start'] : o['Build Date']), finV = _acctDateText(o['Date Finish']);
   var adjV = Number(o['Adjustment']) || 0, subV = Math.round(((Number(total) || 0) - adjV) * 100) / 100;
   var dWord = isProgramQ ? 'Program' : 'Build';
-  _acctStage = 'dates';
+  _acctStage = 'dates'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   try {
     if (body.findText(pat('Build Date'))) {
       // Maker / Misc layout: "Build Date: {{Build Date}}" becomes "Build Start: ..." and "Build Finish: ..." (Program: "Program Start / Program Finish")
@@ -10163,7 +10163,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   setTok('Total', _acctMoney(total));
   setTok('Scope', o['Scope'], true);
   // 4) OUR WORK: permanent photos with captions at the end
-  _acctStage = 'our work';
+  _acctStage = 'our work'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   var owHead = null;
   try {
     if (!hasDetail) throw new Error('skipped');
@@ -10188,7 +10188,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   } catch (eOW) { if (eOW.message !== 'skipped') _acctBuildNote += ' Our Work section failed: ' + eOW.message + '.'; }
 
   // 5) Fonts used in the app and on the website: Outfit for text, Cormorant Garamond for headlines
-  _acctStage = 'fonts';
+  _acctStage = 'fonts'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   if (hasDetail) { try { body.editAsText().setFontFamily(ACCT_FONT_BODY); } catch (eF) { _acctBuildNote += ' Body font not applied.'; } }
   (hasDetail ? [sumP, schP, owHead, (typeof hd !== 'undefined' ? hd : null)].concat(nameParas) : []).forEach(function (pp) {
     if (!pp) return; try { pp.editAsText().setFontFamily(ACCT_FONT_HEAD); } catch (eH) {}
@@ -10201,7 +10201,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   capParas.forEach(function (cp) {
     try { cp.editAsText().setFontFamily('Playfair Display').setFontSize(18).setBold(false).setItalic(false).setForegroundColor('#222222'); } catch (eC) { _acctBuildNote += ' Caption font not applied.'; }
   });
-  _acctStage = 'save and PDF';
+  _acctStage = 'save and PDF'; Logger.log('[quote build] ' + _acctStage + ' +' + (Date.now() - (_acctT0 || Date.now())) + 'ms');
   doc.saveAndClose();
   return { docFile: copy, pdf: copy.getAs('application/pdf').setName(q + ' - ' + site + '.pdf') };
 }
@@ -10453,4 +10453,15 @@ function handlePublicQuoteRespond(p) {
     try { GmailApp.sendEmail(ACCT_ORG_EMAIL, 'Quote ' + f.q + ' approved - ' + site, 'Approved by ' + name + (po ? ', PO # ' + po : '') + '. A record was added to Purchase Orders and Approvals in the Rover Accounting sheet.'); } catch (e) {}
     return { ok: true, message: 'Thank you! Your approval has been recorded.' };
   } catch (e) { return { ok: false, error: e.message === 'Quote not found: ' + String(p.q) ? 'This link is not valid.' : 'Something went wrong. Please try again.' }; }
+}
+
+
+// DIAGNOSTIC: run this from the Apps Script editor (select DIAG_rebuildLatestQuote, click Run) to rebuild the newest
+// quote and show, in the Execution log, each build stage with timings and the exact error (or where it hangs).
+function DIAG_rebuildLatestQuote() {
+  var Q = _acctSheet('Quotes'), qm = _acctHdr(Q), last = Q.getLastRow();
+  var q = String(Q.getRange(last, qm['Quote #']).getValue() || '');
+  Logger.log('Rebuilding latest quote: ' + q);
+  try { _acctRebuild(q); Logger.log('DONE ok. Note: ' + (_acctBuildNote || 'none')); }
+  catch (e) { Logger.log('FAILED at stage [' + _acctStage + ']: ' + e.message + (e.stack ? ' | ' + String(e.stack).split('\n').slice(0, 3).join(' / ') : '')); }
 }
