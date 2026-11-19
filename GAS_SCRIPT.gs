@@ -3292,7 +3292,7 @@ function handleSendMailMerge(p) {
     }
 
     logActivity(fromEmail, 'Sent Mail Merge', messages.length + ' emails', 'Mail Merge',
-      'To count: ' + messages.length + (errors.length ? ' · Failed: ' + errors.length : ''));
+      'To count: ' + messages.length + (errors.length ? ' · Failed: ' + errors.length + ' · ' + errors.slice(0,2).join(' | ').slice(0,300) : ''));
 
     return { ok: true, sent: sentCount, failed: errors.length, errors: errors.length ? errors : undefined };
 

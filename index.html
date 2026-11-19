@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.32 -->
+<!-- v12.33 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2524,10 +2524,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.32';
+const APP_VERSION='v12.33';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-19 12:13 PT - Speed: level 3 gets slimmed data, server caches payloads, lighter heartbeat, loading overlay only after 0.6s.';
+const BUILD_STAMP='2026-11-19 14:20 PT - Email send now shows the real reason when an email fails.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -17545,9 +17545,10 @@ async function _sendMailMerge(together){
       templateSubject: subj, templateMessage: (_rich && _rich.formatted) ? _rich.template : rawMsg
     }, _reachRichPayloadExtras()));
     if(res && res.ok===false) throw new Error(res.error||'Send failed');
-    closeReachCompose();
     const sent=res.sent||0, failed=res.failed||0;
-    showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
+    if(!sent&&failed&&res.errors&&res.errors.length) throw new Error('Email failed - '+String(res.errors[0]).slice(0,300));
+    closeReachCompose();
+    showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed ('+String((res.errors||[])[0]||'').slice(0,120)+')':''));
     if(res.errors&&res.errors.length) console.warn('Mail merge errors:',res.errors);
   }catch(e){
     if(btn){btn.textContent='✉ Send Email'+(together?'':' (Mail Merge)');btn.style.pointerEvents='';}
@@ -18043,9 +18044,10 @@ async function _sendSchoolMailMerge(){
       mode:'email_individual', templateSubject: subj, templateMessage: (_rich && _rich.formatted) ? _rich.template : rawMsg
     }, _reachRichPayloadExtras()));
     if(res && res.ok===false) throw new Error(res.error||'Send failed');
-    closeReachCompose();
     const sent=res.sent||0, failed=res.failed||0;
-    showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed':''));
+    if(!sent&&failed&&res.errors&&res.errors.length) throw new Error('Email failed - '+String(res.errors[0]).slice(0,300));
+    closeReachCompose();
+    showToast('✓ '+sent+' email'+(sent===1?'':'s')+' sent'+(failed?' · '+failed+' failed ('+String((res.errors||[])[0]||'').slice(0,120)+')':''));
     if(res.errors&&res.errors.length) console.warn('Mail merge errors:',res.errors);
   }catch(e){
     if(btn){btn.textContent='✉ Send Email';btn.style.pointerEvents='';}
