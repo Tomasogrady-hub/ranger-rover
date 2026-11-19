@@ -9930,12 +9930,14 @@ function _acctSmallBlob_(fileId, maxW) {
   } catch (e2) {}
   return null;
 }
-function _acctImageBlob(url) {
+var _acctPhotoStat = { n: 0, bytes: 0, big: 0, full: 0 };
+function _acctNotePhoto_(b, full) { try { var n = b.getBytes().length; _acctPhotoStat.n++; _acctPhotoStat.bytes += n; if (n > _acctPhotoStat.big) _acctPhotoStat.big = n; if (full) _acctPhotoStat.full++; } catch (e) {} }
+function _acctImageBlob(url, wpx) {
   var id = _driveIdFromUrl(url);
   if (!id) return null;
-  var sm = _acctSmallBlob_(id, 1000); if (sm) return sm;
+  var sm = _acctSmallBlob_(id, wpx || 700); if (sm) { _acctNotePhoto_(sm, false); return sm; }
   _acctBuildNote += ' An item photo kept full size (' + _acctShrinkWhy + ').';
-  try { return DriveApp.getFileById(id).getBlob(); } catch (e) {}
+  try { var fb = DriveApp.getFileById(id).getBlob(); _acctNotePhoto_(fb, true); return fb; } catch (e) {}
   try { var rsp = UrlFetchApp.fetch('https://lh3.googleusercontent.com/d/' + id + '=w900', { muteHttpExceptions: true }); if (rsp.getResponseCode() === 200) return rsp.getBlob(); } catch (e2) {}
   return null;
 }
@@ -10025,7 +10027,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
   var items = {}; _acctQuoteItems().forEach(function (it) { items[it.id] = it; });
   var info = _acctSiteInfo(site);
   var form = _acctForm(o['Category'], o['Form']), tplId = form.id;
-  _acctBuildNote = '';
+  _acctBuildNote = ''; _acctPhotoStat = { n: 0, bytes: 0, big: 0, full: 0 };
   try { if (DocumentApp.openById(tplId).getBody().getText().indexOf('{{ITEM LINE}}') < 0) { tplId = ACCT_QUOTE_TEMPLATE_ID; _acctBuildNote = form.name + ' is not designed yet, so Quote Maker Form 1 was used.'; } }
   catch (eTpl) { tplId = ACCT_QUOTE_TEMPLATE_ID; _acctBuildNote = 'Could not open ' + form.name + ', so Quote Maker Form 1 was used.'; }
   var copy = DriveApp.getFileById(tplId).makeCopy(q + ' - ' + site + ' (quote doc)', folder);
@@ -10107,10 +10109,12 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     fillTok(pn, 'ITEM NAME', it.name); nameParas.push(pn);
     try { pn.setKeepWithNext(true); } catch (e) {}
     fillTok(pi, 'ITEM IMAGE', '');
-    var blobs = (it.imgs || []).map(function (u) { return _acctImageBlob(u); }).filter(function (b) { return b; });
+    var usableW = 468;
+    try { usableW = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eUW) {}
+    var nImg = Math.max(1, (it.imgs || []).length);
+    var wantPx = Math.max(300, Math.round((nImg === 1 ? Math.min(360, usableW) : Math.floor((usableW - 7 * (nImg - 1)) / nImg)) * 2.2));
+    var blobs = (it.imgs || []).map(function (u) { return _acctImageBlob(u, wantPx); }).filter(function (b) { return b; });
     if (blobs.length) {
-      var usableW = 468;
-      try { usableW = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eUW) {}
       var maxW = blobs.length === 1 ? Math.min(360, usableW) : Math.floor((usableW - 7 * (blobs.length - 1)) / blobs.length);
       blobs.forEach(function (blob, bi) {
         try {
@@ -10138,7 +10142,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     if (String(o['Location'] || '').trim() && !locId) _acctBuildNote += ' Location link could not be read.';
     if (locId) {
       try {
-        var lb = _acctSmallBlob_(locId, 1200); if (!lb) { _acctBuildNote += ' Map kept full size (' + _acctShrinkWhy + ').'; lb = DriveApp.getFileById(locId).getBlob(); } var by = lb.getBytes();
+        var lb = _acctSmallBlob_(locId, 1000); if (lb) _acctNotePhoto_(lb, false); if (!lb) { _acctBuildNote += ' Map kept full size (' + _acctShrinkWhy + ').'; lb = DriveApp.getFileById(locId).getBlob(); } var by = lb.getBytes();
         var isPng = by.length > 4 && by[0] === -119 && by[1] === 80;
         locBlob = Utilities.newBlob(by, isPng ? 'image/png' : 'image/jpeg', 'location.' + (isPng ? 'png' : 'jpg'));
       } catch (eL) { _acctBuildNote += ' Location picture could not be read: ' + eL.message + '.'; }
@@ -10371,7 +10375,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
     try { owW = Math.floor(body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()); } catch (eW0) {}
     ACCT_OUR_WORK.forEach(function (w, wi) {
       try {
-        var wb = _acctSmallBlob_(w.id, 1000); if (!wb) { _acctBuildNote += ' Photo ' + (wi + 1) + ' kept full size (' + _acctShrinkWhy + ').'; wb = DriveApp.getFileById(w.id).getBlob(); } var by = wb.getBytes();
+        var wb = _acctSmallBlob_(w.id, 900); if (wb) _acctNotePhoto_(wb, false); if (!wb) { _acctBuildNote += ' Photo ' + (wi + 1) + ' kept full size (' + _acctShrinkWhy + ').'; wb = DriveApp.getFileById(w.id).getBlob(); } var by = wb.getBytes();
         var isPng = by.length > 4 && by[0] === -119 && by[1] === 80;
         var blob = Utilities.newBlob(by, isPng ? 'image/png' : 'image/jpeg', 'work' + wi + (isPng ? '.png' : '.jpg'));
         var ip = body.appendParagraph(''), wim = ip.appendInlineImage(blob), ww = wim.getWidth(), wh = wim.getHeight();
@@ -10406,6 +10410,7 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
 function _acctRenderItems(q, o, lines, total, valid, folderId) {
   var built = _acctBuildItemsDoc(q, o, lines, total, valid, folderId);
   var file = DriveApp.getFolderById(folderId).createFile(built.pdf);
+  try { var pst = _acctPhotoStat; _acctBuildNote += ' Photos: ' + pst.n + ' (' + (pst.bytes / 1048576).toFixed(1) + ' MB total, biggest ' + (pst.big / 1048576).toFixed(1) + ' MB' + (pst.full ? ', ' + pst.full + ' full size' : '') + '); PDF ' + (built.pdf.getBytes().length / 1048576).toFixed(1) + ' MB.'; } catch (ePs) {}
   [String(o['PDF Link'] || ''), String(o['Doc Link'] || '')].forEach(function (u) {
     var id = _driveIdFromUrl(u);
     if (id && id !== file.getId() && id !== built.docFile.getId()) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) {} }
