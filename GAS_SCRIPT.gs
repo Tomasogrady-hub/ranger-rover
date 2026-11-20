@@ -10283,6 +10283,20 @@ function _acctBuildItemsDoc_(q, o, lines, total, valid, folderId) {
       } catch (eSq) { _acctBuildNote += ' Page 1 not fully compacted: ' + eSq.message + '.'; }
       jf = body.findText('johannarecalde@enrichla\\.org');
       if (jf) pbAfter(topIndex(jf.getElement()));
+      // Paragraph about the scope of work: first thing on page 2 (the Program template has no {{Scope}} spot of its own)
+      try {
+        var scopeTxt = String(o['Scope'] || '').trim();
+        if (scopeTxt && !body.findText(pat('Scope'))) {
+          jf = body.findText('johannarecalde@enrichla\\.org');
+          var jIdx = jf ? topIndex(jf.getElement()) : -1, pbIdx = -1;
+          for (var dd = 1; dd <= 2 && jIdx > -1; dd++) { if (jIdx + dd < body.getNumChildren() && hasPB(body.getChild(jIdx + dd))) { pbIdx = jIdx + dd; break; } }
+          if (pbIdx > -1) {
+            var sp2 = body.insertParagraph(pbIdx + 1, scopeTxt);
+            try { sp2.setHeading(DocumentApp.ParagraphHeading.NORMAL); sp2.setAlignment(DocumentApp.HorizontalAlignment.LEFT); sp2.setSpacingBefore(0); sp2.setSpacingAfter(16); sp2.setLineSpacing(1.15); } catch (eSs) {}
+            try { sp2.editAsText().setBold(false).setItalic(false).setFontSize(11).setForegroundColor('#222222'); } catch (eSt) {}
+          } else { _acctBuildNote += ' Scope paragraph not placed (no page break found).'; }
+        }
+      } catch (eScope) { _acctBuildNote += ' Scope paragraph failed: ' + eScope.message + '.'; }
     } else {
       if (addrP0) pbAfter(topIndex(addrP0));
       var ti = tbl ? topIndex(tbl) : -1, si = scopeP0 ? topIndex(scopeP0) : -1;
