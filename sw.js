@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-const CACHE_NAME = 'ranger-rover-v12-32-af9c7003';
-=======
-const CACHE_NAME = 'ranger-rover-v12-33-af9c7003';
->>>>>>> Stashed changes
+const CACHE_NAME = 'ranger-rover-v12-34-af9c7003';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

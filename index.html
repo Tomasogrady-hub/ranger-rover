@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.33 -->
+<!-- v12.34 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -279,6 +279,46 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 
 /* ── CONTENT ── */
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+/* ═══ RANGER ROVER CABIN ═══ */
+.cb-ctl{display:flex;gap:6px;padding:0 10px 4px}
+.cb-ctl select{flex:1;min-width:0;font:600 13px var(--font-b);padding:9px 6px;border:1px solid var(--mist);border-radius:var(--r-sm);background:var(--paper);color:var(--ink)}
+.cb-note{padding:0 12px 8px;font-size:12px;color:var(--stone);line-height:1.35}
+.cb-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:8px;padding:0 8px 96px;align-items:start}
+.cb-colhd{font:900 11px var(--font-b);letter-spacing:.08em;text-transform:uppercase;color:var(--stone);padding:2px 2px 4px;display:flex;justify-content:space-between}
+.cb-find{width:100%;font:500 13px var(--font-b);padding:8px 9px;margin-bottom:6px;border:1px solid transparent;border-radius:var(--r-sm);background:var(--fog);color:var(--ink);outline:none}
+.cb-school{background:var(--paper);border:1px solid var(--mist);border-radius:var(--r-md);padding:7px;margin-bottom:6px;transition:box-shadow .12s}
+.cb-school.cb-over{box-shadow:0 0 0 2px var(--enrich-teal)}
+.cb-sname{font:700 13px/1.2 var(--font-b);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cb-ssub{font-size:11px;color:var(--silver);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb-seats{display:flex;gap:4px;margin-top:5px}
+.cb-seat{flex:1;min-width:0;min-height:40px;border:1.5px dashed var(--silver);border-radius:8px;display:flex;align-items:center;gap:4px;padding:3px 4px;font-size:11px;color:var(--silver);position:relative;touch-action:manipulation}
+.cb-seat.filled{border-style:solid;border-color:var(--enrich-dkteal);background:#eefaf7;color:var(--ink);cursor:grab}
+.cb-seat.staged{border-color:var(--enrich-orange);background:var(--warn-bg)}
+.cb-seat.cb-over{outline:3px solid var(--enrich-teal);background:var(--mint)}
+.cb-seat.cb-hot{animation:cbPulse 1.1s ease-in-out infinite}
+@keyframes cbPulse{50%{background:var(--mint);border-color:var(--enrich-teal)}}
+.cb-lbl{font:900 10px var(--font-b);color:var(--stone);width:11px;text-align:center;flex:none}
+.cb-av{width:24px;height:24px;border-radius:50%;color:#fff;font:700 10px/24px var(--font-b);text-align:center;flex:none;letter-spacing:0}
+.cb-sn{font:600 12px/1.15 var(--font-b);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.cb-x{position:absolute;top:-6px;right:-5px;width:20px;height:20px;border-radius:50%;border:none;background:var(--charcoal);color:#fff;font:700 12px/20px var(--font-b);padding:0;cursor:pointer}
+.cb-roster{position:sticky;top:0;max-height:66dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+.cb-roster.cb-over{outline:3px dashed var(--enrich-red);outline-offset:-3px;border-radius:var(--r-md)}
+.cb-rng{background:var(--paper);border:1px solid var(--mist);border-radius:var(--r-md);padding:6px;margin-bottom:5px;display:flex;align-items:center;gap:6px;cursor:grab}
+.cb-rng.sel{border-color:var(--enrich-teal);box-shadow:0 0 0 2px var(--enrich-teal)}
+.cb-rn{font:600 12px/1.15 var(--font-b);min-width:0;flex:1;overflow:hidden}
+.cb-rn b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cb-pill{display:inline-block;margin-top:2px;font:700 10px var(--font-b);padding:1px 6px;border-radius:9px;background:var(--fog);color:var(--stone)}
+.cb-pill.none{background:var(--warn-bg);color:#a8700c}
+.cb-drag,.cb-seat.filled,.cb-rng{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.cb-ghost{position:fixed;left:0;top:0;z-index:9999;pointer-events:none;opacity:.92;box-shadow:0 8px 22px rgba(0,0,0,.28);transform-origin:center;width:150px}
+.cb-bar{position:sticky;bottom:0;z-index:20;margin:0 8px;padding:9px 10px;background:var(--grove);color:#fff;border-radius:var(--r-md);display:none;align-items:center;gap:8px;font-size:12px;box-shadow:0 -2px 14px rgba(0,0,0,.18)}
+.cb-bar.show{display:flex}
+.cb-bar span{flex:1;line-height:1.25}
+.cb-bar button{font:800 12px var(--font-b);border:none;border-radius:8px;padding:9px 12px;cursor:pointer}
+.cb-bar .go{background:var(--enrich-teal);color:var(--ink)}
+.cb-bar .no{background:rgba(255,255,255,.18);color:#fff}
+.cb-empty{padding:18px 8px;text-align:center;color:var(--silver);font-size:12px}
+.cb-seat.sel{box-shadow:0 0 0 2px var(--enrich-teal)}
 .tab-pane{display:none}.tab-pane.active{display:block}
 .filter-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--mist)}
 .reach-step-modal{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
@@ -1390,6 +1430,45 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       </div>
     </div>
     <div id="threadList" style="padding:0 16px 28px"><div class="spinner"></div></div>
+  </div>
+
+  <!-- RANGER ROVER CABIN -->
+  <div class="tab-pane" id="tab-cabin">
+    <div class="page-header">
+      <span class="page-title">Ranger Rover Cabin</span>
+      <span class="page-count" id="cabinCount"></span>
+    </div>
+    <div class="cb-ctl">
+      <select id="cabinSchoolFilter" onchange="cabinSetFilter('s',this.value)" aria-label="Which schools">
+        <option value="active">Active schools</option>
+        <option value="noranger">Active, no Ranger yet</option>
+        <option value="vacancy">Potential vacancy</option>
+        <option value="all">All schools</option>
+      </select>
+      <select id="cabinRangerFilter" onchange="cabinSetFilter('r',this.value)" aria-label="Which rangers">
+        <option value="active">Rangers &amp; Masters</option>
+        <option value="free">Not seated yet</option>
+        <option value="all">+ Garden Keepers</option>
+      </select>
+    </div>
+    <div class="cb-note" id="cabinNote"></div>
+    <div class="cb-grid">
+      <div class="cb-col">
+        <div class="cb-colhd"><span>Schools</span><span id="cabinSchoolN"></span></div>
+        <input class="cb-find" id="cabinSchoolQ" type="search" placeholder="Find school…" autocomplete="off" oninput="cabinSetFilter('sq',this.value)">
+        <div id="cabinSchools"><div class="spinner"></div></div>
+      </div>
+      <div class="cb-col">
+        <div class="cb-colhd"><span>Rangers</span><span id="cabinRangerN"></span></div>
+        <input class="cb-find" id="cabinRangerQ" type="search" placeholder="Find ranger…" autocomplete="off" oninput="cabinSetFilter('rq',this.value)">
+        <div class="cb-roster" id="cabinRoster"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div class="cb-bar" id="cabinBar">
+      <span id="cabinBarMsg"></span>
+      <button type="button" class="no" id="cabinUndoBtn" onclick="cabinUndo()">Undo</button>
+      <button type="button" class="go" id="cabinGoBtn" onclick="cabinConfirm()">Confirm</button>
+    </div>
   </div>
 
   <!-- LATEST -->
@@ -2524,10 +2603,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.33';
+const APP_VERSION='v12.34';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-19 14:20 PT - Email send now shows the real reason when an email fails.';
+const BUILD_STAMP='2026-11-19 21:10 PT - New Ranger Rover Cabin tab: drag rangers onto school seats, confirm to save.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3886,6 +3965,8 @@ function setGreeting(){
   const firstName=(SESSION.name||SESSION.email.split('@')[0]).split(' ')[0];
   el.textContent=salutation+', '+firstName+'.';
 }
+// Cabin tab: Levels 1-2 only (assigning rangers to schools is a leadership job)
+function _cabinAllowed(lvl){return Number(lvl)<=2;}
 function _navBtn(tab,label,extraId=''){
   return `<button class="nav-btn" id="nav_${tab}" data-tab="${tab}" onclick="navTap('${tab}')">${label}</button>`;
 }
@@ -3965,7 +4046,10 @@ function buildNav(lvl){
       r3html += pjVisible ? _navBtn('projects','Projects') : '';
       const qtVisible = _navTabAllowed('quotes',lvl);
       r3html += qtVisible ? _navBtn('quotes','Quotes') : '';
-      if(dataVisible || reachVisible || calVisible || thVisible || pjVisible || qtVisible){
+      // Cabin (seat-map for assigning rangers to schools): Levels 1-2 only, always on
+      const cbVisible = _cabinAllowed(lvl);
+      r3html += cbVisible ? _navBtn('cabin','Cabin') : '';
+      if(dataVisible || reachVisible || calVisible || thVisible || pjVisible || qtVisible || cbVisible){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
@@ -12705,6 +12789,7 @@ function navTap(tab){
 }
 function switchTab(tab,initMapFlag=false){
   if(tab==='operations'&&SESSION&&SESSION.accessLevel>=3)tab='schools';
+  if(tab==='cabin'&&SESSION&&SESSION.accessLevel>=3)tab='schools';
   if(SESSION&&SESSION.l25&&!['schools','map','chores','notes'].includes(tab))tab='schools';
   const ct=document.getElementById("content");if(ct)ct.scrollTop=0;
   if(tab!=='operations')_exitSmartMapFullscreen();
@@ -12716,7 +12801,7 @@ function switchTab(tab,initMapFlag=false){
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
-  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads'||tab==='projects'||tab==='quotes')?'none':'block';
+  document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads'||tab==='projects'||tab==='quotes'||tab==='cabin')?'none':'block';
   if(tab==='map'||initMapFlag){
     setTimeout(()=>{
       initMap();if(_leafletMap)_leafletMap.invalidateSize();updateMapFilterCounts();
@@ -12730,6 +12815,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='threads')initThreads();
   if(tab==='projects')initProjects();
   if(tab==='quotes')initQuotes();
+  if(tab==='cabin')initCabin();
   if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
@@ -12781,6 +12867,310 @@ function filterRangers(f){
 }
 function filterPeople(f){cpf=f;document.querySelectorAll('#peopleFilters .chip').forEach(c=>c.classList.toggle('active',c.dataset.filter===f));renderPeople();_initLazyImages();}
 let _st;document.getElementById('searchInput').addEventListener('input',e=>{clearTimeout(_st);_st=setTimeout(()=>{sq=e.target.value.trim();renderAll();},200);});
+
+/* ═══ RANGER ROVER CABIN ═══
+   Airline-style seat map: schools on the left (Seat A = Ranger 1, Seat B = Ranger 2),
+   rangers on the right. Drag (mouse or touch long-press) or tap-then-tap.
+   Changes are staged locally and only written when Confirm is pressed.
+   Saves go through the same saveToSheet('Sites', Key, updates) path as the Schools editor.
+   No photos are loaded here (initials only) so the tab opens instantly. */
+const _cabin={s:'active',r:'active',sq:'',rq:'',staged:{},sel:null,busy:false,byId:{},wait:null,tries:0,wired:false};
+const _CB_COLORS=['#E8473F','#3B9E8E','#F5A623','#8DB84E','#9B6BB5','#F06B8A','#6B4E9B','#4CBFAD'];
+let _cbDrag=null,_cbSuppress=false;
+
+function _cbId(s){return String(sf(s,'Key','key')||sf(s,'Name','name')||'');}
+function _cbActive(s){return String(sf(s,'Type','type')||'').trim()==='Active Ranger Program';}
+function _cbColor(e){let h=0;e=String(e||'').toLowerCase();for(let i=0;i<e.length;i++)h=(h*31+e.charCodeAt(i))>>>0;return _CB_COLORS[h%_CB_COLORS.length];}
+function _cbInitials(n){const p=String(n||'?').trim().split(/\s+/);return((p[0]||'?')[0]+(p.length>1?p[p.length-1][0]:'')).toUpperCase();}
+function _cbShort(n){const p=String(n||'').trim().split(/\s+/);return p.length>1?p[0]+' '+p[p.length-1][0]+'.':(p[0]||'');}
+function _cbName(e,fallback){const h=gh(e);return h?fullName(h):(fallback||e);}
+function _cbStored(s,n){return String(sf(s,'Ranger '+n,'Ranger'+n)||'').trim();}
+function _cbSeatEmail(s,id,n){const st=_cabin.staged[id];if(st&&st[n]!==undefined)return st[n];return _cbStored(s,n);}
+function _cbPrune(id){
+  const s=_cabin.byId[id],st=_cabin.staged[id];if(!s||!st)return;
+  [1,2].forEach(n=>{if(st[n]!==undefined&&String(st[n]).toLowerCase()===_cbStored(s,n).toLowerCase())delete st[n];});
+  if(!Object.keys(st).length)delete _cabin.staged[id];
+}
+function _cbSetSeat(id,n,email){(_cabin.staged[id]=_cabin.staged[id]||{})[n]=email||'';_cbPrune(id);}
+function _cbCounts(){
+  const c={};
+  DATA.sites.forEach(s=>{if(!_cbActive(s))return;const id=_cbId(s);[1,2].forEach(n=>{const e=_cbSeatEmail(s,id,n).toLowerCase();if(e)c[e]=(c[e]||0)+1;});});
+  return c;
+}
+
+/* ── placing / moving / swapping ── */
+function _cbPlace(email,toId,toSeat,from){
+  const ts=_cabin.byId[toId];if(!ts)return;
+  email=String(email||'').trim();const el=email.toLowerCase();
+  const nm=_cbShort(_cbName(email));
+  const cur=[_cbSeatEmail(ts,toId,1),_cbSeatEmail(ts,toId,2)];
+  let n=toSeat;
+  if(!n){n=!cur[0]?1:(!cur[1]?2:0);if(!n){showToast('Both seats are taken. Drop on a seat to replace it.');return;}}
+  if(from&&from.id===toId&&from.seat===n)return;
+  const otherSeat=n===1?2:1;
+  const sameSchoolMove=from&&from.id===toId;
+  if(cur[otherSeat-1].toLowerCase()===el&&!sameSchoolMove){showToast(nm+' is already seated at this school.');return;}
+  const occupant=cur[n-1];
+  if(from){
+    if(occupant){
+      // swap: the occupant takes the seat being vacated (unless that would double-seat them there)
+      if(!sameSchoolMove){
+        const fs=_cabin.byId[from.id];
+        const fOther=fs?_cbSeatEmail(fs,from.id,from.seat===1?2:1).toLowerCase():'';
+        if(fOther===occupant.toLowerCase()){showToast(_cbShort(_cbName(occupant))+' is already seated at the other school.');return;}
+      }
+      _cbSetSeat(from.id,from.seat,occupant);
+    }else _cbSetSeat(from.id,from.seat,'');
+  }
+  _cbSetSeat(toId,n,email);
+}
+
+/* ── rendering ── */
+function _cbSchoolList(){
+  const q=_cabin.sq.toLowerCase();
+  return DATA.sites.filter(s=>{
+    const nm=sf(s,'Name','name');if(!nm)return false;
+    const id=_cbId(s);
+    if(q&&!(nm.toLowerCase().includes(q)||String(sf(s,'City','city')).toLowerCase().includes(q)))return false;
+    if(_cabin.staged[id])return true; // keep a school on screen while it has unsaved changes
+    const f=_cabin.s;
+    if(f==='vacancy')return /^y/i.test(String(sf(s,'Potential Ranger Vacancy')||''));
+    if(f!=='all'&&!_cbActive(s))return false;
+    if(f==='noranger'&&_cbSeatEmail(s,id,1))return false;
+    return true;
+  }).sort((a,b)=>String(sf(a,'Name','name')).localeCompare(String(sf(b,'Name','name'))));
+}
+function _cbRangerList(counts){
+  const q=_cabin.rq.toLowerCase();
+  const selE=_cabin.sel&&!_cabin.sel.fromId?_cabin.sel.email.toLowerCase():'';
+  return DATA.humans.filter(h=>{
+    const e=String(h.Email||h.email||'').trim();if(!e)return false;
+    const cats=humanRoleCats(h);
+    if(_cabin.r==='all'){if(!_isAssignable(h))return false;}
+    else if(!cats.some(c=>c==='ranger'||c==='master_ranger'))return false;
+    const nm=fullName(h);
+    if(q&&!(nm.toLowerCase().includes(q)||e.toLowerCase().includes(q)))return false;
+    if(_cabin.r==='free'&&(counts[e.toLowerCase()]||0)>0&&e.toLowerCase()!==selE)return false;
+    return true;
+  }).sort((a,b)=>fullName(a).localeCompare(fullName(b)));
+}
+function _cbSeatHtml(s,id,n){
+  const e=_cbSeatEmail(s,id,n),letter=n===1?'A':'B';
+  const st=_cabin.staged[id]&&_cabin.staged[id][n]!==undefined?' staged':'';
+  const hot=_cabin.sel?' cb-hot':'';
+  if(!e)return `<div class="cb-seat${st}${hot}" data-key="${ea(id)}" data-seat="${n}"><span class="cb-lbl">${letter}</span><span>Open</span></div>`;
+  const nm=_cbName(e,sf(s,'Ranger '+n+' Name'));
+  const sel=_cabin.sel&&_cabin.sel.fromId===id&&_cabin.sel.fromSeat===n?' sel':'';
+  return `<div class="cb-seat filled${st}${hot}${sel}" data-cb-drag="seat" data-key="${ea(id)}" data-seat="${n}" data-email="${ea(e)}"><span class="cb-lbl">${letter}</span><span class="cb-av" style="background:${_cbColor(e)}">${escHtml(_cbInitials(nm))}</span><span class="cb-sn">${escHtml(_cbShort(nm))}</span><button type="button" class="cb-x" data-cbx="1" aria-label="Remove from seat">×</button></div>`;
+}
+function _cbRender(){
+  if(!DATA||!DATA.sites)return;
+  _cabin.byId={};DATA.sites.forEach(s=>{_cabin.byId[_cbId(s)]=s;});
+  const counts=_cbCounts();
+  const schools=_cbSchoolList(),rangers=_cbRangerList(counts);
+  const sEl=document.getElementById('cabinSchools'),rEl=document.getElementById('cabinRoster');
+  if(!sEl||!rEl)return;
+  const rTop=rEl.scrollTop;
+  sEl.innerHTML=schools.length?schools.map(s=>{
+    const id=_cbId(s),city=sf(s,'City','city');
+    return `<div class="cb-school" data-key="${ea(id)}"><div class="cb-sname">${escHtml(sf(s,'Name','name'))}</div><div class="cb-ssub">${escHtml(city)}</div><div class="cb-seats">${_cbSeatHtml(s,id,1)}${_cbSeatHtml(s,id,2)}</div></div>`;
+  }).join(''):'<div class="cb-empty">No schools match.</div>';
+  rEl.innerHTML=rangers.length?rangers.map(h=>{
+    const e=String(h.Email||h.email||'').trim(),nm=fullName(h),c=counts[e.toLowerCase()]||0;
+    const master=humanRoleCats(h).includes('master_ranger')?'★ ':'';
+    const sel=_cabin.sel&&!_cabin.sel.fromId&&_cabin.sel.email.toLowerCase()===e.toLowerCase()?' sel':'';
+    return `<div class="cb-rng${sel}" data-cb-drag="ranger" data-email="${ea(e)}"><span class="cb-av" style="background:${_cbColor(e)}">${escHtml(_cbInitials(nm))}</span><span class="cb-rn"><b>${master}${escHtml(_cbShort(nm))}</b><span class="cb-pill${c?'':' none'}">${c?c+(c>1?' schools':' school'):'No school'}</span></span></div>`;
+  }).join(''):'<div class="cb-empty">No rangers match.</div>';
+  rEl.scrollTop=rTop;
+  const q=id=>document.getElementById(id);
+  q('cabinCount').textContent=schools.length+' school'+(schools.length===1?'':'s');
+  q('cabinSchoolN').textContent=schools.length;q('cabinRangerN').textContent=rangers.length;
+  // plain-English sentence under the filters
+  const sf_={active:'active schools',noranger:'active schools with no Ranger yet',vacancy:'schools with a potential ranger vacancy',all:'all schools'}[_cabin.s];
+  const rf_={active:'Rangers and Master Rangers',free:'rangers not seated at any active school yet',all:'Rangers, Master Rangers and Garden Keepers'}[_cabin.r];
+  let note;
+  if(_cabin.sel){
+    const sn=_cbShort(_cbName(_cabin.sel.email));
+    note='<b>'+escHtml(sn)+'</b> selected. Tap a seat to place them, or tap the ranger list to remove them from their seat.';
+  }else note='Showing '+sf_+' and '+rf_+'. Drag a ranger onto a seat (A = Ranger 1, B = Ranger 2), or tap a ranger, then tap a seat. Nothing saves until you press Confirm.';
+  q('cabinNote').innerHTML=note;
+  // confirm bar
+  const ids=Object.keys(_cabin.staged);let seats=0;ids.forEach(i=>{seats+=Object.keys(_cabin.staged[i]).length;});
+  const bar=q('cabinBar');
+  if(ids.length&&!_cabin.busy){
+    q('cabinBarMsg').textContent=seats+' seat change'+(seats>1?'s':'')+' at '+ids.length+' school'+(ids.length>1?'s':'')+', not saved yet';
+    bar.classList.add('show');
+  }else if(!_cabin.busy)bar.classList.remove('show');
+}
+function cabinSetFilter(k,v){
+  if(k==='s')_cabin.s=v;else if(k==='r')_cabin.r=v;else if(k==='sq')_cabin.sq=v.trim();else if(k==='rq')_cabin.rq=v.trim();
+  _cbRender();
+}
+function cabinUndo(){if(_cabin.busy)return;_cabin.staged={};_cabin.sel=null;_cbRender();}
+
+/* ── save (only on Confirm) ── */
+async function cabinConfirm(){
+  if(_cabin.busy)return;
+  const ids=Object.keys(_cabin.staged);if(!ids.length)return;
+  if(!CFG.URL){showToast('No connection to the server.');return;}
+  _cabin.busy=true;
+  const go=document.getElementById('cabinGoBtn'),un=document.getElementById('cabinUndoBtn'),msg=document.getElementById('cabinBarMsg');
+  if(go)go.disabled=true;if(un)un.disabled=true;
+  let done=0,failed=0;
+  const upd=()=>{if(msg)msg.textContent='Saving… '+(done+failed)+' of '+ids.length;};upd();
+  const one=async id=>{
+    const s=_cabin.byId[id],st=_cabin.staged[id];if(!s||!st){failed++;return;}
+    const updates={},cols=[];
+    [1,2].forEach(n=>{
+      if(st[n]===undefined)return;
+      const em=st[n],h=em?gh(em):null;
+      updates['Ranger '+n]=em?((h&&(h.Email||h.email))||em):'';
+      updates['Ranger '+n+' Name']=em?(h?fullName(h):em):'';
+      cols.push('Ranger '+n);
+    });
+    updates['_logActor']=SESSION?SESSION.email:'';updates['_logAction']='edited';
+    updates['_logSubject']=sf(s,'Name','name');updates['_logSubjType']='site';updates['_logDetail']=cols.join(', ');
+    let err=null;
+    for(let t=0;t<3;t++){ // a busy script sometimes drops one call
+      try{await saveToSheet('Sites',id,Object.assign({},updates));err=null;break;}catch(e){err=e;await new Promise(r=>setTimeout(r,500*(t+1)));}
+    }
+    ['_logActor','_logAction','_logSubject','_logSubjType','_logDetail','_siteKey'].forEach(k=>{delete s[k];});
+    if(err)failed++;else{delete _cabin.staged[id];done++;}
+    upd();
+  };
+  const queue=ids.slice();
+  await Promise.all([0,1,2].map(async()=>{while(queue.length){await one(queue.shift());}}));
+  _cabin.busy=false;if(go)go.disabled=false;if(un)un.disabled=false;
+  if(done){_tabDirty.schools=true;_tabDirty.rangers=true;_tabDirty.operations=true;if(typeof _playChime==='function')try{_playChime();}catch(e){}}
+  showToast(failed?('⚠ '+done+' saved, '+failed+' failed. They are still waiting here, press Confirm to retry.'):('✓ '+done+' school'+(done>1?'s':'')+' saved'));
+  _cbRender();
+}
+
+/* ── tap handling (works everywhere, also the touch fallback) ── */
+function _cbClick(e){
+  if(_cbSuppress||_cabin.busy)return;
+  const x=e.target.closest('[data-cbx]');
+  if(x){const seat=x.closest('.cb-seat');_cbSetSeat(seat.dataset.key,+seat.dataset.seat,'');_cabin.sel=null;_cbRender();return;}
+  const rng=e.target.closest('.cb-rng'),seat=e.target.closest('.cb-seat');
+  if(rng){
+    const em=rng.dataset.email,same=_cabin.sel&&!_cabin.sel.fromId&&_cabin.sel.email.toLowerCase()===em.toLowerCase();
+    _cabin.sel=same?null:{email:em,fromId:'',fromSeat:0};_cbRender();return;
+  }
+  if(seat){
+    const id=seat.dataset.key,n=+seat.dataset.seat;
+    if(_cabin.sel){const s=_cabin.sel;_cabin.sel=null;_cbPlace(s.email,id,n,s.fromId?{id:s.fromId,seat:s.fromSeat}:null);_cbRender();return;}
+    if(seat.classList.contains('filled')){_cabin.sel={email:seat.dataset.email,fromId:id,fromSeat:n};_cbRender();}
+    return;
+  }
+  if(e.target.closest('#cabinRoster')&&_cabin.sel&&_cabin.sel.fromId){
+    _cbSetSeat(_cabin.sel.fromId,_cabin.sel.fromSeat,'');_cabin.sel=null;_cbRender();
+  }
+}
+
+/* ── drag handling: pointer events (mouse + touch). Touch needs a short press-and-hold so scrolling still works ── */
+function _cbHit(x,y){
+  const el=document.elementFromPoint(x,y);if(!el)return null;
+  const seat=el.closest('.cb-seat');if(seat)return{kind:'seat',el:seat};
+  const sch=el.closest('.cb-school');if(sch)return{kind:'school',el:sch};
+  const ros=el.closest('#cabinRoster');if(ros)return{kind:'roster',el:ros};
+  return null;
+}
+function _cbMoveGhost(x,y){const g=_cbDrag&&_cbDrag.ghost;if(g)g.style.transform='translate('+(x-75)+'px,'+(y-24)+'px) scale(1.04)';}
+function _cbHover(){
+  const d=_cbDrag;if(!d||!d.active)return;
+  const hit=_cbHit(d.lx,d.ly);
+  const el=hit?hit.el:null;
+  if(d.over!==el){
+    if(d.over)d.over.classList.remove('cb-over');
+    if(el&&!(hit.kind==='roster'&&d.type!=='seat'))el.classList.add('cb-over');
+    d.over=el;
+  }
+}
+function _cbStart(){
+  const d=_cbDrag;if(!d||d.active)return;
+  d.active=true;clearTimeout(d.timer);
+  const g=d.el.cloneNode(true);g.classList.add('cb-ghost');g.classList.remove('cb-hot','sel','staged');
+  g.querySelectorAll('.cb-x').forEach(b=>b.remove());
+  document.body.appendChild(g);d.ghost=g;d.el.style.opacity='.35';
+  _cbMoveGhost(d.lx,d.ly);
+  if(navigator.vibrate)try{navigator.vibrate(12);}catch(e){}
+  _cbAuto();
+}
+function _cbAuto(){
+  const d=_cbDrag;if(!d||!d.active)return;
+  const ct=document.getElementById('content'),ros=document.getElementById('cabinRoster');
+  let dy=0;
+  const rr=ros?ros.getBoundingClientRect():null;
+  if(rr&&d.lx>=rr.left&&d.lx<=rr.right&&d.ly>=rr.top-30&&d.ly<=rr.bottom+30&&(d.ly<rr.top+50||d.ly>rr.bottom-50)){
+    ros.scrollTop+=d.ly<rr.top+50?-12:12;
+  }else if(ct){
+    const r=ct.getBoundingClientRect();
+    if(d.ly<r.top+70)dy=-14;else if(d.ly>r.bottom-70)dy=14;
+    if(dy)ct.scrollTop+=dy;
+  }
+  _cbHover();
+  requestAnimationFrame(_cbAuto);
+}
+function _cbEnd(drop){
+  const d=_cbDrag;_cbDrag=null;if(!d)return;
+  clearTimeout(d.timer);
+  if(d.active){
+    if(d.over)d.over.classList.remove('cb-over');
+    if(d.ghost)d.ghost.remove();
+    d.el.style.opacity='';
+    _cbSuppress=true;setTimeout(()=>{_cbSuppress=false;},80);
+    if(drop){
+      const hit=_cbHit(d.lx,d.ly);
+      if(hit){
+        const from=d.type==='seat'?{id:d.fromKey,seat:+d.fromSeat}:null;
+        if(hit.kind==='seat')_cbPlace(d.email,hit.el.dataset.key,+hit.el.dataset.seat,from);
+        else if(hit.kind==='school')_cbPlace(d.email,hit.el.dataset.key,0,from);
+        else if(hit.kind==='roster'&&from)_cbSetSeat(from.id,from.seat,'');
+        _cabin.sel=null;
+      }
+      _cbRender();
+    }
+  }
+}
+function _cbWire(){
+  if(_cabin.wired)return;_cabin.wired=true;
+  const pane=document.getElementById('tab-cabin');if(!pane)return;
+  pane.addEventListener('click',_cbClick);
+  pane.addEventListener('contextmenu',e=>{if(e.target.closest('[data-cb-drag]'))e.preventDefault();});
+  pane.addEventListener('pointerdown',e=>{
+    if(_cabin.busy||e.target.closest('[data-cbx]'))return;
+    const src=e.target.closest('[data-cb-drag]');if(!src)return;
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    const touch=e.pointerType!=='mouse';
+    _cbDrag={el:src,type:src.dataset.cbDrag,email:src.dataset.email,fromKey:src.dataset.key||'',fromSeat:src.dataset.seat||'',sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,active:false,touch,timer:null,ghost:null,over:null};
+    if(touch)_cbDrag.timer=setTimeout(_cbStart,230);
+  });
+  document.addEventListener('pointermove',e=>{
+    const d=_cbDrag;if(!d)return;
+    d.lx=e.clientX;d.ly=e.clientY;
+    if(!d.active){
+      const dist=Math.hypot(d.lx-d.sx,d.ly-d.sy);
+      if(d.touch){if(dist>9){clearTimeout(d.timer);_cbDrag=null;}}  // finger moved before the hold: it is a scroll
+      else if(dist>5)_cbStart();
+      return;
+    }
+    _cbMoveGhost(d.lx,d.ly);
+  });
+  document.addEventListener('pointerup',()=>_cbEnd(true));
+  document.addEventListener('pointercancel',()=>_cbEnd(false));
+  // once a hold has started a drag, stop the page from scrolling under the finger
+  document.addEventListener('touchmove',e=>{if(_cbDrag&&_cbDrag.active&&e.cancelable)e.preventDefault();},{passive:false});
+}
+function initCabin(){
+  if(SESSION&&SESSION.accessLevel>=3)return;
+  _cbWire();
+  const ready=_humansLoaded&&DATA&&DATA.sites&&DATA.sites.length;
+  if(!ready&&_cabin.tries<40){
+    _cabin.tries++;clearTimeout(_cabin.wait);
+    _cabin.wait=setTimeout(()=>{if(_activeTab==='cabin')initCabin();},500);return;
+  }
+  _cabin.tries=0;_cbRender();
+}
 
 /* ═══ PLANTS ═══ */
 function initPlants(){
