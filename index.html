@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.34 -->
+<!-- v12.35 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2603,10 +2603,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.34';
+const APP_VERSION='v12.35';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-19 21:10 PT - New Ranger Rover Cabin tab: drag rangers onto school seats, confirm to save.';
+const BUILD_STAMP='2026-11-20 17:50 PT - Applicant story: every step as a plain sentence in the timeline and in Confidential Notes, plus a mini progress bar and latest step on each applicant row.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11366,7 +11366,7 @@ async function _infSend(){
     if(!r||!r.ok){alert((r&&r.error)||'Could not send - Apps Script may need a new deployment (v12.00).');if(btn){btn.disabled=false;btn.textContent='Send';}return;}
     const ov=document.getElementById('infOverlay');if(ov)ov.remove();
     showToast(r.hadFile&&!r.attached?'✉ Sent to '+_inf.first+' (file too large to attach - link included)':'✉ Information sent to '+_inf.first);
-    _apTallyFill(_inf.email);
+    _apTallyFill(_inf.email);_apProg.at=0;
   }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Send';}}
 }
 // Running tally under Confidential Notes: who emailed, who interviewed, etc.
@@ -11399,10 +11399,10 @@ async function _apTallyFill(email){
     const n=t=>ev.filter(e=>e.type===t).length;
     const chips=[['✉ Info sent',n('info')],['📅 Offered',n('offer')],['✅ Confirmed',n('pick')],['🏁 Done',n('done')]].filter(c=>c[1]).map(c=>'<span class="imp-pill" style="font-size:12px">'+c[0]+' '+c[1]+'</span>').join(' ');
     const fd=t=>{if(!t)return '';const d=new Date(t);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});};
-    b.innerHTML=meter+'<div style="font-size:14px;color:var(--silver);margin:10px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Activity</div>'+
+    b.innerHTML=meter+'<div style="font-size:14px;color:var(--silver);margin:10px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Story so far</div>'+
       (chips?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+chips+'</div>':'')+
       '<div style="background:var(--fog);border-radius:var(--r-sm);padding:8px 12px;font-size:14px;line-height:1.5;color:var(--stone)">'+
-      ev.slice().reverse().map(e=>'<div style="padding:3px 0"><span style="display:inline-block;width:22px">'+(_AP_ICON[e.type]||'•')+'</span><b style="color:var(--ink)">'+escHtml(e.what)+'</b>'+(e.by?' by '+escHtml(e.by):'')+(e.detail?' - '+escHtml(e.detail):'')+' <span style="color:var(--silver);font-size:12px">'+escHtml(fd(e.t))+'</span></div>').join('')+'</div>';
+      ev.slice().reverse().map(e=>'<div style="padding:3px 0"><span style="display:inline-block;width:22px">'+(_AP_ICON[e.type]||'•')+'</span><span style="color:var(--ink)">'+escHtml(e.text||(e.what+(e.by?' by '+e.by:'')+(e.detail?' - '+e.detail:'')))+'</span> <span style="color:var(--silver);font-size:12px">'+escHtml(fd(e.t))+'</span></div>').join('')+'</div>';
   }catch(err){const b=document.getElementById('pd-tally');if(b)b.innerHTML='';}
 }
 // ── Scheduling sheet ──
@@ -11539,7 +11539,7 @@ async function _ivSend(){
       slots:f.slots.map(s=>({date:s.date,start:s.start,end:s.end,interviewers:s.iv&&s.iv.length?s.iv:[...f.interviewers]})),interviewers:[...f.interviewers],sendText:!!(document.getElementById('ivSms')||{}).checked});
     if(!r||!r.ok){alert((r&&r.error)||'Could not send - Apps Script may need a new deployment (v11.98).');if(btn){btn.disabled=false;btn.textContent='Send invitation';}return;}
     const ov=document.getElementById('ivOverlay');if(ov)ov.remove();
-    showToast('📅 Invitation sent to '+f.first);
+    showToast('📅 Invitation sent to '+f.first);_apProg.at=0;
     _iv.form=null;await _ivLoad(true);_ivRefresh();
   }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Send invitation';}}
 }
@@ -11631,6 +11631,7 @@ function _hrRender(){
       (_hr.openApps._general?_hrAppsHtml(gen):'')+'</div>';
   }
   body.innerHTML=h;
+  _apProgPaint();
   _initLazyImages();
 }
 function _hrAppsHtml(apps){
@@ -11642,8 +11643,25 @@ function _hrAppsHtml(apps){
     const ini=(nm.match(/\b\w/g)||['?']).slice(0,2).join('').toUpperCase();
     return '<div class="hr-app" onclick="showPersonDetail(\''+ea(em)+'\')">'+
       (img&&/^https?:/.test(img)?'<img data-lazy="'+ea(img)+'" alt="" style="opacity:0;transition:opacity .2s">':'<span class="hr-av">'+escHtml(ini)+'</span>')+
-      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(nm)+'</div><div class="hr-m" style="font-size:12px;color:var(--stone)">'+escHtml([a.Role||a.role,ds,a.Mobile||a.mobile].filter(Boolean).join(' · '))+'</div>'+_ivBadge(em)+'</div>'+(_ivIsStaff()?'<button title="Send information" onclick="event.stopPropagation();infoOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">✉</button><button title="Schedule interview" onclick="event.stopPropagation();ivOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">📅</button>':'')+'<span style="color:var(--stone)">›</span></div>';
+      '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(nm)+'</div><div class="hr-m" style="font-size:12px;color:var(--stone)">'+escHtml([a.Role||a.role,ds,a.Mobile||a.mobile].filter(Boolean).join(' · '))+'</div>'+_ivBadge(em)+'<div class="ap-prog" data-em="'+ea(String(em).toLowerCase())+'"></div></div>'+(_ivIsStaff()?'<button title="Send information" onclick="event.stopPropagation();infoOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">✉</button><button title="Schedule interview" onclick="event.stopPropagation();ivOpen(\''+ea(em)+'\')" style="border:1px solid var(--mist);background:var(--fog);border-radius:8px;padding:6px 9px;font-size:15px;cursor:pointer;margin-right:4px">📅</button>':'')+'<span style="color:var(--stone)">›</span></div>';
   }).join('')+'</div>';
+}
+// Mini progress + latest step under each applicant (one call for the whole list, cached for a minute).
+const _apProg={map:null,loading:null,at:0};
+function _apProgFill(){
+  const m=_apProg.map;if(!m)return;
+  document.querySelectorAll('.ap-prog[data-em]').forEach(el=>{
+    const d=m[el.dataset.em];if(!d){el.innerHTML='';return;}
+    const n=d.steps.filter(Boolean).length,fd=t=>{const x=new Date(t);return isNaN(x)?'':x.toLocaleDateString('en-US',{month:'short',day:'numeric'});};
+    el.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-top:4px"><div style="display:flex;gap:2px;flex:0 0 110px">'+d.steps.map(s=>'<div style="flex:1;height:5px;border-radius:3px;background:'+(s?(d.declined?'var(--danger)':'var(--grove)'):'var(--mist)')+'"></div>').join('')+'</div><span style="font-size:11px;color:var(--silver)">'+n+'/10'+(d.declined?' · declined':'')+'</span></div>'+
+      (d.last?'<div style="font-size:12px;color:var(--stone);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+escHtml(d.last.text)+' <span style="color:var(--silver)">'+escHtml(fd(d.last.t))+'</span></div>':'');
+  });
+}
+function _apProgPaint(){
+  if(!_ivIsStaff()||!document.querySelector('.ap-prog[data-em]'))return;
+  if(_apProg.map){_apProgFill();if(Date.now()-_apProg.at<60000)return;}
+  if(_apProg.loading)return;
+  _apProg.loading=gasPost({action:'getApplicantProgress',actor:SESSION.email}).then(r=>{if(r&&r.ok){_apProg.map=r.map||{};_apProg.at=Date.now();}}).catch(()=>{}).then(()=>{_apProg.loading=null;_apProgFill();});
 }
 function _hrToggleApps(id){_hr.openApps[id]=!_hr.openApps[id];_hrRender();}
 function _hrCopy(t,msg){try{navigator.clipboard.writeText(t).then(()=>showToast(msg||'Copied'),()=>prompt('Copy this link:',t));}catch(e){prompt('Copy this link:',t);}}

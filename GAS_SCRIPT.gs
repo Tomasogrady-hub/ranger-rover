@@ -978,6 +978,7 @@ function _doPostRoute(e) {
       case 'deletePublicMedia':         return respond(handleDeletePublicMedia(p));
       case 'shiftToReschedule':         return respond(handleShiftToReschedule(p));
       case 'getApplicantLog':           return respond(handleGetApplicantLog(p));
+      case 'getApplicantProgress':      return respond(handleGetApplicantProgress(p));
       case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
       case 'checkInterviewConflicts':   return respond(handleCheckInterviewConflicts(p));
       case 'publicApplicantReply':      return respond(handlePublicApplicantReply(p));
@@ -2864,7 +2865,14 @@ function handleSaveComments(p) {
   if (emailIdx === -1 || commentsIdx === -1) return { ok: false, error: 'Column not found' };
   for (var i = 1; i < data.length; i++) {
     if ((data[i][emailIdx] || '').toLowerCase().trim() === email) {
+      var _prevC = String(data[i][commentsIdx] || ''), _newC = String(p.comments || '');
       sheet.getRange(i + 1, commentsIdx + 1).setValue(p.comments || '');
+      try { // someone added a comment to an applicant: record who, so the timeline can say "Alex added a note"
+        if (_newC.length > _prevC.length && _newC.indexOf(_prevC) === 0 && /applicant|onboarding/i.test(String(data[i][hdr.indexOf('Role')] || ''))) {
+          var _added = _newC.slice(_prevC.length).replace(new RegExp('^\\s+'), '').replace(new RegExp('\\s+', 'g'), ' ').slice(0, 300);
+          if (_added && _added.indexOf('Process ') !== 0) _apLog(email, String(data[i][fnIdx] || '') + ' ' + String(data[i][lnIdx] || ''), 'Note added', String(p.actor || '').toLowerCase(), _added);
+        }
+      } catch (_e) {}
       var _fn = fnIdx > -1 ? String(data[i][fnIdx] || '') : '';
       var _ln = lnIdx > -1 ? String(data[i][lnIdx] || '') : '';
       var _displayName = (_fn + ' ' + _ln).trim() || p.email;
@@ -8783,6 +8791,8 @@ function handleCreateInterview(p) {
     _subHist('Interview', id, '', '', reoffer ? 'Offered new times' : 'Invited', me.email, 'Waiting for Applicant',
       applicant.name + ' - ' + kind + (fields.Position ? ' (' + fields.Position + ')' : '') + ' - ' + rows.map(function(s){ return _subFmtShift(s); }).join('; '));
     try { logActivity(me.email, 'interviewInvite', appEmail, 'person', rows.length + ' time(s)'); } catch (e) {}
+    _apNote(appEmail, me.first + ' ' + (reoffer ? 'offered new times to ' + applicant.name + ' for the ' + kind.toLowerCase() : 'invited ' + applicant.name + ' to ' + _apArt(kind.toLowerCase()) + ' and offered times') + ': ' +
+      rows.map(function(s){ return _subFmtShift(s); }).join('; ') + '.');
     return { ok: true, id: id, page: _ivLink(id) };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -8817,6 +8827,7 @@ function _ivConfirm(L, people, date, start, end, slotId, byLabel, actorEmail) {
     '\n\nNEXT: share the meeting details (Zoom or Meet link, phone number or address). Tap this link to open the "Send details" window for ' + r['Applicant Name'] + ':\n' + SUB_APP_URL + '#ivdetails=' + encodeURIComponent(r.ID),
     'Enrich LA - ' + r['Applicant Name'] + ' confirmed ' + kind.toLowerCase() + ': ' + when + '. Send the meeting details here: ' + SUB_APP_URL + '#ivdetails=' + encodeURIComponent(r.ID));
   _subHist('Interview', r.ID, slotId, '', byLabel, actorEmail || r['Applicant Email'], 'Confirmed', r['Applicant Name'] + ' - ' + when + (ev ? ' (calendar)' : ' (no calendar)'));
+  _apNote(r['Applicant Email'], (actorEmail ? 'The ' + kind.toLowerCase() + ' with ' + r['Applicant Name'] + ' was set for ' : r['Applicant Name'] + ' chose the ' + kind.toLowerCase() + ' time: ') + when + (names ? ' (with ' + names + ')' : '') + '.');
   _subFlushSms();
   return when;
 }
@@ -8880,6 +8891,7 @@ function handlePublicInterviewSuggest(p) {
     if (sd) { upd['Suggested Date'] = sd; upd['Suggested Start'] = ss; upd['Suggested End'] = se; } else { upd['Suggested Date'] = ''; upd['Suggested Start'] = ''; upd['Suggested End'] = ''; }
     _subSet(L.it, r, upd);
     _subHist('Interview', r.ID, '', '', 'Applicant suggested other', r['Applicant Email'], upd['Status'] || r.Status, line);
+    _apNote(r['Applicant Email'], r['Applicant Name'] + ' suggested other times for the ' + String(r.Kind || 'interview').toLowerCase() + ': ' + line);
     _ivNotifyStaff(r, people, r['Applicant Name'] + ' suggested another time for the ' + String(r.Kind || 'interview').toLowerCase(),
       r['Applicant Name'] + ' replied about the ' + String(r.Kind || 'interview').toLowerCase() + ':\n\n' + (when ? 'Suggested time: ' + when + '\n' : '') + (text ? 'Note: "' + text + '"\n' : '') +
       '\nOpen Ranger Rover > Operations > Humans > Interviews to accept it with one tap, or offer other times. ' + SUB_APP_URL,
@@ -8898,6 +8910,7 @@ function handlePublicInterviewDecline(p) {
     L.slots.forEach(function(s){ if (s.Status === 'Offered' || s.Status === 'Chosen' || s.Status === 'Not Chosen') _subSet(L.st, s, { 'Status': 'Withdrawn' }); });
     _subSet(L.it, r, { 'Status': 'Applicant Withdrew', 'Calendar Event': '', 'Applicant Suggestion': String(p.text || '').trim().slice(0, 500) });
     _subHist('Interview', r.ID, '', '', 'Applicant withdrew', r['Applicant Email'], 'Applicant Withdrew', String(p.text || '').slice(0, 300));
+    _apNote(r['Applicant Email'], r['Applicant Name'] + ' withdrew from the ' + String(r.Kind || 'interview').toLowerCase() + (p.text ? ': ' + String(p.text).trim().slice(0, 200) : '.'));
     _ivNotifyStaff(r, people, r['Applicant Name'] + ' withdrew from the ' + String(r.Kind || 'interview').toLowerCase(),
       r['Applicant Name'] + ' said they can no longer do the ' + String(r.Kind || 'interview').toLowerCase() + (r.Position ? ' for ' + r.Position : '') + '.' +
       (p.text ? '\n\nTheir note: "' + String(p.text).trim().slice(0, 500) + '"' : '') + '\n\nAny calendar event was removed.', '');
@@ -8941,6 +8954,7 @@ function handleCancelInterview(p) {
     L.slots.forEach(function(s){ if (s.Status === 'Offered' || s.Status === 'Chosen' || s.Status === 'Not Chosen') _subSet(L.st, s, { 'Status': 'Withdrawn' }); });
     _subSet(L.it, r, { 'Status': 'Cancelled', 'Calendar Event': '' });
     _subHist('Interview', r.ID, '', '', 'Cancelled', me.email, 'Cancelled', r['Applicant Name'] + (when ? ' - was ' + when : ''));
+    _apNote(r['Applicant Email'], me.first + ' cancelled the ' + String(r.Kind || 'interview').toLowerCase() + ' with ' + r['Applicant Name'] + (when ? ' (was ' + when + ')' : '') + '.');
     if (p.notify !== false && p.notify !== 'false') {
       var ap = people[String(r['Applicant Email']).toLowerCase()];
       if (ap) _subNotify(ap, 'Enrich LA - your ' + String(r.Kind || 'interview').toLowerCase() + ' has been cancelled',
@@ -8959,6 +8973,7 @@ function handleCompleteInterview(p) {
     if (!L) return { ok: false, error: 'Not found.' };
     _subSet(L.it, L.r, { 'Status': 'Completed' });
     _subHist('Interview', L.r.ID, '', '', 'Marked done', me.email, 'Completed', L.r['Applicant Name']);
+    _apNote(L.r['Applicant Email'], _apIvNames(L.r, people) + (/train/i.test(String(L.r.Kind)) ? ' trained ' : ' interviewed ') + L.r['Applicant Name'] + (L.r['Chosen Date'] ? ' (' + _subFmtShift({ Date: L.r['Chosen Date'], Start: L.r['Chosen Start'], End: L.r['Chosen End'] }) + ')' : '') + '. Marked done by ' + me.first + '.');
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -8987,6 +9002,7 @@ function handleSendInterviewDetails(p) {
       { fromName: me.name, replyTo: me.email, noSms: !(p.sendText === true || p.sendText === 'true') });
     _subFlushSms();
     _subHist('Interview', r.ID, '', '', 'Sent meeting details', me.email, r.Status, r['Applicant Name'] + (loc ? ' - ' + loc : ''));
+    _apNote(r['Applicant Email'], me.first + ' sent the ' + kind + ' details to ' + r['Applicant Name'] + (loc ? ' (' + loc + ')' : '') + '.');
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -9074,6 +9090,7 @@ function handleSendApplicantInfo(p) {
     _apLog(email, ap.name, training ? 'Training invitation sent' : 'Information sent', me.email, (attached ? 'Attached: ' + fname : (info ? 'Link only (could not attach)' : 'No file')) +
       ((p.sendText === true || p.sendText === 'true') && ap.sms ? ' + text' : ''));
     logActivity(me.email, training ? 'sent training invitation' : 'sent applicant information', ap.name, 'human', email);
+    _apNote(email, me.first + (training ? ' invited ' + ap.name + ' to training (information sent).' : ' sent information about the position to ' + ap.name + '.'));
     return { ok: true, attached: attached, fileName: fname, hadFile: !!info };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -9109,6 +9126,8 @@ function handlePublicApplicantReply(p) {
     });
     if (!dup) {
       _apLog(email, ap.name, ev, '', 'From the email link');
+      _apNote(email, stg ? (ans === 'yes' ? ap.name + ' replied: "I would love to begin training."' : ap.name + ' replied that they are unable to move forward with training at this time.')
+                         : (ans === 'yes' ? ap.name + ' replied: "I am interested in the position."' : ap.name + ' replied that they are no longer interested in the position.'));
       if (ld) {
         var prof = HR_APP_URL + '#person=' + encodeURIComponent(email);
         var body, subj, sms;
@@ -9137,34 +9156,112 @@ function _apT(v) {
   var t = v ? new Date(v).getTime() : 0;
   return isNaN(t) ? 0 : t;
 }
+// ── Applicant story (v12.35): plain sentences, shown in the timeline AND written into Confidential Notes ──
+function _apFirstOf(people, email) { var x = people[String(email || '').trim().toLowerCase()]; return x ? x.first || x.name : String(email || '').split('@')[0]; }
+function _apNameOf(people, email) { var x = people[String(email || '').trim().toLowerCase()]; return x ? x.name : String(email || ''); }
+// Appends "Process 11/20 - <sentence>" to the person's Comments (Confidential Notes). Never blocks the action.
+function _apNote(email, text) {
+  try {
+    var d = humansData(), want = String(email || '').trim().toLowerCase();
+    var ei = d.h.indexOf('Email'), ci = d.h.indexOf('Comments');
+    if (ei < 0 || ci < 0 || !text) return;
+    for (var r = 1; r < d.data.length; r++) {
+      if (String(d.data[r][ei] || '').trim().toLowerCase() !== want) continue;
+      var cur = String(d.data[r][ci] || '').trim();
+      var line = 'Process ' + Utilities.formatDate(new Date(), _subTz(), 'M/d') + ' - ' + String(text).slice(0, 400);
+      d.sheet.getRange(r + 1, ci + 1).setValue(cur ? cur + '\n' + line : line);
+      return;
+    }
+  } catch (e) { Logger.log('apNote: ' + e.message); }
+}
+function _apIvNames(r, people) {
+  var l = _ivPeopleOf(r).map(function(e){ return _apFirstOf(people, e); });
+  return l.length > 1 ? l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] : (l[0] || 'Enrich LA');
+}
+function _apArt(kind) { return /^[aeiou]/i.test(kind) ? 'an ' + kind : 'a ' + kind; }
+// One list of events for one applicant. Each has t (ms), type, what (short label), by, detail and text (the sentence).
+function _apBuildEvents(email, name, role, applied, logRows, ivRows, people) {
+  var ev = [];
+  if (applied) ev.push({ t: _apT(applied), type: 'applied', what: 'Applied', by: '', detail: role || '', text: name + ' applied for the position' + (role ? ' (' + role + ')' : '') + '.' });
+  logRows.forEach(function(r) {
+    var by = _apFirstOf(people, r.By), E = String(r.Event || ''), det = String(r.Detail || ''), text = '';
+    if (E === 'Information sent') text = by + ' sent information about the position to ' + name + '.';
+    else if (E === 'Training invitation sent') text = by + ' invited ' + name + ' to training (information sent).';
+    else if (E === 'Replied: would love to be considered') text = name + ' replied: "I am interested in the position."';
+    else if (E === 'Replied: no longer interested') text = name + ' replied that they are no longer interested in the position.';
+    else if (E === 'Replied to training: would love to begin') text = name + ' replied: "I would love to begin training."';
+    else if (E === 'Replied to training: unable to move forward') text = name + ' replied that they are unable to move forward with training at this time.';
+    else if (E === 'Note added') text = by + ' added a note: "' + det + '"';
+    else text = (by ? by + ': ' : '') + E + (det ? ' - ' + det : '');
+    ev.push({ t: _apT(r.Time), type: 'info', what: E, by: by, detail: det, text: text });
+  });
+  ivRows.forEach(function(r) {
+    var kind = String(r.Kind || 'interview').toLowerCase(), cr = _apFirstOf(people, r['Created By']), who = _apIvNames(r, people);
+    var whenC = r['Chosen Date'] ? _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) : '';
+    ev.push({ t: _apT(r.Created), type: 'offer', what: 'Offered ' + kind + ' times', by: cr, detail: '', text: cr + ' invited ' + name + ' to ' + _apArt(kind) + ' and offered times.' });
+    if (r['Chosen At']) ev.push({ t: _apT(r['Chosen At']), type: 'pick', what: 'Confirmed ' + kind, by: '', detail: whenC,
+      text: name + ' chose the ' + kind + ' time: ' + whenC + ' (with ' + who + ').' });
+    if (r['Applicant Suggestion'] || r['Suggested Date']) ev.push({ t: _apT(r.Updated), type: 'suggest', what: 'Suggested other times', by: '', detail: String(r['Applicant Suggestion'] || ''),
+      text: name + ' suggested other times for the ' + kind + (r['Applicant Suggestion'] ? ': ' + r['Applicant Suggestion'] : '.') });
+    if (r['Details Sent']) ev.push({ t: _apT(r['Details Sent']), type: 'details', what: 'Meeting details sent', by: '', detail: '', text: 'The meeting details for the ' + kind + ' were sent to ' + name + '.' });
+    if (r.Status === 'Completed') ev.push({ t: _apT(r.Updated), type: 'done', what: String(r.Kind || 'Interview') + ' done', by: '', detail: '',
+      text: who + (/train/.test(kind) ? ' trained ' : ' interviewed ') + name + (whenC ? ' (' + whenC + ')' : '') + '.' });
+    if (r.Status === 'Cancelled') ev.push({ t: _apT(r.Updated), type: 'cancel', what: String(r.Kind || 'Interview') + ' cancelled', by: '', detail: '', text: 'The ' + kind + ' with ' + name + ' was cancelled.' });
+    if (r.Status === 'Applicant Withdrew') ev.push({ t: _apT(r.Updated), type: 'cancel', what: 'Applicant withdrew', by: '', detail: '', text: name + ' withdrew from the ' + kind + '.' });
+  });
+  ev.sort(function(a, b) { return a.t - b.t; });
+  return ev;
+}
+// The 10 progress steps (same labels the app shows).
+function _apSteps(ev) {
+  var has = function(fn) { return ev.some(fn); }, w = function(e) { return String(e.what || ''); }, tr = function(e) { return /training/i.test(w(e)); };
+  return [
+    has(function(e){ return e.type === 'applied'; }),
+    has(function(e){ return w(e) === 'Information sent'; }),
+    has(function(e){ return w(e).indexOf('Replied: would love') === 0; }),
+    has(function(e){ return e.type === 'offer' && !tr(e); }),
+    has(function(e){ return e.type === 'pick' && !tr(e); }),
+    has(function(e){ return e.type === 'done' && !tr(e); }),
+    has(function(e){ return w(e) === 'Training invitation sent'; }),
+    has(function(e){ return w(e).indexOf('Replied to training: would love') === 0; }),
+    has(function(e){ return e.type === 'offer' && tr(e); }),
+    has(function(e){ return e.type === 'pick' && tr(e); })
+  ];
+}
+function _apDeclined(ev) { return ev.some(function(e){ return e.what === 'Replied: no longer interested' || e.what === 'Replied to training: unable to move forward' || e.what === 'Applicant withdrew'; }); }
 function handleGetApplicantLog(p) {
   try {
     var people = _subPeople();
     _ivAdmin(p, people);
     var email = String(p.email || '').trim().toLowerCase();
     if (!email) return { ok: false, error: 'No email.' };
-    var nm = function(e) { var x = people[String(e || '').trim().toLowerCase()]; return x ? x.name : String(e || ''); };
-    var ev = [];
-    var hu = _apHuman(email);
-    if (hu.applied) ev.push({ t: _apT(hu.applied), type: 'applied', what: 'Applied', by: '', detail: hu.role || '' });
-    _subReadAll(_subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS)).rows.forEach(function(r) {
-      if (String(r['Applicant Email']).toLowerCase() !== email) return;
-      ev.push({ t: _apT(r.Time), type: 'info', what: r.Event, by: nm(r.By), detail: r.Detail });
-    });
-    _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS)).rows.forEach(function(r) {
-      if (String(r['Applicant Email']).toLowerCase() !== email) return;
-      var kind = String(r.Kind || 'interview').toLowerCase();
-      ev.push({ t: _apT(r.Created), type: 'offer', what: 'Offered ' + kind + ' times', by: nm(r['Created By']), detail: '' });
-      if (r['Chosen At']) ev.push({ t: _apT(r['Chosen At']), type: 'pick', what: 'Confirmed ' + kind, by: '',
-        detail: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) });
-      if (r['Applicant Suggestion'] || r['Suggested Date']) ev.push({ t: _apT(r.Updated), type: 'suggest', what: 'Suggested other times', by: '', detail: String(r['Applicant Suggestion'] || '') });
-      if (r['Details Sent']) ev.push({ t: _apT(r['Details Sent']), type: 'details', what: 'Meeting details sent', by: '', detail: '' });
-      if (r.Status === 'Completed') ev.push({ t: _apT(r.Updated), type: 'done', what: String(r.Kind || 'Interview') + ' done', by: '', detail: '' });
-      if (r.Status === 'Cancelled') ev.push({ t: _apT(r.Updated), type: 'cancel', what: String(r.Kind || 'Interview') + ' cancelled', by: '', detail: '' });
-      if (r.Status === 'Applicant Withdrew') ev.push({ t: _apT(r.Updated), type: 'cancel', what: 'Applicant withdrew', by: '', detail: '' });
-    });
-    ev.sort(function(a, b) { return a.t - b.t; });
-    return { ok: true, events: ev };
+    var hu = _apHuman(email), name = _apNameOf(people, email);
+    var logRows = _subReadAll(_subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS)).rows.filter(function(r){ return String(r['Applicant Email']).toLowerCase() === email; });
+    var ivRows = _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS)).rows.filter(function(r){ return String(r['Applicant Email']).toLowerCase() === email; });
+    var ev = _apBuildEvents(email, name, hu.role, hu.applied, logRows, ivRows, people);
+    return { ok: true, events: ev, steps: _apSteps(ev), declined: _apDeclined(ev) };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// One call for the whole applicants list: steps done + the latest sentence per person.
+function handleGetApplicantProgress(p) {
+  try {
+    var people = _subPeople();
+    _ivAdmin(p, people);
+    var d = humansData(), ei = d.h.indexOf('Email'), ri = d.h.indexOf('Role'), ai = d.h.indexOf('Applied Date');
+    var logBy = {}, ivBy = {};
+    _subReadAll(_subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS)).rows.forEach(function(r){ var k = String(r['Applicant Email']).toLowerCase(); (logBy[k] = logBy[k] || []).push(r); });
+    _subReadAll(_subGetSheet(IV_TAB, IV_HEADERS)).rows.forEach(function(r){ var k = String(r['Applicant Email']).toLowerCase(); (ivBy[k] = ivBy[k] || []).push(r); });
+    var out = {};
+    for (var r = 1; r < d.data.length; r++) {
+      var em = String(d.data[r][ei] || '').trim().toLowerCase();
+      if (!em) continue;
+      var applied = ai > -1 ? d.data[r][ai] : '';
+      if (!applied && !logBy[em] && !ivBy[em]) continue;
+      var ev = _apBuildEvents(em, _apNameOf(people, em), ri > -1 ? String(d.data[r][ri] || '').trim() : '', applied, logBy[em] || [], ivBy[em] || [], people);
+      var last = ev[ev.length - 1];
+      out[em] = { steps: _apSteps(ev), declined: _apDeclined(ev), last: last ? { text: last.text, t: last.t } : null };
+    }
+    return { ok: true, map: out };
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
