@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.36 -->
+<!-- v12.37 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -823,6 +823,21 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .opstree-k{padding-left:38px;font-weight:600;font-size:14.5px;position:relative}
 .opstree-k::before{content:'';position:absolute;left:22px;top:0;bottom:0;border-left:2px solid var(--mist)}
 .opstree-n.on{background:var(--ink);color:#fff}
+.ops-tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:18px 16px 28px}
+.ops-tile{aspect-ratio:1/1;border:none;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:var(--font-b);font-size:17px;font-weight:800;color:#fff;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12);-webkit-tap-highlight-color:transparent;text-align:center;padding:10px}
+.ops-tile span:first-child{font-size:44px;line-height:1}
+.ops-chips{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px 0}
+.ops-chip{padding:8px 14px;border-radius:99px;border:1px solid var(--mist);background:var(--fog);font-family:var(--font-b);font-size:13px;font-weight:700;color:var(--ink);cursor:pointer}
+.ops-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+#nav.ops-mode #navRow1,#nav.ops-mode #navRow2,#nav.ops-mode #navRow3{display:none!important}
+#navRowOps{display:none}
+#nav.ops-mode #navRowOps{display:flex}
+.nav-btn.opsn{background:#2f4f33;color:#fff}
+.nav-btn.opsn[data-g="home"]{background:#5a6b5c}
+.nav-btn.opsn[data-g="sites"]{background:#4CBFAD;color:#1e3a1e}
+.nav-btn.opsn[data-g="hr"]{background:#9B6BB5}
+.nav-btn.opsn[data-g="acct"]{background:#F5A623;color:#1e3a1e}
+.nav-btn.opsn[data-g="data"]{background:#E8473F}
 .ops-seg{display:flex;margin:10px 16px 0;background:var(--fog);border:1px solid var(--mist);border-radius:12px;padding:4px;gap:4px}
 .ops-seg button{flex:1;padding:10px 8px;border:none;border-radius:9px;background:transparent;font-family:var(--font-b);font-size:15px;font-weight:600;color:var(--stone);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .ops-seg button.active{background:var(--ink);color:#fff}
@@ -1516,12 +1531,20 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   <!-- OPERATIONS TAB (access levels 1 & 2, visibility controlled via Control panel) -->
   <div class="tab-pane" id="tab-operations">
       <!-- Sub-page: Home -->
-      <div id="ops-home" style="display:block">
+      <div id="ops-menu" style="display:block">
+        <div class="page-header"><span class="page-title">Operations</span></div>
+        <div class="ops-tiles" id="opsMenuBody"></div>
+      </div>
+      <div id="ops-acct" style="display:none">
+        <div class="page-header"><span class="page-title">Accounting</span></div>
+        <div id="acctOverview" style="padding:10px 16px 28px"></div>
+      </div>
+      <div id="ops-home" style="display:none">
         <div class="page-header">
           <span class="page-title">Operations</span>
           <span class="page-count" id="opsCount"></span>
         </div>
-        <div class="ops-tree-host"></div>
+        <div class="ops-chips"><button class="ops-chip" onclick="showOperationsPage('tab2')">📝 Notes</button><button class="ops-chip" onclick="showOperationsPage('tab3')">📋 Forms</button><button class="ops-chip" onclick="showOperationsPage('tab4')">🗺 Smart Map</button></div>
         <div style="padding:10px 16px 0;display:flex;gap:8px">
           <button class="settings-btn" style="flex:1" onclick="showAddNewSiteModal()">➕ Add New Site</button>
           <button class="settings-btn" style="flex:1;background:var(--danger)" onclick="showDeleteSiteModal()">🗑 Delete Site</button>
@@ -1729,15 +1752,6 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <div class="ops-empty-page">Coming soon</div>
       </div>
 
-      <!-- Bottom sub-nav bar -->
-      <div class="ops-subnav" id="opsSubnav">
-        <button class="ops-subnav-btn active" data-ops="home" onclick="showOperationsPage('home')">🏠 Home</button>
-        <button class="ops-subnav-btn" data-ops="tab2" onclick="showOperationsPage('tab2')">📝 Notes</button>
-        <button class="ops-subnav-btn" data-ops="tab3" onclick="showOperationsPage('tab3')">📋 Forms</button>
-        <button class="ops-subnav-btn" data-ops="tab4" onclick="showOperationsPage('tab4')">🗺 Smart Map</button>
-        <button class="ops-subnav-btn" data-ops="tab5" onclick="showOperationsPage('tab5')">Tab 5</button>
-        <button class="ops-subnav-btn" data-ops="tab6" onclick="showOperationsPage('tab6')">Tab 6</button>
-      </div>
   </div>
 
 
@@ -2625,6 +2639,8 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   <div class="nav-row" id="navRow2" style="display:none"></div>
   <!-- Row 3: Reach row for levels 1-2 -->
   <div class="nav-row" id="navRow3" style="display:none"></div>
+  <!-- Operations menu row (v12.37): replaces rows 1-3 while inside Operations -->
+  <div class="nav-row" id="navRowOps"></div>
   <!-- Utility row: sits below the tab rows so it's the last thing before the
        device edge. Gives an in-app Back / Home pair that doesn't depend on
        the OS/gesture back button (which, with no browser history pushed,
@@ -2638,10 +2654,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.36';
+const APP_VERSION='v12.37';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-21 17:40 PT - Operations site tree: Sites, Human Resources (Job Listings, Applicants, Interviews), Accounting (Quotes, Purchase Orders, Invoices), Bulk Data. Interviewers with open times.';
+const BUILD_STAMP='2026-11-21 18:45 PT - Operations opens to four square tiles (Sites, Human Resources, Accounting, Bulk Data); bottom menu switches to Home / Sites / HR / Accounting / Bulk Data inside Operations.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4099,6 +4115,7 @@ function buildNav(lvl){
   const active=document.querySelector('#nav .nav-btn.active');
   if(typeof _subBadge==='function')setTimeout(_subBadge,0);
   if(!active){const first=row1.querySelector('.nav-btn');if(first)first.classList.add('active');}
+  if(typeof _opsNavSync==='function'){const _nn=document.getElementById('nav');if(_nn)_nn.classList.remove('ops-mode');_opsNavPrevH=null;}
   // Update nav height CSS var for toast positioning
   if(lvl>=3){
     document.documentElement.style.setProperty('--nav-h','104px');
@@ -4106,6 +4123,7 @@ function buildNav(lvl){
     // row3 sets its own height above if visible; default to 2-row height
     document.documentElement.style.setProperty('--nav-h','104px');
   }
+  if(typeof _opsNavSync==='function')_opsNavSync();
 }
 function showApp(){
   document.getElementById('authScreen').style.display='none';
@@ -11191,7 +11209,7 @@ function goToOperationsForSite(key){
 }
 
 /* ═══ OPERATIONS ═══ */
-let _opsCurrentPage='home';
+let _opsCurrentPage='menu';
 let _opsFilterType='type_active'; // default: All Active Sites
 let _opsFilterStatus=''; // default: no status sub-filter
 let _opsFilterRanger=''; // default: no ranger-assignment sub-filter
@@ -12086,24 +12104,14 @@ function _opsTreeActive(){
 function _opsTreeOpen(){try{return localStorage.getItem('rr_opsTree')!=='0';}catch(e){return true;}}
 function _opsTreeToggle(){try{localStorage.setItem('rr_opsTree',_opsTreeOpen()?'0':'1');}catch(e){}_opsTreePaint();}
 function _opsTreeHtml(){
-  const nodes=_opsTreeNodes(),act=_opsTreeActive(),open=_opsTreeOpen();
-  let crumb=['Operations'];
-  nodes.forEach(n=>{if(n.k===act)crumb.push(n.l);(n.kids||[]).forEach(c=>{if(c.k===act){crumb.push(n.l);crumb.push(c.l);}});});
-  const cr=crumb.map((c,i)=>i===crumb.length-1&&i>0?'<b>'+escHtml(c)+'</b>':escHtml(c)).join(' › ');
-  let h='<div class="opstree"><div class="opstree-bar" onclick="_opsTreeToggle()"><span>'+cr+'</span><span style="font-weight:700;color:var(--ink)">'+(open?'🌳 ▴':'🌳 ▾')+'</span></div>';
-  if(open){
-    h+='<div class="opstree-body">';
-    nodes.forEach(n=>{
-      h+='<button class="opstree-n'+((n.k===act)?' on':'')+'" onclick="_opsTreeGo(\''+n.k+'\')"><span>'+n.i+'</span><span>'+escHtml(n.l)+'</span></button>';
-      (n.kids||[]).forEach(c=>{h+='<button class="opstree-n opstree-k'+((c.k===act)?' on':'')+'" onclick="_opsTreeGo(\''+c.k+'\')"><span>'+c.i+'</span><span>'+escHtml(c.l)+'</span></button>';});
-    });
-    h+='</div>';
-  }
-  return h+'</div>';
+  const act=_opsTreeActive();let head=null,kids=null;
+  if(['jobs','applicants','interviews'].includes(act)){head={k:'hr',l:'Human Resources'};kids=[['jobs','Job Listings'],['applicants','Applicants'],['interviews','Interviews']];}
+  else if(['quotes','po','inv'].includes(act)){head={k:'acct',l:'Accounting'};kids=[['quotes','Quotes'],['po','Purchase Orders'],['inv','Invoices']];}
+  if(!kids)return '';
+  return '<div class="ops-chips"><button class="ops-chip" onclick="_opsTreeGo(\''+head.k+'\')">‹ '+head.l+'</button>'+kids.map(c=>'<button class="ops-chip'+(c[0]===act?' on':'')+'" onclick="_opsTreeGo(\''+c[0]+'\')">'+c[1]+'</button>').join('')+'</div>';
 }
 function _opsTreePaint(){const hs=document.querySelectorAll('.ops-tree-host');if(!hs.length)return;const h=_opsTreeHtml();hs.forEach(el=>{el.innerHTML=h;});}
 function _opsTreeGo(k){
-  if(k==='acct')k='quotes';
   if(k==='quotes'){switchTab('quotes');return;}
   if(k==='data'){_dataCurrentPage='menu';switchTab('data');return;}
   if(_activeTab!=='operations'){_opsCurrentPage=k;switchTab('operations');return;}
@@ -12111,7 +12119,51 @@ function _opsTreeGo(k){
   const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
 }
 const _OPS_HR_PAGES=['hr','jobs','applicants','interviews'];
-const _OPS_ACCT_PAGES=['po','inv'];
+const _OPS_ACCT_PAGES=['acct','po','inv'];
+const _OPS_SITES_PAGES=['home','tab2','tab3','tab4','tab5','tab6'];
+function _opsGroup(){
+  if(_activeTab==='quotes')return 'acct';
+  if(_activeTab==='data')return 'data';
+  if(_activeTab!=='operations')return '';
+  const pg=_opsCurrentPage||'menu';
+  if(pg==='menu')return '';
+  if(['hr','jobs','applicants','interviews'].includes(pg))return 'hr';
+  if(_OPS_ACCT_PAGES.includes(pg))return 'acct';
+  return 'sites';
+}
+function _opsGroups(){
+  const lvl=SESSION?Number(SESSION.accessLevel):3;
+  const g=[{k:'sites',i:'🏫',l:'Sites'}];
+  if(lvl<=2)g.push({k:'hr',i:'👥',l:'Human Resources'});
+  if(_navTabAllowed('quotes',lvl))g.push({k:'acct',i:'💰',l:'Accounting'});
+  if(_navTabAllowed('data',lvl))g.push({k:'data',i:'🗂',l:'Bulk Data'});
+  return g;
+}
+function _opsMenuRender(){
+  const b=document.getElementById('opsMenuBody');if(!b)return;
+  const col={sites:'#4CBFAD;color:#1e3a1e',hr:'#9B6BB5',acct:'#F5A623;color:#1e3a1e',data:'#E8473F'};
+  b.innerHTML=_opsGroups().map(g=>'<button class="ops-tile" style="background:'+col[g.k]+'" onclick="_opsNavGo(\''+g.k+'\')"><span>'+g.i+'</span><span>'+escHtml(g.l)+'</span></button>').join('');
+}
+function _opsNavGo(g){
+  if(g==='data'){_dataCurrentPage='menu';switchTab('data');return;}
+  const pg={sites:'home',hr:'hr',acct:'acct'}[g]||'home';
+  if(_activeTab!=='operations'){_opsCurrentPage=pg;switchTab('operations');return;}
+  showOperationsPage(pg);
+  const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
+}
+let _opsNavPrevH=null;
+function _opsNavSync(){
+  const n=document.getElementById('nav'),row=document.getElementById('navRowOps');if(!n||!row)return;
+  const inOps=!!(SESSION&&Number(SESSION.accessLevel)<=2&&(_activeTab==='operations'||_activeTab==='quotes'||_activeTab==='data'));
+  const root=document.documentElement;
+  if(!inOps){
+    if(n.classList.contains('ops-mode')){n.classList.remove('ops-mode');if(_opsNavPrevH!==null)root.style.setProperty('--nav-h',_opsNavPrevH);_opsNavPrevH=null;}
+    return;
+  }
+  if(!n.classList.contains('ops-mode')){_opsNavPrevH=root.style.getPropertyValue('--nav-h')||'104px';n.classList.add('ops-mode');root.style.setProperty('--nav-h','60px');}
+  const act=_opsGroup();
+  row.innerHTML='<button class="nav-btn opsn" data-g="home" onclick="_navHome()">🏠 Home</button>'+_opsGroups().map(g=>'<button class="nav-btn opsn'+(g.k===act?' active':'')+'" data-g="'+g.k+'" onclick="_opsNavGo(\''+g.k+'\')">'+escHtml(g.l)+'</button>').join('');
+}
 
 /* ── Human Resources overview ── */
 function _hrOverviewRender(){
@@ -12130,6 +12182,12 @@ function _hrOverviewOpen(){
   _hrOverviewRender();
   if(!_hr.loaded&&!_hr.loading)_hrOpen().then(()=>{if(_opsCurrentPage==='hr')_hrOverviewRender();});
   if(!_iv.loaded)_ivLoad(true).then(()=>{if(_opsCurrentPage==='hr')_hrOverviewRender();});
+}
+
+function _acctOverviewRender(){
+  const b=document.getElementById('acctOverview');if(!b)return;
+  const card=(go,ico,t,m)=>'<div class="hr-card" style="cursor:pointer" onclick="_opsTreeGo(\''+go+'\')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><div class="hr-t">'+ico+' '+t+'</div><div class="hr-m">'+m+'</div></div><span style="font-size:22px;color:var(--silver)">›</span></div></div>';
+  b.innerHTML=card('quotes','📄','Quotes','Build, send and track quotes')+card('po','🧾','Purchase Orders','POs and approvals')+card('inv','💳','Invoices','Invoices sent and paid');
 }
 
 /* ── Applicants page ── */
@@ -12365,17 +12423,19 @@ function _acctRecRender(kind){
 }
 function showOperationsPage(sub){
   const _staff=!!(SESSION&&Number(SESSION.accessLevel)<=2);
-  if(_OPS_HR_PAGES.includes(sub)&&!_staff)sub='home';
-  if(_OPS_ACCT_PAGES.includes(sub)&&!(SESSION&&_navTabAllowed('quotes',Number(SESSION.accessLevel))))sub='home';
+  if(_OPS_HR_PAGES.includes(sub)&&!_staff)sub='menu';
+  if(_OPS_ACCT_PAGES.includes(sub)&&!(SESSION&&_navTabAllowed('quotes',Number(SESSION.accessLevel))))sub='menu';
   _opsCurrentPage=sub;
   if(sub!=='tab4'){_exitSmartMapFullscreen();_smartMapClosePanel();if(_smartMapFocused)_smartMapExitRangerFocus();}
-  ['home','hr','jobs','applicants','interviews','po','inv','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
+  ['menu','acct','home','hr','jobs','applicants','interviews','po','inv','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
     const el=document.getElementById('ops-'+k);
     if(el)el.style.display=(k===sub)?'block':'none';
   });
-  document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===((_OPS_HR_PAGES.includes(sub)||_OPS_ACCT_PAGES.includes(sub))?'home':sub)));
+  _opsNavSync();
   _opsTreePaint();
   if(sub==='home'){renderOperationsHome();_ensureOpsResponseFilterOptions();}
+  if(sub==='menu')_opsMenuRender();
+  if(sub==='acct')_acctOverviewRender();
   if(sub==='hr')_hrOverviewOpen();
   if(sub==='jobs')_hrOpen();
   if(sub==='applicants')_apPageOpen();
@@ -13147,7 +13207,7 @@ function navTap(tab){
   if(ov&&ov.classList.contains('open')){try{closeDetailImmediate();}catch(e){}}
   if(tab==='data')_dataCurrentPage='menu';
   if(tab==='reach')_reachCurrentPage='menu';
-  if(tab==='operations')_opsCurrentPage='home';
+  if(tab==='operations')_opsCurrentPage='menu';
   switchTab(tab,tab==='map');
   const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
   _navSetCollapsed(true);
@@ -13190,7 +13250,8 @@ function switchTab(tab,initMapFlag=false){
   _navSetCollapsed(tab==='calendar');
   if(tab==='calendar'){renderCalendar();loadSubs(false);}
   if(tab==='sub'){renderSubs();loadSubs(false);if(_subIsAdmin()&&!_subHomeLL)_subLoadHomes().then(ok=>{if(ok&&_activeTab==='sub')renderSubs();});}
-  if(tab==='operations')showOperationsPage(_opsCurrentPage||'home');
+  if(tab==='operations')showOperationsPage(_opsCurrentPage||'menu');
+  _opsNavSync();
   if(tab==='latest'){
     _activityLoaded=false;loadActivity();
     // Show debug test button only for admin (level 1)
