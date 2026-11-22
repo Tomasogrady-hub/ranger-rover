@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.37 -->
+<!-- v12.38 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -823,17 +823,19 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .opstree-k{padding-left:38px;font-weight:600;font-size:14.5px;position:relative}
 .opstree-k::before{content:'';position:absolute;left:22px;top:0;bottom:0;border-left:2px solid var(--mist)}
 .opstree-n.on{background:var(--ink);color:#fff}
-.ops-tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:18px 16px 28px}
-.ops-tile{aspect-ratio:1/1;border:none;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:var(--font-b);font-size:17px;font-weight:800;color:#fff;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12);-webkit-tap-highlight-color:transparent;text-align:center;padding:10px}
-.ops-tile span:first-child{font-size:44px;line-height:1}
-.ops-chips{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px 0}
-.ops-chip{padding:8px 14px;border-radius:99px;border:1px solid var(--mist);background:var(--fog);font-family:var(--font-b);font-size:13px;font-weight:700;color:var(--ink);cursor:pointer}
-.ops-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ops-tiles{display:block;padding:4px 0 24px}
+.ops-tile{display:block;width:calc(100% - 24px);margin:16px 12px;padding:20px 14px;border:2px solid var(--grove);border-radius:14px;background:var(--grove);color:#fff;font-family:var(--font-b);font-size:22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ops-tile:active{filter:brightness(1.2)}
+@media(min-width:1000px){html:not(.rr-narrow) #ops-menu .ops-tiles{display:none}}
+.ops-chips{display:flex;gap:8px;padding:12px 16px 0}
+.ops-chips .ops-chip{flex:1 1 0;min-width:0;padding:10px 8px;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--fog);color:var(--grove);border:1px solid var(--mist);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ops-chips .ops-chip.on{background:var(--grove);color:#fff;border-color:var(--grove)}
 #nav.ops-mode #navRow1,#nav.ops-mode #navRow2,#nav.ops-mode #navRow3{display:none!important}
 #navRowOps{display:none}
 #nav.ops-mode #navRowOps{display:flex}
 .nav-btn.opsn{background:#2f4f33;color:#fff}
 .nav-btn.opsn[data-g="home"]{background:#5a6b5c}
+.nav-btn.opsn[data-g="menu"]{background:#2f4f33;color:#fff}
 .nav-btn.opsn[data-g="sites"]{background:#4CBFAD;color:#1e3a1e}
 .nav-btn.opsn[data-g="hr"]{background:#9B6BB5}
 .nav-btn.opsn[data-g="acct"]{background:#F5A623;color:#1e3a1e}
@@ -2654,10 +2656,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.37';
+const APP_VERSION='v12.38';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-21 18:45 PT - Operations opens to four square tiles (Sites, Human Resources, Accounting, Bulk Data); bottom menu switches to Home / Sites / HR / Accounting / Bulk Data inside Operations.';
+const BUILD_STAMP='2026-11-21 21:45 PT - Operations: Sub-style bars on mobile, blank page with left tabs on desktop, new Operations tab always returns to the Operations home.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -12141,12 +12143,11 @@ function _opsGroups(){
 }
 function _opsMenuRender(){
   const b=document.getElementById('opsMenuBody');if(!b)return;
-  const col={sites:'#4CBFAD;color:#1e3a1e',hr:'#9B6BB5',acct:'#F5A623;color:#1e3a1e',data:'#E8473F'};
-  b.innerHTML=_opsGroups().map(g=>'<button class="ops-tile" style="background:'+col[g.k]+'" onclick="_opsNavGo(\''+g.k+'\')"><span>'+g.i+'</span><span>'+escHtml(g.l)+'</span></button>').join('');
+  b.innerHTML=_opsGroups().map(g=>'<button class="ops-tile" onclick="_opsNavGo(\''+g.k+'\')">'+g.i+' '+escHtml(g.l)+'</button>').join('');
 }
 function _opsNavGo(g){
   if(g==='data'){_dataCurrentPage='menu';switchTab('data');return;}
-  const pg={sites:'home',hr:'hr',acct:'acct'}[g]||'home';
+  const pg={menu:'menu',sites:'home',hr:'hr',acct:'acct'}[g]||'home';
   if(_activeTab!=='operations'){_opsCurrentPage=pg;switchTab('operations');return;}
   showOperationsPage(pg);
   const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
@@ -12162,7 +12163,7 @@ function _opsNavSync(){
   }
   if(!n.classList.contains('ops-mode')){_opsNavPrevH=root.style.getPropertyValue('--nav-h')||'104px';n.classList.add('ops-mode');root.style.setProperty('--nav-h','60px');}
   const act=_opsGroup();
-  row.innerHTML='<button class="nav-btn opsn" data-g="home" onclick="_navHome()">🏠 Home</button>'+_opsGroups().map(g=>'<button class="nav-btn opsn'+(g.k===act?' active':'')+'" data-g="'+g.k+'" onclick="_opsNavGo(\''+g.k+'\')">'+escHtml(g.l)+'</button>').join('');
+  row.innerHTML='<button class="nav-btn opsn" data-g="home" onclick="_navHome()">🏠 Home</button><button class="nav-btn opsn'+(act===''&&_activeTab==='operations'?' active':'')+'" data-g="menu" onclick="_opsNavGo(\'menu\')">Operations</button>'+_opsGroups().map(g=>'<button class="nav-btn opsn'+(g.k===act?' active':'')+'" data-g="'+g.k+'" onclick="_opsNavGo(\''+g.k+'\')">'+escHtml(g.l)+'</button>').join('');
 }
 
 /* ── Human Resources overview ── */
@@ -12172,11 +12173,11 @@ function _hrOverviewRender(){
   const apps=(DATA.humans||[]).filter(_ivApplicantish);
   const act=_iv.loaded?_iv.list.filter(i=>!_ivClosed(i)):null;
   const need=act?act.filter(i=>i.status==='Applicant Suggested Other').length:0,conf=act?act.filter(i=>i.status==='Confirmed').length:0;
-  const card=(go,ico,t,m)=>'<div class="hr-card" style="cursor:pointer" onclick="_opsTreeGo(\''+go+'\')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><div class="hr-t">'+ico+' '+t+'</div><div class="hr-m">'+m+'</div></div><span style="font-size:22px;color:var(--silver)">›</span></div></div>';
+  const card=(go,ico,t,m)=>'<div class="sub-card tap" style="margin:10px 0" onclick="_opsTreeGo(\''+go+'\')"><div class="sub-top"><div><div class="sub-school">'+ico+' '+t+'</div><div class="sub-meta">'+m+'</div></div><span style="font-size:24px;color:var(--silver)">›</span></div></div>';
   box.innerHTML=card('jobs','📢','Job Listings',open===null?'Loading…':open+' open posting'+(open===1?'':'s'))+
     card('applicants','🧑‍🌾','Applicants',apps.length?apps.length+' applicant'+(apps.length===1?'':'s'):'No applicants yet')+
     card('interviews','📅','Interviews',act===null?(_iv.err||'Loading…'):[need?need+' need you':'',conf?conf+' confirmed':'',act.length-need-conf>0?(act.length-need-conf)+' waiting for the applicant':''].filter(Boolean).join(' · ')||'Nothing scheduled')+
-    '<div class="hr-card" style="background:var(--fog)"><div class="hr-m">Human Resources sheet and resume folder:</div><div class="hr-btns"><a target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a><a target="_blank" href="'+HR_RESUMES_URL+'">Resumes ↗</a></div></div>';
+    '<div class="sub-card" style="margin:10px 0;background:var(--fog)"><div class="sub-meta">Human Resources sheet and resume folder:</div><div class="hr-btns"><a target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a><a target="_blank" href="'+HR_RESUMES_URL+'">Resumes ↗</a></div></div>';
 }
 function _hrOverviewOpen(){
   _hrOverviewRender();
@@ -12186,7 +12187,7 @@ function _hrOverviewOpen(){
 
 function _acctOverviewRender(){
   const b=document.getElementById('acctOverview');if(!b)return;
-  const card=(go,ico,t,m)=>'<div class="hr-card" style="cursor:pointer" onclick="_opsTreeGo(\''+go+'\')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><div class="hr-t">'+ico+' '+t+'</div><div class="hr-m">'+m+'</div></div><span style="font-size:22px;color:var(--silver)">›</span></div></div>';
+  const card=(go,ico,t,m)=>'<div class="sub-card tap" style="margin:10px 0" onclick="_opsTreeGo(\''+go+'\')"><div class="sub-top"><div><div class="sub-school">'+ico+' '+t+'</div><div class="sub-meta">'+m+'</div></div><span style="font-size:24px;color:var(--silver)">›</span></div></div>';
   b.innerHTML=card('quotes','📄','Quotes','Build, send and track quotes')+card('po','🧾','Purchase Orders','POs and approvals')+card('inv','💳','Invoices','Invoices sent and paid');
 }
 
