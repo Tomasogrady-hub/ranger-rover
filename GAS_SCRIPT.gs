@@ -965,6 +965,11 @@ function _doPostRoute(e) {
 
       // ── INTERVIEW SCHEDULER (v11.98) - staff actions need Level 1-2; public ones are token-based ──
       case 'getInterviews':             return respond(handleGetInterviews(p));
+      case 'getInterviewerData':        return respond(handleGetInterviewerData(p));
+      case 'setInterviewer':            return respond(handleSetInterviewer(p));
+      case 'saveAvailability':          return respond(handleSaveAvailability(p));
+      case 'deleteAvailability':        return respond(handleDeleteAvailability(p));
+      case 'acctListRecords':           return respond(handleAcctListRecords(p));
       case 'createInterview':           return respond(handleCreateInterview(p));
       case 'cancelInterview':           return respond(handleCancelInterview(p));
       case 'completeInterview':         return respond(handleCompleteInterview(p));
@@ -5795,6 +5800,7 @@ function _subGetSheet(name, headers) {
     var textCols = { 'Subs': ['Date','Start','End'], 'Reschedule Options': ['Date','Start','End'], 'Calendar': ['Original Date','Date','Start','End'],
                      'Reschedules': ['Chosen Date','Chosen Start','Chosen End'],
                      'Interview Slots': ['Date','Start','End'],
+                     'Interviewer Availability': ['Date','Start','End'],
                      'Interviews': ['Chosen Date','Chosen Start','Chosen End','Suggested Date','Suggested Start','Suggested End'] }[name];
     if (textCols) {
       textCols.forEach(function(c){
@@ -8678,7 +8684,7 @@ function _ivAdminRow(r, slots) {
       label: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) } : null,
     suggestion: r['Applicant Suggestion'] || '', suggested: sug, calendar: !!r['Calendar Event'], page: _ivLink(r.ID),
     detailsSent: r['Details Sent'] || '',
-    slots: slots.map(function(s){ return { id: s['Slot ID'], date: s.Date, start: s.Start, end: s.End, status: s.Status, label: _subFmtShift(s), url: _ivLink(r.ID, s['Slot ID']) }; })
+    slots: slots.map(function(s){ return { id: s['Slot ID'], date: s.Date, start: s.Start, end: s.End, status: s.Status, label: _subFmtShift(s), url: _ivLink(r.ID, s['Slot ID']), interviewers: _ivLower(s.Interviewers) }; })
   };
 }
 function handleGetInterviews(p) {
@@ -10791,4 +10797,113 @@ function _splitAttachments_(blobs, maxBytes) {
   });
   if (cur.length) groups.push(cur);
   return { groups: groups, tooBig: tooBig };
+}
+
+
+// ── INTERVIEWERS + THEIR AVAILABILITY (Operations > Human Resources > Interviews) ─────────────
+// Interviewers are picked from Rangers / Master Rangers (tab "Interviewers"). Each one can post the
+// times they are free to interview (tab "Interviewer Availability"). Staff (Access 1-2) manage everybody;
+// an interviewer can only add or remove their own times. Both tabs live in the Sub spreadsheet and are
+// created automatically on first use.
+var IVR_TAB = 'Interviewers';
+var IVR_HEADERS = ['Email','Name','Added By','Added'];
+var IVA_TAB = 'Interviewer Availability';
+var IVA_HEADERS = ['ID','Email','Date','Start','End','Note','Created'];
+
+function handleGetInterviewerData(p) {
+  try {
+    var people = _subPeople(), me = _subActor(p, people);
+    var staff = _ivStaffLevel(me.email) <= 2;
+    var ivs = _subReadAll(_subGetSheet(IVR_TAB, IVR_HEADERS)).rows;
+    var av = _subReadAll(_subGetSheet(IVA_TAB, IVA_HEADERS)).rows;
+    var today = _subToday();
+    var list = ivs.map(function (r) {
+      var e = String(r.Email || '').trim().toLowerCase(), x = people[e];
+      return { email: e, name: x ? x.name : (r.Name || e) };
+    }).filter(function (x) { return x.email; });
+    var isIv = list.some(function (x) { return x.email === me.email; });
+    var slots = av.filter(function (r) {
+      var e = String(r.Email || '').trim().toLowerCase();
+      return String(r.Date || '') >= today && (staff || e === me.email);
+    }).map(function (r) {
+      return { id: String(r.ID), email: String(r.Email || '').trim().toLowerCase(), date: String(r.Date || ''), start: String(r.Start || ''), end: String(r.End || ''), note: String(r.Note || '') };
+    }).sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start); });
+    if (!staff) list = list.filter(function (x) { return x.email === me.email; });
+    return { ok: true, staff: staff, isInterviewer: isIv, interviewers: list, slots: slots };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function handleSetInterviewer(p) {
+  try {
+    var people = _subPeople(), me = _ivAdmin(p, people);
+    var email = String(p.email || '').trim().toLowerCase();
+    if (!email || !people[email]) return { ok: false, error: 'Person not found.' };
+    var sh = _subGetSheet(IVR_TAB, IVR_HEADERS), rows = _subReadAll(sh).rows;
+    var found = rows.filter(function (r) { return String(r.Email || '').trim().toLowerCase() === email; })[0];
+    if (p.on === false || p.on === 'false') {
+      if (found) sh.deleteRow(found._row);
+    } else if (!found) {
+      sh.appendRow([email, people[email].name, me.email, new Date()]);
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function handleSaveAvailability(p) {
+  try {
+    var people = _subPeople(), me = _subActor(p, people);
+    var staff = _ivStaffLevel(me.email) <= 2;
+    var email = String(p.email || me.email).trim().toLowerCase();
+    if (email !== me.email && !staff) return { ok: false, error: 'You can only change your own times.' };
+    var ivs = _subReadAll(_subGetSheet(IVR_TAB, IVR_HEADERS)).rows;
+    if (!ivs.some(function (r) { return String(r.Email || '').trim().toLowerCase() === email; })) return { ok: false, error: 'This person is not set up as an interviewer yet.' };
+    var sh = _subGetSheet(IVA_TAB, IVA_HEADERS), have = _subReadAll(sh).rows;
+    var today = _subToday(), added = 0;
+    (Array.isArray(p.slots) ? p.slots : []).slice(0, 80).forEach(function (s) {
+      var d = String(s.date || ''), a = String(s.start || ''), b = String(s.end || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d < today || !/^\d{1,2}:\d{2}$/.test(a)) return;
+      if (b && !/^\d{1,2}:\d{2}$/.test(b)) b = '';
+      var pad = function (t) { var m = /^(\d{1,2}):(\d{2})$/.exec(t); return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : t; };
+      a = pad(a); b = b ? pad(b) : '';
+      if (have.some(function (r) { return String(r.Email || '').trim().toLowerCase() === email && String(r.Date) === d && String(r.Start) === a; })) return;
+      sh.appendRow([Utilities.getUuid().slice(0, 8), email, d, a, b, String(s.note || '').slice(0, 200), new Date()]);
+      have.push({ Email: email, Date: d, Start: a });
+      added++;
+    });
+    return { ok: true, added: added };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+function handleDeleteAvailability(p) {
+  try {
+    var people = _subPeople(), me = _subActor(p, people);
+    var staff = _ivStaffLevel(me.email) <= 2;
+    var sh = _subGetSheet(IVA_TAB, IVA_HEADERS), rows = _subReadAll(sh).rows;
+    var ids = (Array.isArray(p.ids) ? p.ids : [p.id]).map(String);
+    var mine = rows.filter(function (r) { return ids.indexOf(String(r.ID)) !== -1 && (staff || String(r.Email || '').trim().toLowerCase() === me.email); });
+    mine.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sh.deleteRow(r._row); });
+    return { ok: true, removed: mine.length };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// Read-only lists for Operations > Accounting > Purchase Orders / Invoices
+function handleAcctListRecords(p) {
+  if (!_acctLevelOk(p)) return { ok: false, error: 'Not authorized.' };
+  try {
+    var tab = String(p.kind) === 'invoices' ? 'Invoices' : 'Purchase Orders and Approvals';
+    var sh = _acctSheet(tab), v = sh.getDataRange().getValues();
+    var h = v[0].map(function (x) { return String(x).trim(); }), rows = [];
+    for (var r = 1; r < v.length; r++) {
+      if (!v[r].join('')) continue;
+      var o = {};
+      h.forEach(function (k, i) {
+        if (!k) return;
+        var x = v[r][i];
+        o[k] = Object.prototype.toString.call(x) === '[object Date]' ? Utilities.formatDate(x, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (x === null || x === undefined ? '' : x);
+      });
+      rows.push(o);
+    }
+    rows.reverse();
+    return { ok: true, headers: h.filter(String), rows: rows.slice(0, 400), url: SpreadsheetApp.openById(ACCT_ID).getUrl() + '#gid=' + sh.getSheetId() };
+  } catch (e) { return { ok: false, error: e.message }; }
 }

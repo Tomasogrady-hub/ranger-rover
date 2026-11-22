@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.35 -->
+<!-- v12.36 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -815,6 +815,14 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .ops-subnav{position:sticky;bottom:0;left:0;right:0;display:flex;overflow-x:auto;gap:6px;padding:8px 10px;background:var(--paper);border-top:1px solid var(--mist);z-index:5;-webkit-overflow-scrolling:touch}
 .ops-subnav-btn{flex:0 0 auto;padding:9px 16px;background:var(--fog);border:1px solid var(--mist);border-radius:99px;font-family:var(--font-b);font-size:13px;font-weight:600;color:var(--stone);letter-spacing:.03em;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
 .ops-subnav-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.opstree{margin:10px 16px 0;border:1px solid var(--mist);border-radius:12px;background:var(--fog);overflow:hidden}
+.opstree-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;cursor:pointer;font-family:var(--font-b);font-size:14px;color:var(--stone)}
+.opstree-bar b{color:var(--ink)}
+.opstree-body{border-top:1px solid var(--mist);padding:6px 6px 8px;background:var(--paper)}
+.opstree-n{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:none;border-radius:9px;background:transparent;font-family:var(--font-b);font-size:15px;font-weight:700;color:var(--ink);cursor:pointer;text-align:left}
+.opstree-k{padding-left:38px;font-weight:600;font-size:14.5px;position:relative}
+.opstree-k::before{content:'';position:absolute;left:22px;top:0;bottom:0;border-left:2px solid var(--mist)}
+.opstree-n.on{background:var(--ink);color:#fff}
 .ops-seg{display:flex;margin:10px 16px 0;background:var(--fog);border:1px solid var(--mist);border-radius:12px;padding:4px;gap:4px}
 .ops-seg button{flex:1;padding:10px 8px;border:none;border-radius:9px;background:transparent;font-family:var(--font-b);font-size:15px;font-weight:600;color:var(--stone);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .ops-seg button.active{background:var(--ink);color:#fff}
@@ -1390,6 +1398,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <span class="page-title">Quotes</span>
       <span class="page-count" id="quotesCount"></span>
     </div>
+    <div class="ops-tree-host"></div>
     <div id="qtTopRow" style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
       <input id="qtSearch" type="search" placeholder="Search quotes…" autocomplete="off" oninput="renderQuotes()"
         style="flex:1;min-width:0;padding:12px 14px;background:var(--fog);border:1px solid transparent;border-radius:var(--r-sm);font-family:var(--font-b);font-size:17px;color:var(--ink);outline:none">
@@ -1512,7 +1521,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <span class="page-title">Operations</span>
           <span class="page-count" id="opsCount"></span>
         </div>
-        <div class="ops-seg" id="opsSegHome"><button class="active" onclick="showOperationsPage('home')">🏫 Sites</button><button onclick="showOperationsPage('hr')">👥 Humans</button></div>
+        <div class="ops-tree-host"></div>
         <div style="padding:10px 16px 0;display:flex;gap:8px">
           <button class="settings-btn" style="flex:1" onclick="showAddNewSiteModal()">➕ Add New Site</button>
           <button class="settings-btn" style="flex:1;background:var(--danger)" onclick="showDeleteSiteModal()">🗑 Delete Site</button>
@@ -1550,11 +1559,36 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <div class="card-list" id="opsHomeList" style="padding:0 16px 28px"></div>
       </div>
 
-      <!-- Sub-page: Humans / Human Resources (v11.51, Levels 1-2) -->
+      <!-- Sub-pages: Human Resources overview, Job Listings, Applicants, Interviews; Accounting lists (v12.36) -->
       <div id="ops-hr" style="display:none">
-        <div class="page-header"><span class="page-title">Operations</span><span class="page-count" id="hrCount"></span></div>
-        <div class="ops-seg"><button onclick="showOperationsPage('home')">🏫 Sites</button><button class="active" onclick="showOperationsPage('hr')">👥 Humans</button></div>
+        <div class="page-header"><span class="page-title">Human Resources</span></div>
+        <div class="ops-tree-host"></div>
+        <div id="hrOverview" style="padding:10px 16px 28px"></div>
+      </div>
+      <div id="ops-jobs" style="display:none">
+        <div class="page-header"><span class="page-title">Job Listings</span><span class="page-count" id="hrCount"></span></div>
+        <div class="ops-tree-host"></div>
         <div id="hrBody" style="padding:10px 16px 28px"></div>
+      </div>
+      <div id="ops-applicants" style="display:none">
+        <div class="page-header"><span class="page-title">Applicants</span><span class="page-count" id="apPageCount"></span></div>
+        <div class="ops-tree-host"></div>
+        <div id="apPageBody" style="padding:10px 16px 28px"></div>
+      </div>
+      <div id="ops-interviews" style="display:none">
+        <div class="page-header"><span class="page-title">Interviews</span></div>
+        <div class="ops-tree-host"></div>
+        <div id="ivPageBody" style="padding:4px 16px 28px"></div>
+      </div>
+      <div id="ops-po" style="display:none">
+        <div class="page-header"><span class="page-title">Purchase Orders</span><span class="page-count" id="poCount"></span></div>
+        <div class="ops-tree-host"></div>
+        <div id="poBody" style="padding:10px 16px 28px"></div>
+      </div>
+      <div id="ops-inv" style="display:none">
+        <div class="page-header"><span class="page-title">Invoices</span><span class="page-count" id="invCount"></span></div>
+        <div class="ops-tree-host"></div>
+        <div id="invBody" style="padding:10px 16px 28px"></div>
       </div>
 
       <!-- Sub-pages: reserved for future Operations modules -->
@@ -2078,6 +2112,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 
   <!-- DATA (access level 1 only) -->
   <div class="tab-pane" id="tab-data">
+    <div class="ops-tree-host"></div>
     <!-- Menu -->
     <div id="data-menu" style="display:block">
       <div class="page-header"><span class="page-title">Bulk Data</span></div>
@@ -2603,10 +2638,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.35';
+const APP_VERSION='v12.36';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-20 17:50 PT - Applicant story: every step as a plain sentence in the timeline and in Confidential Notes, plus a mini progress bar and latest step on each applicant row.';
+const BUILD_STAMP='2026-11-21 17:40 PT - Operations site tree: Sites, Human Resources (Job Listings, Applicants, Interviews), Accounting (Quotes, Purchase Orders, Invoices), Bulk Data. Interviewers with open times.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -4037,7 +4072,8 @@ function buildNav(lvl){
       const dataVisible = _navTabAllowed('data',lvl);
       const reachVisible = _navTabAllowed('reach',lvl);
       const calVisible = _navTabAllowed('calendar',lvl);
-      let r3html = dataVisible ? _navBtn('data','Bulk Data') : '';
+      const treeOn=_navTabAllowed('operations',lvl);
+      let r3html = (dataVisible&&!treeOn) ? _navBtn('data','Bulk Data') : '';
       r3html += reachVisible ? _navBtn('reach','Reach') : '';
       r3html += calVisible ? _navBtn('calendar','Calendar') : '';
       const thVisible = _navTabAllowed('threads',lvl);
@@ -4045,11 +4081,11 @@ function buildNav(lvl){
       const pjVisible = _navTabAllowed('projects',lvl);
       r3html += pjVisible ? _navBtn('projects','Projects') : '';
       const qtVisible = _navTabAllowed('quotes',lvl);
-      r3html += qtVisible ? _navBtn('quotes','Quotes') : '';
+      r3html += (qtVisible&&!treeOn) ? _navBtn('quotes','Quotes') : '';
       // Cabin (seat-map for assigning rangers to schools): Levels 1-2 only, always on
       const cbVisible = _cabinAllowed(lvl);
       r3html += cbVisible ? _navBtn('cabin','Cabin') : '';
-      if(dataVisible || reachVisible || calVisible || thVisible || pjVisible || qtVisible || cbVisible){
+      if((dataVisible&&!treeOn) || reachVisible || calVisible || thVisible || pjVisible || (qtVisible&&!treeOn) || cbVisible){
         row3.innerHTML = r3html;
         row3.style.display = 'flex';
         // Update nav height to 3 rows
@@ -11163,7 +11199,7 @@ let _opsFilterSchedule=''; // default: no schedule sub-filter
 // ── Interview scheduler (v11.98, Levels 1-2) ────────────────────────────────
 // Doodle-style: pick several times, the applicant gets one tap-to-choose link
 // per time (interview.html), first confirmation wins, calendar + emails are
-// handled by GAS. Interviews load only when Operations > Humans or an applicant
+// handled by GAS. Interviews load only when Operations > Human Resources or an applicant
 // card opens (never at startup).
 const _iv={list:[],loaded:false,loading:null,err:'',form:null,open:{},showClosed:false};
 const _IV_ST={'Waiting for Applicant':['⏳ Waiting for them to pick','#b5740f'],'Confirmed':['✅ Confirmed','#1e6b34'],'Applicant Suggested Other':['💬 They suggested a time','#a3332b'],'Cancelled':['Cancelled','#777'],'Completed':['Done','#777'],'Applicant Withdrew':['Withdrew','#777']};
@@ -11236,6 +11272,7 @@ function _ivCancel(id,name){
 }
 function _ivRefresh(){
   if(_hr.loaded&&_hr.editId===null&&document.getElementById('hrBody'))_hrRender();
+  if(_activeTab==='operations'){if(_opsCurrentPage==='interviews')_ivPageRender();else if(_opsCurrentPage==='applicants')_apPageRender();else if(_opsCurrentPage==='hr')_hrOverviewRender();}
   _ivPdFill();
 }
 // Operations > Humans: Interviews card
@@ -11407,8 +11444,15 @@ async function _apTallyFill(email){
 }
 // ── Scheduling sheet ──
 function _ivStaffList(){
-  return (DATA.humans||[]).filter(x=>{const l=parseFloat(x['Access Level']||x.accessLevel||x.AccessLevel);return l===1||l===2;})
-    .map(x=>({em:String(x.Email||x.email||'').trim().toLowerCase(),nm:fullName(x)||x.Email||''})).filter(x=>x.em).sort((a,b)=>a.nm.localeCompare(b.nm));
+  const want=new Map(),add=(em,nm)=>{em=String(em||'').trim().toLowerCase();if(em&&!want.has(em))want.set(em,nm||em);};
+  if(typeof _ivr!=='undefined'&&_ivr.loaded&&_ivr.list.length){
+    _ivr.list.forEach(x=>add(x.email,x.name));
+    if(SESSION)add(SESSION.email,fullName(gh(SESSION.email))||SESSION.email);
+    if(_iv.form)[..._iv.form.interviewers].forEach(e=>add(e,fullName(gh(e))||e));
+  }else{
+    (DATA.humans||[]).filter(x=>{const l=parseFloat(x['Access Level']||x.accessLevel||x.AccessLevel);return l===1||l===2;}).forEach(x=>add(x.Email||x.email,fullName(x)||x.Email||''));
+  }
+  return [...want].map(([em,nm])=>({em,nm})).sort((a,b)=>a.nm.localeCompare(b.nm));
 }
 function _ivGuessPosition(h){
   const id=String(sf(h,'Position Applied','PositionApplied')||'').trim().toLowerCase();if(!id)return '';
@@ -11438,8 +11482,8 @@ function ivOpen(email,existingId,opts){
     '<div class="sub-lbl">Where, or video / phone details</div><input class="sub-in" id="ivLoc" placeholder="Address, Zoom or Meet link, or phone number" value="'+ea(ex?ex.location:'')+'">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="sub-lbl">Length</div><select class="sub-in" id="ivDur" onchange="_ivDurChanged()">'+[15,20,30,45,60,90,120,180,240].map(n=>'<option value="'+n+'"'+(String(n)===dur?' selected':'')+'>'+n+' minutes</option>').join('')+'</select></div>'+
     '<div><div class="sub-lbl">Position</div><input class="sub-in" id="ivPos" value="'+ea(ex?ex.position:_ivGuessPosition(h))+'" placeholder="optional" oninput="_ivDraft()"></div></div>'+
-    '<div class="sub-lbl">'+(tr?'Who will train':'Who can interview')+' the times you add next</div><div class="sub-meta" style="margin:0 0 6px">Tick who is free, pick the day and start times below, tap Add. Then change the ticks for other times - each time keeps its own interviewers.</div><div style="background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:4px 10px">'+
-      staff.map(x=>'<label style="display:flex;align-items:center;gap:10px;margin:0;padding:7px 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;flex-shrink:0" value="'+ea(x.em)+'"'+(f.interviewers.has(x.em)?' checked':'')+''+' onchange="_ivWho(this)"><span>'+escHtml(x.nm)+(x.em===meE?' (you)':'')+'</span></label>').join('')+'</div>'+
+    '<div class="sub-lbl">'+(tr?'Who will train':'Who can interview')+' the times you add next</div><div class="sub-meta" style="margin:0 0 6px">Tick who is free, pick the day and start times below, tap Add. Then change the ticks for other times - each time keeps its own interviewers.</div><div id="ivWhoBox" style="background:var(--fog);border:1px solid var(--mist);border-radius:var(--r-sm);padding:4px 10px">'+_ivWhoHtml()+'</div>'+
+    '<div class="sub-lbl">Open times from your interviewers</div><div class="sub-meta" style="margin:0 0 4px">Tap a time to offer it. The interviewer is ticked for you.</div><div id="ivAvail"></div>'+
     '<div class="sub-lbl">Times to offer</div>'+
     '<div class="sub-meta" style="margin:0 0 6px">Pick a day, tap the start times that work, then Add. Repeat for other days.</div>'+
     '<input type="date" class="sub-in" id="ivQd" min="'+_subToday()+'" onchange="_iv.form.qdate=this.value">'+
@@ -11454,7 +11498,8 @@ function ivOpen(email,existingId,opts){
     '<label style="display:flex;align-items:center;gap:10px;margin:10px 0 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none"><input type="checkbox" id="ivSms" style="width:20px;height:20px"'+(sms?'':' disabled')+'><span>Also send a text'+(sms?'':' <span style="color:var(--stone)">(no text consent on file - email only)</span>')+'</span></label>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'ivOverlay\').remove()">Cancel</button><button class="sub-btn hot" id="ivSend" onclick="_ivSend()">Send invitation</button></div></div>';
   document.body.appendChild(ov);
-  _ivChips();_ivRows();_ivDraft();
+  _ivChips();_ivRows();_ivDraft();_ivAvailPaint();
+  _ivrLoad(false).then(()=>{if(document.getElementById('ivOverlay')){_ivWhoPaint();_ivAvailPaint();_ivRows();}});
 }
 function _ivSitePick(){const s=document.getElementById('ivSite'),l=document.getElementById('ivLoc');if(!s||!l)return;const o=s.options[s.selectedIndex];l.value=s.value?(s.value+(o.dataset.a?' - '+o.dataset.a:'')):'';_ivDraft();}
 function _ivWho(cb){const f=_iv.form;if(!f)return;if(cb.checked)f.interviewers.add(cb.value);else f.interviewers.delete(cb.value);}
@@ -11601,7 +11646,7 @@ function _hrRender(){
       '<a target="_blank" href="'+HR_JOBS_URL+'" style="font-size:13px;color:var(--leaf,#2f6b35);word-break:break-all">'+HR_JOBS_URL.replace('https://','')+' ↗</a>'+
       '<div class="hr-m">All Open postings on one page - share this link.</div></div>'+
       '<div class="hr-btns" style="margin-top:0;flex-direction:column"><a target="_blank" href="'+HR_JOBS_URL+'">Open ↗</a><button onclick="_hrCopy(\''+HR_JOBS_URL+'\',\'Job page link copied\')">🔗 Copy</button></div></div>'+
-    _ivHrCard()+'<div style="display:flex;gap:6px;margin:12px 0 2px;flex-wrap:wrap">'+chip('open','Open',all.filter(p=>p.open).length)+chip('closed','Closed / paused',all.filter(p=>!p.open).length)+chip('all','All',all.length)+'</div>';
+    '<div style="display:flex;gap:6px;margin:12px 0 2px;flex-wrap:wrap">'+chip('open','Open',all.filter(p=>p.open).length)+chip('closed','Closed / paused',all.filter(p=>!p.open).length)+chip('all','All',all.length)+'</div>';
   if(!list.length)h+='<div class="settings-note" style="padding:16px 0">'+(all.length?'Nothing here.':'No job postings yet - tap ➕ New Job Posting.')+'</div>';
   const humansReady=(DATA.humans||[]).length>0;
   list.forEach(p=>{
@@ -12023,18 +12068,320 @@ async function _hrSave(){
     if(btn){btn.disabled=false;btn.textContent=_hr.editId?'Save changes':'Create posting';}
   }
 }
+/* ═══ OPERATIONS SITE TREE (v12.36) ═══
+   Operations > Sites | Human Resources (Job Listings, Applicants, Interviews) | Accounting (Quotes, Purchase Orders, Invoices) | Bulk Data */
+function _opsTreeNodes(){
+  const lvl=SESSION?Number(SESSION.accessLevel):3,staff=lvl<=2;
+  const n=[{k:'home',i:'🏫',l:'Sites'}];
+  if(staff)n.push({k:'hr',i:'👥',l:'Human Resources',kids:[{k:'jobs',i:'📢',l:'Job Listings'},{k:'applicants',i:'🧑‍🌾',l:'Applicants'},{k:'interviews',i:'📅',l:'Interviews'}]});
+  if(_navTabAllowed('quotes',lvl))n.push({k:'acct',i:'💰',l:'Accounting',kids:[{k:'quotes',i:'📄',l:'Quotes'},{k:'po',i:'🧾',l:'Purchase Orders'},{k:'inv',i:'💳',l:'Invoices'}]});
+  if(_navTabAllowed('data',lvl))n.push({k:'data',i:'🗂',l:'Bulk Data'});
+  return n;
+}
+function _opsTreeActive(){
+  if(_activeTab==='quotes')return 'quotes';
+  if(_activeTab==='data')return 'data';
+  return _opsCurrentPage||'home';
+}
+function _opsTreeOpen(){try{return localStorage.getItem('rr_opsTree')!=='0';}catch(e){return true;}}
+function _opsTreeToggle(){try{localStorage.setItem('rr_opsTree',_opsTreeOpen()?'0':'1');}catch(e){}_opsTreePaint();}
+function _opsTreeHtml(){
+  const nodes=_opsTreeNodes(),act=_opsTreeActive(),open=_opsTreeOpen();
+  let crumb=['Operations'];
+  nodes.forEach(n=>{if(n.k===act)crumb.push(n.l);(n.kids||[]).forEach(c=>{if(c.k===act){crumb.push(n.l);crumb.push(c.l);}});});
+  const cr=crumb.map((c,i)=>i===crumb.length-1&&i>0?'<b>'+escHtml(c)+'</b>':escHtml(c)).join(' › ');
+  let h='<div class="opstree"><div class="opstree-bar" onclick="_opsTreeToggle()"><span>'+cr+'</span><span style="font-weight:700;color:var(--ink)">'+(open?'🌳 ▴':'🌳 ▾')+'</span></div>';
+  if(open){
+    h+='<div class="opstree-body">';
+    nodes.forEach(n=>{
+      h+='<button class="opstree-n'+((n.k===act)?' on':'')+'" onclick="_opsTreeGo(\''+n.k+'\')"><span>'+n.i+'</span><span>'+escHtml(n.l)+'</span></button>';
+      (n.kids||[]).forEach(c=>{h+='<button class="opstree-n opstree-k'+((c.k===act)?' on':'')+'" onclick="_opsTreeGo(\''+c.k+'\')"><span>'+c.i+'</span><span>'+escHtml(c.l)+'</span></button>';});
+    });
+    h+='</div>';
+  }
+  return h+'</div>';
+}
+function _opsTreePaint(){const hs=document.querySelectorAll('.ops-tree-host');if(!hs.length)return;const h=_opsTreeHtml();hs.forEach(el=>{el.innerHTML=h;});}
+function _opsTreeGo(k){
+  if(k==='acct')k='quotes';
+  if(k==='quotes'){switchTab('quotes');return;}
+  if(k==='data'){_dataCurrentPage='menu';switchTab('data');return;}
+  if(_activeTab!=='operations'){_opsCurrentPage=k;switchTab('operations');return;}
+  showOperationsPage(k);
+  const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
+}
+const _OPS_HR_PAGES=['hr','jobs','applicants','interviews'];
+const _OPS_ACCT_PAGES=['po','inv'];
+
+/* ── Human Resources overview ── */
+function _hrOverviewRender(){
+  const box=document.getElementById('hrOverview');if(!box)return;
+  const open=_hr.loaded?_hr.positions.filter(p=>p.open).length:null;
+  const apps=(DATA.humans||[]).filter(_ivApplicantish);
+  const act=_iv.loaded?_iv.list.filter(i=>!_ivClosed(i)):null;
+  const need=act?act.filter(i=>i.status==='Applicant Suggested Other').length:0,conf=act?act.filter(i=>i.status==='Confirmed').length:0;
+  const card=(go,ico,t,m)=>'<div class="hr-card" style="cursor:pointer" onclick="_opsTreeGo(\''+go+'\')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><div class="hr-t">'+ico+' '+t+'</div><div class="hr-m">'+m+'</div></div><span style="font-size:22px;color:var(--silver)">›</span></div></div>';
+  box.innerHTML=card('jobs','📢','Job Listings',open===null?'Loading…':open+' open posting'+(open===1?'':'s'))+
+    card('applicants','🧑‍🌾','Applicants',apps.length?apps.length+' applicant'+(apps.length===1?'':'s'):'No applicants yet')+
+    card('interviews','📅','Interviews',act===null?(_iv.err||'Loading…'):[need?need+' need you':'',conf?conf+' confirmed':'',act.length-need-conf>0?(act.length-need-conf)+' waiting for the applicant':''].filter(Boolean).join(' · ')||'Nothing scheduled')+
+    '<div class="hr-card" style="background:var(--fog)"><div class="hr-m">Human Resources sheet and resume folder:</div><div class="hr-btns"><a target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a><a target="_blank" href="'+HR_RESUMES_URL+'">Resumes ↗</a></div></div>';
+}
+function _hrOverviewOpen(){
+  _hrOverviewRender();
+  if(!_hr.loaded&&!_hr.loading)_hrOpen().then(()=>{if(_opsCurrentPage==='hr')_hrOverviewRender();});
+  if(!_iv.loaded)_ivLoad(true).then(()=>{if(_opsCurrentPage==='hr')_hrOverviewRender();});
+}
+
+/* ── Applicants page ── */
+const _apPg={f:'all'};
+function _apPageRender(){
+  const box=document.getElementById('apPageBody');if(!box)return;
+  const all=(DATA.humans||[]).filter(_ivApplicantish);
+  const stOf=a=>{const l=_iv.loaded?_ivFor(a.Email||a.email):[];if(l.some(i=>!_ivClosed(i)))return 'process';if(l.some(i=>i.status==='Completed'))return 'done';return 'new';};
+  const cnt={all:all.length,new:0,process:0,done:0};all.forEach(a=>{cnt[stOf(a)]++;});
+  const f=_apPg.f,list=all.filter(a=>f==='all'||stOf(a)===f).sort((a,b)=>String(sf(b,'Applied Date','AppliedDate')||'').localeCompare(String(sf(a,'Applied Date','AppliedDate')||'')));
+  const chip=(k,l)=>'<button style="padding:7px 13px;border-radius:99px;border:1px solid var(--mist);font-size:13px;font-weight:600;cursor:pointer;'+(f===k?'background:var(--ink);color:#fff;':'background:var(--fog);color:var(--ink);')+'" onclick="_apPg.f=\''+k+'\';_apPageRender()">'+l+' ('+cnt[k]+')</button>';
+  box.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px">'+chip('all','All')+chip('new','To schedule')+chip('process','In interview process')+chip('done','Interviewed')+'</div>'+
+    (_iv.loaded?'':'<div class="hr-m" style="margin:6px 0">Checking interview status…</div>')+
+    (list.length?_hrAppsHtml(list):'<div class="settings-note" style="padding:16px 0">Nobody here.</div>');
+  const c=document.getElementById('apPageCount');if(c)c.textContent=all.length+' total';
+  _apProgPaint();_initLazyImages();
+}
+function _apPageOpen(){
+  _apPageRender();
+  if(!_iv.loaded)_ivLoad(true).then(()=>{if(_opsCurrentPage==='applicants')_apPageRender();});
+}
+
+/* ── Interviews page: interviewers (from Rangers / Master Rangers) and their open times, then the applicants ── */
+const _ivr={loaded:false,loading:null,err:'',list:[],slots:[],staff:false,isInterviewer:false,add:null,pick:''};
+async function _ivrLoad(force){
+  if(!SESSION)return;
+  if(_ivr.loading)return _ivr.loading;
+  if(_ivr.loaded&&!force)return;
+  _ivr.loading=(async()=>{
+    try{
+      const r=await gasPost({action:'getInterviewerData',actor:SESSION.email});
+      if(r&&r.ok){_ivr.list=r.interviewers||[];_ivr.slots=r.slots||[];_ivr.staff=!!r.staff;_ivr.isInterviewer=!!r.isInterviewer;_ivr.loaded=true;_ivr.err='';}
+      else _ivr.err=(r&&r.error)||'Backend not updated yet';
+    }catch(e){_ivr.err='Could not load interviewers';}
+    _ivr.loading=null;
+  })();
+  return _ivr.loading;
+}
+function _ivrName(em){const h=gh(em);return h?(fullName(h)||em):em;}
+function _ivrDay(d){const x=new Date(d+'T12:00:00');return isNaN(x)?d:x.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});}
+function _ivrWhen(s){return _ivrDay(s.date)+' · '+_subFmtTime(s.start)+(s.end?' - '+_subFmtTime(s.end):'');}
+function _ivrCands(){
+  const have=new Set(_ivr.list.map(x=>x.email));
+  return (DATA.humans||[]).filter(h=>humanRoleCats(h).some(c=>c==='ranger'||c==='master_ranger')).map(h=>({em:String(h.Email||h.email||'').trim().toLowerCase(),nm:fullName(h)||h.Email||'',role:h.Role||h.role||''})).filter(x=>x.em&&!have.has(x.em)).sort((a,b)=>a.nm.localeCompare(b.nm));
+}
+function _ivrBusy(email,date,start){
+  return _iv.list.some(i=>{
+    if(_ivClosed(i))return false;
+    const iv=(i.interviewers||[]).map(x=>String(x).toLowerCase());
+    if(i.chosen&&i.chosen.date===date&&i.chosen.start===start&&iv.includes(email))return true;
+    return (i.slots||[]).some(s=>s.status==='Offered'&&s.date===date&&s.start===start&&(((s.interviewers&&s.interviewers.length)?s.interviewers.map(x=>String(x).toLowerCase()):iv).includes(email)));
+  });
+}
+function _ivPageRender(){
+  const box=document.getElementById('ivPageBody');if(!box)return;
+  if(!_ivr.loaded){box.innerHTML='<div class="settings-note" style="padding:20px 0">'+escHtml(_ivr.err||'Loading…')+'</div>';return;}
+  const me=String(SESSION.email||'').toLowerCase();
+  let h='<div style="margin:14px 0 4px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)">🧑‍🏫 Interviewers</div>'+
+    '<div class="hr-m" style="margin:0 0 6px">Rangers and Master Rangers who can interview. Add the times each one is free; when you invite an applicant you pick from these times.</div>'+
+    '<div class="hr-btns" style="margin:0 0 8px"><button onclick="_ivrAddPerson()">➕ Add interviewer</button><button onclick="_ivrRefreshNow()">↻ Refresh</button></div>';
+  if(!_ivr.list.length)h+='<div class="settings-note" style="padding:10px 0">No interviewers yet. Tap Add interviewer and pick from your Rangers and Master Rangers.</div>';
+  _ivr.list.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(x=>{
+    const mine=_ivr.slots.filter(s=>s.email===x.email),hu=gh(x.email),role=hu?(hu.Role||hu.role||''):'';
+    h+='<div class="hr-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><div class="hr-t">'+escHtml(x.name)+(x.email===me?' <span style="font-weight:400;font-size:13px;color:var(--stone)">(you)</span>':'')+'</div><div class="hr-m">'+escHtml(role)+(role?' · ':'')+mine.length+' open time'+(mine.length===1?'':'s')+'</div></div></div>';
+    if(mine.length)h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'+mine.map(s=>{const busy=_ivrBusy(s.email,s.date,s.start);return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:99px;border:1px solid var(--mist);background:'+(busy?'#fff4e5':'var(--fog)')+';font-size:13px">'+escHtml(_ivrWhen(s))+(busy?' <span style="color:#b5740f;font-weight:700">offered</span>':'')+'<button style="border:none;background:transparent;cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" onclick="_ivrDelSlot(\''+ea(s.id)+'\')">✕</button></span>';}).join('')+'</div>';
+    h+='<div class="hr-btns"><button onclick="_ivrSheet(\''+ea(x.email)+'\')">➕ Add times</button><button onclick="_ivrAsk(\''+ea(x.email)+'\')">📨 Ask for times</button><button style="color:var(--danger)" onclick="_ivrRemovePerson(\''+ea(x.email)+'\',\''+ea(x.name)+'\')">Remove</button></div></div>';
+  });
+  h+='<div style="margin:22px 0 4px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)">📋 Applicants</div>';
+  if(!_iv.loaded){h+='<div class="hr-m">'+escHtml(_iv.err||'Loading interviews…')+'</div>';}
+  else{
+    const act=_iv.list.filter(i=>!_ivClosed(i)),closed=_iv.list.filter(_ivClosed);
+    const rank=i=>i.status==='Applicant Suggested Other'?0:i.status==='Confirmed'?1:2;
+    act.sort((a,b)=>rank(a)-rank(b)||String(a.chosen?a.chosen.date+a.chosen.start:'9').localeCompare(String(b.chosen?b.chosen.date+b.chosen.start:'9')));
+    const busyEm=new Set(act.map(i=>String(i.email).toLowerCase()));
+    const ready=(DATA.humans||[]).filter(a=>_ivApplicantish(a)&&_ivBtnRole(a)&&!busyEm.has(String(a.Email||a.email||'').toLowerCase()));
+    h+='<div class="hr-m" style="margin:0 0 6px">People being interviewed, and applicants ready to be invited.</div>';
+    h+=act.length?act.map(_ivCardHtml).join(''):'<div class="settings-note" style="padding:8px 0">No interviews in progress.</div>';
+    if(ready.length)h+='<div class="hr-card"><div class="hr-t">Ready to invite ('+ready.length+')</div>'+ready.slice(0,30).map(a=>{const em=a.Email||a.email||'';return '<div class="hr-app" style="cursor:default"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(fullName(a)||em)+'</div><div class="hr-m">'+escHtml(a.Role||a.role||'')+'</div></div><div class="hr-btns" style="margin-top:0"><button onclick="showPersonDetail(\''+ea(em)+'\')">Open</button><button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="ivOpen(\''+ea(em)+'\')">📅 Invite</button></div></div>';}).join('')+'</div>';
+    if(closed.length)h+='<div class="hr-btns"><button onclick="_iv.showClosed=!_iv.showClosed;_ivPageRender()">'+(_iv.showClosed?'Hide':'Show')+' finished ('+closed.length+')</button></div>'+(_iv.showClosed?closed.map(_ivCardHtml).join(''):'');
+  }
+  box.innerHTML=h;
+}
+async function _ivrRefreshNow(){showToast('Refreshing…');await Promise.all([_ivrLoad(true),_ivLoad(true)]);_ivPageRender();showToast('Up to date');}
+function _ivPageOpen(){
+  _ivPageRender();
+  Promise.all([_ivrLoad(!_ivr.loaded),_ivLoad(false)]).then(()=>{if(_opsCurrentPage==='interviews')_ivPageRender();});
+}
+function _ivrAddPerson(){
+  const c=_ivrCands();
+  if(!c.length){alert('Every Ranger and Master Ranger is already an interviewer.');return;}
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='ivrPickOv';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet"><h3>Add an interviewer</h3><div class="sub-meta" style="margin:-6px 0 8px">Rangers and Master Rangers. Tap a name to add them.</div><input class="sub-in" id="ivrPickQ" placeholder="Search…" oninput="_ivrPickPaint()"><div id="ivrPickList" style="max-height:50vh;overflow:auto;margin-top:8px"></div><div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'ivrPickOv\').remove()">Close</button></div></div>';
+  document.body.appendChild(ov);_ivrPickPaint();
+}
+function _ivrPickPaint(){
+  const q=((document.getElementById('ivrPickQ')||{}).value||'').toLowerCase(),box=document.getElementById('ivrPickList');if(!box)return;
+  const c=_ivrCands().filter(x=>!q||x.nm.toLowerCase().includes(q)||x.em.includes(q));
+  box.innerHTML=c.map(x=>'<div class="hr-app" onclick="_ivrSetPerson(\''+ea(x.em)+'\',true)"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px">'+escHtml(x.nm)+'</div><div class="hr-m">'+escHtml(x.role)+'</div></div><span style="color:var(--grove);font-weight:700">+ Add</span></div>').join('')||'<div class="hr-m">No match.</div>';
+}
+async function _ivrSetPerson(em,on){
+  try{
+    const r=await gasPost({action:'setInterviewer',actor:SESSION.email,email:em,on});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not save');return;}
+    const ov=document.getElementById('ivrPickOv');if(ov)ov.remove();
+    showToast(on?'Interviewer added - now add their times':'Removed');
+    await _ivrLoad(true);_ivPageRender();
+    if(on)_ivrSheet(em);
+  }catch(e){alert('Connection problem - please try again');}
+}
+function _ivrRemovePerson(em,nm){if(!confirm('Remove '+(nm||'this person')+' as an interviewer? Their open times stay in the sheet but are no longer offered.'))return;_ivrSetPerson(em,false);}
+async function _ivrDelSlot(id){
+  try{
+    const r=await gasPost({action:'deleteAvailability',actor:SESSION.email,id});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not remove');return;}
+    _ivr.slots=_ivr.slots.filter(s=>s.id!==id);_ivPageRender();_ivrSheetPaint();if(document.getElementById('ivAvail'))_ivAvailPaint();
+  }catch(e){alert('Connection problem - please try again');}
+}
+/* Add times sheet (staff for anyone; an interviewer for themselves) */
+function _ivrSheet(email){
+  _ivr.add={email:String(email||SESSION.email).toLowerCase(),sel:new Set(),half:false,len:30,rows:[],date:''};
+  const old=document.getElementById('ivrSheetOv');if(old)old.remove();
+  const ov=document.createElement('div');ov.className='sub-ov';ov.id='ivrSheetOv';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="sub-sheet" id="ivrSheetBox"></div>';
+  document.body.appendChild(ov);_ivrSheetPaint();
+}
+function _ivrSheetPaint(){
+  const a=_ivr.add,box=document.getElementById('ivrSheetBox');if(!a||!box)return;
+  const mine=_ivr.slots.filter(s=>s.email===a.email);
+  const chips=[];for(let m=8*60;m<=19*60;m+=a.half?30:60){const t=String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');chips.push('<button type="button" class="'+(a.sel.has(t)?'on':'')+'" onclick="_ivrChip(\''+t+'\')">'+_subFmtTime(t)+'</button>');}
+  box.innerHTML='<h3>Times '+escHtml(a.email===String(SESSION.email).toLowerCase()?'you are':_ivrName(a.email)+' is')+' free to interview</h3>'+
+    (mine.length?'<div class="sub-lbl">Already added</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">'+mine.map(s=>'<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:99px;border:1px solid var(--mist);background:var(--fog);font-size:13px">'+escHtml(_ivrWhen(s))+'<button style="border:none;background:transparent;cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" onclick="_ivrDelSlot(\''+ea(s.id)+'\')">✕</button></span>').join('')+'</div>':'')+
+    '<div class="sub-lbl">Day</div><input type="date" class="sub-in" id="ivrDate" min="'+_subToday()+'" value="'+ea(a.date)+'" onchange="_ivr.add.date=this.value">'+
+    '<div class="sub-lbl">Each time lasts</div><select class="sub-in" onchange="_ivr.add.len=parseInt(this.value,10)||30">'+[15,20,30,45,60,90].map(n=>'<option value="'+n+'"'+(n===a.len?' selected':'')+'>'+n+' minutes</option>').join('')+'</select>'+
+    '<div class="sub-lbl">Tap the start times that work</div><div class="iv-q">'+chips.join('')+'</div>'+
+    '<div class="sub-actions" style="margin-top:2px"><button class="sub-btn alt" onclick="_ivrStage()">+ Add these times</button><button class="sub-btn alt" onclick="_ivr.add.half=!_ivr.add.half;_ivrSheetPaint()">½ hours</button></div>'+
+    (a.rows.length?'<div class="sub-lbl">To save</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+a.rows.map((s,i)=>'<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:99px;border:1px solid var(--grove);background:#e8f3e9;font-size:13px">'+escHtml(_ivrWhen(s))+'<button style="border:none;background:transparent;cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" onclick="_ivr.add.rows.splice('+i+',1);_ivrSheetPaint()">✕</button></span>').join('')+'</div>':'')+
+    '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" onclick="document.getElementById(\'ivrSheetOv\').remove()">Close</button><button class="sub-btn hot" id="ivrSave" onclick="_ivrSave()"'+(a.rows.length?'':' disabled')+'>Save '+(a.rows.length||'')+' time'+(a.rows.length===1?'':'s')+'</button></div>';
+}
+function _ivrChip(t){const a=_ivr.add;if(a.sel.has(t))a.sel.delete(t);else a.sel.add(t);_ivrSheetPaint();}
+function _ivrStage(){
+  const a=_ivr.add,d=(document.getElementById('ivrDate')||{}).value||a.date;
+  if(!d){alert('Pick a day first.');return;}
+  if(!a.sel.size){alert('Tap at least one start time.');return;}
+  a.date=d;
+  a.sel.forEach(t=>{if(!a.rows.some(s=>s.date===d&&s.start===t))a.rows.push({date:d,start:t,end:_ivAddMin(t,a.len)});});
+  a.rows.sort((x,y)=>(x.date+x.start).localeCompare(y.date+y.start));a.sel.clear();_ivrSheetPaint();
+}
+async function _ivrSave(){
+  const a=_ivr.add;if(!a||!a.rows.length)return;
+  const b=document.getElementById('ivrSave');if(b){b.disabled=true;b.textContent='Saving…';}
+  try{
+    const r=await gasPost({action:'saveAvailability',actor:SESSION.email,email:a.email,slots:a.rows});
+    if(!r||!r.ok){alert((r&&r.error)||'Could not save');if(b){b.disabled=false;b.textContent='Save';}return;}
+    showToast('✓ '+(r.added||0)+' time'+(r.added===1?'':'s')+' saved');
+    a.rows=[];await _ivrLoad(true);_ivrSheetPaint();_ivPageRender();if(document.getElementById('ivAvail'))_ivAvailPaint();
+  }catch(e){alert('Connection problem - please try again');if(b){b.disabled=false;b.textContent='Save';}}
+}
+async function _ivrAsk(em){
+  const nm=_ivrName(em),first=nm.split(' ')[0];
+  if(!confirm('Email '+nm+' asking for the times they are free to interview?'))return;
+  const link='https://tomasogrady-hub.github.io/ranger-rover/#ivavail',me=gh(SESSION.email),meName=me?fullName(me):SESSION.email;
+  const subj='Enrich LA - when are you free to interview applicants?';
+  const body='Hi '+first+',\n\nThank you for helping us interview new Garden Ranger applicants! Please add the days and times you are free to interview, so we can offer them to applicants:\n\n'+link+'\n\nOpen the link, sign in to Ranger Rover, and tap the times that work for you.\n\nThank you,\n'+meName+'\nEnrich LA';
+  try{
+    const r=await gasPost({action:'sendMailMerge',messages:[{to:em,subject:subj,body}],cc:'',bcc:'',fromEmail:SESSION.email,category:'',mode:'email_individual',templateSubject:subj,templateMessage:body});
+    if(r&&r.ok===false)throw new Error(r.error||'Send failed');
+    if(r&&!r.sent&&r.errors&&r.errors.length)throw new Error(String(r.errors[0]));
+    showToast('📨 Asked '+first+' for their times');
+  }catch(e){alert('Could not send: '+e.message);}
+}
+/* An interviewer opens their own link (#ivavail) */
+async function ivAvailMine(){
+  showToast('Loading…');
+  await _ivrLoad(true);
+  if(!_ivr.isInterviewer&&!_ivIsStaff()){alert('You are not set up as an interviewer yet. Ask Tomas to add you.');return;}
+  if(!_ivr.isInterviewer&&_ivIsStaff()){showOperationsPageFromAnywhere('interviews');return;}
+  _ivrSheet(SESSION.email);
+}
+function showOperationsPageFromAnywhere(k){_opsCurrentPage=k;switchTab('operations');}
+/* Scheduler: pick from interviewers' open times, and who-can-interview list */
+function _ivWhoHtml(){
+  const f=_iv.form,meE=String(SESSION.email||'').toLowerCase();
+  return _ivStaffList().map(x=>'<label style="display:flex;align-items:center;gap:10px;margin:0;padding:7px 0;font-weight:400;font-size:15px;color:var(--ink);letter-spacing:0;text-transform:none;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;flex-shrink:0" value="'+ea(x.em)+'"'+(f&&f.interviewers.has(x.em)?' checked':'')+' onchange="_ivWho(this)"><span>'+escHtml(x.nm)+(x.em===meE?' (you)':'')+'</span></label>').join('');
+}
+function _ivWhoPaint(){const b=document.getElementById('ivWhoBox');if(b)b.innerHTML=_ivWhoHtml();}
+function _ivAvailPaint(){
+  const box=document.getElementById('ivAvail'),f=_iv.form;if(!box||!f)return;
+  if(!_ivr.loaded){box.innerHTML='<div class="sub-meta">'+escHtml(_ivr.err||'Loading interviewer times…')+'</div>';return;}
+  const slots=_ivr.slots.filter(s=>!_ivrBusy(s.email,s.date,s.start));
+  if(!slots.length){box.innerHTML='<div class="sub-meta">No open interviewer times yet. Add them under Operations > Human Resources > Interviews, or add times by hand below.</div>';return;}
+  const by={};slots.forEach(s=>{(by[s.date]=by[s.date]||[]).push(s);});
+  box.innerHTML=Object.keys(by).sort().map(d=>'<div class="sub-meta" style="margin:6px 0 2px;font-weight:700;color:var(--ink)">'+escHtml(_ivrDay(d))+'</div><div class="iv-q">'+by[d].map(s=>'<button type="button" class="'+(f.slots.some(x=>x.availId===s.id)?'on':'')+'" onclick="_ivAvailPick(\''+ea(s.id)+'\')">'+escHtml(_subFmtTime(s.start)+' · '+_ivrName(s.email).split(' ')[0])+'</button>').join('')+'</div>').join('');
+}
+function _ivAvailPick(id){
+  const f=_iv.form,s=_ivr.slots.find(x=>x.id===id);if(!f||!s)return;
+  const k=f.slots.findIndex(x=>x.availId===id);
+  if(k>-1)f.slots.splice(k,1);
+  else if(!f.slots.some(x=>x.date===s.date&&x.start===s.start)){f.slots.push({date:s.date,start:s.start,end:_ivAddMin(s.start,_ivDur()),auto:true,iv:[s.email],availId:id});f.interviewers.add(s.email);}
+  f.conf={};_ivSort();_ivWhoPaint();_ivRows();_ivAvailPaint();
+}
+/* ── Accounting lists: Purchase Orders / Invoices (read-only) ── */
+const _acctRec={po:null,inv:null,loading:{}};
+function _acctMoney(x){const n=Number(String(x).replace(/[^0-9.\-]/g,''));return isNaN(n)||x===''?'':'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+async function _acctRecOpen(kind,force){
+  const body=document.getElementById(kind==='po'?'poBody':'invBody');if(!body)return;
+  if(_acctRec[kind]&&!force){_acctRecRender(kind);return;}
+  if(_acctRec.loading[kind])return;
+  _acctRec.loading[kind]=true;body.innerHTML='<div class="settings-note" style="padding:20px 0">Loading…</div>';
+  try{
+    const r=await gasPost({action:'acctListRecords',kind:kind==='po'?'po':'invoices',actor:SESSION.email});
+    if(!r||!r.ok)throw new Error((r&&r.error)||'Could not load');
+    _acctRec[kind]=r;
+  }catch(e){body.innerHTML='<div class="settings-note" style="color:var(--danger);padding:20px 0">'+escHtml(e.message)+'</div>';_acctRec.loading[kind]=false;return;}
+  _acctRec.loading[kind]=false;_acctRecRender(kind);
+}
+function _acctRecRender(kind){
+  const body=document.getElementById(kind==='po'?'poBody':'invBody'),r=_acctRec[kind];if(!body||!r)return;
+  const po=kind==='po',rows=r.rows||[];
+  const cnt=document.getElementById(po?'poCount':'invCount');if(cnt)cnt.textContent=rows.length+' total';
+  let h='<div class="hr-btns" style="margin:0 0 4px"><button onclick="_acctRecOpen(\''+kind+'\',true)">↻ Refresh</button>'+(r.url?'<a target="_blank" href="'+ea(r.url)+'">Open sheet ↗</a>':'')+'</div>';
+  if(!rows.length)h+='<div class="settings-note" style="padding:16px 0">'+(po?'No purchase orders yet. A record appears here when a customer approves a quote.':'No invoices yet.')+'</div>';
+  rows.forEach(o=>{
+    const title=po?('PO '+(o['PO #']||'-')+' · Quote '+(o['Quote #']||'-')):('Invoice '+(o['Invoice #']||'-')),st=String(o['Status']||'');
+    const meta=po?[o['Site'],o['Category'],o['Approval Date']?'Approved '+o['Approval Date']:'',o['Approved By']].filter(Boolean):[o['Site'],o['Category'],o['Invoice Date']?'Issued '+o['Invoice Date']:'',o['Due Date']?'Due '+o['Due Date']:''].filter(Boolean);
+    const link=po?o['Document Link']:o['PDF Link'];
+    h+='<div class="hr-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><div class="hr-t">'+escHtml(title)+'</div><div class="hr-m">'+escHtml(meta.join(' · '))+'</div></div><div style="text-align:right"><div style="font-weight:700;font-size:16px">'+escHtml(_acctMoney(o['Amount']))+'</div>'+(st?'<span class="hr-st'+(/paid|approved|complete/i.test(st)?'':' pause')+'">'+escHtml(st)+'</span>':'')+'</div></div>'+
+      (!po&&(o['Balance']!==''||o['Amount Paid']!=='')?'<div class="hr-m" style="margin-top:6px">Paid '+escHtml(_acctMoney(o['Amount Paid'])||'$0.00')+' · Balance '+escHtml(_acctMoney(o['Balance'])||'$0.00')+'</div>':'')+
+      (po&&o['Invoice #']?'<div class="hr-m" style="margin-top:6px">Invoice '+escHtml(o['Invoice #'])+'</div>':'')+
+      (o['Notes']?'<div class="hr-m" style="margin-top:6px">'+escHtml(o['Notes'])+'</div>':'')+
+      (link&&/^https?:/.test(String(link))?'<div class="hr-btns"><a target="_blank" href="'+ea(link)+'">Open document ↗</a></div>':'')+'</div>';
+  });
+  body.innerHTML=h;
+}
 function showOperationsPage(sub){
-  if(sub==='hr'&&!(SESSION&&Number(SESSION.accessLevel)<=2))sub='home';
+  const _staff=!!(SESSION&&Number(SESSION.accessLevel)<=2);
+  if(_OPS_HR_PAGES.includes(sub)&&!_staff)sub='home';
+  if(_OPS_ACCT_PAGES.includes(sub)&&!(SESSION&&_navTabAllowed('quotes',Number(SESSION.accessLevel))))sub='home';
   _opsCurrentPage=sub;
   if(sub!=='tab4'){_exitSmartMapFullscreen();_smartMapClosePanel();if(_smartMapFocused)_smartMapExitRangerFocus();}
-  ['home','hr','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
+  ['home','hr','jobs','applicants','interviews','po','inv','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
     const el=document.getElementById('ops-'+k);
     if(el)el.style.display=(k===sub)?'block':'none';
   });
-  document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===(sub==='hr'?'home':sub)));
-  const _seg=document.getElementById('opsSegHome');if(_seg)_seg.style.display=(SESSION&&Number(SESSION.accessLevel)<=2)?'':'none';
+  document.querySelectorAll('.ops-subnav-btn').forEach(b=>b.classList.toggle('active',b.dataset.ops===((_OPS_HR_PAGES.includes(sub)||_OPS_ACCT_PAGES.includes(sub))?'home':sub)));
+  _opsTreePaint();
   if(sub==='home'){renderOperationsHome();_ensureOpsResponseFilterOptions();}
-  if(sub==='hr')_hrOpen();
+  if(sub==='hr')_hrOverviewOpen();
+  if(sub==='jobs')_hrOpen();
+  if(sub==='applicants')_apPageOpen();
+  if(sub==='interviews')_ivPageOpen();
+  if(sub==='po')_acctRecOpen('po');
+  if(sub==='inv')_acctRecOpen('inv');
   if(sub==='tab2'){
     const ta=document.getElementById('opsSharedNotes');
     if(ta)ta.value=_appSettings.opsNotes||'';
@@ -12818,6 +13165,8 @@ function switchTab(tab,initMapFlag=false){
   }
   _activeTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  if(!document.querySelector('.nav-btn[data-tab="'+tab+'"]')&&(tab==='quotes'||tab==='data')){const _nbo=document.getElementById('nav_operations');if(_nbo)_nbo.classList.add('active');}
+  if(tab==='quotes'||tab==='data')_opsTreePaint();
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
   document.getElementById('searchbar').style.display=(tab==='notes'||tab==='reach'||tab==='threads'||tab==='projects'||tab==='quotes'||tab==='cabin')?'none':'block';
   if(tab==='map'||initMapFlag){
@@ -17084,6 +17433,13 @@ function _tryDeepLink(retries){
     }else if(retries>0){setTimeout(()=>_tryDeepLink(retries-1),400);}
     return;
   }
+  // Deep link: .../ranger-rover/#ivavail -> an interviewer adds the times they are free
+  if(/[#&]ivavail\b/.test(location.hash)){
+    if(!SESSION)return;
+    try{history.replaceState(null,'',location.pathname);}catch(e){}
+    ivAvailMine();
+    return;
+  }
   // Deep link: .../ranger-rover/#ivdetails=I123 (confirmed-interview email) -> the "Send meeting details" window.
   const mid=/[#&]ivdetails=([^&]+)/.exec(location.hash);
   if(mid){
@@ -17094,7 +17450,7 @@ function _tryDeepLink(retries){
       await _ivLoad(true);
       if(_iv.list.some(x=>x.id===iid)){try{history.replaceState(null,'',location.pathname);}catch(e){}ivDetails(iid);}
       else if(retries>0)setTimeout(()=>_tryDeepLink(retries-1),600);
-      else{try{history.replaceState(null,'',location.pathname);}catch(e){}showToast('That interview was not found - open Operations > Humans > Interviews');}
+      else{try{history.replaceState(null,'',location.pathname);}catch(e){}showToast('That interview was not found - open Operations > Human Resources > Interviews');}
     })();
     return;
   }
