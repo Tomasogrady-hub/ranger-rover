@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.38 -->
+<!-- v12.39 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,17 +17,17 @@
 <style>
 :root {
   --ink:#1a1a1a; --charcoal:#3a3a3a; --stone:#6b6b6b; --silver:#9e9e9e;
-  --mist:#e2e2de; --fog:#f2f2ef; --white:#fafaf8; --paper:#ffffff;
+  --mist:#E4DED0; --fog:#F3EFE6; --white:#FBF8F2; --paper:#FFFDF8;
   /* Enrich LA brand palette */
-  --enrich-red:#E8473F;   --enrich-teal:#4CBFAD;  --enrich-orange:#F5A623;
-  --enrich-olive:#8DB84E; --enrich-purple:#9B6BB5; --enrich-pink:#F06B8A;
-  --enrich-dkteal:#3B9E8E;--enrich-yellow:#F0C040;--enrich-dkpurple:#6B4E9B;
-  --enrich-dark:#1e3a1e;
+  --enrich-red:#B5694B;   --enrich-teal:#8FA58F;  --enrich-orange:#D1A054;
+  --enrich-olive:#8E9B62; --enrich-purple:#8F7487; --enrich-pink:#C98C84;
+  --enrich-dkteal:#6F8F86;--enrich-yellow:#D9BF76;--enrich-dkpurple:#6E5A73;
+  --enrich-dark:#2F3B2C;
   /* Map brand vars to existing names so rest of app picks up new colors */
-  --grove:#1e3a1e; --sage:#4CBFAD; --mint:#d4fbf5;
-  --amber:#F5A623; --clay:#E8473F; --danger:#E8473F; --danger-bg:#fdecea;
-  --blue:#9B6BB5; --blue-light:#f3eeff;
-  --warn:#F5A623; --warn-bg:#fff8ec;
+  --grove:#2F3B2C; --sage:#8FA58F; --mint:#d4fbf5;
+  --amber:#D1A054; --clay:#B5694B; --danger:#B5483A; --danger-bg:#f8e7e2;
+  --blue:#8F7487; --blue-light:#f3eeff;
+  --warn:#D1A054; --warn-bg:#fff8ec;
   --font-d:'Cormorant Garamond',Georgia,serif;
   --font-b:'Outfit',system-ui,sans-serif;
   --r-xs:3px; --r-sm:8px; --r-md:12px; --r-lg:18px; --r-xl:26px;
@@ -76,12 +76,12 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .hdr-btn .hdr-icon{font-size:22px;line-height:1;pointer-events:none}
 /* square avatar — fills the whole button cell */
 .hdr-avatar-sq{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
-.hdr-avatar-init-sq{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:20px;color:#fff;pointer-events:none;background:#9B6BB5}
+.hdr-avatar-init-sq{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:20px;color:#fff;pointer-events:none;background:#8F7487}
 /* version pill — narrow, vertical text */
 .hdr-ver{display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;text-orientation:mixed;font-family:var(--font-b);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.85);background:rgba(0,0,0,.25);border-right:1px solid rgba(255,255,255,.12);padding:0 6px;flex-shrink:0;height:100%;white-space:nowrap}
 /* name cell */
-.hdr-name-cell{display:flex;align-items:center;justify-content:center;flex:1.4;background:#4CBFAD;border-right:1px solid rgba(255,255,255,.12);height:100%;padding:0 4px}
-.hdr-name-text{font-family:var(--font-b);font-size:10px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:#1e3a1e;text-align:center;line-height:1.25;max-width:80px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;pointer-events:none}
+.hdr-name-cell{display:flex;align-items:center;justify-content:center;flex:1.4;background:#8FA58F;border-right:1px solid rgba(255,255,255,.12);height:100%;padding:0 4px}
+.hdr-name-text{font-family:var(--font-b);font-size:10px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:#2F3B2C;text-align:center;line-height:1.25;max-width:80px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;pointer-events:none}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--enrich-teal)}
 .sync-dot.offline{background:rgba(255,255,255,.35)}
 .logo{display:none}.logo-sub{display:none}.logout-btn{display:none}
@@ -97,33 +97,33 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 /* ── Block nav ── */
 #nav{flex-shrink:0;padding-bottom:var(--safe-bottom);background:var(--enrich-dark);display:flex;flex-direction:column;z-index:10;gap:0}
 .nav-row{display:flex;flex-direction:row;width:100%}
-.nav-btn{flex:1;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-size:12px;font-weight:900;letter-spacing:0.06em;text-transform:uppercase;height:58px;transition:filter .15s,opacity .15s;position:relative;padding:0 4px;text-align:center;line-height:1.1}
+.nav-btn{flex:1;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;height:58px;transition:filter .15s,opacity .15s;position:relative;padding:0 4px;text-align:center;line-height:1.1}
 .nav-btn.active{filter:brightness(1.18);box-shadow:inset 0 -3px 0 rgba(255,255,255,.5)}
 .nav-btn:not(.active){opacity:.88}
 /* per-tab colors — Enrich LA palette */
-.nav-btn[data-tab="notes"]    {background:#E8473F;color:#fff}
-.nav-btn[data-tab="schools"]  {background:#4CBFAD;color:#1e3a1e}
-.nav-btn[data-tab="rangers"]  {background:#8DB84E;color:#1e3a1e}
-.nav-btn[data-tab="people"]   {background:#F5A623;color:#1e3a1e}
-.nav-btn[data-tab="map"]      {background:#9B6BB5;color:#fff}
-.nav-btn[data-tab="chores"]   {background:#F06B8A;color:#fff}
-.nav-btn[data-tab="plants"]   {background:#3B9E8E;color:#fff}
-.nav-btn[data-tab="settings"] {background:#F0C040;color:#1e3a1e}
-.nav-btn[data-tab="data"]  {background:#6B4E9B;color:#fff}
-.nav-btn[data-tab="latest"]   {background:#4CBFAD;color:#1e3a1e}
-.nav-btn[data-tab="sub"]      {background:#E07A3F;color:#fff}
-.nav-btn[data-tab="threads"]  {background:#C9A227;color:#1e3a1e}
-.nav-btn[data-tab="projects"] {background:#7C9A5E;color:#14281a}
-.nav-btn[data-tab="quotes"]   {background:#2f6b35;color:#fff}
+.nav-btn[data-tab="notes"]    {background:#B5694B;color:#fff}
+.nav-btn[data-tab="schools"]  {background:#8FA58F;color:#2F3B2C}
+.nav-btn[data-tab="rangers"]  {background:#8E9B62;color:#2F3B2C}
+.nav-btn[data-tab="people"]   {background:#D1A054;color:#2F3B2C}
+.nav-btn[data-tab="map"]      {background:#8F7487;color:#fff}
+.nav-btn[data-tab="chores"]   {background:#C98C84;color:#fff}
+.nav-btn[data-tab="plants"]   {background:#6F8F86;color:#fff}
+.nav-btn[data-tab="settings"] {background:#D9BF76;color:#2F3B2C}
+.nav-btn[data-tab="data"]  {background:#6E5A73;color:#fff}
+.nav-btn[data-tab="latest"]   {background:#8FA58F;color:#2F3B2C}
+.nav-btn[data-tab="sub"]      {background:#C47F4F;color:#fff}
+.nav-btn[data-tab="threads"]  {background:#B79A4E;color:#2F3B2C}
+.nav-btn[data-tab="projects"] {background:#7F8F63;color:#14281a}
+.nav-btn[data-tab="quotes"]   {background:#4F6B4A;color:#fff}
 .rr-load-ov .rr-thread{max-width:320px;font-size:15px;line-height:1.5;color:var(--stone);background:#f4faf6;border:1px solid var(--mist);border-radius:12px;padding:10px 14px;text-align:left}
 .rr-load-ov .rr-thread b{color:var(--ink)}
-.rr-load-ov .rr-thread .rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3B9E8E;margin-bottom:3px}
+.rr-load-ov .rr-thread .rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6F8F86;margin-bottom:3px}
 .rr-busy{position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h,104px) + 14px + env(safe-area-inset-bottom,0px));z-index:13500;display:flex;justify-content:center;pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
 .rr-busy.on{opacity:1;transform:none}
 .rr-busy-in{display:flex;gap:10px;align-items:flex-start;max-width:420px;background:#fff;border:1px solid var(--mist);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 14px;font-size:14px;line-height:1.45;color:var(--stone)}
 .rr-busy-in b{color:var(--ink)}
 .rr-busy .rr-twirl{flex:none;animation:rrTwirl 1.3s linear infinite}
-.rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3B9E8E;margin-bottom:3px}
+.rr-thread-k{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6F8F86;margin-bottom:3px}
 .rr-thread-dark{max-width:320px;margin:0 0 20px;font-size:14px;line-height:1.5;color:rgba(255,255,255,.85);text-align:left;background:rgba(255,255,255,.1);border-radius:12px;padding:10px 14px}
 .rr-thread-dark b{color:#fff}
 .rr-thread-dark .rr-thread-k{color:#9fe0d3}
@@ -156,14 +156,14 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .cal-num{font-size:14px;font-weight:700;color:var(--ink)}
 .cal-dots{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-top:3px}
 .cal-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#2e7d4f}
-.cal-dot.cov{background:#8DB84E}.cal-dot.sub{background:#E07A3F}.cal-dot.pend{background:#F5A623}.cal-dot.mk{background:#2E86AB}
-.cal-dot.off{background:#bbb}.cal-dot.sp{background:#9B6BB5}.cal-dot.est{background:#fff;border:2px solid #2e7d4f;width:8px;height:8px;box-sizing:border-box}
+.cal-dot.cov{background:#8E9B62}.cal-dot.sub{background:#C47F4F}.cal-dot.pend{background:#D1A054}.cal-dot.mk{background:#2E86AB}
+.cal-dot.off{background:#bbb}.cal-dot.sp{background:#8F7487}.cal-dot.est{background:#fff;border:2px solid #2e7d4f;width:8px;height:8px;box-sizing:border-box}
 .cal-more{font-size:10px;color:var(--stone)}
 .cal-legend{display:flex;flex-wrap:wrap;gap:10px;padding:8px 16px 2px;font-size:12px;color:var(--stone)}
 .cal-legend span{display:flex;align-items:center;gap:4px}
 .cal-tag{flex-shrink:0;font-size:11px;font-weight:800;padding:4px 8px;border-radius:99px;background:var(--fog);color:var(--stone);max-width:48%;text-align:right}
 .cal-tag.cov{background:#eaf4dc;color:#4a6b1c}.cal-tag.sub{background:#fde8dc;color:#b4501c}.cal-tag.pend{background:#fff3d6;color:#9a6a00}
-.cal-tag.mk{background:#e3f1f8;color:#1f5f7d}.cal-tag.off{background:#eee;color:#888}.cal-tag.sp{background:#f3eeff;color:#6B4E9B}
+.cal-tag.mk{background:#e3f1f8;color:#1f5f7d}.cal-tag.off{background:#eee;color:#888}.cal-tag.sp{background:#f3eeff;color:#6E5A73}
 .cal-ev{margin:6px 16px;padding:11px 13px}
 .cal-ev.cal-ghost{opacity:.55}
 .cal-ev.cal-ghost .sub-school{text-decoration:line-through}
@@ -172,8 +172,8 @@ button *{pointer-events:none}a *{pointer-events:none}button,a.cta,a.dcta,.dcta,.
 .rr-util-menu{justify-self:end;background:rgba(255,255,255,.16);border:none;color:#fff;font-family:var(--font-b);font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:6px 12px;border-radius:99px;cursor:pointer}
 .hdr-role-text{display:block;font-family:var(--font-b);font-size:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(30,58,30,.75);text-align:center;line-height:1.2;max-width:84px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .hdr-name-cell{flex-direction:column}
-.sub-avail{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#E07A3F;color:#fff;font-size:11px;font-weight:800;letter-spacing:.02em;animation:rrSubFlash 1.6s ease-in-out infinite}
-.sub-avail-box{border:2px solid #E07A3F;background:#fdf0e7;border-radius:var(--r-sm);padding:8px 10px;margin-top:10px}
+.sub-avail{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#C47F4F;color:#fff;font-size:11px;font-weight:800;letter-spacing:.02em;animation:rrSubFlash 1.6s ease-in-out infinite}
+.sub-avail-box{border:2px solid #C47F4F;background:#fdf0e7;border-radius:var(--r-sm);padding:8px 10px;margin-top:10px}
 .nav-badge{position:absolute;top:6px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fff;color:#C0392B;font-size:11px;font-weight:900;line-height:18px;text-align:center;letter-spacing:0}
 .sub-topbtns{padding:0 16px 6px;display:flex;flex-direction:column;gap:8px;align-items:stretch}
 .sub-topbtns.row{flex-direction:row;gap:8px}
@@ -191,16 +191,16 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .sub-h1 .n{font-size:15px;color:var(--stone);font-weight:700;letter-spacing:.04em;margin-left:6px}
 .sub-sec.lv2{font-size:13px;margin-top:6px}
 .sub-dd{margin-top:8px}
-.sub-dd>summary{cursor:pointer;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#E07A3F;list-style:none;padding:4px 0}
+.sub-dd>summary{cursor:pointer;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#C47F4F;list-style:none;padding:4px 0}
 .sub-dd>summary::-webkit-details-marker{display:none}
 .sub-dd>summary::after{content:' ▾'}
 .sub-dd[open]>summary::after{content:' ▴'}
 .sub-sec{padding:8px 16px 2px;font-size:16px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);margin-top:10px}
 .sub-card{background:#fff;border:1px solid var(--mist);border-radius:var(--r-md);padding:14px 15px;margin:8px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
-.sub-card.hl{outline:3px solid #E07A3F;outline-offset:1px}
+.sub-card.hl{outline:3px solid #C47F4F;outline-offset:1px}
 .sub-card.tap{cursor:pointer}
 .sub-card.tap:active{background:#fbf7f2}
-.sub-more{font-size:13px;font-weight:700;color:#E07A3F;margin-top:8px;letter-spacing:.03em}
+.sub-more{font-size:13px;font-weight:700;color:#C47F4F;margin-top:8px;letter-spacing:.03em}
 .sub-dl{font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--stone);margin:14px 0 4px}
 .sub-dv{font-size:16px;color:var(--ink);line-height:1.5;white-space:pre-wrap}
 .sub-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
@@ -217,7 +217,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .sub-btn{padding:10px 14px;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:14px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;background:var(--grove);color:#fff}
 .sub-btn.alt{background:var(--fog);color:var(--grove);border:1px solid var(--mist)}
 .sub-btn.warn{background:#fff;color:var(--clay);border:1px solid var(--clay)}
-.sub-btn.hot{background:#E07A3F}
+.sub-btn.hot{background:#C47F4F}
 .sub-btn:disabled{opacity:.5}
 .sub-vol{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--mist);font-size:15px}
 .sub-empty{padding:18px 16px;color:var(--silver);font-size:16px;text-align:center}
@@ -272,7 +272,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .sub-mode{display:flex;gap:8px;margin:0 0 6px}
 .sub-mode-btn{flex:1;padding:10px 8px;border:2px solid var(--mist);border-radius:var(--r-md);background:#fff;font-family:var(--font-b);font-size:15px;font-weight:700;color:var(--grove);cursor:pointer;text-align:center;line-height:1.25}
 .sub-mode-btn small{display:block;font-size:12px;font-weight:500;color:var(--stone);margin-top:2px}
-.sub-mode-btn.on{border-color:#E07A3F;background:#fdf0e7}
+.sub-mode-btn.on{border-color:#C47F4F;background:#fdf0e7}
 .rr-util-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:42px;padding:0 16px;background:var(--enrich-dark);border-top:1px solid rgba(255,255,255,.08)}
 .rr-util-back{justify-self:start;background:none;border:none;color:#fff;font-size:26px;line-height:1;padding:4px 12px;cursor:pointer;font-family:var(--font-b);transition:opacity .15s;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .rr-util-home{justify-self:center;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.16);border:none;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -578,7 +578,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .map-chip[data-filter="inactive"].active{background:var(--stone)}
 .map-chip[data-filter="possible"].active{background:var(--amber)}
 .map-chip[data-filter="open-chores"].active{background:var(--warn);color:white}
-.map-chip[data-filter="mine-ranger"].active{background:var(--grove,#1e3a1e)}
+.map-chip[data-filter="mine-ranger"].active{background:var(--grove,#2F3B2C)}
 .map-chip[data-filter="mine-gk"].active{background:#00838f}
 .map-chip[data-filter="unassigned"].active{background:#6a4c93}
 .map-chip[data-filter="all-active"].active{background:#1a5f8a}
@@ -803,7 +803,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .action-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--stone);margin-bottom:6px}
 .action-badges{display:flex;gap:8px;flex-wrap:wrap}
 .action-badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600;font-family:var(--font-b);letter-spacing:.04em}
-.badge-yes{background:#d4fbf5;color:#1e3a1e}
+.badge-yes{background:#d4fbf5;color:#2F3B2C}
 .badge-no{background:#fdecea;color:#b02020}
 
 /* ── OPERATIONS TAB ── */
@@ -827,26 +827,26 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .ops-tile{display:block;width:calc(100% - 24px);margin:16px 12px;padding:20px 14px;border:2px solid var(--grove);border-radius:14px;background:var(--grove);color:#fff;font-family:var(--font-b);font-size:22px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .ops-tile:active{filter:brightness(1.2)}
 @media(min-width:1000px){html:not(.rr-narrow) #ops-menu .ops-tiles{display:none}}
-.ops-chips{display:flex;gap:8px;padding:12px 16px 0}
-.ops-chips .ops-chip{flex:1 1 0;min-width:0;padding:10px 8px;border:none;border-radius:var(--r-sm);font-family:var(--font-b);font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--fog);color:var(--grove);border:1px solid var(--mist);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ops-chips .ops-chip.on{background:var(--grove);color:#fff;border-color:var(--grove)}
+.ops-chips{display:flex;gap:22px;padding:14px 16px 4px;overflow-x:auto;white-space:nowrap;border-bottom:1px solid var(--mist);-webkit-overflow-scrolling:touch}
+.ops-chips .ops-chip{flex:0 0 auto;padding:6px 0 8px;border:none;border-bottom:2px solid transparent;border-radius:0;background:transparent;font-family:var(--font-b);font-size:12px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--stone);cursor:pointer}
+.ops-chips .ops-chip.on{color:var(--ink);border-bottom-color:var(--ink)}
 #nav.ops-mode #navRow1,#nav.ops-mode #navRow2,#nav.ops-mode #navRow3{display:none!important}
 #navRowOps{display:none}
 #nav.ops-mode #navRowOps{display:flex}
 .nav-btn.opsn{background:#2f4f33;color:#fff}
 .nav-btn.opsn[data-g="home"]{background:#5a6b5c}
 .nav-btn.opsn[data-g="menu"]{background:#2f4f33;color:#fff}
-.nav-btn.opsn[data-g="sites"]{background:#4CBFAD;color:#1e3a1e}
-.nav-btn.opsn[data-g="hr"]{background:#9B6BB5}
-.nav-btn.opsn[data-g="acct"]{background:#F5A623;color:#1e3a1e}
-.nav-btn.opsn[data-g="data"]{background:#E8473F}
+.nav-btn.opsn[data-g="sites"]{background:#8FA58F;color:#2F3B2C}
+.nav-btn.opsn[data-g="hr"]{background:#8F7487}
+.nav-btn.opsn[data-g="acct"]{background:#D1A054;color:#2F3B2C}
+.nav-btn.opsn[data-g="data"]{background:#B5694B}
 .ops-seg{display:flex;margin:10px 16px 0;background:var(--fog);border:1px solid var(--mist);border-radius:12px;padding:4px;gap:4px}
 .ops-seg button{flex:1;padding:10px 8px;border:none;border-radius:9px;background:transparent;font-family:var(--font-b);font-size:15px;font-weight:600;color:var(--stone);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .ops-seg button.active{background:var(--ink);color:#fff}
 .hr-card{border:1px solid var(--mist);border-radius:12px;padding:14px;margin:10px 0;background:var(--paper)}
 .hr-card .hr-t{font-weight:700;font-size:17px;color:var(--ink)}
 .hr-card .hr-m{font-size:13px;color:var(--stone);margin-top:2px}
-.hr-st{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;background:#e3f1e4;color:#2f6b35}
+.hr-st{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;background:#e3f1e4;color:#4F6B4A}
 .hr-st.off{background:#f3e3e1;color:var(--danger)}
 .hr-st.pause{background:#fff1d9;color:#9a6a12}
 .hr-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -1043,11 +1043,11 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   <!-- 2: Version — narrow, vertical text -->
   <div class="hdr-ver" id="appVersionLabel">v3.2</div>
   <!-- 3: Avatar square — user photo fills full cell, purple fallback -->
-  <button id="headerNameBtn" class="hdr-btn" onclick="showSelfProfile()" style="flex:0 0 58px;padding:0;overflow:hidden;background:#9B6BB5;border-right:1px solid rgba(255,255,255,.12)">
+  <button id="headerNameBtn" class="hdr-btn" onclick="showSelfProfile()" style="flex:0 0 58px;padding:0;overflow:hidden;background:#8F7487;border-right:1px solid rgba(255,255,255,.12)">
     <div id="hdrAvatarWrap" class="hdr-avatar-init-sq">?</div>
   </button>
   <!-- 4: Spacer square — same color as name cell, gives name more breathing room -->
-  <div style="background:#4CBFAD;flex:0 0 10px;border-right:1px solid rgba(255,255,255,.12)"></div>
+  <div style="background:#8FA58F;flex:0 0 10px;border-right:1px solid rgba(255,255,255,.12)"></div>
   <!-- 5: Name -->
   <button class="hdr-name-cell" onclick="showSelfProfile()" style="border:none;cursor:pointer;pointer-events:all">
     <span class="hdr-name-text" id="hdrNameLabel"></span>
@@ -1062,11 +1062,11 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
     <span class="lb-ico" data-px="28" style="pointer-events:none;display:flex"></span>
   </button>
   <!-- 6: Refresh — icon only -->
-  <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" style="background:#F5A623;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Refresh" aria-label="Refresh">
+  <button id="refreshBtn" class="hdr-btn" onclick="forceRefresh()" style="background:#D1A054;flex:0 0 52px;border-right:1px solid rgba(255,255,255,.12)" title="Refresh" aria-label="Refresh">
     <span id="refreshIcon" style="font-size:24px;pointer-events:none">↺</span>
   </button>
   <!-- 7: Sign out — X only -->
-  <button class="hdr-btn" onclick="logout()" style="background:#E8473F;flex:0 0 52px;border-right:none">
+  <button class="hdr-btn" onclick="logout()" style="background:#B5694B;flex:0 0 52px;border-right:none">
     <span style="font-size:22px;pointer-events:none">✕</span>
   </button>
   <div id="buildStampLabel" style="display:none;font-size:10px;color:rgba(255,255,255,.4);position:absolute;top:1px;left:130px;white-space:nowrap;pointer-events:none">Built: 2026-06-07 15:00 PT</div>
@@ -1351,7 +1351,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
   <!-- CALENDAR -->
   <div class="tab-pane" id="tab-calendar">
     <div class="page-header"><span class="page-title">Calendar</span><span class="page-count" id="calCount"></span></div>
-    <div style="margin:0 16px 12px;padding:12px 14px;background:#fff3d6;border:2px solid #F5A623;border-radius:var(--r-md);font-size:16px;line-height:1.45;color:#6b4a00">
+    <div style="margin:0 16px 12px;padding:12px 14px;background:#fff3d6;border:2px solid #D1A054;border-radius:var(--r-md);font-size:16px;line-height:1.45;color:#6b4a00">
       <b>⚠️ Testing only.</b> This is for testing purposes only and is not ready for prime time yet. When this message disappears, it is.
     </div>
     <div id="calBody"><div class="spinner"></div></div>
@@ -1605,6 +1605,9 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
         <div class="ops-tree-host"></div>
         <div id="ivPageBody" style="padding:4px 16px 28px"></div>
       </div>
+      <div id="ops-onb" style="display:none"><div class="page-header"><span class="page-title">Ranger Onboarding</span></div><div class="ops-tree-host"></div><div class="settings-note" style="padding:18px 16px">To be added.</div></div>
+      <div id="ops-trn" style="display:none"><div class="page-header"><span class="page-title">Ranger in Training</span></div><div class="ops-tree-host"></div><div class="settings-note" style="padding:18px 16px">To be added.</div></div>
+      <div id="ops-rgr" style="display:none"><div class="page-header"><span class="page-title">Ranger</span></div><div class="ops-tree-host"></div><div class="settings-note" style="padding:18px 16px">To be added.</div></div>
       <div id="ops-po" style="display:none">
         <div class="page-header"><span class="page-title">Purchase Orders</span><span class="page-count" id="poCount"></span></div>
         <div class="ops-tree-host"></div>
@@ -1736,7 +1739,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <div class="smartmap-panel" id="smartMapPanel"></div>
           <button class="smartmap-fs-btn" id="smartMapFsBtn" onclick="toggleSmartMapFullscreen()" title="Full screen">⛶</button>
           <div class="smartmap-legend" id="smartMapLegend">
-            <span><i style="background:#1e3a1e"></i>Active site</span>
+            <span><i style="background:#2F3B2C"></i>Active site</span>
             <span><i style="background:#c07000"></i>Open chores</span>
             <span><i style="background:#6a4fb3"></i>Ranger</span>
             <span><i style="background:#b8860b"></i>Master Ranger</span>
@@ -2656,10 +2659,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.38';
+const APP_VERSION='v12.39';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-21 21:45 PT - Operations: Sub-style bars on mobile, blank page with left tabs on desktop, new Operations tab always returns to the Operations home.';
+const BUILD_STAMP='2026-11-22 09:50 PT - Applicant step timeline (drop arrow), interviewer history (interviewed / offered), HR tabs Ranger Onboarding / Ranger in Training / Ranger, clean text tabs, earthy neutral palette.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -3282,7 +3285,7 @@ function _rrPendingThumb(url){
   return e.thumb+'#rrpending';
 }
 function _rrProcessingNoteHtml(kind){
-  return `<div class="rr-proc-note" style="display:flex;gap:10px;align-items:flex-start;background:#eef7ee;border:1px solid #b9dcb9;color:#1e3a1e;border-radius:var(--r-sm);padding:10px 12px;margin:8px 0 12px;font-size:14px;line-height:1.45">
+  return `<div class="rr-proc-note" style="display:flex;gap:10px;align-items:flex-start;background:#eef7ee;border:1px solid #b9dcb9;color:#2F3B2C;border-radius:var(--r-sm);padding:10px 12px;margin:8px 0 12px;font-size:14px;line-height:1.45">
     <span style="font-size:20px;line-height:1">✅</span>
     <span><b>Don’t worry, your ${kind==='video'?'video':'photo'} is saved.</b> It can take a few minutes to finish processing. Until then you’re seeing the copy from this device. Nothing else to do.</span></div>`;
 }
@@ -4488,7 +4491,7 @@ function qtLocOpen(){
       <button type="button" ${tb} onclick="qtLocClear()">Clear</button>
       <button type="button" ${tb} onclick="qtLocDone()">✓ Done</button><button type="button" class="settings-btn" style="margin:0;padding:8px 12px;background:var(--mist);color:var(--ink)" onclick="qtLocClose()">Cancel</button></div>
     <div style="background:#fffbe6;padding:6px 10px;font-size:12.5px;line-height:1.45;color:#333"><b>How to use:</b> 1) Pinch/drag the map so the garden sits <b>inside the dashed frame</b> - only the framed area goes into the quote, so zoom in close. 2) <b>Arrow</b>: tap the garden. <b>Box</b>: tap one corner of the garden, then the opposite corner. Tap again to start over. 3) Press <b>Done</b>.</div>
-    <div id="qtLocHelp" style="background:#2f6b35;color:#fff;padding:6px 10px;font-size:13px;font-weight:600"></div>
+    <div id="qtLocHelp" style="background:#4F6B4A;color:#fff;padding:6px 10px;font-size:13px;font-weight:600"></div>
     <div style="position:relative;flex:1;min-height:0"><div id="qtLocMap" style="position:absolute;inset:0"></div><div id="qtLocFrame" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:3px dashed #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.4);pointer-events:none;z-index:600;border-radius:4px"></div></div>`;
   document.body.appendChild(m);
   _qtLocAnn={mode:'arrow',arrow:null,box:[]};_qtLocLayers=[];
@@ -7046,7 +7049,7 @@ function _renderL3SchoolSections(listEl,sortedSites,cardFn){
   const section=(title,color,arr,fn)=>`<div class="l3-sec-head" style="border-left-color:${color}"><span>${title}</span><span class="l3-sec-count">${arr.length}</span></div>
     <div class="${pics&&fn===cardFn?'card-list pictures-grid l3-sec-grid':'l3-sec-list'}">${arr.length?arr.map((s,i)=>fn(s,i)).join(''):'<div class="l3-sec-empty">No matches</div>'}</div>`;
   let html='';
-  if(hasAnyRanger)html+=section(SESSION.l25?'🌱 All Schools':'🌱 My Garden Ranger Schools','var(--grove,#1e3a1e)',rangerSites,cardFn);
+  if(hasAnyRanger)html+=section(SESSION.l25?'🌱 All Schools':'🌱 My Garden Ranger Schools','var(--grove,#2F3B2C)',rangerSites,cardFn);
   if(hasAnyGk)html+=section('🌻 My Garden Keeper Schools','#00838f',gkSites,cardFn);
   if(availSites.length)html+=section('🔎 Available Schools','#6a4c93',availSites,_l3AvailCardHtml);
   if(futureSites.length)html+=section('🌅 Future Schools','#c77d0a',futureSites,(x,i)=>_l3AvailCardHtml(x,i,true));
@@ -7951,7 +7954,7 @@ function buildMapMarkers(){
     const hasGk=roleMode&&sites.some(s=>_mySiteRoles(s).gk);
     const hasRg=roleMode&&sites.some(s=>_mySiteRoles(s).ranger);
     legendEl.style.display='none';
-    legendEl.innerHTML=hasGk?((hasRg?'<span><i style="background:#1e3a1e;border-radius:50%"></i>Garden Ranger</span>':'')+'<span><i style="background:#00838f;border-radius:2px"></i>Garden Keeper</span>'):'';
+    legendEl.innerHTML=hasGk?((hasRg?'<span><i style="background:#2F3B2C;border-radius:50%"></i>Garden Ranger</span>':'')+'<span><i style="background:#00838f;border-radius:2px"></i>Garden Keeper</span>'):'';
   }
   _mapMarkersByKey={};
   const _availSet=lvl3?new Set(_l3AvailableSites()):null;
@@ -7968,7 +7971,7 @@ function buildMapMarkers(){
     const roles=roleMode?_mySiteRoles(s):null;
     const isGkOnly=!!(roles&&roles.gk&&!roles.ranger);
     const isGk=!!(roles&&roles.gk);
-    const dotColor=openC>0?'#c07000':isGkOnly?'#00838f':t.includes('future')?'#1a5f8a':t.includes('inactive')?'#9e9e9e':t.includes('possible')?'#b87333':'#1e3a1e';
+    const dotColor=openC>0?'#c07000':isGkOnly?'#00838f':t.includes('future')?'#1a5f8a':t.includes('inactive')?'#9e9e9e':t.includes('possible')?'#b87333':'#2F3B2C';
     const icon=L.divIcon({
       className:'',
       html:`<div style="width:14px;height:14px;background:${dotColor};border-radius:${isGkOnly?'2px':'50%'};border:2px solid ${isGk&&!isGkOnly?'#00838f':'white'};box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer"></div>`,
@@ -8236,7 +8239,7 @@ function buildSmartMapSiteMarkers(){
     const openC=openChoresForSite(key).length;
     const r1=String(sf(s,'Ranger 1','Ranger1')||'').trim();
     const label=shortLabel(name)+(openC>0?` (${openC}⚠)`:'')+(!r1?' ◻':'');
-    const dotColor=openC>0?'#c07000':t.includes('future')?'#1a5f8a':t.includes('inactive')?'#9e9e9e':t.includes('possible')?'#b87333':'#1e3a1e';
+    const dotColor=openC>0?'#c07000':t.includes('future')?'#1a5f8a':t.includes('inactive')?'#9e9e9e':t.includes('possible')?'#b87333':'#2F3B2C';
     const ringCss=r1?'':'outline:2px solid #d33;outline-offset:1px;';
     const icon=L.divIcon({
       className:'',
@@ -8529,7 +8532,7 @@ function _smartMapOpenSitePanel(site){
       <button class="smartmap-panel-close" onclick="_smartMapClosePanel()">✕</button>
     </div>
     <div class="smartmap-panel-body">
-      <div class="smartmap-panel-badge" style="background:${openC>0?'#c07000':'#1e3a1e'}">🏫</div>
+      <div class="smartmap-panel-badge" style="background:${openC>0?'#c07000':'#2F3B2C'}">🏫</div>
       <h3>${ea(name)}</h3>
       <div class="smartmap-panel-sub">${ea(type)}${openC>0?` · ${openC} open chore${openC===1?'':'s'}`:''}</div>
       ${addr?`<a class="smartmap-panel-row" href="https://maps.google.com/?q=${encodeURIComponent(addr)}" target="_blank" rel="noopener">📍 ${ea(addr)}</a>`:''}
@@ -10852,7 +10855,7 @@ function _showUpdateBar(ver){
   if(document.getElementById('rrUpdateBar'))return;
   const b=document.createElement('div');b.id='rrUpdateBar';
   b.style='position:fixed;left:12px;right:12px;top:calc(var(--safe-top) + 8px);z-index:30000;background:var(--enrich-dark);color:#fff;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.3);font-family:var(--font-b);font-size:15px';
-  b.innerHTML='<span style="flex:1">✨ New version '+escHtml(ver)+' is available</span><button style="background:#F5A623;color:#1e3a1e;border:none;border-radius:8px;padding:9px 14px;font-weight:800;font-size:14px;cursor:pointer" onclick="forceAppUpdate()">Update now</button>';
+  b.innerHTML='<span style="flex:1">✨ New version '+escHtml(ver)+' is available</span><button style="background:#D1A054;color:#2F3B2C;border:none;border-radius:8px;padding:9px 14px;font-weight:800;font-size:14px;cursor:pointer" onclick="forceAppUpdate()">Update now</button>';
   document.body.appendChild(b);
   // apply on its own once the person is not mid-edit (checked every 5s, up to 2 min).
   // Only auto-apply once per version per 15 min, so if the web host is still
@@ -11262,7 +11265,7 @@ function _ivCardHtml(i){
     const off=(i.slots||[]).filter(s=>s.status==='Offered');
     if(off.length)h+='<div class="hr-m" style="margin-top:6px">Offered: '+escHtml(off.map(s=>s.label).join('  |  '))+'</div>';
   }
-  if(i.status==='Confirmed')h+=i.detailsSent?'<div class="hr-m" style="margin-top:4px;color:var(--leaf,#2f6b35)">📨 Meeting details sent</div>':'<div class="iv-sug" style="background:#fff4e5">📨 <b>Next:</b> send '+escHtml((i.name||'them').split(' ')[0])+' the Zoom link, phone number or address.</div>';
+  if(i.status==='Confirmed')h+=i.detailsSent?'<div class="hr-m" style="margin-top:4px;color:var(--leaf,#4F6B4A)">📨 Meeting details sent</div>':'<div class="iv-sug" style="background:#fff4e5">📨 <b>Next:</b> send '+escHtml((i.name||'them').split(' ')[0])+' the Zoom link, phone number or address.</div>';
   if(i.suggestion)h+='<div class="iv-sug"><b>They said:</b> '+escHtml(i.suggestion)+'</div>';
   const id=ea(i.id),em=ea(i.email);
   let b='';
@@ -11663,7 +11666,7 @@ function _hrRender(){
     '<button class="settings-btn" style="flex:0 0 auto;width:auto;margin-top:0;background:var(--fog);color:var(--ink);border:1px solid var(--mist)" onclick="_hrOpen(true)">↻</button></div>'+
     '<div class="hr-card" style="display:flex;align-items:center;gap:10px;background:var(--fog)">'+
       '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:15px;font-family:var(--font-b)">🌐 Public job postings page</div>'+
-      '<a target="_blank" href="'+HR_JOBS_URL+'" style="font-size:13px;color:var(--leaf,#2f6b35);word-break:break-all">'+HR_JOBS_URL.replace('https://','')+' ↗</a>'+
+      '<a target="_blank" href="'+HR_JOBS_URL+'" style="font-size:13px;color:var(--leaf,#4F6B4A);word-break:break-all">'+HR_JOBS_URL.replace('https://','')+' ↗</a>'+
       '<div class="hr-m">All Open postings on one page - share this link.</div></div>'+
       '<div class="hr-btns" style="margin-top:0;flex-direction:column"><a target="_blank" href="'+HR_JOBS_URL+'">Open ↗</a><button onclick="_hrCopy(\''+HR_JOBS_URL+'\',\'Job page link copied\')">🔗 Copy</button></div></div>'+
     '<div style="display:flex;gap:6px;margin:12px 0 2px;flex-wrap:wrap">'+chip('open','Open',all.filter(p=>p.open).length)+chip('closed','Closed / paused',all.filter(p=>!p.open).length)+chip('all','All',all.length)+'</div>';
@@ -11676,7 +11679,7 @@ function _hrRender(){
     h+='<div class="hr-card">'+
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><a class="hr-t" target="_blank" href="'+ea(p.postingUrl)+'" style="text-decoration:none">'+escHtml(v['Public Title']||v['Name of Position Internal']||p.id)+' <span style="font-size:13px;color:var(--stone)">↗</span></a><span class="hr-st'+_hrStatusCls(st)+'">'+escHtml(st)+'</span></div>'+
       '<div class="hr-m">'+escHtml([v['Name of Position Internal'],v['Date'],p.id].filter(Boolean).join(' · '))+'</div>'+
-      (p.open?'<a target="_blank" href="'+ea(p.postingUrl)+'" style="display:inline-block;margin-top:6px;font-size:13px;color:var(--leaf,#2f6b35);word-break:break-all">👁 View on the job page ↗</a>':'<div class="hr-m" style="margin-top:6px">Not on the public page (status is '+escHtml(st)+')</div>')+
+      (p.open?'<a target="_blank" href="'+ea(p.postingUrl)+'" style="display:inline-block;margin-top:6px;font-size:13px;color:var(--leaf,#4F6B4A);word-break:break-all">👁 View on the job page ↗</a>':'<div class="hr-m" style="margin-top:6px">Not on the public page (status is '+escHtml(st)+')</div>')+
       '<div class="hr-btns">'+
         '<button onclick="_hrEdit(\''+ea(p.id)+'\')">✏️ Edit</button>'+
         '<button onclick="_hrToggleApps(\''+ea(p.id)+'\')">👥 Applicants ('+n+')'+(open?' ▲':'')+'</button>'+
@@ -11713,12 +11716,17 @@ function _hrAppsHtml(apps){
 }
 // Mini progress + latest step under each applicant (one call for the whole list, cached for a minute).
 const _apProg={map:null,loading:null,at:0};
+const _apOpen={};
+function _apToggle(em){_apOpen[em]=!_apOpen[em];_apProgFill();}
 function _apProgFill(){
   const m=_apProg.map;if(!m)return;
   document.querySelectorAll('.ap-prog[data-em]').forEach(el=>{
     const d=m[el.dataset.em];if(!d){el.innerHTML='';return;}
     const n=d.steps.filter(Boolean).length,fd=t=>{const x=new Date(t);return isNaN(x)?'':x.toLocaleDateString('en-US',{month:'short',day:'numeric'});};
-    el.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-top:4px"><div style="display:flex;gap:2px;flex:0 0 110px">'+d.steps.map(s=>'<div style="flex:1;height:5px;border-radius:3px;background:'+(s?(d.declined?'var(--danger)':'var(--grove)'):'var(--mist)')+'"></div>').join('')+'</div><span style="font-size:11px;color:var(--silver)">'+n+'/10'+(d.declined?' · declined':'')+'</span></div>'+
+    const op=!!_apOpen[el.dataset.em],evs=(d.events||[]);
+    const fdt=t=>{const x=new Date(t);return isNaN(x)?'':x.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+x.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});};
+    el.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-top:4px"><div style="display:flex;gap:2px;flex:0 0 110px">'+d.steps.map(s=>'<div style="flex:1;height:5px;border-radius:3px;background:'+(s?(d.declined?'var(--danger)':'var(--grove)'):'var(--mist)')+'"></div>').join('')+'</div><span style="font-size:11px;color:var(--silver)">'+n+'/10'+(d.declined?' · declined':'')+'</span>'+(evs.length?'<button title="Show every step" onclick="event.stopPropagation();_apToggle(\''+ea(el.dataset.em)+'\')" style="border:none;background:transparent;color:var(--stone);font-size:13px;cursor:pointer;padding:0 4px">'+(op?'\u25B4':'\u25BE')+'</button>':'')+'</div>'+
+      (op&&evs.length?'<div style="margin:6px 0 2px;padding-left:10px;border-left:2px solid var(--mist)">'+evs.map(e=>'<div style="font-size:12px;color:var(--charcoal);margin:0 0 6px;line-height:1.35"><span style="color:var(--silver)">'+escHtml(fdt(e.t))+'</span><br>'+escHtml(e.text)+'</div>').join('')+'</div>':'')+
       (d.last?'<div style="font-size:12px;color:var(--stone);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+escHtml(d.last.text)+' <span style="color:var(--silver)">'+escHtml(fd(d.last.t))+'</span></div>':'');
   });
 }
@@ -11919,7 +11927,7 @@ function pmUploadOpen(cb){
     '<div class="sub-meta" id="pmUpInfo" style="margin-top:6px">Pictures and videos up to 200 MB.</div>'+
     '<div class="sub-lbl">Name</div><input class="sub-in" id="pmUpName" placeholder="e.g. Rangers planting at Logan">'+
     '<div class="sub-lbl">Description (optional)</div><textarea class="sub-in" id="pmUpDesc" rows="2"></textarea>'+
-    '<div id="pmUpBar" style="display:none;height:10px;background:var(--mist);border-radius:6px;margin-top:12px;overflow:hidden"><div id="pmUpFill" style="height:100%;width:0;background:var(--leaf,#2f6b35);transition:width .2s"></div></div>'+
+    '<div id="pmUpBar" style="display:none;height:10px;background:var(--mist);border-radius:6px;margin-top:12px;overflow:hidden"><div id="pmUpFill" style="height:100%;width:0;background:var(--leaf,#4F6B4A);transition:width .2s"></div></div>'+
     '<div class="sub-actions" style="justify-content:flex-end"><button class="sub-btn alt" id="pmUpCancel" onclick="document.getElementById(\'pmUpOv\').remove()">Cancel</button><button class="sub-btn hot" id="pmUpGo" onclick="_pmUpGo()">Upload</button></div></div>';
   document.body.appendChild(ov);
 }
@@ -12107,7 +12115,7 @@ function _opsTreeOpen(){try{return localStorage.getItem('rr_opsTree')!=='0';}cat
 function _opsTreeToggle(){try{localStorage.setItem('rr_opsTree',_opsTreeOpen()?'0':'1');}catch(e){}_opsTreePaint();}
 function _opsTreeHtml(){
   const act=_opsTreeActive();let head=null,kids=null;
-  if(['jobs','applicants','interviews'].includes(act)){head={k:'hr',l:'Human Resources'};kids=[['jobs','Job Listings'],['applicants','Applicants'],['interviews','Interviews']];}
+  if(['jobs','applicants','interviews','onb','trn','rgr'].includes(act)){head={k:'hr',l:'Human Resources'};kids=[['jobs','Job Listings'],['applicants','Applicants'],['interviews','Interviews'],['onb','Ranger Onboarding'],['trn','Ranger in Training'],['rgr','Ranger']];}
   else if(['quotes','po','inv'].includes(act)){head={k:'acct',l:'Accounting'};kids=[['quotes','Quotes'],['po','Purchase Orders'],['inv','Invoices']];}
   if(!kids)return '';
   return '<div class="ops-chips"><button class="ops-chip" onclick="_opsTreeGo(\''+head.k+'\')">‹ '+head.l+'</button>'+kids.map(c=>'<button class="ops-chip'+(c[0]===act?' on':'')+'" onclick="_opsTreeGo(\''+c[0]+'\')">'+c[1]+'</button>').join('')+'</div>';
@@ -12120,7 +12128,7 @@ function _opsTreeGo(k){
   showOperationsPage(k);
   const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
 }
-const _OPS_HR_PAGES=['hr','jobs','applicants','interviews'];
+const _OPS_HR_PAGES=['hr','jobs','applicants','interviews','onb','trn','rgr'];
 const _OPS_ACCT_PAGES=['acct','po','inv'];
 const _OPS_SITES_PAGES=['home','tab2','tab3','tab4','tab5','tab6'];
 function _opsGroup(){
@@ -12129,7 +12137,7 @@ function _opsGroup(){
   if(_activeTab!=='operations')return '';
   const pg=_opsCurrentPage||'menu';
   if(pg==='menu')return '';
-  if(['hr','jobs','applicants','interviews'].includes(pg))return 'hr';
+  if(_OPS_HR_PAGES.includes(pg))return 'hr';
   if(_OPS_ACCT_PAGES.includes(pg))return 'acct';
   return 'sites';
 }
@@ -12177,6 +12185,7 @@ function _hrOverviewRender(){
   box.innerHTML=card('jobs','📢','Job Listings',open===null?'Loading…':open+' open posting'+(open===1?'':'s'))+
     card('applicants','🧑‍🌾','Applicants',apps.length?apps.length+' applicant'+(apps.length===1?'':'s'):'No applicants yet')+
     card('interviews','📅','Interviews',act===null?(_iv.err||'Loading…'):[need?need+' need you':'',conf?conf+' confirmed':'',act.length-need-conf>0?(act.length-need-conf)+' waiting for the applicant':''].filter(Boolean).join(' · ')||'Nothing scheduled')+
+    card('onb','🌱','Ranger Onboarding','To be added')+card('trn','🪴','Ranger in Training','To be added')+card('rgr','🌳','Ranger','To be added')+
     '<div class="sub-card" style="margin:10px 0;background:var(--fog)"><div class="sub-meta">Human Resources sheet and resume folder:</div><div class="hr-btns"><a target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a><a target="_blank" href="'+HR_RESUMES_URL+'">Resumes ↗</a></div></div>';
 }
 function _hrOverviewOpen(){
@@ -12242,6 +12251,16 @@ function _ivrBusy(email,date,start){
     return (i.slots||[]).some(s=>s.status==='Offered'&&s.date===date&&s.start===start&&(((s.interviewers&&s.interviewers.length)?s.interviewers.map(x=>String(x).toLowerCase()):iv).includes(email)));
   });
 }
+function _ivrHistHtml(em){
+  if(!_iv.loaded)return '';
+  const mine=_iv.list.filter(i=>(i.interviewers||[]).map(e=>String(e).toLowerCase()).includes(String(em).toLowerCase()));
+  const done=mine.filter(i=>i.status==='Completed'),off=mine.filter(i=>!_ivClosed(i));
+  const row=(i,t)=>'<div style="font-size:13px;color:var(--charcoal);padding:3px 0">'+escHtml(i.name||i.email)+(t?' <span style="color:var(--silver)">· '+escHtml(t)+'</span>':'')+'</div>';
+  const lab=i=>i.chosen?i.chosen.label:(i.status==='Applicant Suggested Other'?'suggested other times':'waiting for them to pick');
+  return '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--stone)">Interviewed ('+done.length+') · Offered ('+off.length+')</summary>'+
+    '<div style="margin:6px 0 0 4px"><div class="hr-m" style="font-weight:700">Interviewed</div>'+(done.length?done.map(i=>row(i,i.chosen?i.chosen.label:'')).join(''):'<div class="hr-m">Nobody yet.</div>')+
+    '<div class="hr-m" style="font-weight:700;margin-top:8px">Offered an interview</div>'+(off.length?off.map(i=>row(i,lab(i))).join(''):'<div class="hr-m">Nobody right now.</div>')+'</div></details>';
+}
 function _ivPageRender(){
   const box=document.getElementById('ivPageBody');if(!box)return;
   if(!_ivr.loaded){box.innerHTML='<div class="settings-note" style="padding:20px 0">'+escHtml(_ivr.err||'Loading…')+'</div>';return;}
@@ -12254,7 +12273,7 @@ function _ivPageRender(){
     const mine=_ivr.slots.filter(s=>s.email===x.email),hu=gh(x.email),role=hu?(hu.Role||hu.role||''):'';
     h+='<div class="hr-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><div class="hr-t">'+escHtml(x.name)+(x.email===me?' <span style="font-weight:400;font-size:13px;color:var(--stone)">(you)</span>':'')+'</div><div class="hr-m">'+escHtml(role)+(role?' · ':'')+mine.length+' open time'+(mine.length===1?'':'s')+'</div></div></div>';
     if(mine.length)h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'+mine.map(s=>{const busy=_ivrBusy(s.email,s.date,s.start);return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:99px;border:1px solid var(--mist);background:'+(busy?'#fff4e5':'var(--fog)')+';font-size:13px">'+escHtml(_ivrWhen(s))+(busy?' <span style="color:#b5740f;font-weight:700">offered</span>':'')+'<button style="border:none;background:transparent;cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" onclick="_ivrDelSlot(\''+ea(s.id)+'\')">✕</button></span>';}).join('')+'</div>';
-    h+='<div class="hr-btns"><button onclick="_ivrSheet(\''+ea(x.email)+'\')">➕ Add times</button><button onclick="_ivrAsk(\''+ea(x.email)+'\')">📨 Ask for times</button><button style="color:var(--danger)" onclick="_ivrRemovePerson(\''+ea(x.email)+'\',\''+ea(x.name)+'\')">Remove</button></div></div>';
+    h+='<div class="hr-btns"><button onclick="_ivrSheet(\''+ea(x.email)+'\')">➕ Add times</button><button onclick="_ivrAsk(\''+ea(x.email)+'\')">📨 Ask for times</button><button style="color:var(--danger)" onclick="_ivrRemovePerson(\''+ea(x.email)+'\',\''+ea(x.name)+'\')">Remove</button></div>'+_ivrHistHtml(x.email)+'</div>';
   });
   h+='<div style="margin:22px 0 4px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)">📋 Applicants</div>';
   if(!_iv.loaded){h+='<div class="hr-m">'+escHtml(_iv.err||'Loading interviews…')+'</div>';}
@@ -12428,7 +12447,7 @@ function showOperationsPage(sub){
   if(_OPS_ACCT_PAGES.includes(sub)&&!(SESSION&&_navTabAllowed('quotes',Number(SESSION.accessLevel))))sub='menu';
   _opsCurrentPage=sub;
   if(sub!=='tab4'){_exitSmartMapFullscreen();_smartMapClosePanel();if(_smartMapFocused)_smartMapExitRangerFocus();}
-  ['menu','acct','home','hr','jobs','applicants','interviews','po','inv','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
+  ['menu','acct','home','hr','jobs','applicants','interviews','onb','trn','rgr','po','inv','tab2','tab3','tab4','tab5','tab6'].forEach(k=>{
     const el=document.getElementById('ops-'+k);
     if(el)el.style.display=(k===sub)?'block':'none';
   });
@@ -13304,7 +13323,7 @@ let _st;document.getElementById('searchInput').addEventListener('input',e=>{clea
    Saves go through the same saveToSheet('Sites', Key, updates) path as the Schools editor.
    No photos are loaded here (initials only) so the tab opens instantly. */
 const _cabin={s:'active',r:'active',sq:'',rq:'',staged:{},sel:null,busy:false,byId:{},wait:null,tries:0,wired:false};
-const _CB_COLORS=['#E8473F','#3B9E8E','#F5A623','#8DB84E','#9B6BB5','#F06B8A','#6B4E9B','#4CBFAD'];
+const _CB_COLORS=['#B5694B','#6F8F86','#D1A054','#8E9B62','#8F7487','#C98C84','#6E5A73','#8FA58F'];
 let _cbDrag=null,_cbSuppress=false;
 
 function _cbId(s){return String(sf(s,'Key','key')||sf(s,'Name','name')||'');}
@@ -20952,7 +20971,7 @@ let _reachRichRange = null;     // last caret/selection inside the editor
 let _reachRichSendHtml = null;  // set only while a send is building messages
 let _reachLid = 0;
 const _REACH_MAX_FILE = 20 * 1024 * 1024;
-const _REACH_COLORS = ['#000000','#c0392b','#e07a3f','#d4a017','#2e7d32','#1565c0','#6a1b9a','#7f8c8d'];
+const _REACH_COLORS = ['#000000','#c0392b','#C47F4F','#d4a017','#2e7d32','#1565c0','#6a1b9a','#7f8c8d'];
 
 function _reachRichSanitize(html){
   const t = document.createElement('template');

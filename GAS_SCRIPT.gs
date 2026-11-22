@@ -9265,7 +9265,8 @@ function handleGetApplicantProgress(p) {
       if (!applied && !logBy[em] && !ivBy[em]) continue;
       var ev = _apBuildEvents(em, _apNameOf(people, em), ri > -1 ? String(d.data[r][ri] || '').trim() : '', applied, logBy[em] || [], ivBy[em] || [], people);
       var last = ev[ev.length - 1];
-      out[em] = { steps: _apSteps(ev), declined: _apDeclined(ev), last: last ? { text: last.text, t: last.t } : null };
+      out[em] = { steps: _apSteps(ev), declined: _apDeclined(ev), last: last ? { text: last.text, t: last.t } : null,
+        events: ev.slice(-40).map(function(x){ return { t: x.t, text: x.text }; }) };
     }
     return { ok: true, map: out };
   } catch (e) { return { ok: false, error: e.message }; }
