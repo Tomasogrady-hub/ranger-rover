@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.40 -->
+<!-- v12.41 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2659,10 +2659,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.40';
+const APP_VERSION='v12.41';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-22 09:30 PT - Larger drop-down arrow on applicant steps.';
+const BUILD_STAMP='2026-11-24 10:05 PT - Add Person: email first, instant duplicate check with Update option.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10152,9 +10152,11 @@ function showAddContact(){
   window._ncPendingDocs={}; // reset any staged doc files from a previous Add
   document.getElementById('detail-content').innerHTML=`
     <div class="sheet-head"><div class="sheet-title">Add Person</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+    <div class="edit-wrap"><div class="edit-label">Email (required) — enter this first</div><input class="edit-input" id="nc-Email" type="email" placeholder="email@example.com" autocomplete="off" autocapitalize="none" oninput="_emailLiveCheck('nc')" onblur="_emailLiveCheck('nc')"></div>
+    <div id="nc-emailMsg"></div>
+    <div id="nc-rest" style="display:none">
     <div class="edit-wrap"><div class="edit-label">First Name</div><input class="edit-input" id="nc-FirstName" placeholder="First name"></div>
     <div class="edit-wrap"><div class="edit-label">Last Name</div><input class="edit-input" id="nc-LastName" placeholder="Last name"></div>
-    <div class="edit-wrap"><div class="edit-label">Email (required)</div><input class="edit-input" id="nc-Email" type="email" placeholder="email@example.com"></div>
     <div class="edit-wrap"><div class="edit-label">Mobile</div><input class="edit-input" id="nc-Mobile" type="tel" placeholder="e.g. 310-555-1234"></div>
     <div class="edit-wrap" style="position:relative;z-index:50">
       <div class="edit-label">Role</div>
@@ -10175,8 +10177,10 @@ function showAddContact(){
       <button class="btn-save" onclick="saveNewContact()">Add</button>
       <button class="btn-cancel" onclick="closeDetailBtnChime()">Cancel</button>
     </div>
+    </div>
     <div class="save-msg" id="saveMsg"></div>`;
   openDetail();
+  setTimeout(()=>{const e=document.getElementById('nc-Email');if(e)e.focus();},150);
 }
 // Shows/hides the Ranger Documents/address/rate block on the Add Person form
 // as soon as a ranger-category role is picked — mirrors _showsRangerDocs
@@ -10192,6 +10196,49 @@ function _toggleNcRangerSection(){
   sec.style.display=show?'block':'none';
   if(show&&wasHidden)_initRangerDetailsSection('nc');
 }
+// Live duplicate-email check for the Add Person forms (prefix 'nc' = People tab,
+// 'acfs' = Add New Contact from a school). Email is the first field; the rest of
+// the form stays hidden until the email is valid AND not already in Humans.
+// Checks the in-memory DATA.humans, so it is instant (no network wait).
+let _emailChkTimer=null;
+function _emailLiveCheck(prefix,immediate){
+  clearTimeout(_emailChkTimer);
+  const run=()=>{
+    const inp=document.getElementById(prefix+'-Email');
+    const msg=document.getElementById(prefix+'-emailMsg');
+    const rest=document.getElementById(prefix+'-rest');
+    if(!inp||!msg||!rest)return;
+    const email=inp.value.trim();
+    const valid=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+    if(!valid){msg.innerHTML='';rest.style.display='none';return;}
+    const dup=gh(email);
+    if(dup){
+      rest.style.display='none';
+      const nm=(fullName(dup)||'').trim()||email;
+      const role=dup.Role||dup.role||'';
+      const dupEmail=dup.Email||dup.email||email;
+      const btns=prefix==='nc'
+        ?`<button type="button" class="btn-save" style="padding:10px 14px" onclick="editPerson('${ea(dupEmail)}')">Update ${escHtml(nm)}</button>`
+        :`<button type="button" class="btn-save" style="padding:10px 14px" onclick="_acfsUseExisting('${ea(dupEmail)}',window._acfsReturnBtn||'')">Use ${escHtml(nm)}</button>`;
+      msg.innerHTML=`<div style="margin:0 0 12px;padding:12px 14px;background:#fff4e0;border:1px solid #e0b25a;border-radius:var(--r-sm);font-size:14px;line-height:1.4">
+        <div style="font-weight:600;margin-bottom:4px">⚠ This email already exists</div>
+        <div>${escHtml(nm)}${role?' · '+escHtml(role):''} is already in People.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}
+        <button type="button" class="btn-cancel" style="padding:10px 14px" onclick="_emailTryAnother('${prefix}')">Use a different email</button></div></div>`;
+      return;
+    }
+    const wasHidden=rest.style.display==='none';
+    msg.innerHTML='<div style="margin:0 0 10px;font-size:13px;color:var(--grove)">✓ New email — fill in the rest</div>';
+    rest.style.display='block';
+    if(wasHidden){const fn=document.getElementById(prefix+'-FirstName');if(fn&&!fn.value)setTimeout(()=>fn.focus(),50);}
+  };
+  if(immediate)run();else _emailChkTimer=setTimeout(run,200);
+}
+function _emailTryAnother(prefix){
+  const inp=document.getElementById(prefix+'-Email');
+  if(inp){inp.value='';inp.focus();}
+  _emailLiveCheck(prefix,true);
+}
 async function saveNewContact(){
   const email=document.getElementById('nc-Email').value.trim();
   const m=document.getElementById('saveMsg');
@@ -10201,7 +10248,7 @@ async function saveNewContact(){
   if(dup){
     m.className='save-msg err';
     const dupName=((dup['First Name']||dup.firstName||'').trim()+' '+(dup['Last Name']||dup.lastName||'').trim()).trim()||email;
-    m.textContent='⚠ That email already exists ('+dupName+'). Use a different email or find them in the People list.';
+    m.innerHTML='⚠ That email already exists ('+escHtml(dupName)+'). <button type="button" class="btn-save" style="padding:8px 12px;margin-left:6px" onclick="editPerson(\''+ea(dup.Email||dup.email||email)+'\')">Update them</button>';
     return;
   }
   const roleBtn=document.getElementById('nc-role-btn');
@@ -10245,6 +10292,7 @@ async function saveNewContact(){
 
 /* ═══ ADD CONTACT FOR SITE (from site edit dropdown) ═══ */
 function showAddContactForSite(siteName, prefillRole, returnBtnId){
+  window._acfsReturnBtn=returnBtnId||'';
   const roleOptions=DATA.roles.map(r=>`<div class="dropdown-item${r.name===prefillRole?' selected':''}" data-name="${ea(r.name)}" onclick="selectRoleItem(this,'acfs-role-btn','acfs-role-dd')">${r.name}</div>`).join('');
   const modal=document.createElement('div');
   modal.id='acfs-modal';
@@ -10252,9 +10300,11 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
   modal.innerHTML=`
     <div style="background:white;border-radius:26px 26px 0 0;width:100%;max-height:85dvh;overflow-y:auto;padding:20px 20px calc(20px + var(--safe-bottom))">
       <div style="font-family:var(--font-d);font-size:28px;font-style:italic;margin-bottom:16px">Add New Contact</div>
+      <div class="edit-wrap"><div class="edit-label">Email (required) — enter this first</div><input class="edit-input" id="acfs-Email" type="email" placeholder="email@example.com" autocomplete="off" autocapitalize="none" oninput="_emailLiveCheck('acfs')" onblur="_emailLiveCheck('acfs')"></div>
+      <div id="acfs-emailMsg"></div>
+      <div id="acfs-rest" style="display:none">
       <div class="edit-wrap"><div class="edit-label">First Name</div><input class="edit-input" id="acfs-FirstName" placeholder="First name" autocomplete="given-name"></div>
       <div class="edit-wrap"><div class="edit-label">Last Name</div><input class="edit-input" id="acfs-LastName" placeholder="Last name" autocomplete="family-name"></div>
-      <div class="edit-wrap"><div class="edit-label">Email (required)</div><input class="edit-input" id="acfs-Email" type="email" placeholder="email@example.com" autocomplete="email" autocapitalize="none"></div>
       <div class="edit-wrap"><div class="edit-label">Mobile</div><input class="edit-input" id="acfs-Mobile" type="tel" placeholder="e.g. 310-555-1234" autocomplete="tel"></div>
       <div class="edit-wrap" style="position:relative;z-index:50">
         <div class="edit-label">Role</div>
@@ -10269,6 +10319,7 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
       </div>
       <div class="edit-wrap"><div class="edit-label">School</div>
         <input class="edit-input" id="acfs-School" value="${ea(siteName)}" placeholder="School name"></div>
+      </div>
       <div style="display:flex;gap:8px;padding:18px 20px 0 20px">
         <button class="btn-save" onclick="saveNewContactForSite('${ea(returnBtnId)}')">Add</button>
         <button class="btn-cancel" onclick="document.getElementById('acfs-modal').remove()">Cancel</button>
@@ -10276,6 +10327,7 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
       <div class="save-msg" id="acfs-saveMsg" style="padding:10px 0 0"></div>
     </div>`;
   document.body.appendChild(modal);
+  setTimeout(()=>{const e=document.getElementById('acfs-Email');if(e)e.focus();},150);
   // Dismiss role dropdown when clicking outside
   setTimeout(()=>{
     modal.querySelector('div[style*=border-radius]').addEventListener('click',function(ev){
