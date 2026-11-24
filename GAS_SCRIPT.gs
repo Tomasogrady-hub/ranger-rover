@@ -932,6 +932,7 @@ function _doPostRoute(e) {
 
       // ── TEAM EMAIL SEARCH (level 1 only) ─────────────────────────────────────
       case 'searchTeamEmails':    return respond(handleSearchTeamEmails(p));
+      case 'searchMyMailContacts': return respond(handleSearchMyMailContacts(p));
       case 'requestEmailForward': return respond(handleRequestEmailForward(p));
 
       // ── FORMS (Operations > Forms) ────────────────────────────────────────────
@@ -1253,6 +1254,121 @@ function _teamEmailFeatureAuthorized(accessLevel) {
     return lvl2.indexOf('team_email_search_btn') !== -1;
   } catch (e) {
     return false;
+  }
+}
+
+// ── FIND A PERSON IN MY EMAIL (Add Person helper) ───────────────────────────
+// Payload: { action:'searchMyMailContacts', q:'peter ruff', actor }
+// Searches ONLY the signed-in user's own mailbox (never anyone else's) for
+// messages whose From/To/Cc involve the typed name, then returns the distinct
+// people found as { email, name, first, last, count, lastDate } so the Add
+// Person form can fill itself in. Server-side guards: the actor must be one of
+// the team mailboxes that have delegation, AND must be Access Level 1 or 2 in
+// the Humans sheet (the client-sent level is not trusted).
+function _splitAddressList(s) {
+  var out = [], cur = '', inQ = false, depth = 0;
+  for (var i = 0; i < s.length; i++) {
+    var ch = s.charAt(i);
+    if (ch === '"') inQ = !inQ;
+    if (!inQ && ch === '<') depth++;
+    if (!inQ && ch === '>') depth--;
+    if (ch === ',' && !inQ && depth <= 0) { out.push(cur); cur = ''; } else { cur += ch; }
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
+function _parseAddress(raw) {
+  raw = _decodeHtmlEntities(String(raw || '')).trim();
+  var m = raw.match(/<([^>]+)>/);
+  var email = (m ? m[1] : raw).trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  var name = m ? raw.replace(/<[^>]+>/, '') : '';
+  name = name.replace(/^["'\s]+|["'\s]+$/g, '').replace(/\s+/g, ' ').trim();
+  if (name.toLowerCase() === email) name = '';
+  return { email: email, name: name };
+}
+
+function _splitPersonName(name) {
+  name = (name || '').trim();
+  if (!name) return { first: '', last: '' };
+  if (name.indexOf(',') !== -1) {            // "Ruffler, Peter"
+    var p = name.split(',');
+    return { first: p.slice(1).join(' ').trim().split(' ')[0] || '', last: p[0].trim() };
+  }
+  var parts = name.split(' ');
+  if (parts.length === 1) return { first: parts[0], last: '' };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+function handleSearchMyMailContacts(p) {
+  var actor = String(p.actor || '').trim().toLowerCase();
+  if (!actor || GMAIL_SEARCH_TEAM_EMAILS.map(function(e){return e.toLowerCase();}).indexOf(actor) === -1) {
+    return { ok: false, error: 'Email search is not enabled for your mailbox.' };
+  }
+  // Verify access level from the sheet, not from the client.
+  var hs = getHumansSheet().getDataRange().getValues();
+  var ei = hs[0].indexOf('Email'), ai = hs[0].indexOf('Access Level');
+  var lvl = 3;
+  for (var r = 1; r < hs.length; r++) {
+    if (String(hs[r][ei]).trim().toLowerCase() === actor) { lvl = parseFloat(hs[r][ai]); if (!(lvl > 0)) lvl = 3; break; }
+  }
+  if (lvl > 2) return { ok: false, error: 'Not authorized' };
+
+  var q = String(p.q || '').replace(/["()<>:\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (q.length < 2) return { ok: false, error: 'Type at least 2 letters.' };
+  var tokens = q.toLowerCase().split(' ').filter(Boolean);
+
+  try {
+    var token = _gmailImpersonatedToken(actor);
+    var auth = { Authorization: 'Bearer ' + token };
+    var gq = '(from:(' + q + ') OR to:(' + q + ') OR cc:(' + q + '))';
+    var listResp = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=' +
+      encodeURIComponent(gq) + '&maxResults=30', { headers: auth, muteHttpExceptions: true });
+    var listData = JSON.parse(listResp.getContentText());
+    if (listData.error) return { ok: false, error: 'Gmail: ' + (listData.error.message || 'search failed') };
+    var msgs = listData.messages || [];
+    if (!msgs.length) return { ok: true, results: [] };
+
+    var reqs = msgs.map(function(m) {
+      return { url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + m.id +
+        '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Reply-To&metadataHeaders=Date',
+        headers: auth, muteHttpExceptions: true };
+    });
+    var resps = UrlFetchApp.fetchAll(reqs);   // parallel — much faster than one-by-one
+
+    var people = {};
+    resps.forEach(function(resp) {
+      var msg; try { msg = JSON.parse(resp.getContentText()); } catch (e) { return; }
+      var hd = {};
+      (msg.payload && msg.payload.headers || []).forEach(function(h) { hd[h.name.toLowerCase()] = h.value; });
+      var when = Number(msg.internalDate || 0);
+      ['from', 'to', 'cc', 'reply-to'].forEach(function(k) {
+        if (!hd[k]) return;
+        _splitAddressList(hd[k]).forEach(function(raw) {
+          var a = _parseAddress(raw);
+          if (!a || a.email === actor) return;
+          if (/(^|[._-])(no-?reply|donotreply|mailer-daemon|notifications?)@/.test(a.email)) return;
+          var hay = (a.name + ' ' + a.email).toLowerCase();
+          for (var t = 0; t < tokens.length; t++) if (hay.indexOf(tokens[t]) === -1) return;
+          var e = people[a.email] || (people[a.email] = { email: a.email, name: '', count: 0, lastDate: 0 });
+          e.count++;
+          if (when > e.lastDate) e.lastDate = when;
+          if (a.name && a.name.length > e.name.length) e.name = a.name;   // keep the fullest display name seen
+        });
+      });
+    });
+
+    var list = Object.keys(people).map(function(k) { return people[k]; });
+    list.sort(function(a, b) { return (b.count - a.count) || (b.lastDate - a.lastDate); });
+    list = list.slice(0, 8).map(function(e) {
+      var n = _splitPersonName(e.name);
+      return { email: e.email, name: e.name, first: n.first, last: n.last, count: e.count,
+               lastDate: e.lastDate ? Utilities.formatDate(new Date(e.lastDate), 'America/Los_Angeles', 'M/d/yyyy') : '' };
+    });
+    return { ok: true, results: list };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
   }
 }
 

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.41 -->
+<!-- v12.42 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2659,10 +2659,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.41';
+const APP_VERSION='v12.42';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-24 10:05 PT - Add Person: email first, instant duplicate check with Update option.';
+const BUILD_STAMP='2026-11-24 10:30 PT - Add Person: find people in my email by name.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -10152,6 +10152,7 @@ function showAddContact(){
   window._ncPendingDocs={}; // reset any staged doc files from a previous Add
   document.getElementById('detail-content').innerHTML=`
     <div class="sheet-head"><div class="sheet-title">Add Person</div><button class="sheet-x" onclick="closeDetailBtnChime()">✕</button></div>
+    ${_mailSearchHtml('nc')}
     <div class="edit-wrap"><div class="edit-label">Email (required) — enter this first</div><input class="edit-input" id="nc-Email" type="email" placeholder="email@example.com" autocomplete="off" autocapitalize="none" oninput="_emailLiveCheck('nc')" onblur="_emailLiveCheck('nc')"></div>
     <div id="nc-emailMsg"></div>
     <div id="nc-rest" style="display:none">
@@ -10180,7 +10181,7 @@ function showAddContact(){
     </div>
     <div class="save-msg" id="saveMsg"></div>`;
   openDetail();
-  setTimeout(()=>{const e=document.getElementById('nc-Email');if(e)e.focus();},150);
+  setTimeout(()=>{const e=document.getElementById('nc-mailQ')||document.getElementById('nc-Email');if(e)e.focus();},150);
 }
 // Shows/hides the Ranger Documents/address/rate block on the Add Person form
 // as soon as a ranger-category role is picked — mirrors _showsRangerDocs
@@ -10200,6 +10201,61 @@ function _toggleNcRangerSection(){
 // 'acfs' = Add New Contact from a school). Email is the first field; the rest of
 // the form stays hidden until the email is valid AND not already in Humans.
 // Checks the in-memory DATA.humans, so it is instant (no network wait).
+// ── Find a person in MY email (Add Person forms) ───────────────────────────
+// Type part of a name; the backend searches the signed-in user's own mailbox
+// and returns distinct people. Tapping a result fills email + first + last.
+const _mailSearch={timer:null,seq:0,hits:{}};
+function _mailSearchHtml(prefix){
+  return `<div class="edit-wrap" style="margin-bottom:6px">
+    <div class="edit-label">🔎 Find in my email (optional)</div>
+    <div style="display:flex;gap:8px">
+      <input class="edit-input" id="${prefix}-mailQ" placeholder="Type a name, e.g. Peter Ruffler" autocomplete="off" style="flex:1"
+        oninput="_mailSearchLater('${prefix}')" onkeydown="if(event.key==='Enter'){event.preventDefault();_mailSearchNow('${prefix}')}">
+      <button type="button" class="btn-cancel" style="padding:0 14px" onclick="_mailSearchNow('${prefix}')">Search</button>
+    </div>
+    <div id="${prefix}-mailRes" style="margin-top:8px"></div>
+  </div>`;
+}
+function _mailSearchLater(prefix){
+  clearTimeout(_mailSearch.timer);
+  const q=(document.getElementById(prefix+'-mailQ')||{}).value||'';
+  if(q.trim().length<3){const r=document.getElementById(prefix+'-mailRes');if(r)r.innerHTML='';return;}
+  _mailSearch.timer=setTimeout(()=>_mailSearchNow(prefix),800);
+}
+async function _mailSearchNow(prefix){
+  clearTimeout(_mailSearch.timer);
+  const inp=document.getElementById(prefix+'-mailQ'),res=document.getElementById(prefix+'-mailRes');
+  if(!inp||!res)return;
+  const q=inp.value.trim();
+  if(q.length<2){res.innerHTML='';return;}
+  const my=++_mailSearch.seq;
+  res.innerHTML='<div style="font-size:13px;color:var(--ink-soft,#666)">Searching your email…</div>';
+  try{
+    const j=await gasPost({action:'searchMyMailContacts',q,actor:SESSION?SESSION.email:''});
+    if(my!==_mailSearch.seq||!document.getElementById(prefix+'-mailRes'))return; // newer search or form closed
+    if(!j.ok){res.innerHTML='<div style="font-size:13px;color:#b3261e">⚠ '+escHtml(j.error||'Search failed')+'</div>';return;}
+    const hits=j.results||[];
+    _mailSearch.hits[prefix]=hits;
+    if(!hits.length){res.innerHTML='<div style="font-size:13px">No one found in your email for “'+escHtml(q)+'”. You can still type the email below.</div>';return;}
+    res.innerHTML=hits.map((h,i)=>{
+      const ex=gh(h.email);
+      return `<div onclick="_mailPick('${prefix}',${i})" style="padding:10px 12px;margin-bottom:6px;border:1px solid var(--line,#ddd);border-radius:var(--r-sm);cursor:pointer;background:white">
+        <div style="font-weight:600">${escHtml(h.name||h.email)}${ex?' <span style="font-weight:400;font-size:12px;color:#a15c00">· already in People</span>':''}</div>
+        <div style="font-size:13px;color:#555">${escHtml(h.email)}</div>
+        <div style="font-size:12px;color:#888">${h.count} message${h.count===1?'':'s'}${h.lastDate?' · last '+escHtml(h.lastDate):''}</div></div>`;
+    }).join('');
+  }catch(e){
+    if(my===_mailSearch.seq&&document.getElementById(prefix+'-mailRes'))res.innerHTML='<div style="font-size:13px;color:#b3261e">⚠ Search failed — '+escHtml(e.message||'')+'</div>';
+  }
+}
+function _mailPick(prefix,i){
+  const h=(_mailSearch.hits[prefix]||[])[i];if(!h)return;
+  const set=(id,v)=>{const el=document.getElementById(prefix+'-'+id);if(el)el.value=v||'';};
+  set('Email',h.email);set('FirstName',h.first);set('LastName',h.last);
+  const res=document.getElementById(prefix+'-mailRes');if(res)res.innerHTML='';
+  const q=document.getElementById(prefix+'-mailQ');if(q)q.value='';
+  _emailLiveCheck(prefix,true);   // reveals the rest of the form, or shows the "already exists" box
+}
 let _emailChkTimer=null;
 function _emailLiveCheck(prefix,immediate){
   clearTimeout(_emailChkTimer);
@@ -10300,6 +10356,7 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
   modal.innerHTML=`
     <div style="background:white;border-radius:26px 26px 0 0;width:100%;max-height:85dvh;overflow-y:auto;padding:20px 20px calc(20px + var(--safe-bottom))">
       <div style="font-family:var(--font-d);font-size:28px;font-style:italic;margin-bottom:16px">Add New Contact</div>
+      ${_mailSearchHtml('acfs')}
       <div class="edit-wrap"><div class="edit-label">Email (required) — enter this first</div><input class="edit-input" id="acfs-Email" type="email" placeholder="email@example.com" autocomplete="off" autocapitalize="none" oninput="_emailLiveCheck('acfs')" onblur="_emailLiveCheck('acfs')"></div>
       <div id="acfs-emailMsg"></div>
       <div id="acfs-rest" style="display:none">
@@ -10327,7 +10384,7 @@ function showAddContactForSite(siteName, prefillRole, returnBtnId){
       <div class="save-msg" id="acfs-saveMsg" style="padding:10px 0 0"></div>
     </div>`;
   document.body.appendChild(modal);
-  setTimeout(()=>{const e=document.getElementById('acfs-Email');if(e)e.focus();},150);
+  setTimeout(()=>{const e=document.getElementById('acfs-mailQ')||document.getElementById('acfs-Email');if(e)e.focus();},150);
   // Dismiss role dropdown when clicking outside
   setTimeout(()=>{
     modal.querySelector('div[style*=border-radius]').addEventListener('click',function(ev){
