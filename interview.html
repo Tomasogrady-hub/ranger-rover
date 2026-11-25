@@ -11,7 +11,7 @@
 <meta name="robots" content="noindex">
 <meta property="og:title" content="Pick a time to meet - Enrich LA">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- interview.html v1.1 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v1.0 - 2026-11-15 - Doodle-style interview time picker for Ranger applicants. Reads/writes via GAS publicInterviewInfo / Choose / Suggest / Decline. -->
+<!-- interview.html v1.2 - 2026-11-24 - applicant can send several availability windows. v1.1 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v1.0 - 2026-11-15 - Doodle-style interview time picker for Ranger applicants. Reads/writes via GAS publicInterviewInfo / Choose / Suggest / Decline. -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b;--ok:#1e6b34;--okbg:#e4f3e7}
   *{box-sizing:border-box}
@@ -70,7 +70,7 @@
   var q=new URLSearchParams(location.search);
   var iid=(q.get('i')||'').trim(), picked=(q.get('o')||'').trim();
   var app=document.getElementById('app');
-  var view=null, mode='pick', changing=false, F={date:'',start:'',end:'',text:''};
+  var view=null, mode='pick', changing=false, F={wins:[],text:''};
 
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function raw(url,action,extra){
@@ -104,7 +104,11 @@
 
   function capture(){
     var g=function(id){var el=document.getElementById(id);return el?el.value:null;};
-    if(g('sgd')!==null){F.date=g('sgd');F.start=g('sgs');F.end=g('sge');F.text=g('sgt');}
+    if(document.getElementById('wins')){
+      var rows=document.querySelectorAll('#wins .win'),w=[];
+      Array.prototype.forEach.call(rows,function(r){var q=function(c){return r.querySelector('.'+c).value;};w.push({date:q('wd'),start:q('ws'),end:q('we')});});
+      F.wins=w;F.text=g('sgt');
+    }
   }
   function infoCard(v){
     var f='';
@@ -143,11 +147,17 @@
     }
     var opts=v.options||[];
     if(mode==='suggest'||(!opts.length&&v.status!=='Confirmed')||(!opts.length&&mode!=='pick')){
-      h+='<div class="card"><h2>'+(opts.length||v.status==='Confirmed'?'Suggest another time':'Let us know what works')+'</h2>'+
-        (!opts.length&&v.status!=='Confirmed'?'<div class="muted">None of the offered times are still open. Tell us a day and time that works for you and we will confirm it.</div>':'<div class="muted">Tell us a day and time that works for you and we will confirm it.</div>')+
-        '<label for="sgd">Day</label><input type="date" id="sgd" min="'+todayYmd()+'" value="'+esc(F.date)+'">'+
-        '<label>Time</label><div class="row"><input type="time" id="sgs" value="'+esc(F.start)+'"><span>to</span><input type="time" id="sge" value="'+esc(F.end)+'"></div>'+
-        '<label for="sgt">Note (optional)</label><textarea id="sgt" placeholder="e.g. Any weekday after 3pm works for me">'+esc(F.text)+'</textarea>'+
+      if(!F.wins||!F.wins.length)F.wins=[{date:'',start:'',end:''}];
+      h+='<div class="card"><h2>'+(opts.length||v.status==='Confirmed'?'Send us other times':'Let us know what works')+'</h2>'+
+        '<div class="muted">Add each day you are free and the hours that work (leave the hours blank if any time that day works). We will confirm a time within your windows. All times are Pacific Time.</div>'+
+        '<div id="wins">'+F.wins.map(function(w,i){
+          return '<div class="win" style="border:1px solid var(--mist);border-radius:10px;padding:8px 10px;margin-top:10px">'+
+            '<label>Day</label><input type="date" class="wd" min="'+todayYmd()+'" value="'+esc(w.date)+'">'+
+            '<label>Free from</label><div class="row"><input type="time" class="ws" value="'+esc(w.start)+'"><span>to</span><input type="time" class="we" value="'+esc(w.end)+'"></div>'+
+            (F.wins.length>1?'<div class="center"><button type="button" class="link" data-rm="'+i+'" style="color:var(--err)">Remove this day</button></div>':'')+'</div>';
+        }).join('')+'</div>'+
+        '<button type="button" class="alt" id="addwin">+ Add another day</button>'+
+        '<label for="sgt">Note (optional)</label><textarea id="sgt" placeholder="e.g. I am also usually free most Wednesdays and Thursdays after 3pm">'+esc(F.text)+'</textarea>'+
         '<button class="go" id="send">Send to Enrich LA</button>'+
         (opts.length||v.status==='Confirmed'?'<div class="center"><button class="link" id="back">Back to the times</button></div>':'')+
         (v.suggestion&&v.status!=='Confirmed'?'<div class="note"><b>Already sent:</b> '+esc(v.suggestion)+'</div>':'')+
@@ -180,6 +190,8 @@
     if($('chg'))$('chg').onclick=function(){changing=true;picked='';mode='pick';render();};
     if($('keep'))$('keep').onclick=function(){changing=false;mode='pick';render();};
     if($('send'))$('send').onclick=suggest;
+    if($('addwin'))$('addwin').onclick=function(){capture();F.wins.push({date:'',start:'',end:''});render();};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rm]'),function(b){b.onclick=function(){capture();F.wins.splice(parseInt(b.getAttribute('data-rm'),10),1);render();};});
     if($('wd'))$('wd').onclick=function(){mode='withdraw';render();};
     if($('wdgo'))$('wdgo').onclick=withdraw;
   }
@@ -197,15 +209,15 @@
   }
   function suggest(){
     capture();
-    var t=(F.text||'').trim();
-    if(!F.date&&!t){render('Please pick a day (and time), or write a note.');return;}
-    if(F.start&&F.end&&F.end<=F.start){render('The end time must be after the start time.');return;}
+    var t=(F.text||'').trim(),wins=(F.wins||[]).filter(function(w){return w.date;});
+    if(!wins.length&&!t){render('Please add at least one day (and hours), or write a note.');return;}
+    for(var i=0;i<wins.length;i++){if(wins[i].start&&wins[i].end&&wins[i].end<=wins[i].start){render('For '+wins[i].date+', the end time must be after the start time.');return;}}
     busy('send','Sending\u2026');
-    post('publicInterviewSuggest',{i:iid,text:t,date:F.date,start:F.start,end:F.end}).then(function(r){
+    post('publicInterviewSuggest',{i:iid,text:t,windows:wins}).then(function(r){
       if(r&&r.ok){
         view=r;
-        app.innerHTML='<div class="card center"><div class="ok"><div class="big">\uD83D\uDCE8</div><div class="when">Thank you!</div><div>Your message was sent to the Enrich LA team. They will confirm a time with you.</div></div></div>'+contactLine(r);
-        F={date:'',start:'',end:'',text:''};mode='pick';
+        app.innerHTML='<div class="card center"><div class="ok"><div class="big">\uD83D\uDCE8</div><div class="when">Thank you!</div><div>Your availability was sent to the Enrich LA team. They will confirm a time with you.</div></div></div>'+contactLine(r);
+        F={wins:[],text:''};mode='pick';
       }else render((r&&r.error)||'Something went wrong - please try again.');
     }).catch(function(){render('Connection problem - please try again.');});
   }

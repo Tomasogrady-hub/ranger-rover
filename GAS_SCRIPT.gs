@@ -2989,8 +2989,9 @@ function handleSaveComments(p) {
       var _prevC = String(data[i][commentsIdx] || ''), _newC = String(p.comments || '');
       sheet.getRange(i + 1, commentsIdx + 1).setValue(p.comments || '');
       try { // someone added a comment to an applicant: record who, so the timeline can say "Alex added a note"
-        if (_newC.length > _prevC.length && _newC.indexOf(_prevC) === 0 && /applicant|onboarding/i.test(String(data[i][hdr.indexOf('Role')] || ''))) {
-          var _added = _newC.slice(_prevC.length).replace(new RegExp('^\\s+'), '').replace(new RegExp('\\s+', 'g'), ' ').slice(0, 300);
+        var _onTop = _prevC && _newC.length > _prevC.length && _newC.slice(_newC.length - _prevC.length) === _prevC;
+        if (_newC.length > _prevC.length && (_newC.indexOf(_prevC) === 0 || _onTop) && /applicant|onboarding/i.test(String(data[i][hdr.indexOf('Role')] || ''))) {
+          var _added = (_onTop && _newC.indexOf(_prevC) !== 0 ? _newC.slice(0, _newC.length - _prevC.length) : _newC.slice(_prevC.length)).replace(new RegExp('^\\s+'), '').replace(new RegExp('\\s+', 'g'), ' ').slice(0, 300);
           if (_added && _added.indexOf('Process ') !== 0) _apLog(email, String(data[i][fnIdx] || '') + ' ' + String(data[i][lnIdx] || ''), 'Note added', String(p.actor || '').toLowerCase(), _added);
         }
       } catch (_e) {}
@@ -8658,7 +8659,8 @@ function dedupePlants() {
 var IV_TAB = 'Interviews';
 var IV_SLOT_TAB = 'Interview Slots';
 var IV_HEADERS = ['ID','Created','Created By','Applicant Email','Applicant Name','Position','Kind','Format','Location','Duration','Note','Status','Interviewers',
-  'Chosen Slot','Chosen Date','Chosen Start','Chosen End','Chosen At','Applicant Suggestion','Suggested Date','Suggested Start','Suggested End','Calendar Event','Updated','Details Sent'];
+  'Chosen Slot','Chosen Date','Chosen Start','Chosen End','Chosen At','Applicant Suggestion','Suggested Date','Suggested Start','Suggested End','Calendar Event','Updated','Details Sent',
+  'Availability Windows','Suggested At'];
 var IV_SLOT_HEADERS = ['Slot ID','Interview ID','Date','Start','End','Status','Interviewers'];
 var IV_PAGE_URL = 'https://tomasogrady-hub.github.io/ranger-rover/interview.html';
 var IV_DEFAULT_MIN = 30;
@@ -8800,6 +8802,7 @@ function _ivAdminRow(r, slots) {
       label: _subFmtShift({ Date: r['Chosen Date'], Start: r['Chosen Start'], End: r['Chosen End'] }) } : null,
     suggestion: r['Applicant Suggestion'] || '', suggested: sug, calendar: !!r['Calendar Event'], page: _ivLink(r.ID),
     detailsSent: r['Details Sent'] || '',
+    windows: _ivWindows(r), suggestedAt: r['Suggested At'] ? new Date(r['Suggested At']).getTime() || 0 : 0,
     slots: slots.map(function(s){ return { id: s['Slot ID'], date: s.Date, start: s.Start, end: s.End, status: s.Status, label: _subFmtShift(s), url: _ivLink(r.ID, s['Slot ID']), interviewers: _ivLower(s.Interviewers) }; })
   };
 }
@@ -8915,6 +8918,7 @@ function handleCreateInterview(p) {
     try { logActivity(me.email, 'interviewInvite', appEmail, 'person', rows.length + ' time(s)'); } catch (e) {}
     _apNote(appEmail, me.first + ' ' + (reoffer ? 'offered new times to ' + applicant.name + ' for the ' + kind.toLowerCase() : 'invited ' + applicant.name + ' to ' + _apArt(kind.toLowerCase()) + ' and offered times') + ': ' +
       rows.map(function(s){ return _subFmtShift(s); }).join('; ') + '.');
+    if (reoffer) _apLog(appEmail, applicant.name, 'Offered new times', me.email, rows.map(function(s){ return _subFmtShift({ Date: s.Date, Start: s.Start, End: s.End }); }).join('; '));
     return { ok: true, id: id, page: _ivLink(id) };
   } catch (e) { return { ok: false, error: e.message }; }
 }
@@ -8928,7 +8932,7 @@ function _ivConfirm(L, people, date, start, end, slotId, byLabel, actorEmail) {
   if (chosenSlot && _ivLower(chosenSlot.Interviewers).length) _subSet(L.it, r, { 'Interviewers': _ivLower(chosenSlot.Interviewers).join(', ') });
   var ev = _ivCalCreate(r, date, start, end, people);
   _subSet(L.it, r, { 'Status': 'Confirmed', 'Chosen Slot': slotId, 'Chosen Date': date, 'Chosen Start': start, 'Chosen End': end, 'Chosen At': now,
-    'Applicant Suggestion': '', 'Suggested Date': '', 'Suggested Start': '', 'Suggested End': '', 'Calendar Event': ev, 'Details Sent': '' });
+    'Applicant Suggestion': '', 'Suggested Date': '', 'Suggested Start': '', 'Suggested End': '', 'Availability Windows': '', 'Calendar Event': ev, 'Details Sent': '' });
   var when = _subFmtShift({ Date: date, Start: start, End: end });
   var applicant = people[String(r['Applicant Email']).toLowerCase()] || { email: r['Applicant Email'], first: String(r['Applicant Name']).split(' ')[0], sms: false };
   var creator = people[String(r['Created By']).toLowerCase()];
@@ -8992,6 +8996,14 @@ function handlePublicInterviewChoose(p) {
     return { ok: false, error: e.message };
   } finally { if (locked) { try { lock.releaseLock(); } catch (x) {} } }
 }
+// Availability windows the applicant sent: [{date:'2026-11-28', start:'15:00', end:'23:59'}] (start/end empty = any time that day)
+function _ivWindows(r) {
+  try {
+    var w = JSON.parse(String(r['Availability Windows'] || '[]'));
+    return (Array.isArray(w) ? w : []).filter(function(x){ return x && /^\d{4}-\d{2}-\d{2}$/.test(String(x.date || '')); })
+      .map(function(x){ return { date: String(x.date), start: String(x.start || ''), end: String(x.end || ''), label: _subFmtShift({ Date: x.date, Start: x.start || '', End: x.end || '' }) + (x.start ? '' : ' (any time)') }; });
+  } catch (e) { return []; }
+}
 function handlePublicInterviewSuggest(p) {
   try {
     var L = _ivLoad(p.i);
@@ -8999,25 +9011,36 @@ function handlePublicInterviewSuggest(p) {
     var r = L.r;
     if (r.Status === 'Cancelled' || r.Status === 'Applicant Withdrew') return { ok: false, error: 'This interview is closed. Please contact Enrich LA.' };
     var text = String(p.text || '').trim().slice(0, 1000);
-    var sd = /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) ? String(p.date) : '';
     var ok = function(t){ return /^\d{1,2}:\d{2}$/.test(String(t || '')); };
+    var today = _subToday();
+    var wins = [];
+    (Array.isArray(p.windows) ? p.windows : []).slice(0, 30).forEach(function(w){
+      if (!w || !/^\d{4}-\d{2}-\d{2}$/.test(String(w.date || ''))) return;
+      var st = ok(w.start) ? String(w.start) : '', en = ok(w.end) ? String(w.end) : '';
+      if (st && en && en <= st) return;
+      if (String(w.date) < today) return;
+      wins.push({ date: String(w.date), start: st, end: en });
+    });
+    // older single day/time form still works
+    var sd = /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) ? String(p.date) : '';
     var ss = ok(p.start) ? String(p.start) : '', se = ok(p.end) ? String(p.end) : '';
-    if (!text && !sd) return { ok: false, error: 'Please pick a day (and time), or write a note.' };
-    if (sd && sd < _subToday()) return { ok: false, error: 'Please pick a day from today on.' };
-    if (ss && se && se <= ss) return { ok: false, error: 'The end time must be after the start time.' };
-    var people = _subPeople();
-    var when = sd ? _subFmtShift({ Date: sd, Start: ss, End: se }) : '';
-    var line = (when ? 'Suggests ' + when : '') + (when && text ? ' - ' : '') + text;
-    var upd = { 'Applicant Suggestion': line };
+    if (sd && !wins.length && sd >= today) wins.push({ date: sd, start: ss, end: se });
+    if (!text && !wins.length) return { ok: false, error: 'Please add at least one day (and time), or write a note.' };
+    wins.sort(function(a, b){ return (a.date + a.start).localeCompare(b.date + b.start); });
+    var people = _subPeople(), now = new Date();
+    var winTxt = wins.map(function(w){ return _subFmtShift({ Date: w.date, Start: w.start, End: w.end }) + (w.start ? '' : ' (any time)'); }).join('; ');
+    var line = (winTxt ? 'Available: ' + winTxt : '') + (winTxt && text ? ' - ' : '') + (text ? 'Note: ' + text : '');
+    var upd = { 'Applicant Suggestion': line, 'Availability Windows': JSON.stringify(wins), 'Suggested At': now, 'Suggested Date': '', 'Suggested Start': '', 'Suggested End': '' };
     if (r.Status !== 'Confirmed') upd['Status'] = 'Applicant Suggested Other';
-    if (sd) { upd['Suggested Date'] = sd; upd['Suggested Start'] = ss; upd['Suggested End'] = se; } else { upd['Suggested Date'] = ''; upd['Suggested Start'] = ''; upd['Suggested End'] = ''; }
     _subSet(L.it, r, upd);
+    var kind = String(r.Kind || 'interview').toLowerCase();
     _subHist('Interview', r.ID, '', '', 'Applicant suggested other', r['Applicant Email'], upd['Status'] || r.Status, line);
-    _apNote(r['Applicant Email'], r['Applicant Name'] + ' suggested other times for the ' + String(r.Kind || 'interview').toLowerCase() + ': ' + line);
-    _ivNotifyStaff(r, people, r['Applicant Name'] + ' suggested another time for the ' + String(r.Kind || 'interview').toLowerCase(),
-      r['Applicant Name'] + ' replied about the ' + String(r.Kind || 'interview').toLowerCase() + ':\n\n' + (when ? 'Suggested time: ' + when + '\n' : '') + (text ? 'Note: "' + text + '"\n' : '') +
-      '\nOpen Ranger Rover > Operations > Humans > Interviews to accept it with one tap, or offer other times. ' + SUB_APP_URL,
-      'Enrich LA - ' + r['Applicant Name'] + ' suggested ' + (when || 'another time') + ' for the ' + String(r.Kind || 'interview').toLowerCase() + '. Open Ranger Rover > Interviews.');
+    _apLog(r['Applicant Email'], r['Applicant Name'], 'Suggested other times', '', line);
+    _apNote(r['Applicant Email'], r['Applicant Name'] + ' could not make the offered times and sent their availability for the ' + kind + ': ' + line);
+    _ivNotifyStaff(r, people, r['Applicant Name'] + ' sent their availability for the ' + kind,
+      r['Applicant Name'] + ' could not make the offered times and replied:\n\n' + (winTxt ? 'Available:\n- ' + winTxt.split('; ').join('\n- ') + '\n' : '') + (text ? '\nNote: "' + text + '"\n' : '') +
+      '\nOpen Ranger Rover > Operations > Human Resources > Interviews. Their windows are shown on their card, with any matching open interviewer times ready to offer in one tap. ' + SUB_APP_URL,
+      'Enrich LA - ' + r['Applicant Name'] + ' sent their availability for the ' + kind + '. Open Ranger Rover > Interviews.');
     _subFlushSms();
     return _ivPublicView(_ivLoad(p.i), people);
   } catch (e) { return { ok: false, error: e.message }; }
@@ -9139,7 +9162,7 @@ var AP_LOG_HEADERS = ['Time', 'Applicant Email', 'Applicant Name', 'Event', 'By'
 
 function _apLog(email, name, ev, by, detail) {
   try {
-    _subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS).appendRow([new Date(), String(email || '').toLowerCase(), name || '', ev || '', by || '', String(detail || '').slice(0, 500)]);
+    _subGetSheet(AP_LOG_TAB, AP_LOG_HEADERS).appendRow([new Date(), String(email || '').toLowerCase(), name || '', ev || '', by || '', String(detail || '').slice(0, 900)]);
   } catch (e) { Logger.log('apLog: ' + e.message); }
 }
 function _apHuman(email) {
@@ -9290,8 +9313,8 @@ function _apNote(email, text) {
     for (var r = 1; r < d.data.length; r++) {
       if (String(d.data[r][ei] || '').trim().toLowerCase() !== want) continue;
       var cur = String(d.data[r][ci] || '').trim();
-      var line = 'Process ' + Utilities.formatDate(new Date(), _subTz(), 'M/d') + ' - ' + String(text).slice(0, 400);
-      d.sheet.getRange(r + 1, ci + 1).setValue(cur ? cur + '\n' + line : line);
+      var line = 'Process ' + Utilities.formatDate(new Date(), _subTz(), 'M/d') + ' - ' + String(text).slice(0, 900);
+      d.sheet.getRange(r + 1, ci + 1).setValue(cur ? line + '\n' + cur : line); // newest on top
       return;
     }
   } catch (e) { Logger.log('apNote: ' + e.message); }
@@ -9314,8 +9337,10 @@ function _apBuildEvents(email, name, role, applied, logRows, ivRows, people) {
     else if (E === 'Replied to training: would love to begin') text = name + ' replied: "I would love to begin training."';
     else if (E === 'Replied to training: unable to move forward') text = name + ' replied that they are unable to move forward with training at this time.';
     else if (E === 'Note added') text = by + ' added a note: "' + det + '"';
+    else if (E === 'Suggested other times') text = name + ' could not make the offered times and sent their availability: ' + det;
+    else if (E === 'Offered new times') text = by + ' offered new times: ' + det;
     else text = (by ? by + ': ' : '') + E + (det ? ' - ' + det : '');
-    ev.push({ t: _apT(r.Time), type: 'info', what: E, by: by, detail: det, text: text });
+    ev.push({ t: _apT(r.Time), type: E === 'Suggested other times' ? 'suggest' : E === 'Offered new times' ? 'reoffer' : 'info', what: E, by: by, detail: det, text: text });
   });
   ivRows.forEach(function(r) {
     var kind = String(r.Kind || 'interview').toLowerCase(), cr = _apFirstOf(people, r['Created By']), who = _apIvNames(r, people);
@@ -9323,7 +9348,7 @@ function _apBuildEvents(email, name, role, applied, logRows, ivRows, people) {
     ev.push({ t: _apT(r.Created), type: 'offer', what: 'Offered ' + kind + ' times', by: cr, detail: '', text: cr + ' invited ' + name + ' to ' + _apArt(kind) + ' and offered times.' });
     if (r['Chosen At']) ev.push({ t: _apT(r['Chosen At']), type: 'pick', what: 'Confirmed ' + kind, by: '', detail: whenC,
       text: name + ' chose the ' + kind + ' time: ' + whenC + ' (with ' + who + ').' });
-    if (r['Applicant Suggestion'] || r['Suggested Date']) ev.push({ t: _apT(r.Updated), type: 'suggest', what: 'Suggested other times', by: '', detail: String(r['Applicant Suggestion'] || ''),
+    if ((r['Applicant Suggestion'] || r['Suggested Date']) && !ev.some(function(e){ return e.what === 'Suggested other times'; })) ev.push({ t: _apT(r.Updated), type: 'suggest', what: 'Suggested other times', by: '', detail: String(r['Applicant Suggestion'] || ''),
       text: name + ' suggested other times for the ' + kind + (r['Applicant Suggestion'] ? ': ' + r['Applicant Suggestion'] : '.') });
     if (r['Details Sent']) ev.push({ t: _apT(r['Details Sent']), type: 'details', what: 'Meeting details sent', by: '', detail: '', text: 'The meeting details for the ' + kind + ' were sent to ' + name + '.' });
     if (r.Status === 'Completed') ev.push({ t: _apT(r.Updated), type: 'done', what: String(r.Kind || 'Interview') + ' done', by: '', detail: '',

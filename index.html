@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.43 -->
+<!-- v12.44 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2670,10 +2670,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.43';
+const APP_VERSION='v12.44';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-24 6:35 PM PT - Human Resources: Sub-style boxes; Interviews headers with arrow dropdowns.';
+const BUILD_STAMP='2026-11-24 7:30 PM PT - Applicant availability windows: staff see them, matching interviewer times offered in one tap; notes newest on top.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11373,6 +11373,29 @@ function _ivBadge(email){
   const st=_IV_ST[l.status]||['',''];
   return '<div style="font-size:12px;font-weight:700;color:'+st[1]+';margin-top:2px">'+escHtml(l.status==='Confirmed'&&l.chosen?'✅ '+l.kind+' '+l.chosen.label:st[0])+'</div>';
 }
+function _ivMatches(i){
+  if(!_ivr.loaded||!(i.windows||[]).length||_ivClosed(i))return [];
+  const dur=parseInt(i.duration,10)||30,today=_subToday(),mine=new Set((i.interviewers||[]).map(e=>String(e).toLowerCase()));
+  return _ivr.slots.filter(s=>s.date>=today&&!_ivrBusy(s.email,s.date,s.start)&&i.windows.some(w=>w.date===s.date&&(!w.start||s.start>=w.start)&&(!w.end||_ivAddMin(s.start,dur)<=w.end)))
+    .sort((a,b)=>(mine.has(b.email)?1:0)-(mine.has(a.email)?1:0)||(a.date+a.start).localeCompare(b.date+b.start));
+}
+function _ivWinHtml(i){
+  const w=i.windows||[];if(!w.length)return '';
+  const chip=(t,bg)=>'<span style="display:inline-block;padding:4px 10px;border-radius:99px;border:1px solid var(--mist);background:'+bg+';font-size:13px;margin:0 6px 6px 0">'+escHtml(t)+'</span>';
+  const note=String(i.suggestion||'').split('Note: ')[1]||'';
+  let h='<div class="iv-sug" style="background:#eef6ef"><b>🕒 Their availability</b>'+(i.suggestedAt?' <span style="font-size:12px;color:var(--stone)">· sent '+escHtml(new Date(i.suggestedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}))+'</span>':'')+
+    '<div style="margin-top:6px">'+w.map(x=>chip(x.label,'#fff')).join('')+'</div>'+(note?'<div style="margin-top:2px">“'+escHtml(note)+'”</div>':'');
+  if(!_ivClosed(i)){
+    if(!_ivr.loaded)h+='<div class="hr-m" style="margin-top:6px">Checking interviewer times…</div>';
+    else{
+      const m=_ivMatches(i);
+      h+='<div style="margin-top:8px;font-weight:700;font-size:13px">'+(m.length?'Open interviewer times inside their windows ('+m.length+')':'No open interviewer times fall inside their windows yet')+'</div>'+
+        (m.length?'<div style="margin-top:4px">'+m.slice(0,12).map(s=>chip(_ivrWhen(s)+' · '+_ivrName(s.email).split(' ')[0],'#e8f3e9')).join('')+'</div>':'<div class="hr-m">Add interviewer times, or pick a time by hand inside their windows.</div>');
+    }
+  }
+  return h+'</div>';
+}
+function _ivOfferMatches(id){const i=_iv.list.find(x=>x.id===id);if(i)ivOpen(i.email,id,{match:true});}
 function _ivCardHtml(i,bare){
   const st=_IV_ST[i.status]||[i.status,'#777'];
   const meta=[i.kind,i.position,[i.format,i.location].filter(Boolean).join(': ')].filter(Boolean).join(' · ');
@@ -11386,12 +11409,14 @@ function _ivCardHtml(i,bare){
     if(off.length)h+='<div class="hr-m" style="margin-top:6px">Offered: '+escHtml(off.map(s=>s.label).join('  |  '))+'</div>';
   }
   if(i.status==='Confirmed')h+=i.detailsSent?'<div class="hr-m" style="margin-top:4px;color:var(--leaf,#4F6B4A)">📨 Meeting details sent</div>':'<div class="iv-sug" style="background:#fff4e5">📨 <b>Next:</b> send '+escHtml((i.name||'them').split(' ')[0])+' the Zoom link, phone number or address.</div>';
-  if(i.suggestion)h+='<div class="iv-sug"><b>They said:</b> '+escHtml(i.suggestion)+'</div>';
+  if((i.windows||[]).length)h+=_ivWinHtml(i);
+  else if(i.suggestion)h+='<div class="iv-sug"><b>They said:</b> '+escHtml(i.suggestion)+'</div>';
   const id=ea(i.id),em=ea(i.email);
   let b=bare?'<button onclick="showPersonDetail(\''+em+'\')">👤 Open profile</button>':'';
   if(i.suggested&&!_ivClosed(i))b+='<button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="_ivAccept(\''+id+'\')">✔ Accept '+escHtml(i.suggested.label)+'</button>';
   if(!_ivClosed(i)){
-    b+='<button onclick="ivOpen(\''+em+'\',\''+id+'\')">➕ Offer other times</button>';
+    {const _m=_ivMatches(i);if(_m.length)b+='<button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="_ivOfferMatches(\''+id+'\')">📅 Offer these '+Math.min(_m.length,12)+' times</button>';}
+    b+='<button onclick="ivOpen(\''+em+'\',\''+id+'\')">➕ '+((i.windows||[]).length?'Pick times in their windows':'Offer other times')+'</button>';
     b+='<button data-link="'+ea(i.page)+'" onclick="_hrCopy(this.dataset.link,\'Interview link copied\')">🔗 Copy link</button>';
     if(i.status==='Confirmed')b=(i.detailsSent?'<button onclick="ivDetails(\''+id+'\')">📨 Send details again</button>':'<button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="ivDetails(\''+id+'\')">📨 Send details</button>')+b;
     if(i.status==='Confirmed')b+='<button onclick="_ivAct(\'completeInterview\',\''+id+'\',{},\'Marked done\')">✅ Mark done</button>';
@@ -11550,7 +11575,7 @@ async function _infSend(){
   }catch(e){alert('Connection problem - please try again.');if(btn){btn.disabled=false;btn.textContent='Send';}}
 }
 // Running tally under Confidential Notes: who emailed, who interviewed, etc.
-const _AP_ICON={applied:'📝',info:'✉',offer:'📅',pick:'✅',suggest:'💬',details:'📨',done:'🏁',cancel:'✖'};
+const _AP_ICON={applied:'📝',info:'✉',reoffer:'📅',offer:'📅',pick:'✅',suggest:'💬',details:'📨',done:'🏁',cancel:'✖'};
 async function _apTallyFill(email){
   const box=document.getElementById('pd-tally');if(!box)return;
   const h=gh(email);if(!h||!_ivApplicantish(h)){box.innerHTML='';return;}
@@ -11612,13 +11637,19 @@ function ivOpen(email,existingId,opts){
   _iv.form={email,first:(h['First Name']||h.FirstName||fullName(h)||'').split(' ')[0],name:fullName(h),existingId:existingId||'',slots:[],sel:new Set(),half:false,conf:{},qdate:'',sms,
     interviewers:new Set(ex&&ex.interviewers&&ex.interviewers.length?ex.interviewers:[meE])};
   const f=_iv.form;
+  if(opts&&opts.match&&ex){
+    const dur0=parseInt(ex.duration,10)||30;
+    _ivMatches(ex).slice(0,12).forEach(s=>{if(!f.slots.some(x=>x.date===s.date&&x.start===s.start)){f.slots.push({date:s.date,start:s.start,end:_ivAddMin(s.start,dur0),auto:true,iv:[s.email],availId:s.id});f.interviewers.add(s.email);}});
+    _ivSort();
+  }
+  const winBanner=ex&&(ex.windows||[]).length?'<div class="iv-sug" style="margin:0 0 8px;background:#eef6ef"><b>🕒 '+escHtml(f.first)+' is free:</b><br>'+ex.windows.map(x=>escHtml(x.label)).join('<br>')+'<div class="hr-m" style="margin-top:4px">Offer times inside these windows.</div></div>':'';
   const staff=_ivStaffList();
   const kind=ex?ex.kind:(tr?'Training':'Interview'),fmt=ex?ex.format:'In person',dur=ex?String(ex.duration||30):(tr?'120':'30');
   const sites=tr?(DATA.sites||[]).map(s=>({n:sf(s,'Name','name'),a:sf(s,'Full Address','FullAddress')||[sf(s,'Street Address'),sf(s,'City'),sf(s,'State'),sf(s,'Zip Code')].filter(Boolean).join(', ')})).filter(s=>s.n).sort((a,b)=>a.n.localeCompare(b.n)):[];
   const ov=document.createElement('div');ov.className='sub-ov';ov.id='ivOverlay';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
   ov.innerHTML='<div class="sub-sheet"><h3>'+(ex?'Offer other times':tr?'Set up training':'Schedule an interview')+'</h3>'+
-    '<div class="sub-meta" style="margin:-6px 0 8px">With <b>'+escHtml(f.name)+'</b> · '+escHtml(email)+'. They get a link with your times, pick one, and you both get a calendar invitation. First to confirm a time wins it.</div>'+
+    '<div class="sub-meta" style="margin:-6px 0 8px">With <b>'+escHtml(f.name)+'</b> · '+escHtml(email)+'. They get a link with your times, pick one, and you both get a calendar invitation. First to confirm a time wins it.</div>'+winBanner+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="sub-lbl">Type</div><select class="sub-in" id="ivKind" onchange="_ivDraft()">'+_IV_KINDS.map(k=>'<option'+(k===kind?' selected':'')+'>'+escHtml(k)+'</option>').join('')+'</select></div>'+
     '<div><div class="sub-lbl">How</div><select class="sub-in" id="ivFmt" onchange="_ivDraft()">'+_IV_FORMATS.map(k=>'<option'+(k===fmt?' selected':'')+'>'+escHtml(k)+'</option>').join('')+'</select></div></div>'+
     (tr?'<div class="sub-lbl">School site for the training</div><select class="sub-in" id="ivSite" onchange="_ivSitePick()"><option value="">Choose a school…</option>'+sites.map(s=>'<option value="'+ea(s.n)+'" data-a="'+ea(s.a)+'">'+escHtml(s.n)+'</option>').join('')+'</select>':'')+
