@@ -582,6 +582,7 @@ function _liveHashTabs(ss, tabs) {
 
 // Time trigger (every minute). Detects edits made outside the app.
 function liveSyncWatch() {
+  try { _igPollMaybe(); } catch (eIg) { Logger.log('ig poll: ' + eIg.message); }
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(2000)) return;
   try {
@@ -992,6 +993,8 @@ function _doPostRoute(e) {
       case 'publicContact':             return respond(handlePublicContact(p));
       case 'ingestIncoming':            return respond(handleIngestIncoming(p));
       case 'getIncoming':               return respond(handleGetIncoming(p));
+      case 'saveInstagram':             return respond(handleSaveInstagram(p));
+      case 'instagramStatus':           return respond(handleInstagramStatus(p));
       case 'setIncomingStatus':         return respond(handleSetIncomingStatus(p));
       case 'publicInterviewInfo':       return respond(handlePublicInterviewInfo(p));
       case 'publicInterviewChoose':     return respond(handlePublicInterviewChoose(p));
@@ -11143,5 +11146,97 @@ function handleSetIncomingStatus(p) {
     if (!r) return { ok: false, error: 'Message not found.' };
     _subSet(t, r, { 'Status': st, 'Handled By': st === 'New' ? '' : me.email, 'Handled At': st === 'New' ? '' : new Date() });
     return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+
+// ── Instagram messages -> Incoming (polled; no webhook, no outside service) ───────────────────────────
+// Uses the Instagram API with Instagram Login. Token is saved from the app (Settings, Level 1) and refreshed here.
+var IG_API = 'https://graph.instagram.com/v21.0/';
+function _igProps() { return PropertiesService.getScriptProperties(); }
+function _igStatus(msg, ok) { var pr = _igProps(); pr.setProperty('ig_status', (ok ? 'OK ' : 'PROBLEM ') + Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d h:mm a') + ' - ' + msg); }
+function _igPollMaybe() {
+  var pr = _igProps();
+  if (!pr.getProperty('ig_token')) return;
+  var last = Number(pr.getProperty('ig_last_poll') || 0);
+  if (Date.now() - last < 3 * 60 * 1000) return;       // about every 3 minutes
+  pr.setProperty('ig_last_poll', String(Date.now()));
+  _igPoll();
+}
+function _igGet(path, token) {
+  var r = UrlFetchApp.fetch(IG_API + path + (path.indexOf('?') > -1 ? '&' : '?') + 'access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+  var j = {}; try { j = JSON.parse(r.getContentText()); } catch (e) {}
+  if (r.getResponseCode() >= 300 || j.error) throw new Error((j.error && j.error.message) || ('HTTP ' + r.getResponseCode()));
+  return j;
+}
+function _igRefreshMaybe(token) {
+  var pr = _igProps(), at = Number(pr.getProperty('ig_refreshed') || 0);
+  if (Date.now() - at < 7 * 24 * 3600 * 1000) return token;   // refresh weekly (tokens last 60 days)
+  try {
+    var r = UrlFetchApp.fetch('https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+    var j = JSON.parse(r.getContentText());
+    if (j.access_token) { pr.setProperty('ig_token', j.access_token); pr.setProperty('ig_refreshed', String(Date.now())); return j.access_token; }
+  } catch (e) {}
+  return token;
+}
+function _igPoll() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { ok: false, error: 'Busy, try again.' };
+  try {
+    var pr = _igProps(), token = pr.getProperty('ig_token');
+    if (!token) return { ok: false, error: 'Instagram is not connected.' };
+    token = _igRefreshMaybe(token);
+    var me = _igGet('me?fields=user_id,username', token);
+    var myIds = [String(me.user_id || ''), String(me.id || '')];
+    var convs = _igGet('me/conversations?platform=instagram&limit=25&fields=id,updated_time,messages.limit(10){id,message,from,created_time,attachments}', token);
+    var t = _subReadAll(_subGetSheet(INC_TAB, INC_HEADERS));
+    var seen = {}; t.rows.forEach(function(r){ if (r.Source === 'Instagram' && r['External ID']) seen[r['External ID']] = 1; });
+    var firstRun = !pr.getProperty('ig_connected_at');
+    var since = firstRun ? Date.now() - 7 * 24 * 3600 * 1000 : Number(pr.getProperty('ig_connected_at')) - 24 * 3600 * 1000;
+    var added = 0;
+    ((convs.data) || []).forEach(function(c){
+      var msgs = (c.messages && c.messages.data) || [];
+      msgs.slice().reverse().forEach(function(m){
+        var fromId = String((m.from && m.from.id) || '');
+        if (!m.id || seen[m.id] || myIds.indexOf(fromId) > -1) return;   // skip ours and already-imported
+        var when = m.created_time ? new Date(m.created_time) : new Date();
+        if (when.getTime() < since) return;
+        var text = String(m.message || '').trim();
+        if (!text && m.attachments) text = '[sent a photo, video or sticker - open Instagram to view]';
+        if (!text) return;
+        var user = (m.from && (m.from.username || m.from.id)) || 'Instagram user';
+        _incAdd({ 'Received': when, 'Source': 'Instagram', 'Name': '@' + user, 'Message': text, 'External ID': m.id });
+        seen[m.id] = 1; added++;
+      });
+    });
+    if (firstRun) pr.setProperty('ig_connected_at', String(Date.now()));
+    if (added) bumpLiveVersion(['Incoming']);
+    _igStatus('connected as @' + (me.username || '?') + (added ? ', ' + added + ' new message' + (added === 1 ? '' : 's') : ', nothing new'), true);
+    return { ok: true, added: added };
+  } catch (e) {
+    _igStatus(e.message, false);
+    return { ok: false, error: e.message };
+  } finally { lock.releaseLock(); }
+}
+function handleSaveInstagram(p) {
+  try {
+    var people = _subPeople(), me = _ivAdmin(p, people);
+    if (_ivStaffLevel(me.email) > 1) return { ok: false, error: 'Level 1 only.' };
+    var pr = _igProps();
+    if (p.disconnect) { ['ig_token','ig_status','ig_last_poll','ig_connected_at','ig_refreshed'].forEach(function(k){ pr.deleteProperty(k); }); return { ok: true, status: '' }; }
+    var tok = String(p.token || '').trim();
+    if (tok.length < 20) return { ok: false, error: 'Paste the full access token.' };
+    pr.setProperty('ig_token', tok); pr.deleteProperty('ig_connected_at'); pr.setProperty('ig_refreshed', String(Date.now()));
+    var r = _igPoll();
+    if (!r.ok) { pr.deleteProperty('ig_token'); return { ok: false, error: 'Instagram said: ' + r.error }; }
+    return { ok: true, status: pr.getProperty('ig_status') };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleInstagramStatus(p) {
+  try {
+    var people = _subPeople(); _ivAdmin(p, people);
+    var pr = _igProps(), on = !!pr.getProperty('ig_token');
+    if (on && p.now) _igPoll();
+    return { ok: true, connected: on, status: pr.getProperty('ig_status') || '' };
   } catch (e) { return { ok: false, error: e.message }; }
 }

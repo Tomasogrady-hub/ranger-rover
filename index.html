@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.46 -->
+<!-- v12.47 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2054,6 +2054,17 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <div class="settings-note" style="margin-top:6px">On screens 1000px or wider, lists spread into columns and cards open as a centred panel. Phones are never affected. Untick to go back to the classic phone-width view.</div>
         </div>
         <div class="settings-row">
+          <div class="dl" style="margin-bottom:6px">📸 Instagram messages</div>
+          <div class="settings-note" id="igStatus">–</div>
+          <div id="igSetup">
+            <input id="igToken" class="settings-input" type="password" placeholder="Paste Instagram access token" autocomplete="off" style="margin-top:8px">
+            <button class="settings-btn" onclick="_igSave(this)">Connect Instagram</button>
+          </div>
+          <button class="settings-btn" id="igCheck" style="margin-top:8px;display:none" onclick="_igStatusLoad(true)">Check now</button>
+          <button class="settings-btn" id="igOff" style="margin-top:8px;display:none;background:var(--fog);color:var(--danger)" onclick="_igOff()">Disconnect</button>
+          <div class="settings-note" style="margin-top:6px">New Instagram DMs are pulled into Reach → Incoming about every 3 minutes. Needs an Instagram Business or Creator account.</div>
+        </div>
+        <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">✨ AI School Summaries</div>
           <div class="settings-note">Each night at 2am, Claude reads every school's Comments, Site Details and open chores and writes a one-to-two line status with a green / amber / red flag. Shown to Levels 1-2 only. Only changed schools are re-read, so it costs pennies a month.</div>
           <button class="settings-btn" style="margin-top:8px" onclick="_aiRunNow(this)">🐞 Refresh Ladybug Summaries</button>
@@ -2689,10 +2700,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.46';
+const APP_VERSION='v12.47';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-24 8:20 PM PT - Reach: Reach Out + Incoming (website contact form, Instagram ready).';
+const BUILD_STAMP='2026-11-24 9:05 PM PT - Instagram DMs pulled into Incoming automatically (connect in Settings).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -12519,6 +12530,31 @@ async function _incSet(id,status){
   catch(e){alert('Connection problem - please try again');await _incLoad(true);_incRender();}
 }
 async function _incRefresh(){showToast('Refreshing…');await _incLoad(true);_incRender();showToast('Up to date');}
+async function _igStatusLoad(now){
+  const st=document.getElementById('igStatus');if(!st||!SESSION||SESSION.accessLevel>1)return;
+  try{
+    const r=await gasPost({action:'instagramStatus',actor:SESSION.email,now:!!now});
+    if(!r||!r.ok){st.textContent=(r&&r.error)||'Backend not updated yet';return;}
+    st.textContent=r.connected?(r.status||'Connected'):'Not connected';
+    document.getElementById('igSetup').style.display=r.connected?'none':'';
+    document.getElementById('igCheck').style.display=document.getElementById('igOff').style.display=r.connected?'':'none';
+    if(now&&r.connected){_inc.loaded=false;}
+  }catch(e){st.textContent='Could not check';}
+}
+async function _igSave(btn){
+  const tok=document.getElementById('igToken').value.trim();if(!tok){alert('Paste the token first');return;}
+  btn.disabled=true;btn.textContent='Connecting…';
+  try{
+    const r=await gasPost({action:'saveInstagram',actor:SESSION.email,token:tok});
+    if(!r||!r.ok)alert((r&&r.error)||'Could not connect');
+    else{document.getElementById('igToken').value='';_inc.loaded=false;}
+  }catch(e){alert('Connection problem - try again');}
+  btn.disabled=false;btn.textContent='Connect Instagram';_igStatusLoad();
+}
+async function _igOff(){
+  if(!confirm('Disconnect Instagram? Messages already pulled in stay in Incoming.'))return;
+  await gasPost({action:'saveInstagram',actor:SESSION.email,disconnect:true});_igStatusLoad();
+}
 const _hrOpenRows=new Set();
 function _hrRowTog(el,k){if(el.open)_hrOpenRows.add(k);else _hrOpenRows.delete(k);}
 function _hrRow(k,name,sub,body,pillHtml){
@@ -13539,7 +13575,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='quotes')initQuotes();
   if(tab==='cabin')initCabin();
   if(tab==='reach'){showReachPage(_reachCurrentPage||'home');}
-  if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
+  if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);setTimeout(_igStatusLoad,50);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
   if(tab==='action')renderAction();
   _navSetCollapsed(tab==='calendar');
