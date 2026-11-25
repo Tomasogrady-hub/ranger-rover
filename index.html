@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.42 -->
+<!-- v12.43 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -853,6 +853,17 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 .hr-btns button,.hr-btns a{padding:8px 12px;border:1px solid var(--mist);border-radius:8px;background:var(--fog);font-family:var(--font-b);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;text-decoration:none}
 .hr-app{display:flex;align-items:center;gap:10px;padding:8px 4px;border-top:1px solid var(--mist);cursor:pointer}
 .hr-app img,.hr-app .hr-av{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--fog);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--stone)}
+.hr-row{border-top:1px solid var(--mist);margin:0 12px}
+.hr-row:first-of-type{border-top:none}
+.hr-row>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 4px;min-height:48px}
+.hr-row>summary::-webkit-details-marker{display:none}
+.hr-row>summary .hr-nm{flex:1;min-width:0;font-family:var(--font-b);font-size:17px;font-weight:700;color:var(--grove);line-height:1.25}
+.hr-row>summary .hr-sub{display:block;font-size:13px;font-weight:400;color:var(--stone);margin-top:2px}
+.hr-row>summary::after{content:'▾';font-size:20px;color:var(--stone);flex-shrink:0}
+.hr-row[open]>summary::after{content:'▴'}
+.hr-row .hr-body{padding:0 4px 14px}
+.hr-row .iv-card{margin:0;border:none;padding:0;background:transparent}
+.hr-go{cursor:pointer}.hr-go:active{background:#f0eee6}
 .iv-card{border:1px solid var(--mist);border-radius:12px;padding:12px;margin:8px 0;background:#fff}
 .iv-st{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--fog);white-space:nowrap}
 .iv-sug{margin-top:8px;padding:8px 10px;background:#fdf0e7;border-radius:8px;font-size:14px}
@@ -1588,7 +1599,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <div id="ops-hr" style="display:none">
         <div class="page-header"><span class="page-title">Human Resources</span></div>
         <div class="ops-tree-host"></div>
-        <div id="hrOverview" style="padding:10px 16px 28px"></div>
+        <div id="hrOverview" style="padding:0 0 28px"></div>
       </div>
       <div id="ops-jobs" style="display:none">
         <div class="page-header"><span class="page-title">Job Listings</span><span class="page-count" id="hrCount"></span></div>
@@ -1603,7 +1614,7 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
       <div id="ops-interviews" style="display:none">
         <div class="page-header"><span class="page-title">Interviews</span></div>
         <div class="ops-tree-host"></div>
-        <div id="ivPageBody" style="padding:4px 16px 28px"></div>
+        <div id="ivPageBody" style="padding:0 0 28px"></div>
       </div>
       <div id="ops-onb" style="display:none"><div class="page-header"><span class="page-title">Ranger Onboarding</span></div><div class="ops-tree-host"></div><div class="settings-note" style="padding:18px 16px">To be added.</div></div>
       <div id="ops-trn" style="display:none"><div class="page-header"><span class="page-title">Ranger in Training</span></div><div class="ops-tree-host"></div><div class="settings-note" style="padding:18px 16px">To be added.</div></div>
@@ -2659,10 +2670,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.42';
+const APP_VERSION='v12.43';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-24 10:30 PT - Add Person: find people in my email by name.';
+const BUILD_STAMP='2026-11-24 6:35 PM PT - Human Resources: Sub-style boxes; Interviews headers with arrow dropdowns.';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -11362,12 +11373,12 @@ function _ivBadge(email){
   const st=_IV_ST[l.status]||['',''];
   return '<div style="font-size:12px;font-weight:700;color:'+st[1]+';margin-top:2px">'+escHtml(l.status==='Confirmed'&&l.chosen?'✅ '+l.kind+' '+l.chosen.label:st[0])+'</div>';
 }
-function _ivCardHtml(i){
+function _ivCardHtml(i,bare){
   const st=_IV_ST[i.status]||[i.status,'#777'];
   const meta=[i.kind,i.position,[i.format,i.location].filter(Boolean).join(': ')].filter(Boolean).join(' · ');
-  let h='<div class="iv-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
+  let h='<div class="iv-card">'+(bare?'':'<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'+
     '<a style="font-weight:700;font-size:16px;cursor:pointer;color:var(--ink)" onclick="showPersonDetail(\''+ea(i.email)+'\')">'+escHtml(i.name||i.email)+'</a>'+
-    '<span class="iv-st" style="color:'+st[1]+'">'+escHtml(st[0])+'</span></div>'+
+    '<span class="iv-st" style="color:'+st[1]+'">'+escHtml(st[0])+'</span></div>')+
     '<div class="hr-m">'+escHtml(meta)+'</div>';
   if(i.status==='Confirmed'&&i.chosen)h+='<div style="margin-top:8px;font-weight:700;font-size:16px">'+escHtml(i.chosen.label)+(i.calendar?' <span style="font-weight:400;font-size:12px;color:var(--stone)">· on Google Calendar</span>':' <span style="font-weight:400;font-size:12px;color:var(--danger)">· not on calendar</span>')+'</div>';
   if(i.status==='Waiting for Applicant'||i.status==='Applicant Suggested Other'){
@@ -11377,7 +11388,7 @@ function _ivCardHtml(i){
   if(i.status==='Confirmed')h+=i.detailsSent?'<div class="hr-m" style="margin-top:4px;color:var(--leaf,#4F6B4A)">📨 Meeting details sent</div>':'<div class="iv-sug" style="background:#fff4e5">📨 <b>Next:</b> send '+escHtml((i.name||'them').split(' ')[0])+' the Zoom link, phone number or address.</div>';
   if(i.suggestion)h+='<div class="iv-sug"><b>They said:</b> '+escHtml(i.suggestion)+'</div>';
   const id=ea(i.id),em=ea(i.email);
-  let b='';
+  let b=bare?'<button onclick="showPersonDetail(\''+em+'\')">👤 Open profile</button>':'';
   if(i.suggested&&!_ivClosed(i))b+='<button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="_ivAccept(\''+id+'\')">✔ Accept '+escHtml(i.suggested.label)+'</button>';
   if(!_ivClosed(i)){
     b+='<button onclick="ivOpen(\''+em+'\',\''+id+'\')">➕ Offer other times</button>';
@@ -12290,12 +12301,12 @@ function _hrOverviewRender(){
   const apps=(DATA.humans||[]).filter(_ivApplicantish);
   const act=_iv.loaded?_iv.list.filter(i=>!_ivClosed(i)):null;
   const need=act?act.filter(i=>i.status==='Applicant Suggested Other').length:0,conf=act?act.filter(i=>i.status==='Confirmed').length:0;
-  const card=(go,ico,t,m)=>'<div class="sub-card tap" style="margin:10px 0" onclick="_opsTreeGo(\''+go+'\')"><div class="sub-top"><div><div class="sub-school">'+ico+' '+t+'</div><div class="sub-meta">'+m+'</div></div><span style="font-size:24px;color:var(--silver)">›</span></div></div>';
+  const card=(go,ico,t,m)=>'<section class="sub-box hr-go" onclick="_opsTreeGo(\''+go+'\')"><div class="sub-h1">'+ico+' '+t+'</div><div class="sub-empty">'+m+'</div></section>';
   box.innerHTML=card('jobs','📢','Job Listings',open===null?'Loading…':open+' open posting'+(open===1?'':'s'))+
     card('applicants','🧑‍🌾','Applicants',apps.length?apps.length+' applicant'+(apps.length===1?'':'s'):'No applicants yet')+
     card('interviews','📅','Interviews',act===null?(_iv.err||'Loading…'):[need?need+' need you':'',conf?conf+' confirmed':'',act.length-need-conf>0?(act.length-need-conf)+' waiting for the applicant':''].filter(Boolean).join(' · ')||'Nothing scheduled')+
     card('onb','🌱','Ranger Onboarding','To be added')+card('trn','🪴','Ranger in Training','To be added')+card('rgr','🌳','Ranger','To be added')+
-    '<div class="sub-card" style="margin:10px 0;background:var(--fog)"><div class="sub-meta">Human Resources sheet and resume folder:</div><div class="hr-btns"><a target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a><a target="_blank" href="'+HR_RESUMES_URL+'">Resumes ↗</a></div></div>';
+    '<section class="sub-box"><div class="sub-h1">Files</div><div class="hr-btns" style="justify-content:center;margin:12px 0 4px"><a target="_blank" href="'+HR_SHEET_URL+'">Sheet ↗</a><a target="_blank" href="'+HR_RESUMES_URL+'">Resumes ↗</a></div></section>';
 }
 function _hrOverviewOpen(){
   _hrOverviewRender();
@@ -12370,34 +12381,46 @@ function _ivrHistHtml(em){
     '<div style="margin:6px 0 0 4px"><div class="hr-m" style="font-weight:700">Interviewed</div>'+(done.length?done.map(i=>row(i,i.chosen?i.chosen.label:'')).join(''):'<div class="hr-m">Nobody yet.</div>')+
     '<div class="hr-m" style="font-weight:700;margin-top:8px">Offered an interview</div>'+(off.length?off.map(i=>row(i,lab(i))).join(''):'<div class="hr-m">Nobody right now.</div>')+'</div></details>';
 }
+const _hrOpenRows=new Set();
+function _hrRowTog(el,k){if(el.open)_hrOpenRows.add(k);else _hrOpenRows.delete(k);}
+function _hrRow(k,name,sub,body,pillHtml){
+  return '<details class="hr-row"'+(_hrOpenRows.has(k)?' open':'')+' ontoggle="_hrRowTog(this,\''+ea(k)+'\')"><summary><span class="hr-nm">'+name+(sub?'<span class="hr-sub">'+sub+'</span>':'')+'</span>'+(pillHtml||'')+'</summary><div class="hr-body">'+body+'</div></details>';
+}
 function _ivPageRender(){
   const box=document.getElementById('ivPageBody');if(!box)return;
-  if(!_ivr.loaded){box.innerHTML='<div class="settings-note" style="padding:20px 0">'+escHtml(_ivr.err||'Loading…')+'</div>';return;}
+  if(!_ivr.loaded){box.innerHTML='<div class="settings-note" style="padding:20px 16px">'+escHtml(_ivr.err||'Loading…')+'</div>';return;}
   const me=String(SESSION.email||'').toLowerCase();
-  let h='<div style="margin:14px 0 4px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)">🧑‍🏫 Interviewers</div>'+
-    '<div class="hr-m" style="margin:0 0 6px">Rangers and Master Rangers who can interview. Add the times each one is free; when you invite an applicant you pick from these times.</div>'+
-    '<div class="hr-btns" style="margin:0 0 8px"><button onclick="_ivrAddPerson()">➕ Add interviewer</button><button onclick="_ivrRefreshNow()">↻ Refresh</button></div>';
-  if(!_ivr.list.length)h+='<div class="settings-note" style="padding:10px 0">No interviewers yet. Tap Add interviewer and pick from your Rangers and Master Rangers.</div>';
+  const sec=(t,n,inner)=>'<section class="sub-box"><div class="sub-h1">'+t+(n?'<span class="n">('+n+')</span>':'')+'</div>'+inner+'</section>';
+  // INTERVIEWERS
+  let ih='<div class="hr-btns" style="justify-content:center;margin:10px 12px 4px"><button onclick="_ivrAddPerson()">➕ Add interviewer</button><button onclick="_ivrRefreshNow()">↻ Refresh</button></div>';
+  if(!_ivr.list.length)ih+='<div class="sub-empty">No interviewers yet.</div>';
   _ivr.list.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(x=>{
     const mine=_ivr.slots.filter(s=>s.email===x.email),hu=gh(x.email),role=hu?(hu.Role||hu.role||''):'';
-    h+='<div class="hr-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><div class="hr-t">'+escHtml(x.name)+(x.email===me?' <span style="font-weight:400;font-size:13px;color:var(--stone)">(you)</span>':'')+'</div><div class="hr-m">'+escHtml(role)+(role?' · ':'')+mine.length+' open time'+(mine.length===1?'':'s')+'</div></div></div>';
-    if(mine.length)h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'+mine.map(s=>{const busy=_ivrBusy(s.email,s.date,s.start);return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:99px;border:1px solid var(--mist);background:'+(busy?'#fff4e5':'var(--fog)')+';font-size:13px">'+escHtml(_ivrWhen(s))+(busy?' <span style="color:#b5740f;font-weight:700">offered</span>':'')+'<button style="border:none;background:transparent;cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" onclick="_ivrDelSlot(\''+ea(s.id)+'\')">✕</button></span>';}).join('')+'</div>';
-    h+='<div class="hr-btns"><button onclick="_ivrSheet(\''+ea(x.email)+'\')">➕ Add times</button><button onclick="_ivrAsk(\''+ea(x.email)+'\')">📨 Ask for times</button><button style="color:var(--danger)" onclick="_ivrRemovePerson(\''+ea(x.email)+'\',\''+ea(x.name)+'\')">Remove</button></div>'+_ivrHistHtml(x.email)+'</div>';
+    let body='';
+    if(mine.length)body+='<div style="display:flex;flex-wrap:wrap;gap:6px">'+mine.map(s=>{const busy=_ivrBusy(s.email,s.date,s.start);return '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:99px;border:1px solid var(--mist);background:'+(busy?'#fff4e5':'var(--fog)')+';font-size:13px">'+escHtml(_ivrWhen(s))+(busy?' <span style="color:#b5740f;font-weight:700">offered</span>':'')+'<button style="border:none;background:transparent;cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px" onclick="_ivrDelSlot(\''+ea(s.id)+'\')">✕</button></span>';}).join('')+'</div>';
+    else body+='<div class="hr-m">No open times yet.</div>';
+    body+='<div class="hr-btns"><button onclick="_ivrSheet(\''+ea(x.email)+'\')">➕ Add times</button><button onclick="_ivrAsk(\''+ea(x.email)+'\')">📨 Ask for times</button><button style="color:var(--danger)" onclick="_ivrRemovePerson(\''+ea(x.email)+'\',\''+ea(x.name)+'\')">Remove</button></div>'+_ivrHistHtml(x.email);
+    ih+=_hrRow('i:'+x.email,escHtml(x.name)+(x.email===me?' <span style="font-weight:400;font-size:13px;color:var(--stone)">(you)</span>':''),escHtml(role)+(role?' · ':'')+mine.length+' open time'+(mine.length===1?'':'s'),body);
   });
-  h+='<div style="margin:22px 0 4px;font-family:var(--font-b);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)">📋 Applicants</div>';
-  if(!_iv.loaded){h+='<div class="hr-m">'+escHtml(_iv.err||'Loading interviews…')+'</div>';}
+  // APPLICANTS
+  let ah='';let an=0;
+  if(!_iv.loaded){ah='<div class="sub-empty">'+escHtml(_iv.err||'Loading interviews…')+'</div>';}
   else{
     const act=_iv.list.filter(i=>!_ivClosed(i)),closed=_iv.list.filter(_ivClosed);
     const rank=i=>i.status==='Applicant Suggested Other'?0:i.status==='Confirmed'?1:2;
     act.sort((a,b)=>rank(a)-rank(b)||String(a.chosen?a.chosen.date+a.chosen.start:'9').localeCompare(String(b.chosen?b.chosen.date+b.chosen.start:'9')));
     const busyEm=new Set(act.map(i=>String(i.email).toLowerCase()));
     const ready=(DATA.humans||[]).filter(a=>_ivApplicantish(a)&&_ivBtnRole(a)&&!busyEm.has(String(a.Email||a.email||'').toLowerCase()));
-    h+='<div class="hr-m" style="margin:0 0 6px">People being interviewed, and applicants ready to be invited.</div>';
-    h+=act.length?act.map(_ivCardHtml).join(''):'<div class="settings-note" style="padding:8px 0">No interviews in progress.</div>';
-    if(ready.length)h+='<div class="hr-card"><div class="hr-t">Ready to invite ('+ready.length+')</div>'+ready.slice(0,30).map(a=>{const em=a.Email||a.email||'';return '<div class="hr-app" style="cursor:default"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(fullName(a)||em)+'</div><div class="hr-m">'+escHtml(a.Role||a.role||'')+'</div></div><div class="hr-btns" style="margin-top:0"><button onclick="showPersonDetail(\''+ea(em)+'\')">Open</button><button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="ivOpen(\''+ea(em)+'\')">📅 Invite</button></div></div>';}).join('')+'</div>';
-    if(closed.length)h+='<div class="hr-btns"><button onclick="_iv.showClosed=!_iv.showClosed;_ivPageRender()">'+(_iv.showClosed?'Hide':'Show')+' finished ('+closed.length+')</button></div>'+(_iv.showClosed?closed.map(_ivCardHtml).join(''):'');
+    an=act.length;
+    const ivRow=i=>{const st=_IV_ST[i.status]||[i.status,'#777'];return _hrRow('a:'+i.id,escHtml(i.name||i.email),escHtml(i.status==='Confirmed'&&i.chosen?i.chosen.label:[i.kind,i.position].filter(Boolean).join(' · ')),_ivCardHtml(i,true),'<span class="iv-st" style="color:'+st[1]+'">'+escHtml(st[0])+'</span>');};
+    ah+=act.length?act.map(ivRow).join(''):'<div class="sub-empty">No interviews in progress.</div>';
+    if(ready.length){
+      const rb=ready.slice(0,30).map(a=>{const em=a.Email||a.email||'';return '<div class="hr-app" style="cursor:default"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;font-family:var(--font-b)">'+escHtml(fullName(a)||em)+'</div><div class="hr-m">'+escHtml(a.Role||a.role||'')+'</div></div><div class="hr-btns" style="margin-top:0"><button onclick="showPersonDetail(\''+ea(em)+'\')">Open</button><button style="background:var(--grove);color:#fff;border-color:var(--grove)" onclick="ivOpen(\''+ea(em)+'\')">📅 Invite</button></div></div>';}).join('');
+      ah+=_hrRow('ready','Ready to invite','',rb,'<span class="iv-st">'+ready.length+'</span>');
+    }
+    if(closed.length)ah+=_hrRow('closed','Finished','',closed.map(i=>'<div style="padding:8px 0;border-top:1px solid var(--mist)"><div style="font-weight:700;font-size:15px">'+escHtml(i.name||i.email)+'</div>'+_ivCardHtml(i,true)+'</div>').join(''),'<span class="iv-st">'+closed.length+'</span>');
   }
-  box.innerHTML=h;
+  box.innerHTML=sec('Interviewers',_ivr.list.length,ih)+sec('Applicants',an,ah);
 }
 async function _ivrRefreshNow(){showToast('Refreshing…');await Promise.all([_ivrLoad(true),_ivLoad(true)]);_ivPageRender();showToast('Up to date');}
 function _ivPageOpen(){
