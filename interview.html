@@ -11,7 +11,7 @@
 <meta name="robots" content="noindex">
 <meta property="og:title" content="Pick a time to meet - Enrich LA">
 <meta property="og:image" content="https://tomasogrady-hub.github.io/ranger-rover/icon-512.png">
-<!-- interview.html v1.2 - 2026-11-24 - applicant can send several availability windows. v1.1 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v1.0 - 2026-11-15 - Doodle-style interview time picker for Ranger applicants. Reads/writes via GAS publicInterviewInfo / Choose / Suggest / Decline. -->
+<!-- interview.html v1.3 - 2026-11-24 - uses built-in backend address first, retries; ignores a dead saved address. v1.2 - 2026-11-24 - applicant can send several availability windows. v1.1 - 2026-11-16 - app fonts, white fluid page, larger logo, new caption. v1.0 - 2026-11-15 - Doodle-style interview time picker for Ranger applicants. Reads/writes via GAS publicInterviewInfo / Choose / Suggest / Decline. -->
 <style>
   :root{--grove:#1e3a1e;--leaf:#2f6b35;--orange:#E07A3F;--sun:#F2B33D;--fog:#f6f5f0;--ink:#25281f;--muted:#6b6f63;--line:#dedbd0;--err:#a3332b;--ok:#1e6b34;--okbg:#e4f3e7}
   *{box-sizing:border-box}
@@ -66,7 +66,8 @@
 (function(){
   var FALLBACK_URL='https://script.google.com/macros/s/AKfycbyMS3dFL_8LcYu5ePLZFsjmim5pN1a8Ke2_NtbZdap7WgWhI2RW-X-rorXVFFkSibAH/exec';
   var GAS_URL=FALLBACK_URL;
-  try{GAS_URL=localStorage.getItem('rr_gas_url')||FALLBACK_URL;}catch(e){}
+  var ALT_URL='';try{ALT_URL=localStorage.getItem('rr_gas_url')||'';}catch(e){}
+  if(ALT_URL===FALLBACK_URL)ALT_URL='';
   var q=new URLSearchParams(location.search);
   var iid=(q.get('i')||'').trim(), picked=(q.get('o')||'').trim();
   var app=document.getElementById('app');
@@ -78,7 +79,13 @@
   }
   // Ask the live deployment where the newest backend is (old deployments keep old code)
   function resolve(){return raw(GAS_URL,'getAppSettings').then(function(r){if(r&&r.gasUrl&&r.gasUrl!==GAS_URL){GAS_URL=r.gasUrl;try{localStorage.setItem('rr_gas_url',GAS_URL);}catch(e){}}}).catch(function(){});}
-  function post(a,x){return raw(GAS_URL,a,x);}
+  // built-in address first; if it fails (offline blip, old deployment) try the saved one once, then the first again
+  function post(a,x){
+    return raw(GAS_URL,a,x).catch(function(){
+      if(ALT_URL&&ALT_URL!==GAS_URL){return raw(ALT_URL,a,x).then(function(r){GAS_URL=ALT_URL;return r;});}
+      return new Promise(function(res){setTimeout(res,1200);}).then(function(){return raw(GAS_URL,a,x);});
+    });
+  }
 
   function fmtTime(t){var m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return '';var h=+m[1],ap=h>=12?'pm':'am';h=h%12||12;return h+(m[2]==='00'?'':':'+m[2])+ap;}
   function parseD(ds){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ds||''));return m?new Date(+m[1],+m[2]-1,+m[3],12):null;}
@@ -232,7 +239,7 @@
   if(!iid){app.innerHTML='<div class="card">This link is missing information. Please use the link from your email or text.</div>';return;}
   resolve().then(function(){return post('publicInterviewInfo',{i:iid});}).then(function(r){
     if(r&&r.ok){view=r;render();}else{view=null;render((r&&r.error)||'This link is not valid.');}
-  }).catch(function(){view=null;render('Could not load - please check your connection and try again.');});
+  }).catch(function(){view=null;render('Could not load - please check your connection and try again. If it keeps happening, reply to the email and we will set a time for you.');});
 })();
 </script>
 </body>

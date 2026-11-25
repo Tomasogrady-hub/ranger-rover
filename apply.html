@@ -150,7 +150,7 @@
 (function(){
   var FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbyMS3dFL_8LcYu5ePLZFsjmim5pN1a8Ke2_NtbZdap7WgWhI2RW-X-rorXVFFkSibAH/exec';
   var GAS_URL = FALLBACK_URL;
-  try { GAS_URL = localStorage.getItem('rr_gas_url') || FALLBACK_URL; } catch(e){}
+  /* built-in address first: a saved address can be an old, deleted deployment */
   var posId = (new URLSearchParams(location.search).get('p') || '').trim();
   var positions = [];
   var $ = function(id){ return document.getElementById(id); };

@@ -64,7 +64,7 @@
 (function(){
   var FALLBACK_URL='https://script.google.com/macros/s/AKfycbyMS3dFL_8LcYu5ePLZFsjmim5pN1a8Ke2_NtbZdap7WgWhI2RW-X-rorXVFFkSibAH/exec';
   var GAS_URL=FALLBACK_URL;
-  try{GAS_URL=localStorage.getItem('rr_gas_url')||FALLBACK_URL;}catch(e){}
+  /* built-in address first: a saved address can be an old, deleted deployment */
   var q=new URLSearchParams(location.search), app=document.getElementById('app');
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function raw(url,action,extra){return fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action:action},extra||{}))}).then(function(r){return r.json();});}
