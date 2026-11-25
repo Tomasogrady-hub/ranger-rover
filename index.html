@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.45 -->
+<!-- v12.46 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1773,9 +1773,28 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 
   <!-- REACH -->
   <div class="tab-pane" id="tab-reach">
-    <!-- Sub-page: Reach menu -->
-    <div id="reach-menu" style="display:block">
+    <!-- Reach home: REACH OUT and INCOMING -->
+    <div id="reach-home" style="display:block">
       <div class="page-header"><span class="page-title">Reach</span></div>
+      <section class="sub-box hr-go" onclick="showReachPage('menu')"><div class="sub-h1">Reach Out</div><div class="sub-empty">Schools, people and organizations</div></section>
+      <section class="sub-box hr-go" id="reachIncomingBox" onclick="showReachPage('incoming')"><div class="sub-h1">Incoming</div><div class="sub-empty" id="reachIncomingSub">Website and Instagram messages</div></section>
+    </div>
+
+    <!-- Sub-page: Incoming messages (contact form + Instagram) -->
+    <div id="reach-incoming" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showReachPage('home')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Incoming</span><span class="page-count" id="incCount"></span>
+      </div>
+      <div id="incBody" style="padding:0 0 28px"></div>
+    </div>
+
+    <!-- Sub-page: Reach Out (the original Reach menu) -->
+    <div id="reach-menu" style="display:none">
+      <div class="page-header" style="display:flex;align-items:center;gap:10px">
+        <button onclick="showReachPage('home')" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 4px;color:var(--stone)">&#8249;</button>
+        <span class="page-title">Reach Out</span>
+      </div>
       <div style="padding:28px 20px 12px;display:flex;flex-direction:column;gap:14px">
         <div style="font-size:17px;font-weight:600;color:var(--stone);letter-spacing:.04em;text-align:center;margin-bottom:8px">Reach?</div>
         <button class="reach-menu-btn" onclick="showReachPage('schools')">🏫 Schools</button>
@@ -2670,10 +2689,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.45';
+const APP_VERSION='v12.46';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-24 7:50 PM PT - Interviewers: slots available / offered / booked / happened in one view.';
+const BUILD_STAMP='2026-11-24 8:20 PM PT - Reach: Reach Out + Incoming (website contact form, Instagram ready).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -12426,6 +12445,80 @@ function _ivrBuckets(email){
   const by=(a,b)=>a.k.localeCompare(b.k);
   return {avail,offered:offered.sort(by),booked:booked.sort(by),done:done.sort((a,b)=>b.k.localeCompare(a.k))};
 }
+
+/* ── Reach home + Incoming (v12.46) ── */
+const _inc={loaded:false,loading:null,err:'',items:[],unread:0,f:'all',showDone:false};
+function _incStaff(){return !!SESSION&&SESSION.accessLevel<=2;}
+async function _incLoad(force){
+  if(!_incStaff())return;
+  if(_inc.loading)return _inc.loading;
+  if(_inc.loaded&&!force)return;
+  _inc.loading=(async()=>{
+    try{
+      const r=await gasPost({action:'getIncoming',actor:SESSION.email});
+      if(r&&r.ok){_inc.items=r.items||[];_inc.unread=r.unread||0;_inc.loaded=true;_inc.err='';}
+      else _inc.err=(r&&r.error)||'Backend not updated yet';
+    }catch(e){_inc.err='Could not load messages';}
+    _inc.loading=null;
+  })();
+  return _inc.loading;
+}
+function _reachHomeRender(){
+  const box=document.getElementById('reachIncomingBox');if(!box)return;
+  box.style.display=_incStaff()?'':'none';
+  const sub=document.getElementById('reachIncomingSub');
+  const paint=()=>{if(sub)sub.innerHTML=_inc.loaded?(_inc.unread?'<b style="color:var(--danger)">'+_inc.unread+' new</b> · ':'')+_inc.items.length+' message'+(_inc.items.length===1?'':'s'):escHtml(_inc.err||'Website and Instagram messages');};
+  paint();
+  if(_incStaff())_incLoad(true).then(()=>{if(_reachCurrentPage==='home')paint();});
+}
+function _incOpen(){
+  _incRender();
+  _incLoad(true).then(()=>{if(_reachCurrentPage==='incoming')_incRender();});
+}
+const _INC_ICON={'Contact form':'📝','Instagram':'📸'};
+function _incWhen(t){if(!t)return '';const d=new Date(t);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
+function _incRender(){
+  const box=document.getElementById('incBody');if(!box)return;
+  if(!_incStaff()){box.innerHTML='<div class="settings-note" style="padding:20px 16px">Only Access Level 1-2 can see incoming messages.</div>';return;}
+  if(!_inc.loaded){box.innerHTML='<div class="settings-note" style="padding:20px 16px">'+escHtml(_inc.err||'Loading…')+'</div>';return;}
+  const srcs=[...new Set(_inc.items.map(x=>x.source))];
+  const chip=(k,l)=>'<button style="padding:7px 13px;border-radius:99px;border:1px solid var(--mist);font-size:13px;font-weight:600;cursor:pointer;'+(_inc.f===k?'background:var(--ink);color:#fff;':'background:var(--fog);color:var(--ink);')+'" onclick="_inc.f=\''+ea(k)+'\';_incRender()">'+escHtml(l)+'</button>';
+  const vis=_inc.items.filter(x=>(_inc.f==='all'||x.source===_inc.f)&&(_inc.showDone||x.status==='New'));
+  const doneN=_inc.items.filter(x=>x.status!=='New').length;
+  let h='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 12px 0">'+chip('all','All')+srcs.map(s=>chip(s,(_INC_ICON[s]||'')+' '+s)).join('')+
+    '<button style="padding:7px 13px;border-radius:99px;border:1px solid var(--mist);font-size:13px;font-weight:600;cursor:pointer;background:'+(_inc.showDone?'var(--ink);color:#fff':'var(--fog);color:var(--ink)')+'" onclick="_inc.showDone=!_inc.showDone;_incRender()">'+(_inc.showDone?'Hide':'Show')+' handled ('+doneN+')</button>'+
+    '<button style="padding:7px 13px;border-radius:99px;border:1px solid var(--mist);font-size:13px;font-weight:600;cursor:pointer;background:var(--fog)" onclick="_incRefresh()">↻ Refresh</button></div>';
+  let inner=vis.length?vis.map(_incRow).join(''):'<div class="sub-empty">'+(_inc.items.length?'Nothing new. 🎉':'No messages yet.')+'</div>';
+  h+='<section class="sub-box"><div class="sub-h1">Messages'+(vis.length?'<span class="n">('+vis.length+')</span>':'')+'</div>'+inner+'</section>';
+  if(!srcs.includes('Instagram'))h+='<div class="hr-m" style="text-align:center;padding:0 16px">📸 Instagram is not connected yet.</div>';
+  box.innerHTML=h;
+  const c=document.getElementById('incCount');if(c)c.textContent=_inc.unread?_inc.unread+' new':'';
+}
+function _incRow(x){
+  const isNew=x.status==='New',who=x.name||x.email||'(no name)';
+  const prev=String(x.message||'').replace(/\s+/g,' ').slice(0,90);
+  let body='<div style="white-space:pre-wrap;font-size:15px;line-height:1.5;color:var(--ink);background:var(--fog);border-radius:8px;padding:10px 12px">'+escHtml(x.message||'')+'</div>'+
+    '<div class="hr-m" style="margin-top:8px">'+[x.role,x.org].filter(Boolean).map(escHtml).join(' · ')+'</div>'+
+    '<div class="hr-m">'+(x.email?'✉ '+escHtml(x.email):'')+(x.phone?(x.email?' · ':'')+'📞 '+escHtml(x.phone):'')+'</div>'+
+    (!isNew&&x.handledBy?'<div class="hr-m">Handled by '+escHtml((gh(x.handledBy)?fullName(gh(x.handledBy)):x.handledBy))+(x.handledAt?' · '+escHtml(_incWhen(x.handledAt)):'')+'</div>':'');
+  let b='';
+  if(x.email)b+='<button style="background:var(--grove);color:#fff;border-color:var(--grove)" data-em="'+ea(x.email)+'" data-nm="'+ea((x.name||'').split(' ')[0])+'" onclick="window.open(gmailUrl(this.dataset.em,\'Re: your message to Enrich LA\',\'Hi \'+this.dataset.nm+\',\\n\\n\'),\'_blank\')">✉ Reply</button>';
+  if(x.phone)b+='<a href="tel:'+ea(x.phone)+'">📞 Call</a><a href="sms:'+ea(x.phone)+'">💬 Text</a>';
+  b+=isNew?'<button onclick="_incSet(\''+ea(x.id)+'\',\'Handled\')">✓ Mark handled</button>':'<button onclick="_incSet(\''+ea(x.id)+'\',\'New\')">↩ Mark new</button>';
+  b+='<button style="color:var(--danger)" onclick="_incSet(\''+ea(x.id)+'\',\'Archived\')">🗑 Remove</button>';
+  const pill=(isNew?'<span class="iv-st" style="color:var(--danger)">New</span>':'')+'<span style="font-size:12px;color:var(--stone);white-space:nowrap">'+escHtml(_incWhen(x.t))+'</span>';
+  return _hrRow('m:'+x.id,(isNew?'':'')+escHtml(who),(_INC_ICON[x.source]||'')+' '+escHtml(x.source)+' · '+escHtml(prev),body+'<div class="hr-btns">'+b+'</div>',pill);
+}
+async function _incSet(id,status){
+  const x=_inc.items.find(i=>i.id===id);if(!x)return;
+  if(status==='Archived'&&!confirm('Remove this message from the list?'))return;
+  const old=x.status;x.status=status;
+  if(status==='Archived')_inc.items=_inc.items.filter(i=>i.id!==id);
+  _inc.unread=_inc.items.filter(i=>i.status==='New').length;_incRender();
+  try{const r=await gasPost({action:'setIncomingStatus',actor:SESSION.email,id,status});if(!r||!r.ok){alert((r&&r.error)||'Could not save');x.status=old;await _incLoad(true);_incRender();}}
+  catch(e){alert('Connection problem - please try again');await _incLoad(true);_incRender();}
+}
+async function _incRefresh(){showToast('Refreshing…');await _incLoad(true);_incRender();showToast('Up to date');}
 const _hrOpenRows=new Set();
 function _hrRowTog(el,k){if(el.open)_hrOpenRows.add(k);else _hrOpenRows.delete(k);}
 function _hrRow(k,name,sub,body,pillHtml){
@@ -13408,7 +13501,7 @@ function navTap(tab){
   const ov=document.getElementById('detail-overlay');
   if(ov&&ov.classList.contains('open')){try{closeDetailImmediate();}catch(e){}}
   if(tab==='data')_dataCurrentPage='menu';
-  if(tab==='reach')_reachCurrentPage='menu';
+  if(tab==='reach')_reachCurrentPage='home';
   if(tab==='operations')_opsCurrentPage='menu';
   switchTab(tab,tab==='map');
   const ct=document.getElementById('content');if(ct)ct.scrollTop=0;
@@ -13445,7 +13538,7 @@ function switchTab(tab,initMapFlag=false){
   if(tab==='projects')initProjects();
   if(tab==='quotes')initQuotes();
   if(tab==='cabin')initCabin();
-  if(tab==='reach'){showReachPage(_reachCurrentPage||'menu');}
+  if(tab==='reach'){showReachPage(_reachCurrentPage||'home');}
   if(tab==='settings'){setTimeout(renderNavVisibilityPanel,0);}
   if(tab==='data'){showDataPage(_dataCurrentPage||'menu');}
   if(tab==='action')renderAction();
@@ -18192,12 +18285,14 @@ function renderReachSchools(){
 
 function showReachPage(page, mode) {
   _reachCurrentPage = page;
-  ['menu','people','enrichla','peopleall','schools','organizations','schoolask'].forEach(p => {
+  ['home','incoming','menu','people','enrichla','peopleall','schools','organizations','schoolask'].forEach(p => {
     const el = document.getElementById('reach-' + p);
     if (el) el.style.display = 'none';
   });
   const target = document.getElementById('reach-' + page);
   if (target) target.style.display = 'block';
+  if (page === 'home')      _reachHomeRender();
+  if (page === 'incoming')  _incOpen();
   if (page === 'people')    renderReachPeopleHub();
   if (page === 'enrichla')  { _reachSelected.clear(); _reachAppUserFilter = 'all'; document.querySelectorAll('#reachAppUserFilters .chip').forEach(c => c.classList.remove('active')); renderReachRangers(); }
   if (page === 'peopleall') { _reachSelected.clear(); _reachAllMode = mode || _reachAllMode || 'ranger'; renderReachAll(); }

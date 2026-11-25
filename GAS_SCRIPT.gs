@@ -498,7 +498,7 @@ function handleGetMyLocation(p) {
 var LIVE_SCOPES = ['sites', 'humans', 'chores', 'subs'];
 var LIVE_FILES = [
   { key: 'sites',  id: SITES_ID,  scopes: { sites: ['Sites'] } },
-  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability', 'Calendar', 'Interviews', 'Interview Slots', 'Applicant Log'] } },
+  { key: 'subbook', id: SUB_BOOK_ID, scopes: { subs: ['Subs', 'Sub Volunteers', 'Reschedules', 'Reschedule Options', 'Sub Availability', 'Calendar', 'Interviews', 'Interview Slots', 'Applicant Log', 'Incoming'] } },
   { key: 'humans', id: HUMANS_ID, scopes: { humans: ['Humans', 'Roles'] } },
   { key: 'chores', id: CHORES_ID, scopes: { chores: ['Chores'] } }
 ];
@@ -515,7 +515,8 @@ var LIVE_ACTION_SCOPES = {
   publicRescheduleChoose: ['subs'], publicRescheduleSuggest: ['subs'],
   acceptRescheduleSuggestion: ['subs'], saveSubAvailability: ['subs'], saveCalItem: ['subs'],
   createInterview: ['subs'], cancelInterview: ['subs'], completeInterview: ['subs'], sendInterviewDetails: ['subs'], sendApplicantInfo: ['subs'], shiftToReschedule: ['subs'], acceptInterviewSuggestion: ['subs'],
-  publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs'], publicApplicantReply: ['subs']
+  publicInterviewChoose: ['subs'], publicInterviewSuggest: ['subs'], publicInterviewDecline: ['subs'], publicApplicantReply: ['subs'],
+  publicContact: ['subs'], ingestIncoming: ['subs'], setIncomingStatus: ['subs']
 };
 
 // Online now (v11.47): each open app's heartbeat records "seen at" in the
@@ -988,6 +989,10 @@ function _doPostRoute(e) {
       case 'acceptInterviewSuggestion': return respond(handleAcceptInterviewSuggestion(p));
       case 'checkInterviewConflicts':   return respond(handleCheckInterviewConflicts(p));
       case 'publicApplicantReply':      return respond(handlePublicApplicantReply(p));
+      case 'publicContact':             return respond(handlePublicContact(p));
+      case 'ingestIncoming':            return respond(handleIngestIncoming(p));
+      case 'getIncoming':               return respond(handleGetIncoming(p));
+      case 'setIncomingStatus':         return respond(handleSetIncomingStatus(p));
       case 'publicInterviewInfo':       return respond(handlePublicInterviewInfo(p));
       case 'publicInterviewChoose':     return respond(handlePublicInterviewChoose(p));
       case 'publicQuoteInfo':           return respond(handlePublicQuoteInfo(p));
@@ -11047,5 +11052,96 @@ function handleAcctListRecords(p) {
     }
     rows.reverse();
     return { ok: true, headers: h.filter(String), rows: rows.slice(0, 400), url: SpreadsheetApp.openById(ACCT_ID).getUrl() + '#gid=' + sh.getSheetId() };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INCOMING (Reach > Incoming): messages from the public contact form (contact.html on GitHub Pages,
+// shown on the Wix site) and from other sources (Instagram) through ingestIncoming.
+// Sheet "Incoming" in the Sub book. Levels 1-2 read and manage it.
+// ONE-TIME for outside sources: run setupIncomingSecret() in the Apps Script editor, read the secret in the log.
+// ════════════════════════════════════════════════════════════════════════════
+var INC_TAB = 'Incoming';
+var INC_HEADERS = ['ID','Received','Source','Name','Email','Phone','Role','Organization','Message','Status','Handled By','Handled At','External ID'];
+function setupIncomingSecret() {
+  var props = PropertiesService.getScriptProperties();
+  var cur = props.getProperty('incoming_secret');
+  if (!cur) { cur = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8); props.setProperty('incoming_secret', cur); }
+  Logger.log('incoming_secret = ' + cur);
+  return cur;
+}
+function _incAdd(row) {
+  var t = _subReadAll(_subGetSheet(INC_TAB, INC_HEADERS));
+  var fields = Object.assign({ 'ID': _resId('M'), 'Received': new Date(), 'Status': 'New' }, row);
+  t.sheet.appendRow(t.h.map(function(k){ return fields[k] !== undefined ? fields[k] : ''; }));
+  return fields;
+}
+function handlePublicContact(p) {
+  try {
+    if (String(p.website || '').trim()) return { ok: true };            // honeypot: bots fill the hidden field
+    var name = _hrClean(p.name, 100), email = _hrClean(p.email, 120).toLowerCase(), phone = _hrClean(p.phone, 30);
+    var role = _hrClean(p.role, 60), org = _hrClean(p.org, 160);
+    var msg = _hrClean(p.message, 4000).replace(new RegExp('\\r', 'g'), '');
+    if (!name) return { ok: false, error: 'Please enter your name.' };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Please enter a valid email address.' };
+    if (msg.length < 5) return { ok: false, error: 'Please write a short message.' };
+    var cache = CacheService.getScriptCache(), key = 'inc_' + email, n = parseInt(cache.get(key) || '0', 10);
+    if (n >= 5) return { ok: false, error: 'We already have several messages from you. Please give us a little time to reply.' };
+    cache.put(key, String(n + 1), 3600);
+    var row = _incAdd({ 'Source': 'Contact form', 'Name': name, 'Email': email, 'Phone': phone, 'Role': role, 'Organization': org, 'Message': msg });
+    // tell Access Level 1 by email (reply goes straight to the sender)
+    try {
+      var people = _subPeople();
+      Object.keys(people).forEach(function(e){
+        if (_ivStaffLevel(e) !== 1) return;
+        var x = people[e];
+        _subNotify(x, 'Enrich LA website message from ' + name,
+          'Hi ' + x.first + ',\n\n' + name + (role ? ' (' + role + (org ? ', ' + org : '') + ')' : (org ? ' (' + org + ')' : '')) + ' wrote through the contact form:\n\n' + msg +
+          '\n\nEmail: ' + email + (phone ? '\nPhone: ' + phone : '') + '\n\nOpen Ranger Rover > Reach > Incoming to answer or mark it handled. ' + SUB_APP_URL,
+          '', { noSms: true, fromName: name, replyTo: email });
+      });
+    } catch (e) { Logger.log('incoming notify: ' + e.message); }
+    return { ok: true, id: row.ID };
+  } catch (e) { return { ok: false, error: 'Something went wrong - please try again.' }; }
+}
+// Other sources (Instagram relay, Zapier/Make): POST {action:'ingestIncoming', secret, source, name, handle, email, message, externalId}
+function handleIngestIncoming(p) {
+  try {
+    var sec = PropertiesService.getScriptProperties().getProperty('incoming_secret');
+    if (!sec || String(p.secret || '') !== sec) return { ok: false, error: 'Not authorized.' };
+    var src = _hrClean(p.source, 40) || 'Other', ext = _hrClean(p.externalId, 120);
+    var msg = _hrClean(p.message, 4000);
+    if (!msg) return { ok: false, error: 'Empty message.' };
+    var t = _subReadAll(_subGetSheet(INC_TAB, INC_HEADERS));
+    if (ext && t.rows.some(function(r){ return String(r['External ID']) === ext && r.Source === src; })) return { ok: true, duplicate: true };
+    var row = _incAdd({ 'Source': src, 'Name': _hrClean(p.name || p.handle, 100), 'Email': _hrClean(p.email, 120), 'Phone': _hrClean(p.phone, 30),
+      'Role': _hrClean(p.handle, 100), 'Message': msg, 'External ID': ext, 'Received': p.time ? new Date(p.time) : new Date() });
+    return { ok: true, id: row.ID };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleGetIncoming(p) {
+  try {
+    var people = _subPeople();
+    _ivAdmin(p, people);
+    var rows = _subReadAll(_subGetSheet(INC_TAB, INC_HEADERS)).rows.filter(function(r){ return r.ID && r.Status !== 'Archived'; });
+    var out = rows.map(function(r){
+      var t = r.Received ? new Date(r.Received).getTime() : 0;
+      return { id: r.ID, t: t || 0, source: r.Source, name: r.Name, email: r.Email, phone: r.Phone, role: r.Role, org: r.Organization,
+        message: r.Message, status: r.Status || 'New', handledBy: r['Handled By'], handledAt: r['Handled At'] ? new Date(r['Handled At']).getTime() : 0 };
+    }).sort(function(a, b){ return b.t - a.t; }).slice(0, 300);
+    return { ok: true, items: out, unread: out.filter(function(x){ return x.status === 'New'; }).length };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+function handleSetIncomingStatus(p) {
+  try {
+    var people = _subPeople();
+    var me = _ivAdmin(p, people);
+    var st = ['New', 'Handled', 'Archived'].indexOf(p.status) > -1 ? p.status : '';
+    if (!st) return { ok: false, error: 'Bad status.' };
+    var t = _subReadAll(_subGetSheet(INC_TAB, INC_HEADERS));
+    var r = t.rows.filter(function(x){ return x.ID === String(p.id || ''); })[0];
+    if (!r) return { ok: false, error: 'Message not found.' };
+    _subSet(t, r, { 'Status': st, 'Handled By': st === 'New' ? '' : me.email, 'Handled At': st === 'New' ? '' : new Date() });
+    return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 }
