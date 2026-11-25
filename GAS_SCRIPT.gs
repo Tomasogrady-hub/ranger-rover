@@ -11157,11 +11157,12 @@ function _igProps() { return PropertiesService.getScriptProperties(); }
 function _igStatus(msg, ok) { var pr = _igProps(); pr.setProperty('ig_status', (ok ? 'OK ' : 'PROBLEM ') + Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d h:mm a') + ' - ' + msg); }
 function _igPollMaybe() {
   var pr = _igProps();
-  if (!pr.getProperty('ig_token')) return;
+  if (!pr.getProperty('ig_token') && !pr.getProperty('ig_mail')) return;
   var last = Number(pr.getProperty('ig_last_poll') || 0);
   if (Date.now() - last < 3 * 60 * 1000) return;       // about every 3 minutes
   pr.setProperty('ig_last_poll', String(Date.now()));
-  _igPoll();
+  if (pr.getProperty('ig_mail')) _igMailPoll();
+  if (pr.getProperty('ig_token')) _igPoll();
 }
 function _igGet(path, token) {
   var r = UrlFetchApp.fetch(IG_API + path + (path.indexOf('?') > -1 ? '&' : '?') + 'access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
@@ -11223,7 +11224,14 @@ function handleSaveInstagram(p) {
     var people = _subPeople(), me = _ivAdmin(p, people);
     if (_ivStaffLevel(me.email) > 1) return { ok: false, error: 'Level 1 only.' };
     var pr = _igProps();
-    if (p.disconnect) { ['ig_token','ig_status','ig_last_poll','ig_connected_at','ig_refreshed'].forEach(function(k){ pr.deleteProperty(k); }); return { ok: true, status: '' }; }
+    if (p.mode === 'mail') {
+      var box = String(p.mailbox || me.email).trim().toLowerCase();
+      pr.setProperty('ig_mail', box);
+      var mr = _igMailPoll();
+      if (!mr.ok) { pr.deleteProperty('ig_mail'); return { ok: false, error: mr.error }; }
+      return { ok: true, status: pr.getProperty('ig_status') };
+    }
+    if (p.disconnect) { ['ig_token','ig_mail','ig_status','ig_last_poll','ig_connected_at','ig_refreshed'].forEach(function(k){ pr.deleteProperty(k); }); return { ok: true, status: '' }; }
     var tok = String(p.token || '').trim();
     if (tok.length < 20) return { ok: false, error: 'Paste the full access token.' };
     pr.setProperty('ig_token', tok); pr.deleteProperty('ig_connected_at'); pr.setProperty('ig_refreshed', String(Date.now()));
@@ -11235,8 +11243,50 @@ function handleSaveInstagram(p) {
 function handleInstagramStatus(p) {
   try {
     var people = _subPeople(); _ivAdmin(p, people);
-    var pr = _igProps(), on = !!pr.getProperty('ig_token');
-    if (on && p.now) _igPoll();
+    var pr = _igProps(), on = !!(pr.getProperty('ig_token') || pr.getProperty('ig_mail'));
+    if (on && p.now) { if (pr.getProperty('ig_mail')) _igMailPoll(); if (pr.getProperty('ig_token')) _igPoll(); }
     return { ok: true, connected: on, status: pr.getProperty('ig_status') || '' };
   } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// Email route: Instagram's "unread message" reminder emails (they name who wrote, not what was said).
+// Reads the mailbox through the existing Gmail service-account helper, so no new permissions are needed.
+function _igMailPoll() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { ok: false, error: 'Busy, try again.' };
+  try {
+    var pr = _igProps(), box = pr.getProperty('ig_mail');
+    var auth = { Authorization: 'Bearer ' + _gmailImpersonatedToken(box) };
+    var lr = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=' +
+      encodeURIComponent('from:unread-messages@mail.instagram.com newer_than:7d'), { headers: auth, muteHttpExceptions: true });
+    var ld = JSON.parse(lr.getContentText());
+    if (ld.error) throw new Error('Gmail: ' + (ld.error.message || 'search failed'));
+    var ids = (ld.messages || []).map(function(m){ return m.id; });
+    var t = _subReadAll(_subGetSheet(INC_TAB, INC_HEADERS));
+    var seen = {}; t.rows.forEach(function(r){ if (r.Source === 'Instagram' && r['External ID']) seen[r['External ID']] = 1; });
+    var fresh = ids.filter(function(id){ return !seen[id]; }), added = 0;
+    if (fresh.length) {
+      var reqs = fresh.map(function(id){ return { url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + id + '?format=metadata&metadataHeaders=Subject', headers: auth, muteHttpExceptions: true }; });
+      UrlFetchApp.fetchAll(reqs).slice().reverse().forEach(function(resp){
+        var m = {}; try { m = JSON.parse(resp.getContentText()); } catch (e) { return; }
+        if (!m.id) return;
+        var snip = _decodeHtmlEntities(m.snippet || '');
+        var subj = ''; ((m.payload && m.payload.headers) || []).forEach(function(h){ if (h.name === 'Subject') subj = h.value; });
+        var names = [], re = /(?:unread messages?|See message)\s+(.+?)\s+Sent a message/g, x;
+        while ((x = re.exec(snip))) { var n = x[1].replace(/^.*unread messages?\s+/, '').trim(); if (n && names.indexOf(n) < 0) names.push(n); }
+        var acct = (subj.match(/^From ([^:]+):/) || [])[1] || '';
+        var cnt = (subj.match(/(\d+)\s+unread/) || [])[1] || '1';
+        var who = names.length ? names.join(', ') : (acct || 'Someone');
+        _incAdd({ 'Received': new Date(Number(m.internalDate) || Date.now()), 'Source': 'Instagram',
+          'Name': who, 'Organization': acct ? 'Instagram: ' + acct : '',
+          'Message': who + ' sent ' + cnt + ' message' + (cnt === '1' ? '' : 's') + ' on Instagram.\nInstagram only emails who wrote, not what they said - open Instagram to read and reply.',
+          'External ID': m.id });
+        added++;
+      });
+    }
+    if (added) bumpLiveVersion(['Incoming']);
+    _igStatus('email pickup from ' + box + (added ? ', ' + added + ' new' : ', nothing new'), true);
+    return { ok: true, added: added };
+  } catch (e) { _igStatus(e.message, false); return { ok: false, error: e.message }; }
+  finally { lock.releaseLock(); }
 }

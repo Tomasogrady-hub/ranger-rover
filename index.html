@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- v12.47 -->
+<!-- v12.48 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2057,12 +2057,13 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
           <div class="dl" style="margin-bottom:6px">📸 Instagram messages</div>
           <div class="settings-note" id="igStatus">–</div>
           <div id="igSetup">
+            <button class="settings-btn" style="margin-top:8px" onclick="_igMail(this)">Use Instagram notification emails (easy)</button>
             <input id="igToken" class="settings-input" type="password" placeholder="Paste Instagram access token" autocomplete="off" style="margin-top:8px">
             <button class="settings-btn" onclick="_igSave(this)">Connect Instagram</button>
           </div>
           <button class="settings-btn" id="igCheck" style="margin-top:8px;display:none" onclick="_igStatusLoad(true)">Check now</button>
           <button class="settings-btn" id="igOff" style="margin-top:8px;display:none;background:var(--fog);color:var(--danger)" onclick="_igOff()">Disconnect</button>
-          <div class="settings-note" style="margin-top:6px">New Instagram DMs are pulled into Reach → Incoming about every 3 minutes. Needs an Instagram Business or Creator account.</div>
+          <div class="settings-note" style="margin-top:6px">Email pickup reads Instagram's unread-message emails sent to your own mailbox and lists who wrote, in Reach → Incoming. Those emails do not include what was said, and Instagram only sends them as a reminder. The token option pulls full message text.</div>
         </div>
         <div class="settings-row">
           <div class="dl" style="margin-bottom:6px">✨ AI School Summaries</div>
@@ -2700,10 +2701,10 @@ details.sub-box[open] .sub-h1::after{content:' ▴'}
 </div><!-- /app -->
 <script>
 /* ═══ CONFIG ═══ */
-const APP_VERSION='v12.47';
+const APP_VERSION='v12.48';
 // Show version immediately on load
 document.addEventListener('DOMContentLoaded',()=>{const _vl=document.getElementById('appVersionLabel');if(_vl)_vl.textContent=APP_VERSION;});
-const BUILD_STAMP='2026-11-24 9:05 PM PT - Instagram DMs pulled into Incoming automatically (connect in Settings).';
+const BUILD_STAMP='2026-11-24 9:40 PM PT - Instagram: notification-email pickup into Incoming (one tap in Settings).';
 // ── Dynamic viewport-bottom gap: env(safe-area-inset-bottom) alone doesn'+"'"+'t
 // account for Safari'+"'"+'s own bottom toolbar (only the home-indicator notch), so
 // sticky/fixed footers can still sit partly behind it on iPhone. This tracks
@@ -12550,6 +12551,14 @@ async function _igSave(btn){
     else{document.getElementById('igToken').value='';_inc.loaded=false;}
   }catch(e){alert('Connection problem - try again');}
   btn.disabled=false;btn.textContent='Connect Instagram';_igStatusLoad();
+}
+async function _igMail(btn){
+  const t0=btn.textContent;btn.disabled=true;btn.textContent='Connecting…';
+  try{
+    const r=await gasPost({action:'saveInstagram',actor:SESSION.email,mode:'mail',mailbox:SESSION.email});
+    if(!r||!r.ok)alert((r&&r.error)||'Could not connect');else _inc.loaded=false;
+  }catch(e){alert('Connection problem - try again');}
+  btn.disabled=false;btn.textContent=t0;_igStatusLoad();
 }
 async function _igOff(){
   if(!confirm('Disconnect Instagram? Messages already pulled in stay in Incoming.'))return;
