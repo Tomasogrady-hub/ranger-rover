@@ -11152,7 +11152,9 @@ function handleSetIncomingStatus(p) {
 
 // ── Instagram messages -> Incoming (polled; no webhook, no outside service) ───────────────────────────
 // Uses the Instagram API with Instagram Login. Token is saved from the app (Settings, Level 1) and refreshed here.
-var IG_API = 'https://graph.instagram.com/v21.0/';
+var IG_API = 'https://graph.instagram.com/v23.0/';
+var FB_API = 'https://graph.facebook.com/v23.0/';
+var IG_DEFAULT_ID = '17841400473855767';   // enrichlagardens Instagram account id (public, not a secret)
 function _igProps() { return PropertiesService.getScriptProperties(); }
 function _igStatus(msg, ok) { var pr = _igProps(); pr.setProperty('ig_status', (ok ? 'OK ' : 'PROBLEM ') + Utilities.formatDate(new Date(), 'America/Los_Angeles', 'M/d h:mm a') + ' - ' + msg); }
 function _igPollMaybe() {
@@ -11186,6 +11188,7 @@ function _igPoll() {
   try {
     var pr = _igProps(), token = pr.getProperty('ig_token');
     if (!token) return { ok: false, error: 'Instagram is not connected.' };
+    if (!/^IG/.test(token)) return _igPollFb(token);   // Facebook-style (EAA...) system-user token
     token = _igRefreshMaybe(token);
     var me = _igGet('me?fields=user_id,username', token);
     var myIds = [String(me.user_id || ''), String(me.id || '')];
@@ -11289,4 +11292,50 @@ function _igMailPoll() {
     return { ok: true, added: added };
   } catch (e) { _igStatus(e.message, false); return { ok: false, error: e.message }; }
   finally { lock.releaseLock(); }
+}
+
+// Facebook-style token (Unified login, system user, never expires). Tries the Instagram id directly, then via the linked Page.
+function _fbGet(path, token) {
+  var r = UrlFetchApp.fetch(FB_API + path + (path.indexOf('?') > -1 ? '&' : '?') + 'access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+  var j = {}; try { j = JSON.parse(r.getContentText()); } catch (e) {}
+  if (r.getResponseCode() >= 300 || j.error) throw new Error((j.error && j.error.message) || ('HTTP ' + r.getResponseCode()));
+  return j;
+}
+function _igPollFb(token) {
+  var pr = _igProps(), fields = 'id,updated_time,messages.limit(10){id,message,from,created_time,attachments}';
+  var igId = pr.getProperty('ig_id') || IG_DEFAULT_ID, convs = null, how = '', errs = [];
+  try { convs = _fbGet(igId + '/conversations?platform=instagram&limit=25&fields=' + encodeURIComponent(fields), token); how = 'instagram id'; }
+  catch (e1) { errs.push(e1.message); }
+  if (!convs) {
+    try {
+      var acc = _fbGet('me/accounts?fields=id,name,access_token,instagram_business_account&limit=50', token);
+      var pg = (acc.data || []).filter(function(a){ return a.instagram_business_account && String(a.instagram_business_account.id) === igId; })[0] || (acc.data || [])[0];
+      if (!pg) throw new Error('no Facebook Page found for this token');
+      convs = _fbGet(pg.id + '/conversations?platform=instagram&limit=25&fields=' + encodeURIComponent(fields), pg.access_token || token); how = 'page ' + pg.name;
+    } catch (e2) { errs.push(e2.message); }
+  }
+  if (!convs) throw new Error(errs.join(' | '));
+  var t = _subReadAll(_subGetSheet(INC_TAB, INC_HEADERS));
+  var seen = {}; t.rows.forEach(function(r){ if (r.Source === 'Instagram' && r['External ID']) seen[r['External ID']] = 1; });
+  var firstRun = !pr.getProperty('ig_connected_at');
+  var since = firstRun ? Date.now() - 7 * 24 * 3600 * 1000 : Number(pr.getProperty('ig_connected_at')) - 24 * 3600 * 1000;
+  var added = 0;
+  (convs.data || []).forEach(function(c){
+    ((c.messages && c.messages.data) || []).slice().reverse().forEach(function(m){
+      var fromId = String((m.from && m.from.id) || '');
+      if (!m.id || seen[m.id] || fromId === igId) return;
+      var when = m.created_time ? new Date(m.created_time) : new Date();
+      if (when.getTime() < since) return;
+      var text = String(m.message || '').trim();
+      if (!text && m.attachments) text = '[sent a photo, video or sticker - open Instagram to view]';
+      if (!text) return;
+      var user = (m.from && (m.from.username || m.from.name || m.from.id)) || 'Instagram user';
+      _incAdd({ 'Received': when, 'Source': 'Instagram', 'Name': '@' + String(user).replace(/^@/, ''), 'Message': text, 'External ID': m.id });
+      seen[m.id] = 1; added++;
+    });
+  });
+  if (firstRun) pr.setProperty('ig_connected_at', String(Date.now()));
+  if (added) bumpLiveVersion(['Incoming']);
+  _igStatus('connected via ' + how + (added ? ', ' + added + ' new message' + (added === 1 ? '' : 's') : ', nothing new'), true);
+  return { ok: true, added: added };
 }
